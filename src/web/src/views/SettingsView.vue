@@ -28,6 +28,7 @@ const loading = ref(true);
 const saving = ref(false);
 const loadError = ref('');
 const apiKey = ref('');
+const chatApiKey = ref('');
 const initialSnapshot = ref('');
 const baselineRestart = ref('');
 
@@ -45,7 +46,7 @@ const restartRequired = computed(
 
 const dirty = computed(() => {
   if (!form.value) return false;
-  return `${JSON.stringify(form.value)}|${apiKey.value}` !== initialSnapshot.value;
+  return `${JSON.stringify(form.value)}|${apiKey.value}|${chatApiKey.value}` !== initialSnapshot.value;
 });
 
 function toNumber(value: unknown, fallback: number): number {
@@ -60,8 +61,9 @@ async function loadSettings(silent = false): Promise<void> {
     const settings = await api.settings.get();
     form.value = clone(settings);
     apiKey.value = '';
+    chatApiKey.value = '';
     baselineRestart.value = restartSnapshot(settings);
-    initialSnapshot.value = `${JSON.stringify(settings)}|`;
+    initialSnapshot.value = `${JSON.stringify(settings)}||`;
   } catch (error) {
     loadError.value = errorMessage(error);
   } finally {
@@ -104,6 +106,10 @@ async function save(): Promise<void> {
       source_url: current.online.source_url.trim(),
       interval: toNumber(current.online.interval, 30),
       ...(apiKey.value.trim() ? { api_key: apiKey.value.trim() } : {}),
+    },
+    chat: {
+      api_url: current.chat.api_url.trim(),
+      ...(chatApiKey.value.trim() ? { api_key: chatApiKey.value.trim() } : {}),
     },
   };
 
@@ -344,6 +350,41 @@ onMounted(() => {
             <div class="field">
               <label for="online-interval">Prüfintervall (Sekunden)</label>
               <input id="online-interval" v-model.number="form.online.interval" type="number" min="10" max="3600" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Chat-Overlay</h2>
+            <p class="card-sub">Globale Chat-API und Live-Vorschau.</p>
+          </div>
+          <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
+        </div>
+        <div class="settings-body">
+          <div class="settings-grid">
+            <div class="field">
+              <label for="chat-url">Chat-API-URL</label>
+              <input
+                id="chat-url"
+                v-model="form.chat.api_url"
+                type="url"
+                placeholder="https://toktracker.example/api/chat-logs"
+                spellcheck="false"
+              />
+              <p class="field-hint">Der Streamer kann in seinen Overlay-Einstellungen eine eigene URL setzen.</p>
+            </div>
+            <div class="field">
+              <label for="chat-key">Chat-API-Key</label>
+              <input
+                id="chat-key"
+                v-model="chatApiKey"
+                type="password"
+                :placeholder="form.chat.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
+                autocomplete="new-password"
+              />
             </div>
           </div>
         </div>

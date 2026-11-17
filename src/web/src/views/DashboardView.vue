@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { Streamer } from '@/src/api/types';
 import StatusBadge from '@/src/components/StatusBadge.vue';
@@ -51,6 +51,37 @@ const startCandidate = computed<Streamer | null>(() => {
 });
 
 const activePlaylist = computed(() => status.value?.active_playlist ?? null);
+const previewUrl = ref(api.overlays.previewUrl(false));
+const chatTest = reactive({ username: 'Testuser', text: '' });
+const sendingChat = ref(false);
+let previewTimer: number | null = null;
+
+function refreshPreview(): void {
+  previewUrl.value = api.overlays.previewUrl(false);
+}
+
+async function sendChatTest(): Promise<void> {
+  if (!chatTest.text.trim()) return;
+  sendingChat.value = true;
+  try {
+    await api.chat.test(chatTest.username.trim() || 'Testuser', chatTest.text.trim());
+    chatTest.text = '';
+    refreshPreview();
+    pushToast('Testnachricht an das Overlay gesendet.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    sendingChat.value = false;
+  }
+}
+
+async function restartSink(): Promise<void> {
+  await run('sink', () => api.system.restartSink(), 'YouTube-Sink wird neu gestartet.');
+}
+
+async function refreshSource(): Promise<void> {
+  await run('source', () => api.system.refreshSource(), 'Quell-URL wird aktualisiert.');
+}
 
 function onlineLabel(streamer: Streamer): string {
   if (streamer.status.online === true) return 'Online';
@@ -204,6 +235,12 @@ watch(
 
 onMounted(() => {
   void Promise.allSettled([refreshStatus(), refreshStreamers(), refreshPlaylists()]);
+  refreshPreview();
+  previewTimer = window.setInterval(refreshPreview, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (previewTimer !== null) window.clearInterval(previewTimer);
 });
 </script>
 
@@ -319,6 +356,68 @@ onMounted(() => {
     <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
       <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
     </div>
+
+    <section class="card dashboard-live">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Overlay & Technik</h2>
+          <p class="card-sub">Live-Chat-Vorschau und Wartungsaktionen.</p>
+        </div>
+        <div class="card-badges">
+          <span v-if="status?.chat.canvas_active" class="badge tone-success">Canvas live</span>
+          <span v-else class="badge tone-neutral">Canvas inaktiv</span>
+          <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
+        </div>
+      </div>
+      <div class="dashboard-live-grid">
+        <div class="dashboard-preview-stage">
+          <img :src="previewUrl" alt="Chat-Overlay-Vorschau" />
+        </div>
+        <div class="stack">
+          <dl class="settings-summary">
+            <div><dt>Chat-Engine</dt><dd>{{ status?.chat.engine ?? '–' }}</dd></div>
+            <div><dt>Nachrichten</dt><dd>{{ status?.chat.messages ?? 0 }}</dd></div>
+            <div><dt>Chat-API</dt><dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd></div>
+          </dl>
+          <form class="stack compact" @submit.prevent="sendChatTest">
+            <div class="field">
+              <label for="dash-chat-text">Testnachricht</label>
+              <div class="input-with-button">
+                <input
+                  id="dash-chat-text"
+                  v-model="chatTest.text"
+                  type="text"
+                  maxlength="300"
+                  placeholder="Nachricht ins Overlay senden …"
+                />
+                <button type="submit" class="btn btn-primary btn-sm" :disabled="sendingChat || !chatTest.text.trim()">
+                  <span v-if="sendingChat" class="spinner" aria-hidden="true"></span>
+                  Senden
+                </button>
+              </div>
+            </div>
+          </form>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy !== null || !status?.sink.running"
+              @click="restartSink"
+            >
+              Sink neu starten
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy !== null || !status?.active_streamer_id"
+              @click="refreshSource"
+            >
+              Quelle aktualisieren
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section class="metric-grid" aria-label="Stream-Metriken">
       <div class="card metric">

@@ -60,11 +60,18 @@ function defaultOverlays(): StreamerOverlays {
   return {
     chat: {
       enabled: false,
+      engine: 'canvas',
       position: 'bottom-left',
+      style: 'bubbles',
       max_lines: 8,
       font_size: 24,
       font_color: '#ffffff',
       box_color: '#000000@0.45',
+      bubble_opacity: 1,
+      panel_width: 0,
+      render_fps: 10,
+      show_timestamps: false,
+      show_badges: true,
       api_url: '',
       api_key_set: false,
       poll_interval: 3,
@@ -326,8 +333,22 @@ function submit(): void {
                 />
               </div>
               <div class="field">
-                <label for="chat-max-lines">Maximale Zeilen</label>
+                <label for="chat-max-lines">Maximale Nachrichten</label>
                 <input id="chat-max-lines" v-model.number="form.overlays.chat.max_lines" type="number" min="1" max="30" />
+              </div>
+              <div class="field">
+                <label for="chat-engine">Chat-Engine</label>
+                <select id="chat-engine" v-model="form.overlays.chat.engine">
+                  <option value="canvas">Canvas (Bubbles, Emoji)</option>
+                  <option value="drawtext">drawtext (leichtgewichtig)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="chat-style">Stil</label>
+                <select id="chat-style" v-model="form.overlays.chat.style">
+                  <option value="bubbles">Bubbles</option>
+                  <option value="minimal">Minimal</option>
+                </select>
               </div>
             </div>
             <details class="advanced">
@@ -340,6 +361,28 @@ function submit(): void {
                       {{ position.label }}
                     </option>
                   </select>
+                </div>
+                <div class="field">
+                  <label for="chat-render-fps">Render-FPS (Canvas)</label>
+                  <input id="chat-render-fps" v-model.number="form.overlays.chat.render_fps" type="number" min="1" max="30" />
+                </div>
+                <div class="field">
+                  <label for="chat-panel-width">Panelbreite (0 = automatisch)</label>
+                  <input id="chat-panel-width" v-model.number="form.overlays.chat.panel_width" type="number" min="0" max="1920" />
+                </div>
+                <div class="field">
+                  <label for="chat-opacity">Bubble-Deckkraft</label>
+                  <input id="chat-opacity" v-model.number="form.overlays.chat.bubble_opacity" type="number" min="0" max="1" step="0.05" />
+                </div>
+                <div class="field checkbox-grid">
+                  <label class="checkbox">
+                    <input v-model="form.overlays.chat.show_timestamps" type="checkbox" />
+                    Zeit anzeigen
+                  </label>
+                  <label class="checkbox">
+                    <input v-model="form.overlays.chat.show_badges" type="checkbox" />
+                    Badges anzeigen
+                  </label>
                 </div>
                 <div class="field">
                   <label for="chat-key">API-Key</label>

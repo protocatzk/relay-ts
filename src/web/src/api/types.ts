@@ -17,11 +17,18 @@ export type VideoPreset = 'ultrafast' | 'veryfast' | 'faster' | 'fast' | 'medium
 
 export interface ChatOverlay {
   enabled: boolean;
+  engine: 'canvas' | 'drawtext';
   position: OverlayPosition;
+  style: 'bubbles' | 'minimal';
   max_lines: number;
   font_size: number;
   font_color: string;
   box_color: string;
+  bubble_opacity: number;
+  panel_width: number;
+  render_fps: number;
+  show_timestamps: boolean;
+  show_badges: boolean;
   api_url: string;
   api_key_set: boolean;
   poll_interval: number;
@@ -140,7 +147,17 @@ export interface StatusPayload {
   sink: SinkStatus;
   watchdog: WatchdogStatus;
   auto_refresh: AutoRefreshStatus;
+  chat: ChatStatus;
   version: string;
+}
+
+export interface ChatStatus {
+  enabled: boolean;
+  engine: 'canvas' | 'drawtext' | null;
+  messages: number;
+  last_message_at: string | null;
+  api_configured: boolean;
+  canvas_active: boolean;
 }
 
 export interface LogEntry {
@@ -195,6 +212,12 @@ export interface Settings {
   auto_refresh: AutoRefreshSettings;
   pause: PauseSettings;
   online: OnlineSettings;
+  chat: ChatSettings;
+}
+
+export interface ChatSettings {
+  api_url: string;
+  api_key_set: boolean;
 }
 
 export interface SettingsUpdate {
@@ -209,6 +232,10 @@ export interface SettingsUpdate {
     interval: number;
     api_key?: string;
   };
+  chat: {
+    api_url: string;
+    api_key?: string;
+  };
 }
 
 export interface Playlist {
@@ -220,6 +247,19 @@ export interface Playlist {
   advance_delay_seconds: number;
   end_after_minutes?: number | null;
   youtube_key_set: boolean;
+  active?: boolean;
+  index?: number | null;
+}
+
+export interface PlaylistInput {
+  id?: string;
+  name: string;
+  channels: string[];
+  auto_advance: boolean;
+  wrap: boolean;
+  advance_delay_seconds: number;
+  end_after_minutes?: number | null;
+  youtube_key?: string;
 }
 
 export interface AuthMe {
@@ -230,11 +270,18 @@ export interface AuthMe {
 export interface StreamerOverlaysInput {
   chat: {
     enabled: boolean;
+    engine: 'canvas' | 'drawtext';
     position: OverlayPosition;
+    style: 'bubbles' | 'minimal';
     max_lines: number;
     font_size: number;
     font_color: string;
     box_color: string;
+    bubble_opacity: number;
+    panel_width: number;
+    render_fps: number;
+    show_timestamps: boolean;
+    show_badges: boolean;
     api_url: string;
     poll_interval: number;
     delay: number;

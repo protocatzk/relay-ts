@@ -3,6 +3,7 @@ import type {
   LogEntry,
   LogsResponse,
   Playlist,
+  PlaylistInput,
   PlaylistsResponse,
   Settings,
   SettingsUpdate,
@@ -151,6 +152,9 @@ export interface SettingsApi {
 
 export interface PlaylistsApi {
   list(): Promise<Playlist[]>;
+  create(body: PlaylistInput): Promise<unknown>;
+  update(id: string, body: PlaylistInput): Promise<unknown>;
+  remove(id: string): Promise<unknown>;
   play(id: string): Promise<unknown>;
   next(): Promise<unknown>;
   stop(): Promise<unknown>;
@@ -209,6 +213,12 @@ export const api = {
   playlists: {
     list: async () =>
       normalizeList<Playlist>(await request<PlaylistsResponse>('/api/playlists'), 'playlists'),
+    create: (body: PlaylistInput) =>
+      request<unknown>('/api/playlists', { method: 'POST', body }),
+    update: (id: string, body: PlaylistInput) =>
+      request<unknown>(`/api/playlists/${encodeURIComponent(id)}`, { method: 'PUT', body }),
+    remove: (id: string) =>
+      request<unknown>(`/api/playlists/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     play: (id: string) =>
       request<unknown>(`/api/playlists/${encodeURIComponent(id)}/play`, { method: 'POST' }),
     next: () => request<unknown>('/api/playlists/next', { method: 'POST' }),
@@ -218,6 +228,24 @@ export const api = {
   logs: {
     list: async (limit = 300) => normalizeLogs(await request<LogsResponse>(`/api/logs?limit=${limit}`)),
     clear: () => request<{ ok: true }>('/api/logs', { method: 'DELETE' }),
+  },
+
+  overlays: {
+    previewUrl: (sample = false): string =>
+      `/api/overlays/preview.png${sample ? '?sample=1&' : '?'}t=${Date.now()}`,
+  },
+
+  chat: {
+    test: (username: string, text: string) =>
+      request<{ ok: true; count: number }>('/api/chat/test', {
+        method: 'POST',
+        body: { username, text },
+      }),
+  },
+
+  system: {
+    restartSink: () => request<unknown>('/api/system/restart-sink', { method: 'POST' }),
+    refreshSource: () => request<unknown>('/api/system/refresh', { method: 'POST' }),
   },
 
   quickstart: (body: QuickStartInput) =>

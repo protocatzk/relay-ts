@@ -87,6 +87,21 @@ function isActive(path: string): boolean {
       </RouterLink>
 
       <RouterLink
+        to="/overlays"
+        class="nav-link"
+        :class="{ 'is-active': isActive('/overlays') }"
+        :aria-current="isActive('/overlays') ? 'page' : undefined"
+        @click="emit('close')"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
+          <path d="M7 9h10M7 13h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          <path d="M8 21h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>Overlays</span>
+      </RouterLink>
+
+      <RouterLink
         to="/playlists"
         class="nav-link"
         :class="{ 'is-active': isActive('/playlists') }"

@@ -2434,3 +2434,120 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Overlay studio */
+.overlay-studio-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.overlay-preview-card {
+  grid-row: span 2;
+}
+
+.overlay-preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 18px;
+  border-radius: 12px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    #0a0d12;
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+  border: 1px solid var(--border-subtle);
+}
+
+.overlay-preview-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+}
+
+.settings-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.settings-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.settings-summary dt {
+  color: var(--text-muted);
+}
+
+.settings-summary dd {
+  margin: 0;
+  text-align: right;
+}
+
+@media (max-width: 960px) {
+  .overlay-studio-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overlay-preview-card {
+    grid-row: auto;
+  }
+}
+
+/* Dashboard overlay/technical card */
+.dashboard-live {
+  margin-bottom: 16px;
+}
+
+.dashboard-live-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.dashboard-preview-stage {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+    #0a0d12;
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+}
+
+.dashboard-preview-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+}
+
+.stack.compact {
+  gap: 10px;
+}
+
+@media (max-width: 960px) {
+  .dashboard-live-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
