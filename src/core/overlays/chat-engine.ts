@@ -316,6 +316,39 @@ export class ChatOverlayEngine {
     this.stream = stream;
     this.lastFrame = undefined;
     this.dirty = true;
+    // ffmpeg may close pipe:3 while restarting/dying. A raw pipe without an
+    // error listener would otherwise raise an uncaughtException and take down
+    // the whole service.
+    const guarded = stream as NodeJS.WritableStream & {
+      destroyed?: boolean;
+      writable?: boolean;
+      on?: (event: string, listener: (error: Error) => void) => void;
+      once?: (event: string, listener: () => void) => void;
+    };
+    if (guarded.on) {
+      guarded.on('error', (error) => {
+        if (this.stream !== stream) return;
+        this.options.logger.warn(
+          { err: error.message },
+          'Overlay-Pipe getrennt – Canvas-Frame-Stream wird gestoppt',
+        );
+        this.stream = undefined;
+        this.lastFrame = undefined;
+        this.blocked = false;
+        if (this.timer) clearInterval(this.timer);
+        this.timer = undefined;
+      });
+    }
+    if (guarded.once) {
+      guarded.once('close', () => {
+        if (this.stream !== stream) return;
+        this.stream = undefined;
+        this.lastFrame = undefined;
+        if (this.timer) clearInterval(this.timer);
+        this.timer = undefined;
+      });
+    }
+    if (guarded.destroyed) return;
     this.timer = setInterval(() => this.tick(), Math.max(20, Math.round(1000 / this.spec.fps)));
     this.tick();
   }

@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import pino from 'pino';
 import { ChatOverlayEngine, parseColor } from '../src/core/overlays/chat-engine.js';
@@ -51,5 +52,17 @@ describe('Canvas chat overlay', () => {
     expect(parseColor('black@0.45')).toMatchObject({ r: 0, g: 0, b: 0, a: 0.45 });
     expect(parseColor('#ff8800')).toMatchObject({ r: 255, g: 136, b: 0, a: 1 });
     expect(parseColor('0x00ff00')).toMatchObject({ r: 0, g: 255, b: 0, a: 1 });
+  });
+
+  it('survives a closed overlay pipe', () => {
+    const engine = new ChatOverlayEngine({
+      settings: DEFAULT_SETTINGS,
+      streamer,
+      logger: pino({ level: 'silent' }),
+    });
+    const stream = new PassThrough();
+    engine.attach(stream);
+    expect(() => stream.emit('error', new Error('read ECONNRESET'))).not.toThrow();
+    engine.detach();
   });
 });

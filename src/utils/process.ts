@@ -84,6 +84,18 @@ export class ManagedProcess {
     this.startedAtValue = new Date();
     this.exited = false;
 
+    for (let index = 3; index < child.stdio.length; index += 1) {
+      const extra = child.stdio[index] as unknown as {
+        on?: (event: string, listener: (error: Error) => void) => void;
+      };
+      extra?.on?.('error', (error) => {
+        this.options.logger.debug(
+          { process: this.name, index, err: toErrorMessage(error) },
+          'Zusätzlicher Prozess-Pipe-Fehler',
+        );
+      });
+    }
+
     const handleLine = (rawLine: string, stream: ProcessStream) => {
       const line = redact(rawLine).trimEnd();
       if (!line) return;
