@@ -1,0 +1,143 @@
+import { existsSync } from 'node:fs';
+import type { Settings, StreamerConfig } from '../config/schema.js';
+
+export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+const FONT_CANDIDATES = [
+  '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/TTF/DejaVuSans.ttf',
+  '/usr/share/fonts/noto/NotoSans-Regular.ttf',
+  '/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf',
+];
+
+export function resolveFont(explicit?: string): string | null {
+  if (explicit && existsSync(explicit)) return explicit;
+  for (const candidate of FONT_CANDIDATES) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Escape text for drawtext option values inside single quotes. */
+export function escapeDrawtext(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
+}
+
+export function escapePath(path: string): string {
+  return path.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/:/g, '\\:');
+}
+
+export function positionExpressions(
+  position: OverlayPosition,
+  margin = 32,
+): { x: string; y: string } {
+  switch (position) {
+    case 'top-right':
+      return { x: `w-tw-${margin}`, y: `${margin}` };
+    case 'bottom-left':
+      return { x: `${margin}`, y: `h-th-${margin}` };
+    case 'bottom-right':
+      return { x: `w-tw-${margin}`, y: `h-th-${margin}` };
+    case 'top-left':
+    default:
+      return { x: `${margin}`, y: `${margin}` };
+  }
+}
+
+export function clockFilter(
+  settings: Settings,
+  streamer: StreamerConfig,
+  fontFile: string,
+): string | null {
+  const config = streamer.overlays.clock;
+  if (!config.enabled) return null;
+  const { x, y } = positionExpressions(config.position);
+  // Three layers of escaping are required: filtergraph, option parser and
+  // drawtext's localtime argument parser. The argument separator needs one
+  // backslash, colons inside the strftime format need three.
+  const format = config.format.replace(/:/g, '\\\\\\:');
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `text='%{localtime\\:${format}}':` +
+    `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
+    `box=1:boxcolor=${config.box_color}:boxborderw=10:x=${x}:y=${y}`
+  );
+}
+
+export function textFilter(
+  settings: Settings,
+  streamer: StreamerConfig,
+  fontFile: string,
+  textFile: string,
+): string | null {
+  const config = streamer.overlays.text;
+  if (!config.enabled || !config.text.trim()) return null;
+  const { x, y } = positionExpressions(config.position);
+  const xExpression = config.marquee
+    ? `w-mod(t*${config.speed}\\,w+tw)`
+    : x;
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `textfile='${escapePath(textFile)}':reload=1:expansion=none:` +
+    `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
+    `box=1:boxcolor=${config.box_color}:boxborderw=10:` +
+    `x=${xExpression}:y=${y}`
+  );
+}
+
+export function chatFilter(
+  settings: Settings,
+  streamer: StreamerConfig,
+  fontFile: string,
+  chatFile: string,
+): string | null {
+  const config = streamer.overlays.chat;
+  if (!config.enabled) return null;
+  const { x, y } = positionExpressions(config.position);
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `textfile='${escapePath(chatFile)}':reload=1:expansion=none:` +
+    `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
+    `box=1:boxcolor=${config.box_color}:boxborderw=12:line_spacing=6:` +
+    `x=${x}:y=${y}`
+  );
+}
+
+export function wrapChatLine(line: string, maxChars: number): string[] {
+  const clean = line.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxChars) return [clean];
+  const words = clean.split(' ');
+  const result: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (!current) {
+      if (word.length <= maxChars) {
+        current = word;
+      } else {
+        // Hard-break extremely long tokens (URLs, emoji spam).
+        for (let index = 0; index < word.length; index += maxChars) {
+          result.push(word.slice(index, index + maxChars));
+        }
+      }
+      continue;
+    }
+    if (`${current} ${word}`.length <= maxChars) {
+      current = `${current} ${word}`;
+    } else {
+      result.push(current);
+      current = word.length > maxChars ? word.slice(0, maxChars) : word;
+    }
+  }
+  if (current) result.push(current);
+  return result;
+}

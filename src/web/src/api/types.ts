@@ -1,0 +1,288 @@
+export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export type StreamQuality = 'best' | '1080p' | '720p' | '480p' | '360p';
+
+export type StreamState =
+  | 'idle'
+  | 'starting'
+  | 'live'
+  | 'reconnecting'
+  | 'paused'
+  | 'stopping'
+  | 'error';
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type VideoPreset = 'ultrafast' | 'veryfast' | 'faster' | 'fast' | 'medium';
+
+export interface ChatOverlay {
+  enabled: boolean;
+  position: OverlayPosition;
+  max_lines: number;
+  font_size: number;
+  font_color: string;
+  box_color: string;
+  api_url: string;
+  api_key_set: boolean;
+  poll_interval: number;
+  delay: number;
+}
+
+export interface ClockOverlay {
+  enabled: boolean;
+  position: OverlayPosition;
+  format: string;
+  font_size: number;
+  font_color: string;
+  box_color: string;
+}
+
+export interface TextOverlay {
+  enabled: boolean;
+  position: OverlayPosition;
+  text: string;
+  font_size: number;
+  font_color: string;
+  box_color: string;
+  marquee: boolean;
+  speed: number;
+}
+
+export interface StreamerOverlays {
+  chat: ChatOverlay;
+  clock: ClockOverlay;
+  text: TextOverlay;
+}
+
+export interface Streamer {
+  id: string;
+  name: string;
+  tiktok: string;
+  youtube_key_set: boolean;
+  youtube_key_source: 'streamer' | 'env' | 'none';
+  quality: StreamQuality;
+  auto_start: boolean;
+  preferred: boolean;
+  enabled: boolean;
+  own_stream: boolean;
+  overlays: StreamerOverlays;
+  status: {
+    online: boolean | null;
+    active: boolean;
+  };
+}
+
+export interface StreamSourceStatus {
+  online: boolean | null;
+  resolving: boolean;
+  connected: boolean;
+  pid: number | null;
+  last_data_at: string | null;
+  bitrate_kbps: number | null;
+  reconnects: number;
+}
+
+export interface RelayStatus {
+  ingest_clients: number;
+  output_connected: boolean;
+  buffer_seconds: number;
+  buffered_bytes: number;
+  dropped_bytes: number;
+  delay_seconds: number;
+  pacing_kbps: number | null;
+  total_bytes: number;
+}
+
+export interface SinkStatus {
+  running: boolean;
+  pid: number | null;
+  bitrate_kbps: number | null;
+  target_bitrate_kbps: number | null;
+  fps: number | null;
+  dropped_frames: number;
+  speed: string | null;
+  last_progress_at: string | null;
+  restarts: number;
+}
+
+export interface WatchdogStatus {
+  stall_timeout: number;
+  stall_count: number;
+  last_stall_at: string | null;
+  last_error: string | null;
+  reconnecting: boolean;
+}
+
+export interface AutoRefreshStatus {
+  enabled: boolean;
+  interval_minutes: number;
+  next_refresh_in_seconds: number | null;
+  last_refresh_at: string | null;
+  count: number;
+}
+
+export interface ActivePlaylist {
+  id: string;
+  name: string;
+  index: number;
+  total: number;
+}
+
+export interface StatusPayload {
+  state: StreamState;
+  active_streamer_id: string | null;
+  active_streamer_name: string | null;
+  active_playlist: ActivePlaylist | null;
+  started_at: string | null;
+  uptime_seconds: number;
+  source: StreamSourceStatus;
+  relay: RelayStatus;
+  sink: SinkStatus;
+  watchdog: WatchdogStatus;
+  auto_refresh: AutoRefreshStatus;
+  version: string;
+}
+
+export interface LogEntry {
+  time: string;
+  level: LogLevel;
+  msg: string;
+  [key: string]: unknown;
+}
+
+export interface DelayBufferSettings {
+  enabled: boolean;
+  size: number;
+}
+
+export interface VideoSettings {
+  resolution: string;
+  fps: number;
+  video_bitrate: number;
+  audio_bitrate: number;
+  preset: VideoPreset;
+}
+
+export interface WatchdogSettings {
+  stall_timeout: number;
+  min_bitrate: number;
+  interval: number;
+  auto_reconnect: boolean;
+}
+
+export interface AutoRefreshSettings {
+  enabled: boolean;
+  interval: number;
+}
+
+export interface PauseSettings {
+  enabled: boolean;
+  text: string;
+  subtext: string;
+}
+
+export interface OnlineSettings {
+  enabled: boolean;
+  source_url: string;
+  api_key_set: boolean;
+  interval: number;
+}
+
+export interface Settings {
+  delay_buffer: DelayBufferSettings;
+  video: VideoSettings;
+  watchdog: WatchdogSettings;
+  auto_refresh: AutoRefreshSettings;
+  pause: PauseSettings;
+  online: OnlineSettings;
+}
+
+export interface SettingsUpdate {
+  delay_buffer: DelayBufferSettings;
+  video: VideoSettings;
+  watchdog: WatchdogSettings;
+  auto_refresh: AutoRefreshSettings;
+  pause: PauseSettings;
+  online: {
+    enabled: boolean;
+    source_url: string;
+    interval: number;
+    api_key?: string;
+  };
+}
+
+export interface Playlist {
+  id: string;
+  name: string;
+  channels: string[];
+  auto_advance: boolean;
+  wrap: boolean;
+  advance_delay_seconds: number;
+  end_after_minutes?: number | null;
+  youtube_key_set: boolean;
+}
+
+export interface AuthMe {
+  authenticated: boolean;
+  auth_required: boolean;
+}
+
+export interface StreamerOverlaysInput {
+  chat: {
+    enabled: boolean;
+    position: OverlayPosition;
+    max_lines: number;
+    font_size: number;
+    font_color: string;
+    box_color: string;
+    api_url: string;
+    poll_interval: number;
+    delay: number;
+    api_key?: string;
+  };
+  clock: ClockOverlay;
+  text: TextOverlay;
+}
+
+export interface StreamerInput {
+  name: string;
+  tiktok: string;
+  youtube_key?: string;
+  quality: StreamQuality;
+  auto_start: boolean;
+  preferred: boolean;
+  enabled: boolean;
+  own_stream: boolean;
+  overlays: StreamerOverlaysInput;
+}
+
+export interface StreamerCreateInput extends StreamerInput {
+  id: string;
+}
+
+export interface QuickStartInput {
+  tiktok: string;
+  youtube_key: string;
+  name?: string;
+}
+
+export interface LogsResponse {
+  lines: LogEntry[];
+}
+
+export interface StreamersResponse {
+  streamers: Streamer[];
+}
+
+export interface PlaylistsResponse {
+  playlists: Playlist[];
+}
+
+export interface ApiErrorDetail {
+  code: string;
+  message: string;
+}
+
+export interface ApiErrorBody {
+  error: ApiErrorDetail;
+}

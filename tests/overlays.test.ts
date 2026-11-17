@@ -1,0 +1,189 @@
+import { describe, expect, it } from 'vitest';
+import {
+  escapeDrawtext,
+  chatFilter,
+  clockFilter,
+  positionExpressions,
+  textFilter,
+  wrapChatLine,
+} from '../src/core/overlays/drawtext.js';
+import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
+import { extractMessages } from '../src/core/overlays/chat-service.js';
+import {
+  isTokTrackerUrl,
+  parseOnlineStatuses,
+  parseTokTrackerStatuses,
+} from '../src/core/online/monitor.js';
+import { FfmpegProgress } from '../src/utils/ffmpeg-progress.js';
+
+const streamer = StreamerSchema.parse({
+  id: 'alpha',
+  name: 'Alpha',
+  tiktok: 'alpha',
+  overlays: {
+    chat: { enabled: true, max_lines: 5 },
+    clock: { enabled: true, format: '%H:%M:%S' },
+    text: { enabled: true, text: 'Hallo', marquee: true },
+  },
+});
+const font = '/usr/share/fonts/dejavu/DejaVuSans.ttf';
+
+describe('drawtext overlays', () => {
+  it('escapes drawtext special characters', () => {
+    expect(escapeDrawtext("a:b,c%d'e")).toBe("a\\:b\\,c\\%d\\'e");
+    expect(escapeDrawtext('back\\slash')).toBe('back\\\\slash');
+  });
+
+  it('maps positions to ffmpeg expressions', () => {
+    expect(positionExpressions('top-left')).toEqual({ x: '32', y: '32' });
+    expect(positionExpressions('bottom-right')).toEqual({ x: 'w-tw-32', y: 'h-th-32' });
+  });
+
+  it('builds clock, text and chat filters', () => {
+    const clock = clockFilter(DEFAULT_SETTINGS, streamer, font);
+    expect(clock).toContain('localtime');
+    expect(clock).toMatch(/%H\\{3}:%M\\{3}:%S/);
+    const text = textFilter(DEFAULT_SETTINGS, streamer, font, '/tmp/text.txt');
+    expect(text).toContain("textfile='/tmp/text.txt'");
+    expect(text).toContain('reload=1');
+    expect(text).toContain('w-mod(t*120\\,w+tw)');
+    const chat = chatFilter(DEFAULT_SETTINGS, streamer, font, '/tmp/chat.txt');
+    expect(chat).toContain('line_spacing=6');
+    expect(chat).toContain("textfile='/tmp/chat.txt'");
+  });
+
+  it('wraps long chat lines and hard-breaks long tokens', () => {
+    expect(wrapChatLine('Hallo Welt', 20)).toEqual(['Hallo Welt']);
+    const wrapped = wrapChatLine('Hallo Welt wie geht es dir heute so', 15);
+    expect(wrapped.every((line) => line.length <= 15)).toBe(true);
+    const longToken = 'x'.repeat(40);
+    expect(wrapChatLine(longToken, 10).join('')).toHaveLength(40);
+  });
+});
+
+describe('chat parser', () => {
+  it('extracts messages from common API shapes', () => {
+    const messages = extractMessages({
+      data: {
+        messages: [
+          { id: 1, username: 'Alice', comment: 'Hallo' },
+          { id: 2, user: { uniqueId: 'bob' }, text: 'Hi' },
+        ],
+      },
+    });
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({ user: 'Alice', text: 'Hallo' });
+    expect(messages[1]).toMatchObject({ user: 'bob', text: 'Hi' });
+  });
+
+  it('ignores entries without text', () => {
+    expect(extractMessages({ messages: [{ username: 'x' }] })).toEqual([]);
+  });
+
+  it('supports TokTracker-style field aliases', () => {
+    const messages = extractMessages({
+      data: [
+        {
+          id: 42,
+          unique_id: 'alice',
+          display_name: 'Alice A.',
+          comment: 'Hallo',
+          created_at: '2026-01-01T12:00:00Z',
+        },
+      ],
+    });
+    expect(messages[0]).toMatchObject({ id: '42', user: 'alice', text: 'Hallo' });
+  });
+
+  it('keeps the source streamer for filtering', () => {
+    const messages = extractMessages({
+      results: [
+        { id: 1, username: 'alice', comment: 'A', streamer_username: 'alpha' },
+        { id: 2, username: 'bob', comment: 'B', channel: 'beta' },
+      ],
+    });
+    expect(messages[0]?.streamer).toBe('alpha');
+    expect(messages[1]?.streamer).toBe('beta');
+  });
+});
+
+describe('online status parser', () => {
+  it('parses handle maps and arrays', () => {
+    const statuses = parseOnlineStatuses({
+      data: [
+        { tiktok: 'Alpha', live: true },
+        { username: '@beta', is_live: false },
+      ],
+      gamma: true,
+    });
+    expect(statuses.get('alpha')).toBe(true);
+    expect(statuses.get('beta')).toBe(false);
+    expect(statuses.get('gamma')).toBe(true);
+  });
+
+  it('parses nested overview objects', () => {
+    const statuses = parseOnlineStatuses({
+      streamers: {
+        '@alpha': { status: 'live' },
+        beta: { online: false },
+      },
+    });
+    expect(statuses.get('alpha')).toBe(true);
+    expect(statuses.get('beta')).toBe(false);
+  });
+
+  it('ignores metadata booleans and uses the streamers array', () => {
+    const statuses = parseOnlineStatuses({
+      ok: true,
+      enabled: true,
+      streamer_count: 2,
+      streamers: [
+        { username: 'alpha', is_live: true, current_viewers: 10 },
+        { username: 'beta', is_live: false, current_viewers: 0 },
+      ],
+    });
+    expect(statuses.get('alpha')).toBe(true);
+    expect(statuses.get('beta')).toBe(false);
+    expect(statuses.has('enabled')).toBe(false);
+    expect(statuses.has('ok')).toBe(false);
+  });
+
+  it('parses the TokTracker overview format explicitly', () => {
+    const statuses = parseTokTrackerStatuses({
+      ok: true,
+      streamer_count: 2,
+      streamers: [
+        { id: 1, username: 'Alpha', display_name: 'Alpha', is_live: true },
+        { id: 2, username: 'beta', display_name: 'Beta', is_live: false },
+        { id: 3, username: 'gamma', display_name: 'Gamma', is_tracking_active: true },
+      ],
+    });
+    expect(statuses.get('alpha')).toBe(true);
+    expect(statuses.get('beta')).toBe(false);
+    expect(statuses.has('gamma')).toBe(false);
+    expect(isTokTrackerUrl('https://positronium.dev/track/api/public/overview')).toBe(true);
+    expect(isTokTrackerUrl('https://example.com/overview')).toBe(false);
+  });
+});
+
+describe('ffmpeg progress parser', () => {
+  it('parses bitrate, fps and dropped frames', () => {
+    const progress = new FfmpegProgress();
+    for (const line of [
+      'frame=120',
+      'fps=25.0',
+      'bitrate=4021.5kbits/s',
+      'drop_frames=3',
+      'speed=1.01x',
+      'progress=continue',
+    ]) {
+      progress.push(line);
+    }
+    expect(progress.frame).toBe(120);
+    expect(progress.fps).toBe(25);
+    expect(progress.bitrateKbps).toBe(4021.5);
+    expect(progress.droppedFrames).toBe(3);
+    expect(progress.speed).toBe('1.01x');
+    expect(progress.lastUpdate).toBeInstanceOf(Date);
+  });
+});

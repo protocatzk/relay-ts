@@ -1,0 +1,64 @@
+# Beispielkonfiguration – nach config/streamers.yml kopieren und anpassen.
+# Stream-Keys gehören NICHT in ein öffentliches Repository. Nutze
+# youtube_key_env mit einer Variable aus .env.
+
+streamers:
+  - id: beispiel
+    name: Beispiel-Streamer
+    tiktok: beispiel_handle
+    # Entweder direkt (nicht empfohlen im Repo) ...
+    # youtube_key: xxxx-xxxx-xxxx-xxxx-xxxx
+    # ... oder über eine Umgebungsvariable:
+    youtube_key_env: YOUTUBE_STREAM_KEY_BEISPIEL
+    quality: best          # best | 1080p | 720p | 480p | 360p
+    auto_start: false
+    preferred: false
+    enabled: true
+    video_mode: copy       # copy (schnell) | reencode (CPU-intensiv)
+    overlays:
+      chat:
+        enabled: false
+        position: bottom-left
+        max_lines: 8
+        font_size: 22
+        api_url: ""
+      clock:
+        enabled: false
+        position: top-right
+        format: "%H:%M:%S"
+      text:
+        enabled: false
+        position: top-left
+        text: ""
+
+  - id: zweiter
+    name: Zweiter Streamer
+    tiktok: zweiter_handle
+    youtube_key_env: YOUTUBE_STREAM_KEY_BEISPIEL
+    quality: 720p
+    enabled: true
+
+playlists:
+  - id: abend
+    name: Abendprogramm
+    auto_advance: true
+    wrap: true
+    advance_delay_seconds: 10
+    end_after_minutes: 240
+    # Optional: ein gemeinsamer YouTube-Key für die gesamte Playlist.
+    # youtube_key_env: YOUTUBE_STREAM_KEY_BEISPIEL
+    channels:
+      - beispiel
+      - zweiter
+
+# Optional: Einstellungen können auch hier stehen. Die Datei
+# config/settings.yml und Umgebungsvariablen haben Vorrang.
+settings:
+  delay_buffer:
+    enabled: true
+    size: 30
+  video:
+    resolution: 720x1280
+    fps: 25
+    video_bitrate: 4000
+    audio_bitrate: 128

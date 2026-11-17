@@ -1,0 +1,269 @@
+import { z } from 'zod';
+
+export const POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+export const QUALITIES = ['best', '1080p', '720p', '480p', '360p'] as const;
+export const RESOLUTIONS = [
+  '720x1280',
+  '1280x720',
+  '1080x1920',
+  '1920x1080',
+  '1600x900',
+] as const;
+export const PRESETS = ['ultrafast', 'veryfast', 'faster', 'fast', 'medium'] as const;
+
+const PositionSchema = z.enum(POSITIONS);
+const ColorSchema = z
+  .string()
+  .regex(/^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$/, 'Ungültige Farbe');
+
+export const ChatOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  position: PositionSchema.default('bottom-left'),
+  max_lines: z.number().int().min(1).max(30).default(8),
+  font_size: z.number().int().min(8).max(96).default(22),
+  font_color: ColorSchema.default('white'),
+  box_color: ColorSchema.default('black@0.45'),
+  api_url: z.string().default(''),
+  api_key: z.string().default(''),
+  poll_interval: z.number().min(1).max(60).default(3),
+  delay: z.number().min(0).max(300).default(0),
+});
+
+export const ClockOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  position: PositionSchema.default('top-right'),
+  format: z.string().min(1).max(64).default('%H:%M:%S'),
+  font_size: z.number().int().min(8).max(96).default(28),
+  font_color: ColorSchema.default('white'),
+  box_color: ColorSchema.default('black@0.45'),
+});
+
+export const TextOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  position: PositionSchema.default('top-left'),
+  text: z.string().max(500).default(''),
+  font_size: z.number().int().min(8).max(96).default(28),
+  font_color: ColorSchema.default('white'),
+  box_color: ColorSchema.default('black@0.45'),
+  marquee: z.boolean().default(false),
+  speed: z.number().min(10).max(1000).default(120),
+});
+
+export const OverlaysSchema = z.object({
+  chat: ChatOverlaySchema.optional(),
+  clock: ClockOverlaySchema.optional(),
+  text: TextOverlaySchema.optional(),
+});
+
+export const StreamerFieldsSchema = z
+  .object({
+    id: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9_-]*$/, 'ID darf nur a-z, 0-9, _ und - enthalten'),
+    name: z.string().min(1).max(120),
+    tiktok: z.string().min(1).max(300),
+    youtube_key: z.string().max(300).optional(),
+    youtube_key_env: z.string().max(120).optional(),
+    quality: z.enum(QUALITIES).default('best'),
+    auto_start: z.boolean().default(false),
+    preferred: z.boolean().default(false),
+    enabled: z.boolean().default(true),
+    own_stream: z.boolean().default(false),
+    // Kept for compatibility with the Python restreamer configuration.
+    video_mode: z.enum(['copy', 'reencode']).default('copy'),
+    overlays: OverlaysSchema.optional(),
+  })
+  .passthrough();
+
+export const StreamerSchema = StreamerFieldsSchema.transform((value) => ({
+  ...value,
+  overlays: {
+    chat: ChatOverlaySchema.parse(value.overlays?.chat ?? {}),
+    clock: ClockOverlaySchema.parse(value.overlays?.clock ?? {}),
+    text: TextOverlaySchema.parse(value.overlays?.text ?? {}),
+  },
+}));
+
+const ChatOverlayPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    position: PositionSchema.optional(),
+    max_lines: z.number().int().min(1).max(30).optional(),
+    font_size: z.number().int().min(8).max(96).optional(),
+    font_color: ColorSchema.optional(),
+    box_color: ColorSchema.optional(),
+    api_url: z.string().optional(),
+    api_key: z.string().optional(),
+    poll_interval: z.number().min(1).max(60).optional(),
+    delay: z.number().min(0).max(300).optional(),
+  })
+  .passthrough();
+
+const ClockOverlayPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    position: PositionSchema.optional(),
+    format: z.string().min(1).max(64).optional(),
+    font_size: z.number().int().min(8).max(96).optional(),
+    font_color: ColorSchema.optional(),
+    box_color: ColorSchema.optional(),
+  })
+  .passthrough();
+
+const TextOverlayPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    position: PositionSchema.optional(),
+    text: z.string().max(500).optional(),
+    font_size: z.number().int().min(8).max(96).optional(),
+    font_color: ColorSchema.optional(),
+    box_color: ColorSchema.optional(),
+    marquee: z.boolean().optional(),
+    speed: z.number().min(10).max(1000).optional(),
+  })
+  .passthrough();
+
+export const StreamerUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    tiktok: z.string().min(1).max(300).optional(),
+    youtube_key: z.string().max(300).optional(),
+    youtube_key_env: z.string().max(120).optional(),
+    quality: z.enum(QUALITIES).optional(),
+    auto_start: z.boolean().optional(),
+    preferred: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+    own_stream: z.boolean().optional(),
+    video_mode: z.enum(['copy', 'reencode']).optional(),
+    overlays: z
+      .object({
+        chat: ChatOverlayPatchSchema.optional(),
+        clock: ClockOverlayPatchSchema.optional(),
+        text: TextOverlayPatchSchema.optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+export const PlaylistSchema = z
+  .object({
+    id: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9_-]*$/, 'Playlist-ID darf nur a-z, 0-9, _ und - enthalten'),
+    name: z.string().min(1).max(120),
+    channels: z.array(z.string().min(1)).min(1),
+    auto_advance: z.boolean().default(true),
+    wrap: z.boolean().default(false),
+    advance_delay_seconds: z.number().min(0).max(600).default(5),
+    end_after_minutes: z.number().min(1).max(1440).nullable().optional(),
+    youtube_key: z.string().max(300).optional(),
+    youtube_key_env: z.string().max(120).optional(),
+  })
+  .passthrough();
+
+export const DelayBufferSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  size: z.number().min(0).max(300).default(30),
+  max_bytes: z.number().int().min(1).max(512).default(32),
+});
+
+export const VideoSettingsSchema = z.object({
+  resolution: z.enum(RESOLUTIONS).default('720x1280'),
+  fps: z.number().int().min(1).max(60).default(25),
+  video_bitrate: z.number().int().min(500).max(50_000).default(4000),
+  audio_bitrate: z.number().int().min(32).max(320).default(128),
+  preset: z.enum(PRESETS).default('veryfast'),
+});
+
+export const WatchdogSettingsSchema = z.object({
+  stall_timeout: z.number().int().min(5).max(600).default(30),
+  min_bitrate: z.number().int().min(0).max(100_000).default(500),
+  interval: z.number().int().min(1).max(60).default(5),
+  auto_reconnect: z.boolean().default(true),
+  max_reconnect_delay: z.number().int().min(2).max(300).default(60),
+});
+
+export const AutoRefreshSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  interval: z.number().int().min(1).max(720).default(20),
+});
+
+export const PauseSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  text: z.string().max(200).default('Stream pausiert'),
+  subtext: z.string().max(200).default('Gleich geht es weiter'),
+  color: z
+    .string()
+    .regex(/^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$/, 'Farbe muss 0xRRGGBB oder #RRGGBB sein')
+    .default('0x101820'),
+});
+
+export const OnlineSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  source_url: z.string().default(''),
+  api_key: z.string().default(''),
+  interval: z.number().int().min(10).max(3600).default(60),
+});
+
+export const ChatSettingsSchema = z.object({
+  api_url: z.string().default(''),
+  api_key: z.string().default(''),
+});
+
+export const SettingsSchema = z.object({
+  delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
+  video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
+  watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
+  auto_refresh: AutoRefreshSettingsSchema.default(AutoRefreshSettingsSchema.parse({})),
+  pause: PauseSettingsSchema.default(PauseSettingsSchema.parse({})),
+  online: OnlineSettingsSchema.default(OnlineSettingsSchema.parse({})),
+  chat: ChatSettingsSchema.default(ChatSettingsSchema.parse({})),
+});
+
+export const StreamersFileSchema = z
+  .object({
+    streamers: z.array(StreamerSchema).default([]),
+    playlists: z.array(PlaylistSchema).default([]),
+    settings: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
+export type StreamerConfig = z.infer<typeof StreamerSchema>;
+export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
+export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
+export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
+export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;
+
+export const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
+
+export function formatZodError(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.length ? issue.path.join('.') : 'root';
+      return `${path}: ${issue.message}`;
+    })
+    .join('; ');
+}
+
+/** Resolve the effective YouTube stream key for a streamer. */
+export function resolveStreamKey(
+  streamer: Pick<StreamerConfig, 'youtube_key' | 'youtube_key_env'>,
+  env: NodeJS.ProcessEnv = process.env,
+): { key: string; source: 'streamer' | 'env' | 'none' } {
+  if (streamer.youtube_key && streamer.youtube_key.trim()) {
+    return { key: streamer.youtube_key.trim(), source: 'streamer' };
+  }
+  const envName = streamer.youtube_key_env?.trim();
+  if (envName && env[envName]?.trim()) {
+    return { key: env[envName]!.trim(), source: 'env' };
+  }
+  if (env.YOUTUBE_STREAM_KEY?.trim()) {
+    return { key: env.YOUTUBE_STREAM_KEY.trim(), source: 'env' };
+  }
+  return { key: '', source: 'none' };
+}

@@ -1,0 +1,30 @@
+services:
+  restreamer-ts:
+    build: .
+    image: restreamer-ts:local
+    container_name: restreamer-ts
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PUID=${PUID:-1001}
+      - PGID=${PGID:-1001}
+      - TZ=${TZ:-Europe/Berlin}
+    # The dashboard is bound to localhost by default. Put a reverse proxy in
+    # front of it (or set DASHBOARD_BIND=0.0.0.0 together with a password).
+    ports:
+      - "${DASHBOARD_BIND:-127.0.0.1}:${SERVER_PORT:-3000}:${SERVER_PORT:-3000}"
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${SERVER_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true

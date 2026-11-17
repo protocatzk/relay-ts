@@ -1,0 +1,12 @@
+node_modules/
+dist/
+web/dist/
+logs/
+data/
+config/streamers.yml
+config/settings.yml
+config/cookies.txt
+.env
+*.log
+coverage/
+.DS_Store
