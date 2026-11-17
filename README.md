@@ -22,8 +22,8 @@ eigenständig umgesetzt.
 - **Auto-Reconnect** mit exponentiellem Backoff
 - **Auto-Refresh** der TikTok-URL (Standard alle 20 Minuten)
 - **Pausenscreen** bei Offline-Quelle, ohne die RTMP-Verbindung zu trennen
-- **Overlays**: Uhrzeit, freier Text (inkl. Laufschrift), Chat (Textdatei +
-  `drawtext`, ohne Encoder-Neustart)
+- **Overlays**: Canvas-Chat-Engine mit Bubbles, Namen, Timestamps, Emoji und
+  Live-Vorschau (drawtext als Fallback), Uhrzeit und freier Text
 - **Playlists** mit Auto-Advance, Wrap und Endzeit
 - **Online-Status** über eine konfigurierbare JSON-API (z. B. TokTracker)
 - **Web-Dashboard** (Vue 3) mit Live-Updates per SSE
@@ -66,7 +66,7 @@ src/
 ├── api/                  Fastify-Server, Auth, REST-Routen, SSE
 ├── core/
 │   ├── config/           Zod-Schema, YAML-/ENV-Loader
-│   ├── overlays/         drawtext-Filter, Chat, Pausenscreen
+│   ├── overlays/         Canvas-Chat-Engine, drawtext, Chat, Pausenscreen
 │   ├── online/           Online-Status-Monitor
 │   ├── relay/            DelayBuffer, MPEG-TS-Relay
 │   ├── sink/             YouTube-Sink (ffmpeg)
@@ -253,6 +253,8 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `POST` | `/api/pause/start` / `stop` | Pausenscreen an/aus |
 | `GET` | `/api/logs?limit=200&level=warn&q=...` | Log-Ringpuffer |
 | `DELETE` | `/api/logs` | Log-Ringpuffer leeren |
+| `GET` | `/api/overlays/preview.png?sample=1` | Live-Chat-Overlay als PNG |
+| `POST` | `/api/chat/test` | Testnachricht ins Overlay einspeisen |
 | `GET` | `/api/events` | SSE: `status`, `streamers`, `log` |
 | `POST` | `/api/system/restart-sink` | Encoder neu starten |
 | `POST` | `/api/system/refresh` | Quell-URL sofort erneuern |
@@ -270,20 +272,32 @@ curl -H "Authorization: Bearer $API_TOKEN" \
 
 ## Overlays
 
-Overlays werden als `drawtext`-Filter in den Encoder gehängt. Chat und Text
-liegen in Textdateien, die ffmpeg mit `reload=1` neu einliest – neue
-Chat-Nachrichten erscheinen daher ohne Neustart der RTMP-Verbindung. Im
-Docker-Image sind DejaVu Sans und Noto Emoji enthalten; Emoji werden je nach
-Font als monochrome Glyphen dargestellt.
+Es gibt zwei Chat-Engines:
+
+- **Canvas (Standard):** `@napi-rs/canvas` rendert nur den Chat-Bereich als
+  transparente RGBA-Frames. Diese gehen als zweiter ffmpeg-Input (`pipe:3`) in
+  den Encoder und werden per `overlay`-Filter eingeblendet. Bubbles, farbige
+  Namen, Textumbruch, Timestamps, Badges und farbige Emoji funktionieren damit
+  ohne Neustart der RTMP-Verbindung.
+- **drawtext (Fallback):** Der Chat wird in eine Textdatei geschrieben, die
+  ffmpeg mit `reload=1` neu einliest. Leichtgewichtig, aber ohne farbige Emoji.
+
+Uhrzeit und freier Text bleiben `drawtext`-Filter. Im Docker-Image sind DejaVu
+Sans und Noto Color Emoji enthalten. Die Vorschau und Testnachrichten gibt es
+im Dashboard unter **Overlays** (`/overlays`); die API liefert
+`/api/overlays/preview.png` und `/api/chat/test`.
+
+Ein Streamer kann pro Overlay-Editor zwischen Canvas und drawtext wechseln.
+`delay = 0` bedeutet: Chat wird automatisch um die Delay-Buffer-Größe verzögert,
+damit er zum leicht versetzten Videobild passt.
 
 **Chat-API:** Es wird ein JSON-Endpunkt erwartet, der Nachrichten als Array
-liefert (unter `messages`, `comments`, `chat`, `items`, `data` oder direkt).
-Unterstützte Felder: `username`/`user`/`uniqueId`/`nickname` und
+liefert (unter `messages`, `comments`, `chat`, `items`, `data`, `results` oder
+direkt). Unterstützte Felder: `username`/`user`/`uniqueId`/`nickname` und
 `comment`/`text`/`message`/`content`. `{handle}` in der URL wird durch den
 TikTok-Handle ersetzt. Ein API-Key wird als `X-API-Key` und
 `Authorization: Bearer` gesendet. Die genaue API hängt vom Anbieter ab; der
-Parser ist bewusst tolerant. `delay = 0` bedeutet: Chat wird automatisch um die
-Delay-Buffer-Größe verzögert, damit er zum leicht versetzten Videobild passt.
+Parser ist bewusst tolerant.
 
 ---
 
@@ -319,9 +333,10 @@ Public-Overview-Endpunkt funktioniert mit dem API-Key.
 
 ## Playlists
 
-Playlists referenzieren Streamer-IDs oder TikTok-Handles. Fehlt ein Streamer in
-der Konfiguration, wird ein temporärer Eintrag mit den Standard-Overlays
-erzeugt. `auto_advance` wechselt bei Offline-Quelle nach
+Playlists referenzieren Streamer-IDs oder TikTok-Handles. Sie lassen sich im
+Dashboard unter **Playlists** anlegen, bearbeiten und löschen. Fehlt ein
+Streamer in der Konfiguration, wird ein temporärer Eintrag mit den
+Standard-Overlays erzeugt. `auto_advance` wechselt bei Offline-Quelle nach
 `advance_delay_seconds`; `wrap` springt am Ende zum Anfang. Ein gemeinsamer
 `youtube_key`/`youtube_key_env` auf Playlist-Ebene hält die YouTube-Verbindung
 beim Wechsel offen. `end_after_minutes` beendet die Playlist nach der
@@ -391,9 +406,9 @@ Bewusste Entscheidungen, die den Betrieb vereinfachen:
 - **YAML statt LowDB:** Streamer/Settings liegen in menschenlesbaren YAML-Dateien
   mit atomarem Schreiben. Eine zusätzliche File-DB hätte keinen Mehrwert und
   würde Konfiguration und Laufzeitzustand vermischen.
-- **drawtext statt Canvas für Chat:** Keine native Canvas-Abhängigkeit, Updates
-  ohne Encoder-Neustart. Emoji-Farbe ist dafür eingeschränkt; ein optionaler
-  Canvas-/PNG-Pipeline-Modus ist als Erweiterung vorgesehen.
+- **Canvas + drawtext:** Der Chat nutzt standardmäßig eine native
+  Canvas-Engine mit transparentem `pipe:3`-Overlay; drawtext bleibt als
+  leichtgewichtiger Fallback verfügbar. Uhr und Text bleiben drawtext-Filter.
 - **Aktuelle Major-Versionen:** Fastify 5, Zod 4, Vue 3.5, Vite 7, Node 22 LTS.
 - **Sink immer neu kodiert:** CBR mit Filler-Frames und monotonen Timestamps ist
   für YouTube robuster als `-c copy`, insbesondere nach Reconnects.

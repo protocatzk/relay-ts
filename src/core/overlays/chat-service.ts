@@ -5,23 +5,30 @@ import { normalizeHandle } from '../../utils/format.js';
 export interface ChatMessage {
   id: string;
   username: string;
+  displayName?: string;
   text: string;
+  badges?: string[];
+  tier?: string;
   receivedAt: Date;
+  timestamp?: Date;
 }
 
 export interface ChatServiceOptions {
   streamer: StreamerConfig;
   settings: Settings;
   logger: Logger;
-  onMessages: (messages: string[]) => void;
+  onMessages: (messages: ChatMessage[]) => void;
 }
 
 interface ParsedMessage {
   id?: string;
   user?: string;
+  displayName?: string;
   text?: string;
   timestamp?: number;
   streamer?: string;
+  badges?: string[];
+  tier?: string;
 }
 
 const MAX_SEEN = 500;
@@ -147,8 +154,15 @@ export class ChatService {
         this.messages.push({
           id,
           username: (item.user || 'Chat').slice(0, 40),
+          displayName: item.displayName?.slice(0, 60),
           text: item.text.slice(0, 300),
+          badges: item.badges,
+          tier: item.tier,
           receivedAt: new Date(),
+          timestamp:
+            item.timestamp !== undefined
+              ? new Date(item.timestamp < 1e12 ? item.timestamp * 1000 : item.timestamp)
+              : undefined,
         });
         added += 1;
       }
@@ -166,22 +180,43 @@ export class ChatService {
     this.options.logger.warn({ streamer: this.options.streamer.id, err: message }, 'Chat-Overlay: Abruf fehlgeschlagen');
   }
 
-  private publish(): void {
-    if (this.stopped) return;
-    const now = Date.now();
-    // Align chat with the delayed video: 0 means "use the delay buffer size".
+  private delayMilliseconds(): number {
     const configured = Math.max(0, this.config.delay);
     const delaySeconds =
       configured === 0 && this.options.settings.delay_buffer.enabled
         ? this.options.settings.delay_buffer.size
         : configured;
-    const delayMs = delaySeconds * 1000;
+    return delaySeconds * 1000;
+  }
+
+  private publish(): void {
+    if (this.stopped) return;
+    const now = Date.now();
+    // Align chat with the delayed video: 0 means "use the delay buffer size".
+    const delayMs = this.delayMilliseconds();
     const visible = this.messages.filter((message) => message.receivedAt.getTime() + delayMs <= now);
-    const lines = visible.map((message) => `${message.username}: ${message.text}`);
-    const fingerprint = lines.join('\n');
+    const fingerprint = visible.map((message) => `${message.id}:${message.text}`).join('\n');
     if (fingerprint === this.lastFingerprint) return;
     this.lastFingerprint = fingerprint;
-    this.options.onMessages(lines);
+    this.options.onMessages(visible);
+  }
+
+  /** Used by the dashboard's overlay test button. */
+  injectMessage(username: string, text: string): ChatMessage[] {
+    const delayMs = this.delayMilliseconds();
+    const message: ChatMessage = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      username: username.slice(0, 40) || 'Test',
+      text: text.slice(0, 300) || 'Testnachricht',
+      receivedAt: new Date(Date.now() - delayMs - 1000),
+      timestamp: new Date(),
+    };
+    this.messages.push(message);
+    if (this.messages.length > 80) this.messages = this.messages.slice(-80);
+    this.publish();
+    return this.messages.filter(
+      (item) => item.receivedAt.getTime() + delayMs <= Date.now(),
+    );
   }
 }
 
@@ -238,6 +273,24 @@ export function extractMessages(payload: unknown): ParsedMessage[] {
       userRecord.displayName;
     const text = record.comment ?? record.text ?? record.message ?? record.content ?? record.msg;
     if (typeof text !== 'string') continue;
+    const displayName =
+      record.nickname ??
+      record.display_name ??
+      record.displayName ??
+      userRecord.nickname ??
+      userRecord.display_name ??
+      userRecord.displayName;
+    const tierValue = record.whale_tier ?? record.whaleTier ?? record.tier;
+    const badges: string[] = [];
+    const badgeValue = record.badges ?? record.user_badges ?? userRecord.badges;
+    if (Array.isArray(badgeValue)) {
+      for (const badge of badgeValue) {
+        if (typeof badge === 'string') badges.push(badge);
+      }
+    } else if (typeof badgeValue === 'string') {
+      badges.push(badgeValue);
+    }
+    if (record.is_whale || record.isWhale) badges.push('whale');
     const id =
       record.id ??
       record.msgId ??
@@ -256,8 +309,11 @@ export function extractMessages(payload: unknown): ParsedMessage[] {
     result.push({
       id: id !== undefined ? String(id) : undefined,
       user: typeof user === 'string' ? user : 'Chat',
+      displayName: typeof displayName === 'string' ? displayName : undefined,
       text,
       timestamp,
+      badges: badges.length > 0 ? badges : undefined,
+      tier: typeof tierValue === 'string' ? tierValue.toLowerCase() : undefined,
       streamer:
         typeof (record.streamer_username ?? record.streamer ?? record.channel) === 'string'
           ? String(record.streamer_username ?? record.streamer ?? record.channel)

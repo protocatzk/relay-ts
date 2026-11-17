@@ -58,6 +58,31 @@ describe('StreamerStore', () => {
     expect(store.findForChannel('alpha')?.id).toBe('alpha');
     expect(store.findForChannel('@alpha_live')?.id).toBe('alpha');
   });
+
+  it('creates, updates and removes playlists', () => {
+    const store = makeStore();
+    const created = store.createPlaylist({
+      id: 'abend',
+      name: 'Abend',
+      channels: ['alpha', 'beta'],
+      auto_advance: true,
+    });
+    expect(created.channels).toEqual(['alpha', 'beta']);
+    expect(store.playlist('abend')?.name).toBe('Abend');
+
+    const updated = store.updatePlaylist('abend', {
+      name: 'Abend 2',
+      channels: ['alpha'],
+      wrap: true,
+    });
+    expect(updated.name).toBe('Abend 2');
+    expect(updated.channels).toEqual(['alpha']);
+    expect(updated.wrap).toBe(true);
+
+    store.removePlaylist('abend');
+    expect(store.playlist('abend')).toBeUndefined();
+    expect(() => store.removePlaylist('abend')).toThrow(/nicht gefunden/);
+  });
 });
 
 describe('SettingsService', () => {

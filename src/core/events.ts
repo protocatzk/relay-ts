@@ -55,6 +55,14 @@ export interface StatusSnapshot {
     last_refresh_at: string | null;
     count: number;
   };
+  chat: {
+    enabled: boolean;
+    engine: 'canvas' | 'drawtext' | null;
+    messages: number;
+    last_message_at: string | null;
+    api_configured: boolean;
+    canvas_active: boolean;
+  };
   version: string;
 }
 

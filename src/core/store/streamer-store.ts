@@ -2,6 +2,7 @@ import { statSync } from 'node:fs';
 import type { Logger } from 'pino';
 import {
   PlaylistSchema,
+  PlaylistUpdateSchema,
   StreamerSchema,
   StreamerUpdateSchema,
   formatZodError,
@@ -121,6 +122,64 @@ export class StreamerStore {
 
   playlist(id: string): PlaylistConfig | undefined {
     return this.playlists().find((item) => item.id === id);
+  }
+
+  createPlaylist(input: unknown): PlaylistConfig {
+    this.reloadIfChanged();
+    const parsed = PlaylistSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new ValidationError(`Ungültige Playlist: ${formatZodError(parsed.error)}`, parsed.error.issues);
+    }
+    const playlist = parsed.data;
+    if (this.doc.playlists.some((item) => item.id === playlist.id)) {
+      throw new ConflictError(`Playlist-ID "${playlist.id}" ist bereits vergeben`);
+    }
+    this.doc.playlists.push(playlist);
+    this.persist();
+    return clone(playlist);
+  }
+
+  updatePlaylist(id: string, patch: unknown): PlaylistConfig {
+    this.reloadIfChanged();
+    const index = this.doc.playlists.findIndex((item) => item.id === id);
+    if (index < 0) throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
+    const current = this.doc.playlists[index]!;
+    if (patch && typeof patch === 'object' && 'id' in patch && (patch as { id?: unknown }).id !== undefined) {
+      throw new ValidationError('Die Playlist-ID kann nicht geändert werden');
+    }
+    const parsedPatch = PlaylistUpdateSchema.safeParse(patch ?? {});
+    if (!parsedPatch.success) {
+      throw new ValidationError(
+        `Ungültige Playlist-Daten: ${formatZodError(parsedPatch.error)}`,
+        parsedPatch.error.issues,
+      );
+    }
+    const merged = deepMerge(clone(current), parsedPatch.data);
+    if (
+      parsedPatch.data &&
+      typeof parsedPatch.data === 'object' &&
+      'end_after_minutes' in parsedPatch.data &&
+      parsedPatch.data.end_after_minutes === null
+    ) {
+      merged.end_after_minutes = null;
+    }
+    const parsed = PlaylistSchema.safeParse(merged);
+    if (!parsed.success) {
+      throw new ValidationError(`Ungültige Playlist: ${formatZodError(parsed.error)}`, parsed.error.issues);
+    }
+    this.doc.playlists[index] = parsed.data;
+    this.persist();
+    return clone(parsed.data);
+  }
+
+  removePlaylist(id: string): void {
+    this.reloadIfChanged();
+    const before = this.doc.playlists.length;
+    this.doc.playlists = this.doc.playlists.filter((item) => item.id !== id);
+    if (this.doc.playlists.length === before) {
+      throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
+    }
+    this.persist();
   }
 
   create(input: unknown): StreamerConfig {

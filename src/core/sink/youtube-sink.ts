@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
 import type { Settings } from '../config/schema.js';
-import { buildSinkCommand, youtubeUrls, type RelayEndpoint } from '../source/ffmpeg.js';
+import { buildSinkCommand, youtubeUrls, type RelayEndpoint, type SinkOverlayInput } from '../source/ffmpeg.js';
 import { ManagedProcess } from '../../utils/process.js';
 import { FfmpegProgress } from '../../utils/ffmpeg-progress.js';
 
@@ -64,7 +64,7 @@ export class YouTubeSink {
     return this.lastError;
   }
 
-  start(key: string, overlayFilters: string[] = []): void {
+  start(key: string, overlayFilters: string[] = [], overlayInput?: SinkOverlayInput): void {
     if (!key.trim()) throw new Error('YouTube-Stream-Key ist leer');
     if (this.process?.running) {
       if (this.targetKey === key) return;
@@ -79,6 +79,7 @@ export class YouTubeSink {
       key,
       relay: this.options.relay,
       overlayFilters,
+      overlayInput,
     });
     // Validate URLs early (before spawning) and keep keys out of logs.
     youtubeUrls(this.options.media, key);
@@ -88,6 +89,7 @@ export class YouTubeSink {
       args,
       logger: this.options.logger,
       redact: this.options.redact,
+      extraPipes: overlayInput ? 1 : 0,
       onLine: (line, stream) => {
         if (stream === 'stdout') {
           this.progress.push(line);
@@ -117,6 +119,10 @@ export class YouTubeSink {
     this.process = undefined;
     this.targetKey = '';
     if (process) await process.stop();
+  }
+
+  overlayStream(): NodeJS.WritableStream | null {
+    return this.process?.extraStream(3) ?? null;
   }
 
   stats(): {

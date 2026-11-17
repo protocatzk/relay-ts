@@ -63,8 +63,10 @@ export class OverlayManager {
     if (clock) filters.push(clock);
     const text = textFilter(this.settings, streamer, this.fontFile, this.textFile);
     if (text) filters.push(text);
-    const chat = chatFilter(this.settings, streamer, this.fontFile, this.chatFile);
-    if (chat) filters.push(chat);
+    if (streamer.overlays.chat.engine === 'drawtext') {
+      const chat = chatFilter(this.settings, streamer, this.fontFile, this.chatFile);
+      if (chat) filters.push(chat);
+    }
     return { filters, fontFile: this.fontFile };
   }
 

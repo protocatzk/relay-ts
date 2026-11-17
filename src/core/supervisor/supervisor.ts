@@ -28,11 +28,13 @@ import { TikTokSource } from '../source/tiktok-source.js';
 import type { ResolvedStream } from '../source/tiktok.js';
 import { YouTubeSink } from '../sink/youtube-sink.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
-import { ChatService } from '../overlays/chat-service.js';
+import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
+import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
+import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
 export interface SupervisorDeps {
   config: LoadedConfig;
@@ -90,12 +92,18 @@ export class Supervisor {
   private autoRefresh!: AutoRefresh;
   private online!: OnlineMonitor;
   private chat?: ChatService;
+  private chatEngine?: ChatOverlayEngine;
+  private previewEngine?: ChatOverlayEngine;
+  private previewSignature = '';
+  private currentChatMessages: ChatMessage[] = [];
+  private lastChatMessageAt: Date | null = null;
 
   private state: StreamState = 'idle';
   private activeStreamer: StreamerConfig | null = null;
   private activePlaylist: PlaylistState | null = null;
   private activeKey = '';
   private activeOverlayFilters: string[] = [];
+  private activeOverlayInput?: SinkOverlayInput;
   private activeOverlaySignature = '';
   private startedAt: Date | null = null;
   private lastError: string | null = null;
@@ -354,6 +362,39 @@ export class Supervisor {
     return this.start(id);
   }
 
+  private createChatEngine(streamer: StreamerConfig): ChatOverlayEngine | undefined {
+    const chat = streamer.overlays.chat;
+    if (!chat.enabled || chat.engine !== 'canvas') return undefined;
+    return new ChatOverlayEngine({
+      settings: this.settings,
+      streamer,
+      logger: this.deps.logger,
+    });
+  }
+
+  private overlaySignature(
+    filters: string[],
+    streamer: StreamerConfig,
+    engine: ChatOverlayEngine | undefined,
+  ): string {
+    const chat = streamer.overlays.chat;
+    const engineSpec = engine ? JSON.stringify(engine.panel) : 'off';
+    return `${filters.join('|')}|chat:${chat.enabled ? chat.engine : 'off'}:${engineSpec}|style:${chat.style}`;
+  }
+
+  private rebuildChatEngineLocked(): void {
+    if (!this.activeStreamer) return;
+    this.chatEngine?.detach();
+    this.chatEngine = this.createChatEngine(this.activeStreamer);
+    this.activeOverlayInput = this.chatEngine?.panel;
+    this.activeOverlaySignature = this.overlaySignature(
+      this.activeOverlayFilters,
+      this.activeStreamer,
+      this.chatEngine,
+    );
+    if (this.chatEngine) this.chatEngine.setMessages(this.currentChatMessages);
+  }
+
   private async startStreamerLocked(streamer: StreamerConfig, options: StartOptions): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
     const key = options.key ?? resolveStreamKey(streamer).key;
@@ -400,7 +441,9 @@ export class Supervisor {
 
     const previousKey = this.activeKey;
     const prepared = this.overlays.prepare(streamer);
-    const signature = prepared.filters.join('|');
+    const candidateEngine = this.createChatEngine(streamer);
+    const overlayInput = candidateEngine?.panel;
+    const signature = this.overlaySignature(prepared.filters, streamer, candidateEngine);
     const reusable =
       this.sink.running && previousKey === key && this.activeOverlaySignature === signature;
     const timestampOffset = reusable ? this.nextProducerOffset() : 0;
@@ -411,13 +454,19 @@ export class Supervisor {
       this.buffer.reset();
       this.resetTimeline();
       if (this.sink.running) await this.stopSinkLocked();
-      this.startSinkLocked(key, prepared.filters, signature);
+      this.chatEngine?.stop();
+      this.chatEngine = candidateEngine;
+      this.startSinkLocked(key, prepared.filters, signature, overlayInput);
+    } else if (!this.chatEngine && candidateEngine) {
+      this.chatEngine = candidateEngine;
+      this.chatEngine.attach(this.sink.overlayStream());
     }
     this.applyConfiguredDelay();
 
     this.activeStreamer = streamer;
     this.activeKey = key;
     this.activeOverlayFilters = prepared.filters;
+    this.activeOverlayInput = overlayInput;
     this.activeOverlaySignature = signature;
     this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
@@ -468,7 +517,9 @@ export class Supervisor {
     this.clearReconnectTimer();
     this.clearOfflinePauseTimer();
     const prepared = this.overlays.prepare(streamer);
-    const signature = prepared.filters.join('|');
+    const candidateEngine = this.createChatEngine(streamer);
+    const overlayInput = candidateEngine?.panel;
+    const signature = this.overlaySignature(prepared.filters, streamer, candidateEngine);
     const reusable =
       this.sink.running && this.activeKey === key && this.activeOverlaySignature === signature;
 
@@ -477,12 +528,18 @@ export class Supervisor {
       this.buffer.reset();
       this.resetTimeline();
       if (this.sink.running) await this.stopSinkLocked();
-      this.startSinkLocked(key, prepared.filters, signature);
+      this.chatEngine?.stop();
+      this.chatEngine = candidateEngine;
+      this.startSinkLocked(key, prepared.filters, signature, overlayInput);
+    } else if (!this.chatEngine && candidateEngine) {
+      this.chatEngine = candidateEngine;
+      this.chatEngine.attach(this.sink.overlayStream());
     }
 
     this.activeStreamer = streamer;
     this.activeKey = key;
     this.activeOverlayFilters = prepared.filters;
+    this.activeOverlayInput = overlayInput;
     this.activeOverlaySignature = signature;
     this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
@@ -513,17 +570,29 @@ export class Supervisor {
     );
   }
 
-  private startSinkLocked(key: string, filters: string[], signature: string): void {    this.stoppingSink = false;
+  private startSinkLocked(
+    key: string,
+    filters: string[],
+    signature: string,
+    overlayInput?: SinkOverlayInput,
+  ): void {
+    this.stoppingSink = false;
     this.activeKey = key;
     this.activeOverlayFilters = filters;
+    this.activeOverlayInput = overlayInput;
     this.activeOverlaySignature = signature;
     const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
     this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
-    this.sink.start(key, filters);
+    this.sink.start(key, filters, overlayInput);
+    if (this.chatEngine && overlayInput) {
+      this.chatEngine.attach(this.sink.overlayStream());
+      this.chatEngine.setMessages(this.currentChatMessages);
+    }
   }
 
   private async stopSinkLocked(): Promise<void> {
     this.stoppingSink = true;
+    this.chatEngine?.detach();
     try {
       await this.sink.stop();
     } finally {
@@ -549,11 +618,22 @@ export class Supervisor {
 
   private startChatLocked(streamer: StreamerConfig): void {
     this.chat?.stop();
+    this.currentChatMessages = [];
+    this.lastChatMessageAt = null;
+    this.chatEngine?.setMessages([]);
+    this.overlays.updateChat([]);
     this.chat = new ChatService({
       streamer,
       settings: this.settings,
       logger: this.deps.logger,
-      onMessages: (messages) => this.overlays.updateChat(messages),
+      onMessages: (messages) => {
+        this.currentChatMessages = messages;
+        if (messages.length > 0) this.lastChatMessageAt = new Date();
+        this.chatEngine?.setMessages(messages);
+        this.overlays.updateChat(
+          messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
+        );
+      },
     });
     this.chat.start();
   }
@@ -570,12 +650,17 @@ export class Supervisor {
     this.watchdog.reset();
     await this.stopSourceAndChatLocked();
     await this.stopSinkLocked();
+    this.chatEngine?.stop();
     this.buffer.reset();
     this.overlays.clear();
+    this.chatEngine = undefined;
+    this.currentChatMessages = [];
+    this.lastChatMessageAt = null;
     this.activeStreamer = null;
     this.activePlaylist = null;
     this.activeKey = '';
     this.activeOverlayFilters = [];
+    this.activeOverlayInput = undefined;
     this.activeOverlaySignature = '';
     this.startedAt = null;
     this.lastError = null;
@@ -606,7 +691,12 @@ export class Supervisor {
       if (!this.sink.running) {
         this.buffer.reset();
         this.resetTimeline();
-        this.startSinkLocked(this.activeKey, this.activeOverlayFilters, this.activeOverlaySignature);
+        this.startSinkLocked(
+          this.activeKey,
+          this.activeOverlayFilters,
+          this.activeOverlaySignature,
+          this.activeOverlayInput,
+        );
       }
       this.applyConfiguredDelay();
       const timestampOffset = this.nextProducerOffset();
@@ -1033,6 +1123,7 @@ export class Supervisor {
     if (this.stoppingSink || this.shuttingDown) return;
     if (!this.activeStreamer || !this.activeKey) return;
     if (['idle', 'stopping'].includes(this.state)) return;
+    this.chatEngine?.detach();
     this.deps.logger.warn('YouTube-Sink beendet – Neustart geplant');
     this.scheduleSinkRestart(3000);
   }
@@ -1050,8 +1141,17 @@ export class Supervisor {
 
   private async restartSinkLocked(): Promise<void> {
     if (!this.activeKey) return;
+    if (this.sinkRestartTimer) {
+      clearTimeout(this.sinkRestartTimer);
+      this.sinkRestartTimer = undefined;
+    }
     await this.stopSinkLocked();
-    this.startSinkLocked(this.activeKey, this.activeOverlayFilters, this.activeOverlaySignature);
+    this.startSinkLocked(
+      this.activeKey,
+      this.activeOverlayFilters,
+      this.activeOverlaySignature,
+      this.activeOverlayInput,
+    );
     this.emitAll();
   }
 
@@ -1121,8 +1221,25 @@ export class Supervisor {
       this.overlays.updateSettings(next);
       this.pauseScreen.updateSettings(next);
 
+      const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
+      if (chatChanged && this.activeStreamer) {
+        if (this.state === 'live') {
+          this.chat?.stop();
+          this.startChatLocked(this.activeStreamer);
+        } else if (this.state === 'paused') {
+          this.chat?.stop();
+          this.chat = undefined;
+          this.currentChatMessages = [];
+          this.chatEngine?.setMessages([]);
+          this.overlays.updateChat([]);
+        }
+      }
+
       const videoChanged =
         JSON.stringify(previous.video) !== JSON.stringify(next.video);
+      if (videoChanged) {
+        this.rebuildChatEngineLocked();
+      }
       if (videoChanged && this.sink.running) {
         await this.restartSinkLocked();
       }
@@ -1186,6 +1303,70 @@ export class Supervisor {
     });
     await this.buffer.stop();
     await this.relay.stop();
+  }
+
+  private getPreviewEngine(): ChatOverlayEngine {
+    const streamer =
+      this.activeStreamer ??
+      this.deps.store.list().find((item) => item.enabled && item.overlays.chat.enabled) ??
+      this.deps.store.list()[0] ??
+      StreamerSchema.parse({
+        id: 'preview',
+        name: 'Preview',
+        tiktok: 'preview',
+        overlays: { chat: { enabled: true } },
+      });
+    const signature = JSON.stringify({
+      id: streamer.id,
+      chat: streamer.overlays.chat,
+      resolution: this.settings.video.resolution,
+    });
+    if (!this.previewEngine || this.previewSignature !== signature) {
+      this.previewEngine = new ChatOverlayEngine({
+        settings: this.settings,
+        streamer,
+        logger: this.deps.logger,
+      });
+      this.previewSignature = signature;
+    }
+    return this.previewEngine;
+  }
+
+  overlayPreviewPng(sample = false): Buffer {
+    return (this.chatEngine ?? this.getPreviewEngine()).previewPng(sample);
+  }
+
+  addTestChatMessage(username: string, text: string): ChatMessage[] {
+    if (this.chat) {
+      return this.chat.injectMessage(username, text);
+    }
+    const engine = this.chatEngine ?? this.getPreviewEngine();
+    const messages = engine.addLocalMessage(username, text);
+    this.currentChatMessages = messages;
+    this.lastChatMessageAt = new Date();
+    this.overlays.updateChat(
+      messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
+    );
+    return messages;
+  }
+
+  chatStatus(): {
+    enabled: boolean;
+    engine: 'canvas' | 'drawtext' | null;
+    messages: number;
+    last_message_at: string | null;
+    api_configured: boolean;
+    canvas_active: boolean;
+  } {
+    const chat = this.activeStreamer?.overlays.chat;
+    return {
+      enabled: Boolean(chat?.enabled),
+      engine: chat?.engine ?? null,
+      messages: this.currentChatMessages.length,
+      last_message_at: isoOrNull(this.lastChatMessageAt),
+      api_configured: Boolean(chat?.api_url || this.settings.chat.api_url),
+      canvas_active: Boolean(this.chatEngine),
+    };
   }
 
   notifyStreamersChanged(): void {
@@ -1308,6 +1489,7 @@ export class Supervisor {
         last_refresh_at: isoOrNull(refresh?.lastRefreshAt ?? null),
         count: refresh?.count ?? 0,
       },
+      chat: this.chatStatus(),
       version: VERSION,
     };
   }

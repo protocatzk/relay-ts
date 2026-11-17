@@ -23,6 +23,30 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     return { lines: ctx.ring.list(query) };
   });
 
+  app.get('/api/overlays/preview.png', async (request, reply) => {
+    const query = request.query as Record<string, unknown>;
+    const sample = query.sample === '1' || query.sample === 'true';
+    const png = ctx.supervisor.overlayPreviewPng(sample);
+    return reply
+      .header('cache-control', 'no-store')
+      .type('image/png')
+      .send(png);
+  });
+
+  app.post('/api/chat/test', async (request) => {
+    const body = z
+      .object({
+        username: z.string().max(40).optional(),
+        text: z.string().max(300).optional(),
+      })
+      .parse(request.body ?? {});
+    const messages = ctx.supervisor.addTestChatMessage(
+      body.username?.trim() || 'Testuser',
+      body.text?.trim() || 'Testnachricht aus dem Dashboard',
+    );
+    return { ok: true, count: messages.length };
+  });
+
   app.delete('/api/logs', async () => {
     ctx.ring.clear();
     return { ok: true };

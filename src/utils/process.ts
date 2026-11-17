@@ -16,6 +16,8 @@ export interface ManagedProcessOptions {
   onLine?: (line: string, stream: ProcessStream) => void;
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
   killTimeoutMs?: number;
+  /** Additional writable file descriptors starting at 3 (e.g. raw overlay frames). */
+  extraPipes?: number;
 }
 
 const MAX_RECENT_LINES = 200;
@@ -55,6 +57,12 @@ export class ManagedProcess {
     return [...this.recentLines];
   }
 
+  extraStream(index = 3): NodeJS.WritableStream | null {
+    const stream = this.child?.stdio[index];
+    if (!stream || typeof (stream as NodeJS.WritableStream).write !== 'function') return null;
+    return stream as NodeJS.WritableStream;
+  }
+
   start(): void {
     if (this.child) return;
     const redact = this.options.redact ?? ((text: string) => text);
@@ -65,7 +73,12 @@ export class ManagedProcess {
     const child = spawn(this.options.command, this.options.args, {
       cwd: this.options.cwd,
       env: this.options.env ?? process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+        ...Array.from({ length: this.options.extraPipes ?? 0 }, () => 'pipe' as const),
+      ],
     });
     this.child = child;
     this.startedAtValue = new Date();

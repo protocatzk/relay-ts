@@ -18,11 +18,18 @@ const ColorSchema = z
 
 export const ChatOverlaySchema = z.object({
   enabled: z.boolean().default(false),
+  engine: z.enum(['canvas', 'drawtext']).default('canvas'),
   position: PositionSchema.default('bottom-left'),
+  style: z.enum(['bubbles', 'minimal']).default('bubbles'),
   max_lines: z.number().int().min(1).max(30).default(8),
   font_size: z.number().int().min(8).max(96).default(22),
   font_color: ColorSchema.default('white'),
   box_color: ColorSchema.default('black@0.45'),
+  bubble_opacity: z.number().min(0).max(1).default(1),
+  panel_width: z.number().int().min(0).max(1920).default(0),
+  render_fps: z.number().int().min(1).max(30).default(10),
+  show_timestamps: z.boolean().default(false),
+  show_badges: z.boolean().default(true),
   api_url: z.string().default(''),
   api_key: z.string().default(''),
   poll_interval: z.number().min(1).max(60).default(3),
@@ -89,11 +96,18 @@ export const StreamerSchema = StreamerFieldsSchema.transform((value) => ({
 const ChatOverlayPatchSchema = z
   .object({
     enabled: z.boolean().optional(),
+    engine: z.enum(['canvas', 'drawtext']).optional(),
     position: PositionSchema.optional(),
+    style: z.enum(['bubbles', 'minimal']).optional(),
     max_lines: z.number().int().min(1).max(30).optional(),
     font_size: z.number().int().min(8).max(96).optional(),
     font_color: ColorSchema.optional(),
     box_color: ColorSchema.optional(),
+    bubble_opacity: z.number().min(0).max(1).optional(),
+    panel_width: z.number().int().min(0).max(1920).optional(),
+    render_fps: z.number().int().min(1).max(30).optional(),
+    show_timestamps: z.boolean().optional(),
+    show_badges: z.boolean().optional(),
     api_url: z.string().optional(),
     api_key: z.string().optional(),
     poll_interval: z.number().min(1).max(60).optional(),
@@ -159,6 +173,19 @@ export const PlaylistSchema = z
     auto_advance: z.boolean().default(true),
     wrap: z.boolean().default(false),
     advance_delay_seconds: z.number().min(0).max(600).default(5),
+    end_after_minutes: z.number().min(1).max(1440).nullable().optional(),
+    youtube_key: z.string().max(300).optional(),
+    youtube_key_env: z.string().max(120).optional(),
+  })
+  .passthrough();
+
+export const PlaylistUpdateSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    channels: z.array(z.string().min(1)).min(1).optional(),
+    auto_advance: z.boolean().optional(),
+    wrap: z.boolean().optional(),
+    advance_delay_seconds: z.number().min(0).max(600).optional(),
     end_after_minutes: z.number().min(1).max(1440).nullable().optional(),
     youtube_key: z.string().max(300).optional(),
     youtube_key_env: z.string().max(120).optional(),

@@ -68,6 +68,14 @@ function status(): StatusSnapshot {
       last_refresh_at: null,
       count: 0,
     },
+    chat: {
+      enabled: false,
+      engine: null,
+      messages: 0,
+      last_message_at: null,
+      api_configured: false,
+      canvas_active: false,
+    },
     version: VERSION,
   };
 }

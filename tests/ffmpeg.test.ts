@@ -113,8 +113,27 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('rtmp://a.rtmp.youtube.com/live2/abc-def');
   });
 
-  it('supports full RTMP URLs and backup ingest', () => {
-    expect(youtubeUrls({ ...media, youtubeBackup: false }, 'rtmp://custom/live/key')).toEqual([
+  it('adds a canvas overlay input without using -vf', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'abc-def',
+      relay,
+      overlayFilters: ['drawtext=text=Clock'],
+      overlayInput: { width: 640, height: 400, x: 32, y: 800, fps: 10 },
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-f rawvideo');
+    expect(line).toContain('-pixel_format rgba');
+    expect(line).toContain('-video_size 640x400');
+    expect(line).toContain('-i pipe:3');
+    expect(line).toContain('-filter_complex');
+    expect(line).toContain('overlay=32:800');
+    expect(line).toContain('drawtext=text=Clock');
+    expect(line).not.toContain('-vf ');
+  });
+
+  it('supports full RTMP URLs and backup ingest', () => {    expect(youtubeUrls({ ...media, youtubeBackup: false }, 'rtmp://custom/live/key')).toEqual([
       'rtmp://custom/live/key',
     ]);
     expect(youtubeUrls({ ...media, youtubeBackup: true }, 'key')).toEqual([
