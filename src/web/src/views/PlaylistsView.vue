@@ -25,6 +25,7 @@ const form = reactive({
   wrap: false,
   advance_delay_seconds: 5,
   end_after_minutes: null as number | null,
+  end_time: '',
   youtube_key: '',
 });
 
@@ -32,6 +33,10 @@ const activePlaylist = computed(() => store.status?.active_playlist ?? null);
 
 function isActive(playlist: Playlist): boolean {
   return activePlaylist.value?.id === playlist.id;
+}
+
+function isCurrentChannel(playlist: Playlist, index: number): boolean {
+  return isActive(playlist) && activePlaylist.value?.index === index;
 }
 
 function slugify(value: string): string {
@@ -52,6 +57,7 @@ function resetForm(): void {
   form.wrap = false;
   form.advance_delay_seconds = 5;
   form.end_after_minutes = null;
+  form.end_time = '';
   form.youtube_key = '';
 }
 
@@ -70,6 +76,7 @@ function openEdit(playlist: Playlist): void {
   form.wrap = playlist.wrap;
   form.advance_delay_seconds = playlist.advance_delay_seconds;
   form.end_after_minutes = playlist.end_after_minutes ?? null;
+  form.end_time = playlist.end_time ?? '';
   form.youtube_key = '';
   editorOpen.value = true;
 }
@@ -89,13 +96,19 @@ async function savePlaylist(): Promise<void> {
     return;
   }
   const id = form.id.trim() || slugify(form.name);
+  const endTime = form.end_time.trim();
   const payload: PlaylistInput = {
     name: form.name.trim(),
     channels,
     auto_advance: form.auto_advance,
     wrap: form.wrap,
     advance_delay_seconds: Math.max(0, Number(form.advance_delay_seconds) || 0),
-    end_after_minutes: form.end_after_minutes ? Number(form.end_after_minutes) : null,
+    end_after_minutes: endTime
+      ? null
+      : form.end_after_minutes
+        ? Number(form.end_after_minutes)
+        : null,
+    end_time: endTime || null,
     ...(form.youtube_key.trim() ? { youtube_key: form.youtube_key.trim() } : {}),
   };
   saving.value = true;
@@ -157,6 +170,18 @@ async function next(): Promise<void> {
   await run('next', () => api.playlists.next(), 'Nächster Kanal wird angesteuert.');
 }
 
+async function previous(): Promise<void> {
+  await run('previous', () => api.playlists.previous(), 'Vorheriger Kanal wird angesteuert.');
+}
+
+async function tune(playlist: Playlist, channel: string): Promise<void> {
+  await run(
+    `tune:${playlist.id}:${channel}`,
+    () => api.playlists.tune(playlist.id, channel),
+    `Kanal „${channel}“ wird angesteuert.`,
+  );
+}
+
 async function stop(): Promise<void> {
   await run('stop', () => api.playlists.stop(), 'Playlist gestoppt.');
 }
@@ -178,7 +203,14 @@ onMounted(() => {
         <button type="button" class="btn btn-primary" :disabled="busy !== null" @click="openCreate">
           Neue Playlist
         </button>
-        <button type="button" class="btn btn-ghost" :disabled="busy !== null" @click="next">
+        <button type="button" class="btn btn-ghost" :disabled="busy !== null || !activePlaylist" @click="previous">
+          <span v-if="busy === 'previous'" class="spinner" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="M19 5l-9 7 9 7V5ZM5 5v14" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" />
+          </svg>
+          Vorheriger
+        </button>
+        <button type="button" class="btn btn-ghost" :disabled="busy !== null || !activePlaylist" @click="next">
           <span v-if="busy === 'next'" class="spinner" aria-hidden="true"></span>
           <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
             <path d="M5 5l9 7-9 7V5ZM19 5v14" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" />
@@ -234,7 +266,10 @@ onMounted(() => {
           <span class="badge tone-neutral">
             Pause {{ formatNumber(playlist.advance_delay_seconds) }} s
           </span>
-          <span v-if="playlist.end_after_minutes" class="badge tone-neutral">
+          <span v-if="playlist.end_time" class="badge tone-neutral">
+            Täglich bis {{ playlist.end_time }}
+          </span>
+          <span v-else-if="playlist.end_after_minutes" class="badge tone-neutral">
             Ende nach {{ formatNumber(playlist.end_after_minutes) }} Min.
           </span>
         </div>
@@ -242,9 +277,20 @@ onMounted(() => {
         <div class="playlist-channels">
           <p class="field-label">Kanäle ({{ playlist.channels.length }})</p>
           <ol v-if="playlist.channels.length > 0" class="channel-list">
-            <li v-for="(channel, index) in playlist.channels" :key="`${playlist.id}-${index}`" class="channel-item">
+            <li v-for="(channel, index) in playlist.channels" :key="`${playlist.id}-${index}`" class="channel-item" :class="{ 'is-current': isCurrentChannel(playlist, index) }">
               <span class="channel-index mono">{{ index + 1 }}</span>
               <span class="channel-name">{{ channel }}</span>
+              <span v-if="isCurrentChannel(playlist, index)" class="badge tone-success">Live</span>
+              <button
+                v-else-if="isActive(playlist)"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="busy !== null"
+                @click="tune(playlist, channel)"
+              >
+                <span v-if="busy === `tune:${playlist.id}:${channel}`" class="spinner" aria-hidden="true"></span>
+                Ansteuern
+              </button>
             </li>
           </ol>
           <p v-else class="muted small">Keine Kanäle eingetragen.</p>
@@ -262,6 +308,9 @@ onMounted(() => {
               <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
             </svg>
             Play
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="busy !== null" @click="previous">
+            Vorheriger
           </button>
           <button type="button" class="btn btn-ghost btn-sm" :disabled="busy !== null" @click="next">
             Nächster
@@ -320,6 +369,11 @@ onMounted(() => {
           <div class="field">
             <label for="playlist-end">Ende nach (Minuten, optional)</label>
             <input id="playlist-end" v-model.number="form.end_after_minutes" type="number" min="1" max="1440" placeholder="z. B. 120" />
+          </div>
+          <div class="field">
+            <label for="playlist-end-time">Tägliches Ende (Uhrzeit, optional)</label>
+            <input id="playlist-end-time" v-model="form.end_time" type="time" />
+            <p class="field-hint">Hat Vorrang vor „Ende nach“. Leer = kein tägliches Ende.</p>
           </div>
         </div>
         <ToggleField v-model="form.auto_advance" label="Auto-Advance" description="Bei Offline-Quelle automatisch zum nächsten Kanal." />

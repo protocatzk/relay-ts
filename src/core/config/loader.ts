@@ -318,6 +318,7 @@ export function applyEnvSettings(target: Record<string, unknown>, env: NodeJS.Pr
   set(['video', 'preset'], env.X264_PRESET?.trim() || undefined);
   set(['watchdog', 'stall_timeout'], parseNumber(env.STALL_TIMEOUT));
   set(['watchdog', 'min_bitrate'], parseBitrate(env.MIN_BITRATE));
+  set(['watchdog', 'min_source_rate_percent'], parseNumber(env.SOURCE_MIN_RATE_PERCENT));
   set(['watchdog', 'interval'], parseNumber(env.WATCHDOG_INTERVAL));
   set(['watchdog', 'auto_reconnect'], parseBoolean(env.AUTO_RECONNECT));
   set(['auto_refresh', 'enabled'], parseBoolean(env.AUTO_REFRESH));
@@ -329,8 +330,17 @@ export function applyEnvSettings(target: Record<string, unknown>, env: NodeJS.Pr
   set(['online', 'source_url'], env.ONLINE_SOURCE_URL?.trim() || undefined);
   set(['online', 'api_key'], env.ONLINE_SOURCE_API_KEY?.trim() || undefined);
   set(['online', 'interval'], parseNumber(env.ONLINE_CHECK_INTERVAL_SECONDS));
+  set(['online', 'auto_switch_preferred'], parseBoolean(env.ONLINE_AUTO_SWITCH_PREFERRED));
   set(['chat', 'api_url'], env.CHAT_API_URL?.trim() || undefined);
   set(['chat', 'api_key'], env.CHAT_API_KEY?.trim() || undefined);
+  set(['streaming', 'title_template'], env.YOUTUBE_TITLE_TEMPLATE?.trim() || undefined);
+  set(['earnings', 'enabled'], parseBoolean(env.EARNINGS_ENABLED));
+  set(['earnings', 'source_url'], env.EARNINGS_SOURCE_URL?.trim() || undefined);
+  set(['earnings', 'api_key'], env.EARNINGS_SOURCE_API_KEY?.trim() || undefined);
+  set(['earnings', 'interval'], parseNumber(env.EARNINGS_REFRESH_SECONDS));
+  set(['earnings', 'view'], env.EARNINGS_VIEW?.trim() || undefined);
+  set(['earnings', 'overlay_enabled'], parseBoolean(env.EARNINGS_OVERLAY_ENABLED));
+  set(['earnings', 'overlay_template'], env.EARNINGS_OVERLAY_TEMPLATE?.trim() || undefined);
 }
 
 /** Validates a single streamer for CRUD operations. */

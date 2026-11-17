@@ -146,6 +146,10 @@ export class OnlineMonitor {
     return this.lastPollAt;
   }
 
+  async checkNow(): Promise<void> {
+    await this.poll();
+  }
+
   private async poll(): Promise<void> {
     const { source_url, api_key } = this.options.settings.online;
     if (!source_url) return;

@@ -148,7 +148,22 @@ export interface StatusPayload {
   watchdog: WatchdogStatus;
   auto_refresh: AutoRefreshStatus;
   chat: ChatStatus;
+  earnings: EarningsSnapshot | null;
   version: string;
+}
+
+export interface EarningsSnapshot {
+  enabled: boolean;
+  configured: boolean;
+  streamer_id: string | null;
+  net: number | null;
+  gross: number | null;
+  coins: number | null;
+  viewers: number | null;
+  currency: 'EUR' | 'USD';
+  top_gift: string | null;
+  updated_at: string | null;
+  error: string | null;
 }
 
 export interface ChatStatus {
@@ -158,6 +173,12 @@ export interface ChatStatus {
   last_message_at: string | null;
   api_configured: boolean;
   canvas_active: boolean;
+}
+
+export interface TitlePreview {
+  streamer_id: string;
+  template: string;
+  title: string;
 }
 
 export interface LogEntry {
@@ -183,6 +204,7 @@ export interface VideoSettings {
 export interface WatchdogSettings {
   stall_timeout: number;
   min_bitrate: number;
+  min_source_rate_percent: number;
   interval: number;
   auto_reconnect: boolean;
 }
@@ -196,6 +218,7 @@ export interface PauseSettings {
   enabled: boolean;
   text: string;
   subtext: string;
+  max_minutes: number;
 }
 
 export interface OnlineSettings {
@@ -203,6 +226,7 @@ export interface OnlineSettings {
   source_url: string;
   api_key_set: boolean;
   interval: number;
+  auto_switch_preferred: boolean;
 }
 
 export interface Settings {
@@ -213,6 +237,23 @@ export interface Settings {
   pause: PauseSettings;
   online: OnlineSettings;
   chat: ChatSettings;
+  streaming: StreamingSettings;
+  earnings: EarningsSettings;
+}
+
+export interface StreamingSettings {
+  title_template: string;
+}
+
+export interface EarningsSettings {
+  enabled: boolean;
+  source_url: string;
+  api_key_set: boolean;
+  interval: number;
+  view: 'compact' | 'standard' | 'detailed';
+  overlay_enabled: boolean;
+  overlay_position: OverlayPosition;
+  overlay_template: string;
 }
 
 export interface ChatSettings {
@@ -230,10 +271,24 @@ export interface SettingsUpdate {
     enabled: boolean;
     source_url: string;
     interval: number;
+    auto_switch_preferred: boolean;
     api_key?: string;
   };
   chat: {
     api_url: string;
+    api_key?: string;
+  };
+  streaming: {
+    title_template: string;
+  };
+  earnings: {
+    enabled: boolean;
+    source_url: string;
+    interval: number;
+    view: 'compact' | 'standard' | 'detailed';
+    overlay_enabled: boolean;
+    overlay_position: OverlayPosition;
+    overlay_template: string;
     api_key?: string;
   };
 }
@@ -246,6 +301,7 @@ export interface Playlist {
   wrap: boolean;
   advance_delay_seconds: number;
   end_after_minutes?: number | null;
+  end_time?: string | null;
   youtube_key_set: boolean;
   active?: boolean;
   index?: number | null;
@@ -259,6 +315,7 @@ export interface PlaylistInput {
   wrap: boolean;
   advance_delay_seconds: number;
   end_after_minutes?: number | null;
+  end_time?: string | null;
   youtube_key?: string;
 }
 
@@ -311,6 +368,17 @@ export interface QuickStartInput {
   tiktok: string;
   youtube_key: string;
   name?: string;
+}
+
+export interface BulkAddInput {
+  channels: string[];
+  playlist_id?: string;
+}
+
+export interface BulkAddResult {
+  created: Streamer[];
+  skipped: string[];
+  playlist_id: string | null;
 }
 
 export interface LogsResponse {

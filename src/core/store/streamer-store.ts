@@ -163,6 +163,14 @@ export class StreamerStore {
     ) {
       merged.end_after_minutes = null;
     }
+    if (
+      parsedPatch.data &&
+      typeof parsedPatch.data === 'object' &&
+      'end_time' in parsedPatch.data &&
+      parsedPatch.data.end_time === null
+    ) {
+      merged.end_time = null;
+    }
     const parsed = PlaylistSchema.safeParse(merged);
     if (!parsed.success) {
       throw new ValidationError(`Ungültige Playlist: ${formatZodError(parsed.error)}`, parsed.error.issues);

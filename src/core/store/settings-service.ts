@@ -4,9 +4,10 @@ import { ValidationError } from '../../utils/errors.js';
 import { readYamlFile, writeYamlFile } from '../../utils/fs.js';
 import { deepMerge } from '../../utils/format.js';
 
-export type SanitizedSettings = Omit<Settings, 'online' | 'chat'> & {
+export type SanitizedSettings = Omit<Settings, 'online' | 'chat' | 'earnings'> & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
+  earnings: Omit<Settings['earnings'], 'api_key'> & { api_key_set: boolean };
 };
 
 export class SettingsService {
@@ -31,6 +32,11 @@ export class SettingsService {
       ...settings,
       online: { ...settings.online, api_key: undefined, api_key_set: Boolean(settings.online.api_key) },
       chat: { ...settings.chat, api_key: undefined, api_key_set: Boolean(settings.chat.api_key) },
+      earnings: {
+        ...settings.earnings,
+        api_key: undefined,
+        api_key_set: Boolean(settings.earnings.api_key),
+      },
     } as SanitizedSettings;
   }
 
@@ -44,6 +50,9 @@ export class SettingsService {
     const raw = patch as Record<string, Record<string, unknown>>;
     if (raw.online && !('api_key' in raw.online)) merged.online.api_key = this.current.online.api_key;
     if (raw.chat && !('api_key' in raw.chat)) merged.chat.api_key = this.current.chat.api_key;
+    if (raw.earnings && !('api_key' in raw.earnings)) {
+      merged.earnings.api_key = this.current.earnings.api_key;
+    }
     const parsed = SettingsSchema.safeParse(merged);
     if (!parsed.success) {
       throw new ValidationError(`Ungültige Einstellungen: ${formatZodError(parsed.error)}`, parsed.error.issues);
@@ -62,7 +71,7 @@ export class SettingsService {
 
 function stripSecretFlags(input: Record<string, unknown>): Record<string, unknown> {
   const result = structuredClone(input);
-  for (const section of ['online', 'chat']) {
+  for (const section of ['online', 'chat', 'earnings']) {
     const value = result[section];
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       delete (value as Record<string, unknown>).api_key_set;

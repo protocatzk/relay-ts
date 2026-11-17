@@ -11,6 +11,7 @@ export interface WatchdogSnapshot {
   sourceStartedAt: Date | null;
   sinkStartedAt: Date | null;
   sourceBitrateKbps: number | null;
+  sourceOutputSeconds: number | null;
   suppressStall: boolean;
   sinkGraceUntil: number;
 }
@@ -23,6 +24,7 @@ export interface WatchdogOptions {
   onSinkDown: () => void;
   onSinkStall: (ageSeconds: number) => void;
   onLowBitrate: (kbps: number) => void;
+  onLowSourceRate: (percent: number) => void;
 }
 
 /**
@@ -35,6 +37,8 @@ export class Watchdog {
   private lastRelayTrigger = 0;
   private lastSinkTrigger = 0;
   private lowBitrateCount = 0;
+  private lowRateCount = 0;
+  private lastSourceOutput: { seconds: number; at: number } | null = null;
   private stallCount = 0;
   private lastStallAt: Date | null = null;
   private lastError: string | null = null;
@@ -65,6 +69,8 @@ export class Watchdog {
     this.lastRelayTrigger = 0;
     this.lastSinkTrigger = 0;
     this.lowBitrateCount = 0;
+    this.lowRateCount = 0;
+    this.lastSourceOutput = null;
   }
 
   private check(): void {
@@ -77,6 +83,41 @@ export class Watchdog {
     if (snapshot.state === 'live' || snapshot.state === 'reconnecting') {
       const lastData = snapshot.relayLastDataAt ?? snapshot.sourceStartedAt;
       const relayAge = lastData ? now - lastData.getTime() : null;
+
+      if (
+        snapshot.state === 'live' &&
+        snapshot.sourceOutputSeconds !== null &&
+        this.options.settings.watchdog.min_source_rate_percent > 0
+      ) {
+        const current = { seconds: snapshot.sourceOutputSeconds, at: now };
+        if (this.lastSourceOutput) {
+          const deltaWall = (current.at - this.lastSourceOutput.at) / 1000;
+          const deltaMedia = current.seconds - this.lastSourceOutput.seconds;
+          if (deltaWall >= 5 && deltaMedia >= 0) {
+            const percent = (deltaMedia / deltaWall) * 100;
+            if (percent < this.options.settings.watchdog.min_source_rate_percent) {
+              this.lowRateCount += 1;
+              if (this.lowRateCount >= 2) {
+                this.lowRateCount = 0;
+                this.lastError = `Quellrate zu niedrig (${Math.round(percent)} %)`;
+                this.options.logger.warn(
+                  { percent: Math.round(percent), minimum: this.options.settings.watchdog.min_source_rate_percent },
+                  'Watchdog: Quellrate zu niedrig',
+                );
+                this.options.onLowSourceRate(Math.round(percent));
+                this.lastSourceOutput = current;
+                return;
+              }
+            } else {
+              this.lowRateCount = 0;
+            }
+          }
+        }
+        this.lastSourceOutput = current;
+      } else {
+        this.lastSourceOutput = null;
+        this.lowRateCount = 0;
+      }
 
       if (
         snapshot.state === 'live' &&

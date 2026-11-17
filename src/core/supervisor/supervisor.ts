@@ -32,6 +32,7 @@ import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
+import { EarningsMonitor } from '../earnings/monitor.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
@@ -54,6 +55,7 @@ export interface PlaylistView {
   wrap: boolean;
   advance_delay_seconds: number;
   end_after_minutes: number | null;
+  end_time: string | null;
   youtube_key_set: boolean;
   active: boolean;
   index: number | null;
@@ -91,6 +93,7 @@ export class Supervisor {
   private watchdog!: Watchdog;
   private autoRefresh!: AutoRefresh;
   private online!: OnlineMonitor;
+  private earnings!: EarningsMonitor;
   private chat?: ChatService;
   private chatEngine?: ChatOverlayEngine;
   private previewEngine?: ChatOverlayEngine;
@@ -107,6 +110,7 @@ export class Supervisor {
   private activeOverlaySignature = '';
   private startedAt: Date | null = null;
   private lastError: string | null = null;
+  private activeTitle = '';
   private reconnects = 0;
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
@@ -116,6 +120,7 @@ export class Supervisor {
   private playlistEndAt: number | null = null;
   private playlistAdvancePending = false;
   private pauseRestartTimer?: NodeJS.Timeout;
+  private pauseLimitTimer?: NodeJS.Timeout;
   private offlinePauseTimer?: NodeJS.Timeout;
   private statusTimer?: NodeJS.Timeout;
   private autoStartTimer?: NodeJS.Timeout;
@@ -231,6 +236,7 @@ export class Supervisor {
         sourceStartedAt: this.source.startedAt,
         sinkStartedAt: this.sink.startedAt,
         sourceBitrateKbps: this.source.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
+        sourceOutputSeconds: this.source.outputTimeSeconds,
         suppressStall: this.playlistAdvancePending,
         sinkGraceUntil: this.sinkGraceUntil,
       }),
@@ -238,6 +244,7 @@ export class Supervisor {
       onSinkDown: () => this.scheduleSinkRestart(1000),
       onSinkStall: (age) => void this.handleSinkStall(age),
       onLowBitrate: (kbps) => void this.handleLowBitrate(kbps),
+      onLowSourceRate: (percent) => void this.handleLowSourceRate(percent),
     });
     this.autoRefresh = new AutoRefresh({
       settings: this.settings,
@@ -247,9 +254,21 @@ export class Supervisor {
     this.online = new OnlineMonitor({
       settings: this.settings,
       logger,
-      onStatuses: () => this.emitStreamers(),
+      onStatuses: () => {
+        this.emitStreamers();
+        void this.maybeAutoSwitchPreferred();
+      },
     });
     this.online.start();
+    this.earnings = new EarningsMonitor({
+      settings: this.settings,
+      logger,
+      getActive: () => this.activeStreamer,
+      onUpdate: (_snapshot, overlayText) => {
+        this.overlays.updateEarnings(overlayText);
+      },
+    });
+    this.earnings.start();
     this.watchdog.start();
     this.statusTimer = setInterval(() => this.emitStatus(), 2000);
     this.emitAll();
@@ -326,6 +345,54 @@ export class Supervisor {
         );
       }
     }
+  }
+
+  /**
+   * Optional parity feature: when a preferred streamer goes live, take it over
+   * automatically (e.g. the main channel returns).
+   */
+  private async maybeAutoSwitchPreferred(): Promise<void> {
+    if (
+      this.shuttingDown ||
+      !this.settings.online.enabled ||
+      !this.settings.online.auto_switch_preferred ||
+      this.activePlaylist ||
+      this.state === 'stopping'
+    ) {
+      return;
+    }
+    if (this.state === 'paused' && this.pauseReason === 'user') return;
+    if (this.activeStreamer?.preferred && this.state === 'live') return;
+
+    const candidate = this.deps.store
+      .list()
+      .find(
+        (streamer) =>
+          streamer.enabled &&
+          streamer.preferred &&
+          streamer.id !== this.activeStreamer?.id &&
+          this.online.isOnline(streamer) === true &&
+          Boolean(resolveStreamKey(streamer).key),
+      );
+    if (!candidate) return;
+
+    await this.lock.run(async () => {
+      if (this.shuttingDown || this.activePlaylist || this.activeStreamer?.id === candidate.id) return;
+      const key = resolveStreamKey(candidate).key;
+      if (!key) return;
+      this.deps.logger.info(
+        { streamer: candidate.id },
+        'Bevorzugter Streamer ist online – automatischer Wechsel',
+      );
+      try {
+        await this.startStreamerLocked(candidate, { key, allowOfflineWait: true });
+      } catch (error) {
+        this.deps.logger.warn(
+          { streamer: candidate.id, err: toErrorMessage(error) },
+          'Automatischer Wechsel zum bevorzugten Streamer fehlgeschlagen',
+        );
+      }
+    });
   }
 
   private async autoStart(): Promise<void> {
@@ -470,7 +537,9 @@ export class Supervisor {
     this.activeOverlaySignature = signature;
     this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
+    this.activeTitle = stream.title;
     this.pauseReason = null;
+    this.clearPauseLimit();
     this.reconnectAttempts = 0;
     this.forceReencodeNext = options.forceReencode ?? false;
 
@@ -479,6 +548,7 @@ export class Supervisor {
     this.markSinkGrace();
     this.clearOfflinePauseTimer();
     this.startChatLocked(streamer);
+    this.earnings.setActive();
     this.autoRefresh.start();
     this.watchdog.reset();
     this.watchdog.clearError();
@@ -486,9 +556,8 @@ export class Supervisor {
       if (this.playlistAdvanceTimer) clearTimeout(this.playlistAdvanceTimer);
       this.playlistAdvanceTimer = undefined;
       this.playlistAdvancePending = false;
-      if (this.playlistEndAt === null && options.playlist.playlist.end_after_minutes) {
-        this.playlistEndAt =
-          Date.now() + options.playlist.playlist.end_after_minutes * 60_000;
+      if (this.playlistEndAt === null) {
+        this.playlistEndAt = this.playlistEndTimestamp(options.playlist.playlist);
       }
       this.schedulePlaylistEndLocked();
     } else {
@@ -543,6 +612,7 @@ export class Supervisor {
     this.activeOverlaySignature = signature;
     this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
+    this.activeTitle = streamer.name;
     this.reconnectAttempts = 0;
     this.forceReencodeNext = false;
     this.applyConfiguredDelay();
@@ -551,9 +621,8 @@ export class Supervisor {
     this.watchdog.clearError();
 
     if (options.playlist) {
-      if (this.playlistEndAt === null && options.playlist.playlist.end_after_minutes) {
-        this.playlistEndAt =
-          Date.now() + options.playlist.playlist.end_after_minutes * 60_000;
+      if (this.playlistEndAt === null) {
+        this.playlistEndAt = this.playlistEndTimestamp(options.playlist.playlist);
       }
       this.schedulePlaylistEndLocked();
     } else {
@@ -561,6 +630,7 @@ export class Supervisor {
     }
 
     this.startPauseLocked();
+    this.earnings.setActive();
     this.lastError = message;
     this.emitAll();
     this.scheduleReconnect(30_000);
@@ -663,10 +733,12 @@ export class Supervisor {
     this.activeOverlayInput = undefined;
     this.activeOverlaySignature = '';
     this.startedAt = null;
+    this.activeTitle = '';
     this.lastError = null;
     this.forceReencodeNext = false;
     this.reconnectAttempts = 0;
     this.resetTimeline();
+    this.earnings.setActive();
     this.state = 'idle';
     this.emitAll();
     this.deps.logger.info('Stream gestoppt');
@@ -704,6 +776,7 @@ export class Supervisor {
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.state = 'paused';
+      this.schedulePauseLimitLocked();
       this.autoRefresh.stop();
       this.emitAll();
       this.deps.logger.info('Stream pausiert');
@@ -730,9 +803,7 @@ export class Supervisor {
       const playlist = this.deps.store.playlist(id);
       if (!playlist) throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
       this.clearPlaylistTimers();
-      this.playlistEndAt = playlist.end_after_minutes
-        ? Date.now() + playlist.end_after_minutes * 60_000
-        : null;
+      this.playlistEndAt = this.playlistEndTimestamp(playlist);
       return this.startPlaylistEntryLocked(playlist, 0);
     });
   }
@@ -741,6 +812,36 @@ export class Supervisor {
     return this.lock.run(async () => {
       if (!this.activePlaylist) throw new ValidationError('Es ist keine Playlist aktiv');
       return this.advancePlaylistLocked('manual');
+    });
+  }
+
+  async playlistPrevious(): Promise<StatusSnapshot> {
+    return this.lock.run(async () => {
+      const state = this.activePlaylist;
+      if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
+      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
+      let index = state.index - 1;
+      if (index < 0) index = playlist.wrap ? playlist.channels.length - 1 : 0;
+      return this.startPlaylistEntryLocked(playlist, index);
+    });
+  }
+
+  async playlistTune(streamerId: string): Promise<StatusSnapshot> {
+    return this.lock.run(async () => {
+      const state = this.activePlaylist;
+      if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
+      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
+      const wanted = streamerId.replace(/^@+/, '').toLowerCase();
+      const index = playlist.channels.findIndex((channel) => {
+        const resolved = this.resolvePlaylistChannel(channel);
+        return (
+          resolved.id === streamerId ||
+          resolved.tiktok.replace(/^@+/, '').toLowerCase() === wanted ||
+          channel.replace(/^@+/, '').toLowerCase() === wanted
+        );
+      });
+      if (index < 0) throw new NotFoundError(`Kanal "${streamerId}" ist nicht in der Playlist`);
+      return this.startPlaylistEntryLocked(playlist, index);
     });
   }
 
@@ -767,7 +868,11 @@ export class Supervisor {
       }
       const channel = channels[index]!;
       const streamer = this.resolvePlaylistChannel(channel);
-      const key = resolveStreamKey(playlist).key || resolveStreamKey(streamer).key;
+      const playlistKey = resolveStreamKey(playlist).key;
+      const streamerKey = resolveStreamKey(streamer).key;
+      // Explicitly marked own streams keep their own YouTube key even inside
+      // a playlist with a shared key.
+      const key = streamer.own_stream && streamerKey ? streamerKey : playlistKey || streamerKey;
       tried += 1;
       if (!streamer.enabled || !key) {
         index += 1;
@@ -860,8 +965,25 @@ export class Supervisor {
     }, delay);
   }
 
-  private schedulePlaylistEndLocked(): void {
-    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
+  /** Optional daily end time ("HH:MM") or duration after the playlist starts. */
+  private playlistEndTimestamp(playlist: PlaylistConfig): number | null {
+    const time = playlist.end_time?.trim();
+    if (time) {
+      const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(time);
+      if (match) {
+        const target = new Date();
+        target.setHours(Number(match[1]), Number(match[2]), 0, 0);
+        if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+        return target.getTime();
+      }
+    }
+    if (playlist.end_after_minutes && playlist.end_after_minutes > 0) {
+      return Date.now() + playlist.end_after_minutes * 60_000;
+    }
+    return null;
+  }
+
+  private schedulePlaylistEndLocked(): void {    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
     this.playlistEndTimer = undefined;
     if (!this.playlistEndAt) return;
     const delay = Math.max(0, this.playlistEndAt - Date.now());
@@ -901,6 +1023,8 @@ export class Supervisor {
     this.autoStartTimer = undefined;
     if (this.pauseRestartTimer) clearTimeout(this.pauseRestartTimer);
     this.pauseRestartTimer = undefined;
+    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
+    this.pauseLimitTimer = undefined;
     if (this.offlinePauseTimer) clearTimeout(this.offlinePauseTimer);
     this.offlinePauseTimer = undefined;
   }
@@ -957,6 +1081,8 @@ export class Supervisor {
         this.markSinkGrace();
         this.applyConfiguredDelay();
         this.clearOfflinePauseTimer();
+        this.activeTitle = stream.title;
+        this.clearPauseLimit();
         this.pauseReason = null;
         this.lastError = null;
         this.reconnectAttempts = 0;
@@ -1016,7 +1142,28 @@ export class Supervisor {
     this.markSinkGrace();
     this.pauseReason = 'offline';
     this.state = 'paused';
+    this.schedulePauseLimitLocked();
     this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
+  }
+
+  private schedulePauseLimitLocked(): void {
+    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
+    this.pauseLimitTimer = undefined;
+    const minutes = this.settings.pause.max_minutes;
+    if (!minutes || minutes <= 0) return;
+    this.pauseLimitTimer = setTimeout(() => {
+      this.pauseLimitTimer = undefined;
+      void this.lock.run(async () => {
+        if (this.shuttingDown || this.state !== 'paused') return;
+        this.deps.logger.warn({ minutes }, 'Maximale Pausendauer erreicht – Stream wird gestoppt');
+        await this.stopInternalLocked();
+      });
+    }, minutes * 60_000);
+  }
+
+  private clearPauseLimit(): void {
+    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
+    this.pauseLimitTimer = undefined;
   }
 
   private clearOfflinePauseTimer(): void {
@@ -1077,6 +1224,8 @@ export class Supervisor {
         this.markSinkGrace();
         this.applyConfiguredDelay();
         this.clearOfflinePauseTimer();
+        this.activeTitle = stream.title;
+        this.clearPauseLimit();
         this.pauseReason = null;
         this.state = 'live';
         this.lastError = null;
@@ -1178,13 +1327,21 @@ export class Supervisor {
   }
 
   private async handleLowBitrate(kbps: number): Promise<void> {
+    await this.handleSourceProblem(`Quell-Bitrate zu niedrig (${Math.round(kbps)} kbit/s)`, {
+      kbps,
+    });
+  }
+
+  private async handleLowSourceRate(percent: number): Promise<void> {
+    await this.handleSourceProblem(`Quellrate zu niedrig (${percent} %)`, { percent });
+  }
+
+  private async handleSourceProblem(reason: string, context: Record<string, unknown>): Promise<void> {
     await this.lock.run(async () => {
       if (!this.activeStreamer || this.shuttingDown) return;
       if (this.state !== 'live' || this.playlistAdvancePending) return;
-      const current = this.source.bitrateKbps ?? this.buffer.stats().pacingKbps;
-      if (current !== null && current >= this.settings.watchdog.min_bitrate) return;
-      this.lastError = `Quell-Bitrate zu niedrig (${Math.round(kbps)} kbit/s)`;
-      this.deps.logger.warn({ kbps, current }, 'Quelle wird wegen niedriger Bitrate neu gestartet');
+      this.lastError = reason;
+      this.deps.logger.warn({ ...context, reason }, 'Quelle wird neu gestartet');
       this.stoppingSource += 1;
       try {
         await this.source.stop();
@@ -1220,6 +1377,22 @@ export class Supervisor {
       this.online.updateSettings(next);
       this.overlays.updateSettings(next);
       this.pauseScreen.updateSettings(next);
+      this.earnings.updateSettings(next);
+
+      const earningsOverlayChanged =
+        previous.earnings.overlay_enabled !== next.earnings.overlay_enabled ||
+        previous.earnings.overlay_position !== next.earnings.overlay_position ||
+        previous.earnings.overlay_template !== next.earnings.overlay_template;
+      if (earningsOverlayChanged && this.activeStreamer) {
+        const prepared = this.overlays.prepare(this.activeStreamer);
+        this.activeOverlayFilters = prepared.filters;
+        this.activeOverlaySignature = this.overlaySignature(
+          prepared.filters,
+          this.activeStreamer,
+          this.chatEngine,
+        );
+        if (this.sink.running) await this.restartSinkLocked();
+      }
 
       const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
       if (chatChanged && this.activeStreamer) {
@@ -1291,8 +1464,17 @@ export class Supervisor {
     return this.buildStatus();
   }
 
-  async shutdown(): Promise<void> {    this.shuttingDown = true;
+  async checkOnlineNow(): Promise<void> {
+    await this.lock.run(async () => {
+      await this.online.checkNow();
+      this.emitStreamers();
+    });
+  }
+
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true;
     this.online.stop();
+    this.earnings?.stop();
     this.watchdog.stop();
     this.autoRefresh.stop();
     if (this.statusTimer) clearInterval(this.statusTimer);
@@ -1373,8 +1555,23 @@ export class Supervisor {
     this.emitStreamers();
   }
 
-  streamersView(): StreamerView[] {
-    const activeId = this.activeStreamer?.id ?? null;
+  titleFor(id: string): { streamer_id: string; template: string; title: string } {
+    const streamer = this.deps.store.get(id);
+    if (!streamer) throw new NotFoundError(`Streamer "${id}" wurde nicht gefunden`);
+    const template = this.settings.streaming.title_template;
+    const resolved = this.activeStreamer?.id === id ? this.activeTitle : '';
+    const now = new Date();
+    const title = template
+      .replaceAll('{name}', streamer.name)
+      .replaceAll('{tiktok}', streamer.tiktok.replace(/^@+/, ''))
+      .replaceAll('{title}', resolved || streamer.name)
+      .replaceAll('{date}', now.toLocaleDateString('de-DE'))
+      .replaceAll('{time}', now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))
+      .slice(0, 200);
+    return { streamer_id: id, template, title };
+  }
+
+  streamersView(): StreamerView[] {    const activeId = this.activeStreamer?.id ?? null;
     return this.deps.store.list().map((streamer) => {
       const monitor = this.online.isOnline(streamer);
       const online = streamer.id === activeId && this.state === 'live' ? true : monitor;
@@ -1397,6 +1594,7 @@ export class Supervisor {
         wrap: playlist.wrap,
         advance_delay_seconds: playlist.advance_delay_seconds,
         end_after_minutes: playlist.end_after_minutes ?? null,
+        end_time: playlist.end_time ?? null,
         youtube_key_set: channelsHaveKey,
         active: active?.playlist.id === playlist.id,
         index: active?.playlist.id === playlist.id ? active.index : null,
@@ -1490,6 +1688,7 @@ export class Supervisor {
         count: refresh?.count ?? 0,
       },
       chat: this.chatStatus(),
+      earnings: this.earnings?.get() ?? null,
       version: VERSION,
     };
   }

@@ -1,5 +1,7 @@
 import type {
   AuthMe,
+  BulkAddInput,
+  BulkAddResult,
   LogEntry,
   LogsResponse,
   Playlist,
@@ -13,6 +15,7 @@ import type {
   StreamerInput,
   StreamersResponse,
   QuickStartInput,
+  TitlePreview,
 } from './types';
 
 export class ApiError extends Error {
@@ -143,6 +146,8 @@ export interface StreamersApi {
   start(id: string): Promise<unknown>;
   stop(id: string): Promise<unknown>;
   switchTo(id: string): Promise<unknown>;
+  title(id: string): Promise<TitlePreview>;
+  bulkAdd(body: BulkAddInput): Promise<BulkAddResult>;
 }
 
 export interface SettingsApi {
@@ -157,6 +162,8 @@ export interface PlaylistsApi {
   remove(id: string): Promise<unknown>;
   play(id: string): Promise<unknown>;
   next(): Promise<unknown>;
+  previous(): Promise<unknown>;
+  tune(playlistId: string, channel: string): Promise<unknown>;
   stop(): Promise<unknown>;
 }
 
@@ -203,6 +210,10 @@ export const api = {
       request<unknown>(`/api/streamers/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
     switchTo: (id: string) =>
       request<unknown>(`/api/streamers/${encodeURIComponent(id)}/switch`, { method: 'POST' }),
+    title: (id: string) =>
+      request<TitlePreview>(`/api/streamers/${encodeURIComponent(id)}/title`),
+    bulkAdd: (body: BulkAddInput) =>
+      request<BulkAddResult>('/api/streamers/bulk', { method: 'POST', body }),
   } satisfies StreamersApi,
 
   settings: {
@@ -222,6 +233,12 @@ export const api = {
     play: (id: string) =>
       request<unknown>(`/api/playlists/${encodeURIComponent(id)}/play`, { method: 'POST' }),
     next: () => request<unknown>('/api/playlists/next', { method: 'POST' }),
+    previous: () => request<unknown>('/api/playlists/previous', { method: 'POST' }),
+    tune: (playlistId: string, channel: string) =>
+      request<unknown>(
+        `/api/playlists/${encodeURIComponent(playlistId)}/tune/${encodeURIComponent(channel)}`,
+        { method: 'POST' },
+      ),
     stop: () => request<unknown>('/api/playlists/stop', { method: 'POST' }),
   } satisfies PlaylistsApi,
 
@@ -246,6 +263,8 @@ export const api = {
   system: {
     restartSink: () => request<unknown>('/api/system/restart-sink', { method: 'POST' }),
     refreshSource: () => request<unknown>('/api/system/refresh', { method: 'POST' }),
+    reload: () => request<{ ok: true; changed: boolean }>('/api/reload', { method: 'POST' }),
+    checkOnline: () => request<{ ok: true }>('/api/online/check', { method: 'POST' }),
   },
 
   quickstart: (body: QuickStartInput) =>

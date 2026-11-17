@@ -174,6 +174,11 @@ export const PlaylistSchema = z
     wrap: z.boolean().default(false),
     advance_delay_seconds: z.number().min(0).max(600).default(5),
     end_after_minutes: z.number().min(1).max(1440).nullable().optional(),
+    end_time: z
+      .string()
+      .regex(/^([01]?\d|2[0-3]):[0-5]\d$/, 'Uhrzeit muss HH:MM sein')
+      .nullable()
+      .optional(),
     youtube_key: z.string().max(300).optional(),
     youtube_key_env: z.string().max(120).optional(),
   })
@@ -187,6 +192,11 @@ export const PlaylistUpdateSchema = z
     wrap: z.boolean().optional(),
     advance_delay_seconds: z.number().min(0).max(600).optional(),
     end_after_minutes: z.number().min(1).max(1440).nullable().optional(),
+    end_time: z
+      .string()
+      .regex(/^([01]?\d|2[0-3]):[0-5]\d$/, 'Uhrzeit muss HH:MM sein')
+      .nullable()
+      .optional(),
     youtube_key: z.string().max(300).optional(),
     youtube_key_env: z.string().max(120).optional(),
   })
@@ -209,6 +219,7 @@ export const VideoSettingsSchema = z.object({
 export const WatchdogSettingsSchema = z.object({
   stall_timeout: z.number().int().min(5).max(600).default(30),
   min_bitrate: z.number().int().min(0).max(100_000).default(500),
+  min_source_rate_percent: z.number().int().min(0).max(200).default(85),
   interval: z.number().int().min(1).max(60).default(5),
   auto_reconnect: z.boolean().default(true),
   max_reconnect_delay: z.number().int().min(2).max(300).default(60),
@@ -227,6 +238,7 @@ export const PauseSettingsSchema = z.object({
     .string()
     .regex(/^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$/, 'Farbe muss 0xRRGGBB oder #RRGGBB sein')
     .default('0x101820'),
+  max_minutes: z.number().int().min(0).max(1440).default(15),
 });
 
 export const OnlineSettingsSchema = z.object({
@@ -234,11 +246,27 @@ export const OnlineSettingsSchema = z.object({
   source_url: z.string().default(''),
   api_key: z.string().default(''),
   interval: z.number().int().min(10).max(3600).default(60),
+  auto_switch_preferred: z.boolean().default(false),
 });
 
 export const ChatSettingsSchema = z.object({
   api_url: z.string().default(''),
   api_key: z.string().default(''),
+});
+
+export const StreamingSettingsSchema = z.object({
+  title_template: z.string().max(200).default('{name} – LIVE'),
+});
+
+export const EarningsSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  source_url: z.string().default(''),
+  api_key: z.string().default(''),
+  interval: z.number().int().min(30).max(3600).default(300),
+  view: z.enum(['compact', 'standard', 'detailed']).default('standard'),
+  overlay_enabled: z.boolean().default(false),
+  overlay_position: PositionSchema.default('top-left'),
+  overlay_template: z.string().max(200).default('{net} € · {coins} Coins'),
 });
 
 export const SettingsSchema = z.object({
@@ -249,6 +277,8 @@ export const SettingsSchema = z.object({
   pause: PauseSettingsSchema.default(PauseSettingsSchema.parse({})),
   online: OnlineSettingsSchema.default(OnlineSettingsSchema.parse({})),
   chat: ChatSettingsSchema.default(ChatSettingsSchema.parse({})),
+  streaming: StreamingSettingsSchema.default(StreamingSettingsSchema.parse({})),
+  earnings: EarningsSettingsSchema.default(EarningsSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z

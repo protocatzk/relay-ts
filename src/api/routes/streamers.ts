@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { ApiContext } from '../context.js';
 import { normalizeHandle } from '../../utils/format.js';
-import { ValidationError } from '../../utils/errors.js';
+import { NotFoundError, ValidationError } from '../../utils/errors.js';
 
 const StartBody = z.object({}).passthrough();
 
@@ -11,6 +11,11 @@ const QuickStartBody = z.object({
   youtube_key: z.string().min(1),
   name: z.string().optional(),
   quality: z.enum(['best', '1080p', '720p', '480p', '360p']).optional(),
+});
+
+const BulkAddBody = z.object({
+  channels: z.array(z.string().min(1)).min(1).max(200),
+  playlist_id: z.string().optional(),
 });
 
 function slugify(value: string): string {
@@ -42,11 +47,80 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
     return { streamer: view };
   });
 
+  app.get('/api/streamers/:id/title', async (request) => {
+    const { id } = request.params as { id: string };
+    return ctx.supervisor.titleFor(id);
+  });
+
   app.post('/api/streamers', async (request, reply) => {
     const streamer = ctx.store.create(request.body);
     ctx.supervisor.notifyStreamersChanged();
     const view = viewById(ctx, streamer.id);
     return reply.code(201).send({ streamer: view });
+  });
+
+  app.post('/api/streamers/bulk', async (request, reply) => {
+    const parsed = BulkAddBody.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError('Ungültige Sammel-Anlage', parsed.error.issues);
+    }
+    const created: string[] = [];
+    const skipped: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of parsed.data.channels) {
+      const handle = normalizeHandle(raw);
+      if (!handle || seen.has(handle)) {
+        if (handle) skipped.push(handle);
+        continue;
+      }
+      seen.add(handle);
+      const exists = ctx.store.list().some(
+        (streamer) =>
+          streamer.id.toLowerCase() === handle ||
+          streamer.tiktok.replace(/^@+/, '').toLowerCase() === handle,
+      );
+      if (exists) {
+        skipped.push(handle);
+        continue;
+      }
+      const base = slugify(handle);
+      let id = base;
+      let suffix = 1;
+      while (ctx.store.get(id)) {
+        suffix += 1;
+        id = `${base}-${suffix}`;
+      }
+      ctx.store.create({ id, name: handle, tiktok: handle, quality: 'best', enabled: true });
+      created.push(id);
+    }
+
+    let playlistId: string | null = null;
+    if (parsed.data.playlist_id && created.length > 0) {
+      const playlist = ctx.store.playlist(parsed.data.playlist_id);
+      if (!playlist) {
+        throw new NotFoundError(`Playlist "${parsed.data.playlist_id}" wurde nicht gefunden`);
+      }
+      const channels = [...playlist.channels];
+      for (const id of created) {
+        const streamer = ctx.store.get(id);
+        if (!streamer) continue;
+        const handle = normalizeHandle(streamer.tiktok);
+        if (!channels.some((channel) => normalizeHandle(channel) === handle)) {
+          channels.push(streamer.tiktok);
+        }
+      }
+      ctx.store.updatePlaylist(playlist.id, { channels });
+      playlistId = playlist.id;
+    }
+
+    ctx.supervisor.notifyStreamersChanged();
+    return reply.code(201).send({
+      created: created
+        .map((id) => viewById(ctx, id))
+        .filter((view): view is NonNullable<typeof view> => Boolean(view)),
+      skipped,
+      playlist_id: playlistId,
+    });
   });
 
   app.put('/api/streamers/:id', async (request) => {

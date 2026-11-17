@@ -19,14 +19,23 @@ eigenständig umgesetzt.
 - **MPEG-TS-Relay** über localhost – der YouTube-Encoder bleibt bei
   Quellenwechseln/Reconnects bestehen
 - **Watchdog** für Quellen-Stall, Sink-Absturz und Encoder-Stall
+- **Quell-Ratenüberwachung**: startet die Quelle neu, wenn TikTok dauerhaft
+  weniger als die konfigurierte Mindestrate liefert
 - **Auto-Reconnect** mit exponentiellem Backoff
 - **Auto-Refresh** der TikTok-URL (Standard alle 20 Minuten)
-- **Pausenscreen** bei Offline-Quelle, ohne die RTMP-Verbindung zu trennen
+- **Pausenscreen** bei Offline-Quelle, ohne die RTMP-Verbindung zu trennen,
+  inklusive optionaler maximaler Pausendauer
 - **Overlays**: Canvas-Chat-Engine mit Bubbles, Namen, Timestamps, Emoji und
-  Live-Vorschau (drawtext als Fallback), Uhrzeit und freier Text
-- **Playlists** mit Auto-Advance, Wrap und Endzeit
-- **Online-Status** über eine konfigurierbare JSON-API (z. B. TokTracker)
-- **Web-Dashboard** (Vue 3) mit Live-Updates per SSE
+  Live-Vorschau (drawtext als Fallback), Uhrzeit, freier Text und optionale
+  Einnahmen-Anzeige
+- **Playlists** mit Auto-Advance, Wrap, Endzeit, Vor-/Zurück-Springen und
+  direktem Ansteuern einzelner Kanäle
+- **Online-Status** über eine konfigurierbare JSON-API (z. B. TokTracker),
+  inklusive optionalem automatischem Wechsel zum bevorzugten Streamer
+- **Eigene YouTube-Streams** pro Streamer (`own_stream`) und lokale
+  YouTube-Titel-Vorschau per Template
+- **Einnahmen-Monitor** (TokTracker-kompatibel) für Dashboard und Overlay
+- **Web-Dashboard** (Vue 3) im TokTracker-Design mit Live-Updates per SSE
 - **Auth**: Passwort-Session-Cookie, Basic Auth und API-Token
 - **Docker**-Image mit ffmpeg, yt-dlp und Fonts
 
@@ -66,6 +75,7 @@ src/
 ├── api/                  Fastify-Server, Auth, REST-Routen, SSE
 ├── core/
 │   ├── config/           Zod-Schema, YAML-/ENV-Loader
+│   ├── earnings/         Einnahmen-Monitor (TokTracker-kompatibel)
 │   ├── overlays/         Canvas-Chat-Engine, drawtext, Chat, Pausenscreen
 │   ├── online/           Online-Status-Monitor
 │   ├── relay/            DelayBuffer, MPEG-TS-Relay
@@ -202,6 +212,7 @@ video:
 watchdog:
   stall_timeout: 30
   min_bitrate: 500
+  min_source_rate_percent: 85
   interval: 5
   auto_reconnect: true
   max_reconnect_delay: 60
@@ -212,14 +223,27 @@ pause:
   enabled: true
   text: "Stream pausiert"
   subtext: "Gleich geht es weiter"
+  max_minutes: 15
 online:
   enabled: false
   source_url: ""
   api_key: ""
   interval: 60
+  auto_switch_preferred: false
 chat:
   api_url: ""
   api_key: ""
+streaming:
+  title_template: "{name} – LIVE"
+earnings:
+  enabled: false
+  source_url: ""
+  api_key: ""
+  interval: 300
+  view: standard
+  overlay_enabled: false
+  overlay_position: top-left
+  overlay_template: "{net} € · {coins} Coins"
 ```
 
 ---
@@ -242,6 +266,7 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `POST` | `/api/streamers/:id/start` | Stream starten |
 | `POST` | `/api/streamers/:id/stop` | Stream stoppen |
 | `POST` | `/api/streamers/:id/switch` | Zu Streamer wechseln |
+| `GET` | `/api/streamers/:id/title` | YouTube-Titel-Vorschau aus Template |
 | `POST` | `/api/quickstart` | Handle + Key anlegen und starten |
 | `GET` | `/api/status` | Vollständiger Systemstatus |
 | `GET` | `/api/settings` | Einstellungen (Secrets redigiert) |
@@ -249,7 +274,11 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET` | `/api/playlists` | Playlists |
 | `POST` | `/api/playlists/:id/play` | Playlist starten |
 | `POST` | `/api/playlists/next` | Nächster Eintrag |
+| `POST` | `/api/playlists/previous` | Vorheriger Eintrag |
+| `POST` | `/api/playlists/:id/tune/:channel` | Kanal direkt ansteuern |
 | `POST` | `/api/playlists/stop` | Playlist stoppen |
+| `POST` | `/api/reload` | `streamers.yml` neu laden |
+| `POST` | `/api/online/check` | Online-Status sofort prüfen |
 | `POST` | `/api/pause/start` / `stop` | Pausenscreen an/aus |
 | `GET` | `/api/logs?limit=200&level=warn&q=...` | Log-Ringpuffer |
 | `DELETE` | `/api/logs` | Log-Ringpuffer leeren |
@@ -310,6 +339,7 @@ ONLINE_CHECK_ENABLED=true
 ONLINE_SOURCE_URL=https://positronium.dev/track/api/public/overview
 ONLINE_SOURCE_API_KEY=dein-toktracker-key
 ONLINE_CHECK_INTERVAL_SECONDS=60
+ONLINE_AUTO_SWITCH_PREFERRED=false
 ```
 
 Der Key wird als `X-API-Key` gesendet. Ausgewertet wird ausschließlich das
@@ -329,6 +359,9 @@ weiterhin `yt-dlp`, ob der Stream wirklich live ist. Die OpenAPI-Doku unter
 `positronium.dev/track/...` ist aktuell durch den Admin-Login geschützt; der
 Public-Overview-Endpunkt funktioniert mit dem API-Key.
 
+Mit `auto_switch_preferred` wechselt der Supervisor automatisch zu einem als
+bevorzugt markierten Streamer, sobald dieser online geht.
+
 ---
 
 ## Playlists
@@ -340,7 +373,33 @@ Standard-Overlays erzeugt. `auto_advance` wechselt bei Offline-Quelle nach
 `advance_delay_seconds`; `wrap` springt am Ende zum Anfang. Ein gemeinsamer
 `youtube_key`/`youtube_key_env` auf Playlist-Ebene hält die YouTube-Verbindung
 beim Wechsel offen. `end_after_minutes` beendet die Playlist nach der
-angegebenen Zeit.
+angegebenen Dauer; alternativ beendet `end_time: "23:00"` sie täglich zur
+festen Uhrzeit (Container-Zeitzone). Beide Optionen schließen sich aus, wobei
+`end_time` Vorrang hat. Im Dashboard lassen sich der vorherige/nächste Eintrag
+ansteuern und einzelne Kanäle direkt übernehmen. Streamer mit `own_stream: true`
+behalten ihren eigenen YouTube-Key auch innerhalb einer Playlist.
+
+---
+
+## Einnahmen (optional)
+
+Der Einnahmen-Monitor liest eine TokTracker-kompatible JSON-Quelle und zeigt
+Werte im Dashboard sowie optional als Text-Overlay im Stream:
+
+```dotenv
+EARNINGS_ENABLED=true
+EARNINGS_SOURCE_URL=https://positronium.dev/track/api/public/overview
+EARNINGS_SOURCE_API_KEY=dein-toktracker-key
+EARNINGS_REFRESH_SECONDS=300
+EARNINGS_VIEW=standard
+EARNINGS_OVERLAY_ENABLED=true
+EARNINGS_OVERLAY_TEMPLATE={net} € · {coins} Coins
+```
+
+Unterstützte Platzhalter: `{net}`, `{gross}`, `{coins}`, `{viewers}`,
+`{top_gift}` und `{currency}`. Der Parser erkennt `eur_net`/`usd_net`,
+`total_coins`, `current_viewers` und `top_gift`; fehlende Werte werden als `–`
+angezeigt.
 
 ---
 

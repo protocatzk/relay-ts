@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { Streamer } from '@/src/api/types';
+import type { Streamer, TitlePreview } from '@/src/api/types';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
@@ -54,6 +54,7 @@ const activePlaylist = computed(() => status.value?.active_playlist ?? null);
 const previewUrl = ref(api.overlays.previewUrl(false));
 const chatTest = reactive({ username: 'Testuser', text: '' });
 const sendingChat = ref(false);
+const titlePreview = ref<TitlePreview | null>(null);
 let previewTimer: number | null = null;
 
 function refreshPreview(): void {
@@ -82,6 +83,38 @@ async function restartSink(): Promise<void> {
 async function refreshSource(): Promise<void> {
   await run('source', () => api.system.refreshSource(), 'Quell-URL wird aktualisiert.');
 }
+
+async function reloadYaml(): Promise<void> {
+  await run('reload', () => api.system.reload(), 'Konfiguration neu geladen.');
+}
+
+async function loadTitle(id: string | null | undefined): Promise<void> {
+  if (!id) {
+    titlePreview.value = null;
+    return;
+  }
+  try {
+    titlePreview.value = await api.streamers.title(id);
+  } catch {
+    titlePreview.value = null;
+  }
+}
+
+async function copyTitle(): Promise<void> {
+  if (!titlePreview.value?.title) return;
+  try {
+    await navigator.clipboard.writeText(titlePreview.value.title);
+    pushToast('Titel kopiert.', 'success');
+  } catch {
+    pushToast('Kopieren nicht möglich.', 'error');
+  }
+}
+
+watch(
+  () => status.value?.active_streamer_id,
+  (id) => void loadTitle(id),
+  { immediate: true },
+);
 
 function onlineLabel(streamer: Streamer): string {
   if (streamer.status.online === true) return 'Online';
@@ -378,6 +411,13 @@ onBeforeUnmount(() => {
             <div><dt>Chat-Engine</dt><dd>{{ status?.chat.engine ?? '–' }}</dd></div>
             <div><dt>Nachrichten</dt><dd>{{ status?.chat.messages ?? 0 }}</dd></div>
             <div><dt>Chat-API</dt><dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd></div>
+            <template v-if="status?.earnings?.enabled">
+              <div><dt>Einnahmen netto</dt><dd class="mono">{{ status.earnings.currency }} {{ status.earnings.net ?? '–' }}</dd></div>
+              <div v-if="status.earnings.gross !== null"><dt>Brutto</dt><dd class="mono">{{ status.earnings.currency }} {{ status.earnings.gross }}</dd></div>
+              <div v-if="status.earnings.coins !== null"><dt>Coins</dt><dd class="mono">{{ status.earnings.coins }}</dd></div>
+              <div v-if="status.earnings.viewers !== null"><dt>Zuschauer</dt><dd class="mono">{{ status.earnings.viewers }}</dd></div>
+              <div v-if="status.earnings.top_gift"><dt>Top-Gift</dt><dd>{{ status.earnings.top_gift }}</dd></div>
+            </template>
           </dl>
           <form class="stack compact" @submit.prevent="sendChatTest">
             <div class="field">
@@ -397,6 +437,13 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </form>
+          <div v-if="titlePreview" class="field">
+            <label for="dash-title">YouTube-Titel</label>
+            <div class="input-with-button">
+              <input id="dash-title" :value="titlePreview.title" type="text" readonly />
+              <button type="button" class="btn btn-ghost btn-sm" @click="copyTitle">Kopieren</button>
+            </div>
+          </div>
           <div class="quick-actions">
             <button
               type="button"
@@ -413,6 +460,9 @@ onBeforeUnmount(() => {
               @click="refreshSource"
             >
               Quelle aktualisieren
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="busy !== null" @click="reloadYaml">
+              YAML neu laden
             </button>
           </div>
         </div>

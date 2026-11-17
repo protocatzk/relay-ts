@@ -72,6 +72,10 @@ export class TikTokSource {
     return this.progress.bitrateKbps;
   }
 
+  get outputTimeSeconds(): number | null {
+    return this.progress.outTimeUs === null ? null : this.progress.outTimeUs / 1_000_000;
+  }
+
   get startedAt(): Date | null {
     return this.process?.startedAt ?? null;
   }

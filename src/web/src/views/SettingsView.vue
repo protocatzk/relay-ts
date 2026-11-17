@@ -29,6 +29,8 @@ const saving = ref(false);
 const loadError = ref('');
 const apiKey = ref('');
 const chatApiKey = ref('');
+const earningsApiKey = ref('');
+const checkingOnline = ref(false);
 const initialSnapshot = ref('');
 const baselineRestart = ref('');
 
@@ -46,7 +48,7 @@ const restartRequired = computed(
 
 const dirty = computed(() => {
   if (!form.value) return false;
-  return `${JSON.stringify(form.value)}|${apiKey.value}|${chatApiKey.value}` !== initialSnapshot.value;
+  return `${JSON.stringify(form.value)}|${apiKey.value}|${chatApiKey.value}|${earningsApiKey.value}` !== initialSnapshot.value;
 });
 
 function toNumber(value: unknown, fallback: number): number {
@@ -62,8 +64,9 @@ async function loadSettings(silent = false): Promise<void> {
     form.value = clone(settings);
     apiKey.value = '';
     chatApiKey.value = '';
+    earningsApiKey.value = '';
     baselineRestart.value = restartSnapshot(settings);
-    initialSnapshot.value = `${JSON.stringify(settings)}||`;
+    initialSnapshot.value = `${JSON.stringify(settings)}|||`;
   } catch (error) {
     loadError.value = errorMessage(error);
   } finally {
@@ -71,8 +74,19 @@ async function loadSettings(silent = false): Promise<void> {
   }
 }
 
-async function save(): Promise<void> {
-  const current = form.value;
+async function checkOnline(): Promise<void> {
+  checkingOnline.value = true;
+  try {
+    await api.system.checkOnline();
+    pushToast('Online-Status aktualisiert.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    checkingOnline.value = false;
+  }
+}
+
+async function save(): Promise<void> {  const current = form.value;
   if (!current) return;
   const payload: SettingsUpdate = {
     delay_buffer: {
@@ -89,6 +103,7 @@ async function save(): Promise<void> {
     watchdog: {
       stall_timeout: toNumber(current.watchdog.stall_timeout, 30),
       min_bitrate: toNumber(current.watchdog.min_bitrate, 500),
+      min_source_rate_percent: toNumber(current.watchdog.min_source_rate_percent, 85),
       interval: toNumber(current.watchdog.interval, 5),
       auto_reconnect: current.watchdog.auto_reconnect,
     },
@@ -100,16 +115,31 @@ async function save(): Promise<void> {
       enabled: current.pause.enabled,
       text: current.pause.text,
       subtext: current.pause.subtext,
+      max_minutes: toNumber(current.pause.max_minutes, 15),
     },
     online: {
       enabled: current.online.enabled,
       source_url: current.online.source_url.trim(),
       interval: toNumber(current.online.interval, 30),
+      auto_switch_preferred: current.online.auto_switch_preferred,
       ...(apiKey.value.trim() ? { api_key: apiKey.value.trim() } : {}),
     },
     chat: {
       api_url: current.chat.api_url.trim(),
       ...(chatApiKey.value.trim() ? { api_key: chatApiKey.value.trim() } : {}),
+    },
+    streaming: {
+      title_template: current.streaming.title_template,
+    },
+    earnings: {
+      enabled: current.earnings.enabled,
+      source_url: current.earnings.source_url.trim(),
+      interval: toNumber(current.earnings.interval, 300),
+      view: current.earnings.view,
+      overlay_enabled: current.earnings.overlay_enabled,
+      overlay_position: current.earnings.overlay_position,
+      overlay_template: current.earnings.overlay_template,
+      ...(earningsApiKey.value.trim() ? { api_key: earningsApiKey.value.trim() } : {}),
     },
   };
 
@@ -255,6 +285,10 @@ onMounted(() => {
               <input id="watchdog-bitrate" v-model.number="form.watchdog.min_bitrate" type="number" min="0" max="50000" />
             </div>
             <div class="field">
+              <label for="watchdog-rate">Mindest-Quellrate (% Echtzeit, 0 = aus)</label>
+              <input id="watchdog-rate" v-model.number="form.watchdog.min_source_rate_percent" type="number" min="0" max="200" />
+            </div>
+            <div class="field">
               <label for="watchdog-interval">Prüfintervall (Sekunden)</label>
               <input id="watchdog-interval" v-model.number="form.watchdog.interval" type="number" min="1" max="60" />
             </div>
@@ -306,6 +340,10 @@ onMounted(() => {
               <label for="pause-subtext">Untertext</label>
               <input id="pause-subtext" v-model="form.pause.subtext" type="text" placeholder="Wir sind gleich zurück." maxlength="200" />
             </div>
+            <div class="field">
+              <label for="pause-max">Maximale Pausendauer (Minuten, 0 = unbegrenzt)</label>
+              <input id="pause-max" v-model.number="form.pause.max_minutes" type="number" min="0" max="1440" />
+            </div>
           </div>
         </div>
       </section>
@@ -318,12 +356,21 @@ onMounted(() => {
           </div>
           <span v-if="form.online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
           <span v-else class="badge tone-muted">Kein API-Key</span>
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="checkingOnline" @click="checkOnline">
+            <span v-if="checkingOnline" class="spinner" aria-hidden="true"></span>
+            Jetzt prüfen
+          </button>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.online.enabled"
             label="Online-Monitor aktiviert"
             description="Live-Status des Kanals über eine externe API abfragen."
+          />
+          <ToggleField
+            v-model="form.online.auto_switch_preferred"
+            label="Bevorzugte Streamer automatisch übernehmen"
+            description="Wenn ein als bevorzugt markierter Streamer online geht, automatisch dorthin wechseln."
           />
           <div class="settings-grid">
             <div class="field">
@@ -350,6 +397,73 @@ onMounted(() => {
             <div class="field">
               <label for="online-interval">Prüfintervall (Sekunden)</label>
               <input id="online-interval" v-model.number="form.online.interval" type="number" min="10" max="3600" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Einnahmen</h2>
+            <p class="card-sub">TokTracker-kompatible Einnahmen-Anzeige und Overlay.</p>
+          </div>
+          <span v-if="form.earnings.api_key_set" class="badge tone-success">API-Key gesetzt</span>
+          <span v-else class="badge tone-muted">Kein API-Key</span>
+        </div>
+        <div class="settings-body">
+          <ToggleField
+            v-model="form.earnings.enabled"
+            label="Einnahmen-Monitor aktiviert"
+            description="Einnahmen des aktiven Streamers regelmäßig abrufen."
+          />
+          <div class="settings-grid">
+            <div class="field">
+              <label for="earnings-url">Quell-URL</label>
+              <input id="earnings-url" v-model="form.earnings.source_url" type="url" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="earnings-key">API-Key</label>
+              <input
+                id="earnings-key"
+                v-model="earningsApiKey"
+                type="password"
+                :placeholder="form.earnings.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="field">
+              <label for="earnings-interval">Aktualisierungsintervall (Sekunden)</label>
+              <input id="earnings-interval" v-model.number="form.earnings.interval" type="number" min="30" max="3600" />
+            </div>
+            <div class="field">
+              <label for="earnings-view">Dashboard-Anzeige</label>
+              <select id="earnings-view" v-model="form.earnings.view">
+                <option value="compact">Kompakt</option>
+                <option value="standard">Standard</option>
+                <option value="detailed">Ausführlich</option>
+              </select>
+            </div>
+          </div>
+          <ToggleField
+            v-model="form.earnings.overlay_enabled"
+            label="Einnahmen im Stream anzeigen"
+            description="Werte als Text-Overlay in den Stream einblenden."
+          />
+          <div v-if="form.earnings.overlay_enabled" class="settings-grid">
+            <div class="field">
+              <label for="earnings-position">Overlay-Position</label>
+              <select id="earnings-position" v-model="form.earnings.overlay_position">
+                <option value="top-left">Oben links</option>
+                <option value="top-right">Oben rechts</option>
+                <option value="bottom-left">Unten links</option>
+                <option value="bottom-right">Unten rechts</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="earnings-template">Overlay-Template</label>
+              <input id="earnings-template" v-model="form.earnings.overlay_template" type="text" maxlength="200" />
+              <p class="field-hint">Platzhalter: {net}, {gross}, {coins}, {viewers}, {top_gift}, {currency}.</p>
             </div>
           </div>
         </div>
@@ -386,6 +500,32 @@ onMounted(() => {
                 autocomplete="new-password"
               />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">YouTube-Titel</h2>
+            <p class="card-sub">Lokale Vorschau des Stream-Titels.</p>
+          </div>
+        </div>
+        <div class="settings-body">
+          <div class="field">
+            <label for="title-template">Titel-Template</label>
+            <input
+              id="title-template"
+              v-model="form.streaming.title_template"
+              type="text"
+              maxlength="200"
+              spellcheck="false"
+            />
+            <p class="field-hint">
+              Platzhalter: <code>{name}</code>, <code>{tiktok}</code>, <code>{title}</code>,
+              <code>{date}</code>, <code>{time}</code>. Es wird nur lokal angezeigt, nicht per
+              YouTube-API gesetzt.
+            </p>
           </div>
         </div>
       </section>

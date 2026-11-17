@@ -113,6 +113,21 @@ export function chatFilter(
   );
 }
 
+export function earningsFilter(
+  settings: Settings,
+  fontFile: string,
+  earningsFile: string,
+  position: OverlayPosition,
+): string {
+  const { x, y } = positionExpressions(position);
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `textfile='${escapePath(earningsFile)}':reload=1:expansion=none:` +
+    'fontsize=22:fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=10:' +
+    `x=${x}:y=${y}`
+  );
+}
+
 export function wrapChatLine(line: string, maxChars: number): string[] {
   const clean = line.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (clean.length <= maxChars) return [clean];

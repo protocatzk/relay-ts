@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
@@ -13,6 +13,13 @@ const { store } = useStore();
 
 const state = computed(() => store.status?.state ?? null);
 const tone = computed(() => stateTone(state.value));
+const theme = ref(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+
+function toggleTheme(): void {
+  theme.value = theme.value === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = theme.value;
+  localStorage.setItem('relay-theme', theme.value);
+}
 
 const connectionLabel = computed(() => {
   if (store.connectionMode === 'live') return 'Live';
@@ -67,6 +74,10 @@ async function handleLogout(): Promise<void> {
     </div>
 
     <div class="header-actions">
+      <button type="button" class="theme-toggle" :aria-label="`Theme: ${theme}`" @click="toggleTheme">
+        <span aria-hidden="true">{{ theme === 'light' ? '☾' : '☀' }}</span>
+        <span class="hide-xs">{{ theme === 'light' ? 'Dark' : 'Light' }}</span>
+      </button>
       <button
         v-if="store.authRequired"
         type="button"

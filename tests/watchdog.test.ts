@@ -23,6 +23,7 @@ function snapshot(overrides: Partial<WatchdogSnapshot> = {}): WatchdogSnapshot {
     sourceStartedAt: now,
     sinkStartedAt: now,
     sourceBitrateKbps: 4000,
+    sourceOutputSeconds: null,
     suppressStall: false,
     sinkGraceUntil: 0,
     ...overrides,
@@ -54,6 +55,7 @@ describe('Watchdog', () => {
       onSinkDown: vi.fn(),
       onSinkStall: vi.fn(),
       onLowBitrate: vi.fn(),
+      onLowSourceRate: vi.fn(),
     });
     watchdog.start();
     vi.advanceTimersByTime(1100);
@@ -72,6 +74,7 @@ describe('Watchdog', () => {
       onSinkDown: vi.fn(),
       onSinkStall: vi.fn(),
       onLowBitrate,
+      onLowSourceRate: vi.fn(),
     });
     watchdog.start();
     vi.advanceTimersByTime(1100);
@@ -92,6 +95,7 @@ describe('Watchdog', () => {
       onSinkDown,
       onSinkStall: vi.fn(),
       onLowBitrate: vi.fn(),
+      onLowSourceRate: vi.fn(),
     });
     watchdog.start();
     vi.advanceTimersByTime(1100);
@@ -112,6 +116,7 @@ describe('Watchdog', () => {
       onSinkDown: vi.fn(),
       onSinkStall,
       onLowBitrate: vi.fn(),
+      onLowSourceRate: vi.fn(),
     });
     watchdog.start();
     vi.advanceTimersByTime(11_000);
@@ -128,6 +133,7 @@ describe('Watchdog', () => {
       onSinkDown: vi.fn(),
       onSinkStall: vi.fn(),
       onLowBitrate: vi.fn(),
+      onLowSourceRate: vi.fn(),
     });
     watchdog.start();
     vi.advanceTimersByTime(5000);
@@ -143,6 +149,7 @@ describe('Watchdog', () => {
       onSinkDown: vi.fn(),
       onSinkStall: vi.fn(),
       onLowBitrate: suppressed,
+      onLowSourceRate: suppressed,
     });
     watchdog.start();
     vi.advanceTimersByTime(5000);

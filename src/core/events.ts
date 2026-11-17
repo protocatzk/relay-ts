@@ -1,6 +1,7 @@
 import { Subject, type Observable } from 'rxjs';
 import type { LogEntry } from '../utils/logger.js';
 import type { StreamerView } from './store/streamer-store.js';
+import type { EarningsSnapshot } from './earnings/monitor.js';
 
 export type StreamState = 'idle' | 'starting' | 'live' | 'reconnecting' | 'paused' | 'stopping' | 'error';
 
@@ -63,6 +64,7 @@ export interface StatusSnapshot {
     api_configured: boolean;
     canvas_active: boolean;
   };
+  earnings: EarningsSnapshot | null;
   version: string;
 }
 

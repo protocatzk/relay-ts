@@ -33,6 +33,11 @@ export async function registerPlaylistRoutes(app: FastifyInstance, ctx: ApiConte
     status: await ctx.supervisor.playlistNext(),
   }));
 
+  app.post('/api/playlists/previous', async () => ({
+    ok: true,
+    status: await ctx.supervisor.playlistPrevious(),
+  }));
+
   app.post('/api/playlists/stop', async () => ({
     ok: true,
     status: await ctx.supervisor.stopPlaylist(),
@@ -41,5 +46,10 @@ export async function registerPlaylistRoutes(app: FastifyInstance, ctx: ApiConte
   app.post('/api/playlists/:id/play', async (request) => {
     const { id } = request.params as { id: string };
     return { ok: true, status: await ctx.supervisor.playPlaylist(id) };
+  });
+
+  app.post('/api/playlists/:id/tune/:streamerId', async (request) => {
+    const { streamerId } = request.params as { id: string; streamerId: string };
+    return { ok: true, status: await ctx.supervisor.playlistTune(streamerId) };
   });
 }

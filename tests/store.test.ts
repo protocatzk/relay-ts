@@ -66,18 +66,24 @@ describe('StreamerStore', () => {
       name: 'Abend',
       channels: ['alpha', 'beta'],
       auto_advance: true,
+      end_time: '23:00',
     });
     expect(created.channels).toEqual(['alpha', 'beta']);
     expect(store.playlist('abend')?.name).toBe('Abend');
+    expect(store.playlist('abend')?.end_time).toBe('23:00');
 
     const updated = store.updatePlaylist('abend', {
       name: 'Abend 2',
       channels: ['alpha'],
       wrap: true,
+      end_time: null,
+      end_after_minutes: 120,
     });
     expect(updated.name).toBe('Abend 2');
     expect(updated.channels).toEqual(['alpha']);
     expect(updated.wrap).toBe(true);
+    expect(updated.end_time).toBeNull();
+    expect(updated.end_after_minutes).toBe(120);
 
     store.removePlaylist('abend');
     expect(store.playlist('abend')).toBeUndefined();

@@ -7,7 +7,7 @@ import StreamerEditor from '@/src/components/StreamerEditor.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 
-const { store, refreshStreamers, refreshStatus } = useStore();
+const { store, refreshStreamers, refreshPlaylists, refreshStatus } = useStore();
 const { pushToast } = useToast();
 
 const search = ref('');
@@ -18,6 +18,9 @@ const saveError = ref('');
 const rowBusy = ref<string | null>(null);
 const deleteTarget = ref<Streamer | null>(null);
 const deleting = ref(false);
+const bulkInput = ref('');
+const bulkPlaylist = ref('');
+const bulkBusy = ref(false);
 
 const filtered = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -137,8 +140,35 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
+async function submitBulk(): Promise<void> {
+  const channels = bulkInput.value
+    .split(/[\n,]+/)
+    .map((channel) => channel.trim())
+    .filter(Boolean);
+  if (channels.length === 0) {
+    pushToast('Mindestens einen Handle oder eine URL eingeben.', 'error');
+    return;
+  }
+  bulkBusy.value = true;
+  try {
+    const result = await api.streamers.bulkAdd({
+      channels,
+      ...(bulkPlaylist.value ? { playlist_id: bulkPlaylist.value } : {}),
+    });
+    await Promise.allSettled([refreshStreamers(), refreshStatus(), refreshPlaylists()]);
+    bulkInput.value = '';
+    const skipped = result.skipped.length ? `, ${result.skipped.length} bereits vorhanden` : '';
+    pushToast(`${result.created.length} Streamer angelegt${skipped}.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    bulkBusy.value = false;
+  }
+}
+
 onMounted(() => {
   refreshStreamers().catch((error) => pushToast(errorMessage(error), 'error'));
+  refreshPlaylists().catch(() => undefined);
 });
 </script>
 
@@ -158,6 +188,43 @@ onMounted(() => {
         </button>
       </div>
     </div>
+
+    <section class="card quick-add-card">
+      <div class="card-head">
+        <div>
+          <h2 class="card-title">Schnell hinzufügen</h2>
+          <p class="card-sub">Mehrere Handles oder TikTok-URLs per Zeile oder Komma.</p>
+        </div>
+      </div>
+      <div class="quick-add-row">
+        <div class="field">
+          <label class="sr-only" for="bulk-channels">Handles oder URLs</label>
+          <textarea
+            id="bulk-channels"
+            v-model="bulkInput"
+            rows="2"
+            spellcheck="false"
+            placeholder="handle1, handle2&#10;https://www.tiktok.com/@handle3"
+            @keydown.ctrl.enter.prevent="submitBulk"
+            @keydown.meta.enter.prevent="submitBulk"
+          ></textarea>
+        </div>
+        <div class="field">
+          <label for="bulk-playlist">An Playlist anhängen</label>
+          <select id="bulk-playlist" v-model="bulkPlaylist">
+            <option value="">Nicht anhängen</option>
+            <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
+              {{ playlist.name }}
+            </option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-primary" :disabled="bulkBusy || !bulkInput.trim()" @click="submitBulk">
+          <span v-if="bulkBusy" class="spinner" aria-hidden="true"></span>
+          Anlegen
+        </button>
+      </div>
+      <p class="field-hint">IDs und Namen werden aus dem Handle abgeleitet; vorhandene Streamer werden übersprungen. Strg/Cmd+Enter legt an.</p>
+    </section>
 
     <section class="card">
       <div class="toolbar">

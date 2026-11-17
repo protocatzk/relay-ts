@@ -102,4 +102,15 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     ok: true,
     status: await ctx.supervisor.refreshNow(),
   }));
+
+  app.post('/api/reload', async () => {
+    const changed = ctx.store.reloadIfChanged();
+    if (changed) ctx.supervisor.notifyStreamersChanged();
+    return { ok: true, changed };
+  });
+
+  app.post('/api/online/check', async () => {
+    await ctx.supervisor.checkOnlineNow();
+    return { ok: true };
+  });
 }
