@@ -13,7 +13,7 @@ Node.js/TypeScript · Vue 3 · Canvas-Overlays · Docker
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
 
-[Schnellstart](#schnellstart) · [Architektur](#architektur) · [Konfiguration](#konfiguration) · [API](#rest-api) · [Deployment](#deployment) · [Troubleshooting](#troubleshooting)
+[Schnellstart](#schnellstart) · [Architektur](#architektur) · [Konfiguration](#konfiguration) · [API](#rest-api) · [Deployment](#deployment) · [Troubleshooting](#troubleshooting) · [Roadmap](./docs/ROADMAP.md)
 
 </div>
 

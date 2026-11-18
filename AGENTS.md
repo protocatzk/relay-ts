@@ -58,6 +58,8 @@ Wichtige Pfade:
 - `src/web/src/` – Vue-Dashboard
 - `assets/pause/` – Beispiel-Pausenassets (SVG + MP4)
 - `tools/render-pause-video.mjs` – rendert das Pausen-Video mit Canvas/ffmpeg
+- `docs/ROADMAP.md` – priorisierter Plan und Issue-Übersicht
+- `docs/issues/` – Issue-Texte + `scripts/create-issues.sh`
 
 ## Laufzeit-Invarianten
 

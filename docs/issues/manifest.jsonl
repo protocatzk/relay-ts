@@ -1,0 +1,12 @@
+{"title":"Security: CSRF, Token-URLs und Proxy-IPs härten","file":"01-security-hardening.md","labels":["security","P0","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Auth: serverseitige, widerrufbare Sessions","file":"02-auth-sessions.md","labels":["security","P0","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Reliability: Supervisor aufteilen und Zustandsmaschine explizit machen","file":"03-supervisor-split.md","labels":["reliability","P1","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Tests: Integrationstests für Pause und Reconnect mit Fake-ffmpeg","file":"04-integration-pause-tests.md","labels":["reliability","testing","P1","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Pause: Asset-Upload, Validierung und Vorschau","file":"05-pause-asset-upload.md","labels":["pause","enhancement","P2","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Overlay-Studio: Drag/Resize, Live-Nachrichten und Presets","file":"06-overlay-studio-drag-live.md","labels":["overlay","enhancement","P2","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Ops: Metriken, Health-Details, Backup und Logrotation","file":"07-observability-backup.md","labels":["ops","observability","P2","v0.3.0"],"milestone":"v0.3.0"}
+{"title":"Earnings: Verlauf, Charts und Zeitraum-Schnellwahl","file":"08-earnings-history.md","labels":["earnings","enhancement","P3","v0.4.0"],"milestone":"v0.4.0"}
+{"title":"Telegram: Steuerung, Benachrichtigungen und Session-Liste","file":"09-telegram-control.md","labels":["telegram","enhancement","P3","v0.4.0"],"milestone":"v0.4.0"}
+{"title":"Mobile: Accessibility und E2E-Tests","file":"10-mobile-accessibility.md","labels":["mobile","accessibility","testing","P3","v0.4.0"],"milestone":"v0.4.0"}
+{"title":"Tech Debt: Per-Streamer-Overlays entfernen und Migration abschließen","file":"11-remove-per-streamer-overlays.md","labels":["tech-debt","P4","v0.5.0"],"milestone":"v0.5.0"}
+{"title":"API: OpenAPI generieren und typisierten Client ableiten","file":"12-openapi-typed-client.md","labels":["tech-debt","api","P4","v0.5.0"],"milestone":"v0.5.0"}
