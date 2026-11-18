@@ -23,6 +23,7 @@ function status(): StatusSnapshot {
     active_streamer_id: null,
     active_streamer_name: null,
     active_playlist: null,
+    manual_screen: null,
     started_at: null,
     uptime_seconds: 0,
     source: {
@@ -108,6 +109,8 @@ beforeAll(async () => {
     switchTo: async () => status(),
     pause: async () => status(),
     resume: async () => status(),
+    showScreen: async () => status(),
+    hideScreen: async () => status(),
     playPlaylist: async () => status(),
     playlistNext: async () => status(),
     stopPlaylist: async () => status(),
@@ -342,6 +345,33 @@ describe('API', () => {
       payload: body,
     });
     expect(upload.statusCode).toBe(400);
+  });
+
+  it('activates and stops manual screens', async () => {
+    const startup = await app.inject({
+      method: 'POST',
+      url: '/api/screens/startup/start',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(startup.statusCode).toBe(200);
+    const pause = await app.inject({
+      method: 'POST',
+      url: '/api/screens/pause/start',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(pause.statusCode).toBe(200);
+    const stop = await app.inject({
+      method: 'POST',
+      url: '/api/screens/stop',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(stop.statusCode).toBe(200);
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/screens/nope/start',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 
   it('returns structured JSON 404 for unknown API routes', async () => {

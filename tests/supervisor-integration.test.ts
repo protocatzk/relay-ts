@@ -141,6 +141,17 @@ describe('Supervisor integration', () => {
       const started = await supervisor.start('alpha');
       expect(started.state).toBe('live');
 
+      const manual = await supervisor.showScreen('pause');
+      expect(manual).toMatchObject({ state: 'paused', manual_screen: 'pause' });
+      expect(manual.sink.running).toBe(true);
+      expect(manual.source.connected).toBe(false);
+      const hidden = await supervisor.hideScreen();
+      expect(hidden.manual_screen).toBeNull();
+      await waitFor(() => {
+        const status = supervisor!.buildStatus();
+        return status.state === 'live' && status.source.connected;
+      }, 4000);
+
       const sourcePid = supervisor.buildStatus().source.pid;
       expect(sourcePid).toBeTruthy();
       process.kill(sourcePid!, 'SIGTERM');

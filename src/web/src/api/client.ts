@@ -324,6 +324,12 @@ export const api = {
   quickstart: (body: QuickStartInput) =>
     request<unknown>('/api/quickstart', { method: 'POST', body }),
 
+  screens: {
+    show: (type: 'startup' | 'pause') =>
+      request<unknown>(`/api/screens/${type}/start`, { method: 'POST' }),
+    stop: () => request<unknown>('/api/screens/stop', { method: 'POST' }),
+  },
+
   pause: {
     start: () => request<unknown>('/api/pause/start', { method: 'POST' }),
     stop: () => request<unknown>('/api/pause/stop', { method: 'POST' }),

@@ -25,6 +25,7 @@ const selectedPlaylist = ref('');
 const status = computed(() => store.status);
 const state = computed(() => status.value?.state ?? null);
 const isPaused = computed(() => state.value === 'paused');
+const manualScreen = computed(() => status.value?.manual_screen ?? null);
 
 const canStart = computed(
   () =>
@@ -208,11 +209,20 @@ async function stopGlobal(): Promise<void> {
 }
 
 async function togglePause(): Promise<void> {
-  const paused = isPaused.value;
+  const shouldStop = isPaused.value && manualScreen.value !== 'startup';
   await run(
-    paused ? 'resume' : 'pause',
-    () => (paused ? api.pause.stop() : api.pause.start()),
-    paused ? 'Pause beendet.' : 'Pause aktiviert.',
+    shouldStop ? 'screen-stop' : 'pause',
+    () => (shouldStop ? api.screens.stop() : api.screens.show('pause')),
+    shouldStop ? 'Zurück zum Stream.' : 'Pausenscreen aktiviert.',
+  );
+}
+
+async function toggleStartup(): Promise<void> {
+  const shouldStop = manualScreen.value === 'startup';
+  await run(
+    shouldStop ? 'screen-stop' : 'startup',
+    () => (shouldStop ? api.screens.stop() : api.screens.show('startup')),
+    shouldStop ? 'Zurück zum Stream.' : 'Startbildschirm aktiviert.',
   );
 }
 
@@ -323,7 +333,7 @@ onBeforeUnmount(() => {
             {{ status.active_playlist.total }}
           </template>
           <template v-else-if="status?.state === 'paused'">
-            Der Stream ist pausiert. Der Pausenscreen wird gesendet.
+            {{ manualScreen === 'startup' ? 'Der Startbildschirm wird gesendet.' : 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.' }}
           </template>
           <template v-else-if="status?.state === 'error'">
             {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
@@ -363,18 +373,31 @@ onBeforeUnmount(() => {
             type="button"
             class="btn btn-ghost"
             :disabled="!canPause || busy !== null"
+            @click="toggleStartup"
+          >
+            <span v-if="busy === 'startup' || busy === 'screen-stop'" class="spinner" aria-hidden="true"></span>
+            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            {{ manualScreen === 'startup' ? 'Startbildschirm beenden' : 'Startbildschirm' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            :disabled="!canPause || busy !== null"
             @click="togglePause"
           >
-            <span v-if="busy === 'pause' || busy === 'resume'" class="spinner" aria-hidden="true"></span>
+            <span v-if="busy === 'pause' || busy === 'screen-stop'" class="spinner" aria-hidden="true"></span>
             <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
               <path
-                v-if="isPaused"
+                v-if="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')"
                 d="m8 5 11 7-11 7V5Z"
                 fill="currentColor"
               />
               <path v-else d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
             </svg>
-            {{ isPaused ? 'Pause beenden' : 'Pause' }}
+            {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Pause beenden' : 'Pause' }}
           </button>
         </div>
       </div>

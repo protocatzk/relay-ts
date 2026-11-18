@@ -153,12 +153,25 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
 
   app.post('/api/pause/start', async () => ({
     ok: true,
-    status: await ctx.supervisor.pause(),
+    status: await ctx.supervisor.showScreen('pause'),
   }));
 
   app.post('/api/pause/stop', async () => ({
     ok: true,
-    status: await ctx.supervisor.resume(),
+    status: await ctx.supervisor.hideScreen(),
+  }));
+
+  app.post('/api/screens/:type/start', async (request) => {
+    const { type } = request.params as { type: string };
+    if (type !== 'startup' && type !== 'pause') {
+      throw new ValidationError('Ungültiger Screen-Typ');
+    }
+    return { ok: true, status: await ctx.supervisor.showScreen(type) };
+  });
+
+  app.post('/api/screens/stop', async () => ({
+    ok: true,
+    status: await ctx.supervisor.hideScreen(),
   }));
 
   app.post('/api/system/restart-sink', async () => ({

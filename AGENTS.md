@@ -71,6 +71,9 @@ Wichtige Pfade:
   Pausenscreen. Reconnect läuft weiter; bei Erfolg wird der Pausenscreen
   gestoppt.
 - `pause.max_minutes` begrenzt die Pause (0 = unbegrenzt).
+- Manuelle Screens (`/api/screens/:type/start`, `/api/screens/stop`) können
+  Startbildschirm oder Pausenscreen jederzeit einspielen und unbegrenzt halten;
+  `pause.max_minutes` gilt nur für automatische Offline-Pausen.
 - Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
   `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
   Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.

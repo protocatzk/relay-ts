@@ -37,19 +37,19 @@ Navigation.
 
 ## Funktionen
 
-| Bereich            | Highlights                                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| **Streaming**      | TikTok → YouTube, Delay-Puffer mit Bitraten-Pacing, MPEG-TS-Relay, CBR-Output mit Filler-Frames, monotone Timestamps |
-| **Stabilität**     | Watchdog für Quelle/Sink, Quell-Ratenüberwachung, Auto-Reconnect mit Backoff, Auto-Refresh der TikTok-URL            |
-| **Pausenmodus**    | Pausenscreen statt RTMP-Trennung, konfigurierbare Grace-Periode, maximale Pausendauer, eigener Hintergrund/Font      |
-| **Startbildschirm** | „Starting Soon“-Video/Bild vor dem ersten Live-Bild mit Dauer, Text und Font                                          |
-| **Overlays**       | Canvas-Chat (Bubbles/Panel/Minimal), Emoji, Tier-Badges, Chat-Statistik, Uhr, Text, Einnahmen, drawtext-Fallback     |
-| **Overlay-Studio** | Vollständige Bühnenvorschau aus ungespeicherten Drafts, Positions-Klick, globale Persistenz, Live-Anwendung          |
-| **Playlists**      | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
-| **Einnahmen**      | TokTracker-kompatibel, Zeiträume, Sessions, Gifts/Gifter, Top-Gift/Gifter, Kurse, Detailansicht                      |
-| **Dashboard**      | TokTracker-Design, SSE, Theme-Umschalter, responsive/mobile Ansicht, Drawer-Navigation                               |
-| **Auth**           | Passwort/Basic Auth, API-Token, Telegram-Bot-Login mit Freigabe                                                      |
-| **Betrieb**        | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
+| Bereich             | Highlights                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Streaming**       | TikTok → YouTube, Delay-Puffer mit Bitraten-Pacing, MPEG-TS-Relay, CBR-Output mit Filler-Frames, monotone Timestamps |
+| **Stabilität**      | Watchdog für Quelle/Sink, Quell-Ratenüberwachung, Auto-Reconnect mit Backoff, Auto-Refresh der TikTok-URL            |
+| **Pausenmodus**     | Pausenscreen statt RTMP-Trennung, konfigurierbare Grace-Periode, maximale Pausendauer, eigener Hintergrund/Font      |
+| **Startbildschirm** | „Starting Soon“-Video/Bild vor dem ersten Live-Bild mit Dauer, Text und Font                                         |
+| **Overlays**        | Canvas-Chat (Bubbles/Panel/Minimal), Emoji, Tier-Badges, Chat-Statistik, Uhr, Text, Einnahmen, drawtext-Fallback     |
+| **Overlay-Studio**  | Vollständige Bühnenvorschau aus ungespeicherten Drafts, Positions-Klick, globale Persistenz, Live-Anwendung          |
+| **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
+| **Einnahmen**       | TokTracker-kompatibel, Zeiträume, Sessions, Gifts/Gifter, Top-Gift/Gifter, Kurse, Detailansicht                      |
+| **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, responsive/mobile Ansicht, Drawer-Navigation                               |
+| **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Bot-Login mit Freigabe                                                      |
+| **Betrieb**         | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
 
 ---
 
@@ -353,8 +353,8 @@ die erste TikTok-Quelle übernimmt:
 startup:
   enabled: true
   duration_seconds: 8
-  text: "Gleich geht’s los."
-  subtext: "Der Stream startet in wenigen Minuten."
+  text: 'Gleich geht’s los.'
+  subtext: 'Der Stream startet in wenigen Minuten.'
   background: /app/data/pause/starting-soon.mp4
   fit: stretch
 ```
@@ -375,6 +375,20 @@ data/pause/pausenscreen.mp4
 
 `pause.background` bzw. `startup.background` verweisen dann auf
 `/app/data/pause/<datei>`.
+
+### Manuelle Screens
+
+Auf dem Dashboard lassen sich **Startbildschirm** und **Pausenscreen** jederzeit
+per Knopfdruck einspielen – unabhängig davon, ob die TikTok-Quelle gerade läuft
+oder pausiert:
+
+- **Startbildschirm** → eigenes Startvideo
+- **Pause** → Pausenscreen
+- **Beenden** → zurück zur aktiven Quelle
+
+Die manuellen Screens bleiben aktiv, bis du sie beendest; die automatische
+`pause.max_minutes`-Grenze gilt nur für Offline-Pausen. Die YouTube-/RTMP-
+Verbindung bleibt währenddessen bestehen.
 
 ---
 
@@ -552,23 +566,25 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 <details>
 <summary>Playlists und Steuerung</summary>
 
-| Methode  | Endpunkt                           | Beschreibung                |
-| -------- | ---------------------------------- | --------------------------- |
-| `GET`    | `/api/playlists`                   | Playlists                   |
-| `POST`   | `/api/playlists/:id/play`          | Playlist starten            |
-| `POST`   | `/api/playlists/next`              | Nächster Eintrag            |
-| `POST`   | `/api/playlists/previous`          | Vorheriger Eintrag          |
-| `POST`   | `/api/playlists/:id/tune/:channel` | Kanal direkt ansteuern      |
-| `POST`   | `/api/playlists/stop`              | Playlist stoppen            |
-| `POST`   | `/api/reload`                      | `streamers.yml` neu laden   |
-| `POST`   | `/api/online/check`                | Online-Status sofort prüfen |
-| `POST`   | `/api/pause/start` / `stop`        | Pausenscreen an/aus         |
-| `GET`    | `/api/pause/assets`                | Hochgeladene Pause-Dateien  |
-| `POST`   | `/api/pause/assets`                | Hintergrund/Font hochladen  |
-| `GET`    | `/api/pause/assets/:filename`      | Pause-Datei ausliefern      |
-| `DELETE` | `/api/pause/assets/:filename`      | Pause-Datei löschen         |
-| `POST`   | `/api/system/restart-sink`         | Encoder neu starten         |
-| `POST`   | `/api/system/refresh`              | Quell-URL erneuern          |
+| Methode  | Endpunkt                           | Beschreibung                     |
+| -------- | ---------------------------------- | -------------------------------- |
+| `GET`    | `/api/playlists`                   | Playlists                        |
+| `POST`   | `/api/playlists/:id/play`          | Playlist starten                 |
+| `POST`   | `/api/playlists/next`              | Nächster Eintrag                 |
+| `POST`   | `/api/playlists/previous`          | Vorheriger Eintrag               |
+| `POST`   | `/api/playlists/:id/tune/:channel` | Kanal direkt ansteuern           |
+| `POST`   | `/api/playlists/stop`              | Playlist stoppen                 |
+| `POST`   | `/api/reload`                      | `streamers.yml` neu laden        |
+| `POST`   | `/api/online/check`                | Online-Status sofort prüfen      |
+| `POST`   | `/api/screens/:type/start`         | `startup`/`pause` manuell zeigen |
+| `POST`   | `/api/screens/stop`                | Manuellen Screen beenden         |
+| `POST`   | `/api/pause/start` / `stop`        | Pausenscreen an/aus              |
+| `GET`    | `/api/pause/assets`                | Hochgeladene Pause-Dateien       |
+| `POST`   | `/api/pause/assets`                | Hintergrund/Font hochladen       |
+| `GET`    | `/api/pause/assets/:filename`      | Pause-Datei ausliefern           |
+| `DELETE` | `/api/pause/assets/:filename`      | Pause-Datei löschen              |
+| `POST`   | `/api/system/restart-sink`         | Encoder neu starten              |
+| `POST`   | `/api/system/refresh`              | Quell-URL erneuern               |
 
 </details>
 

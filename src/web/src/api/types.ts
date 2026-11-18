@@ -150,6 +150,7 @@ export interface StatusPayload {
   active_streamer_id: string | null;
   active_streamer_name: string | null;
   active_playlist: ActivePlaylist | null;
+  manual_screen: 'startup' | 'pause' | null;
   started_at: string | null;
   uptime_seconds: number;
   source: StreamSourceStatus;

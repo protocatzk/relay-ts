@@ -134,6 +134,7 @@ export class Supervisor {
   private stoppingSink = false;
   private shuttingDown = false;
   private pauseReason: 'user' | 'offline' | null = null;
+  private manualScreen: 'startup' | 'pause' | null = null;
   private forceReencodeNext = false;
   private resolving = false;
   private producerStartedAt: number | null = null;
@@ -572,6 +573,7 @@ export class Supervisor {
     this.startedAt = new Date();
     this.activeTitle = stream.title;
     this.pauseReason = null;
+    this.manualScreen = null;
     this.clearPauseLimit();
     this.reconnectAttempts = 0;
     this.forceReencodeNext = options.forceReencode ?? false;
@@ -805,6 +807,7 @@ export class Supervisor {
   private async stopInternalLocked(): Promise<StatusSnapshot> {
     this.transitionTo('stopping');
     this.pauseReason = null;
+    this.manualScreen = null;
     this.clearAllTimers();
     this.autoRefresh.stop();
     this.watchdog.reset();
@@ -836,20 +839,23 @@ export class Supervisor {
   }
 
   async pause(): Promise<StatusSnapshot> {
+    return this.showScreen('pause');
+  }
+
+  async showScreen(type: 'startup' | 'pause'): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       if (!this.activeStreamer || !this.activeKey) {
-        throw new ValidationError('Es läuft kein Stream, der pausiert werden kann');
+        throw new ValidationError('Es läuft kein Stream, für den ein Screen aktiviert werden kann');
       }
-      if (!this.settings.pause.enabled) {
+      if (type === 'startup' && !this.settings.startup.enabled) {
+        throw new ValidationError('Der Startbildschirm ist in den Einstellungen deaktiviert');
+      }
+      if (type === 'pause' && !this.settings.pause.enabled) {
         throw new ValidationError('Der Pausenscreen ist in den Einstellungen deaktiviert');
       }
-      if (this.state === 'paused' && this.pauseScreen.running) {
-        return this.buildStatus();
-      }
-      this.clearReconnectTimer();
-      this.pauseReason = 'user';
-      this.clearOfflinePauseTimer();
       this.clearStartupTimer();
+      this.clearOfflinePauseTimer();
+      this.clearPauseLimit();
       await this.stopSourceAndChatLocked();
       if (!this.sink.running) {
         this.buffer.reset();
@@ -862,29 +868,35 @@ export class Supervisor {
         );
       }
       this.applyConfiguredDelay();
-      const timestampOffset = this.nextProducerOffset();
-      await this.pauseScreen.start(undefined, undefined, timestampOffset);
-      this.markProducerStarted(timestampOffset);
+      const offset = this.nextProducerOffset();
+      const screen = type === 'startup' ? this.startupScreen : this.pauseScreen;
+      await screen.start(undefined, undefined, offset);
+      this.markProducerStarted(offset);
       this.markSinkGrace();
-      this.transitionTo('paused');
-      this.schedulePauseLimitLocked();
+      this.manualScreen = type;
+      this.pauseReason = 'user';
+      this.transitionTo('paused', `manual ${type} screen`);
       this.autoRefresh.stop();
       this.emitAll();
-      this.deps.logger.info('Stream pausiert');
+      this.deps.logger.info({ screen: type }, 'Manueller Screen aktiviert');
       return this.buildStatus();
     });
   }
 
-  async resume(): Promise<StatusSnapshot> {
+  async hideScreen(): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       const streamer = this.activeStreamer;
       if (!streamer) throw new ValidationError('Es ist kein Streamer aktiv');
       if (this.state !== 'paused') return this.buildStatus();
+      this.manualScreen = null;
       this.pauseReason = null;
+      this.clearPauseLimit();
+      this.clearStartupTimer();
       return this.startStreamerLocked(streamer, {
         key: this.activeKey,
         playlist: this.activePlaylist ?? undefined,
         allowOfflineWait: true,
+        intro: false,
       });
     });
   }
@@ -1175,6 +1187,7 @@ export class Supervisor {
         this.activeTitle = stream.title;
         this.clearPauseLimit();
         this.pauseReason = null;
+        this.manualScreen = null;
         this.lastError = null;
         this.reconnectAttempts = 0;
         this.watchdog.clearError();
@@ -1234,6 +1247,7 @@ export class Supervisor {
     this.markProducerStarted(timestampOffset);
     this.markSinkGrace();
     this.pauseReason = 'offline';
+    this.manualScreen = null;
     this.transitionTo('paused');
     this.schedulePauseLimitLocked();
     this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
@@ -1328,6 +1342,7 @@ export class Supervisor {
         this.activeTitle = stream.title;
         this.clearPauseLimit();
         this.pauseReason = null;
+        this.manualScreen = null;
         this.transitionTo('live');
         this.lastError = null;
         this.autoRefresh.markRefreshed();
@@ -1784,6 +1799,7 @@ export class Supervisor {
             total: this.activePlaylist.playlist.channels.length,
           }
         : null,
+      manual_screen: this.manualScreen,
       started_at: isoOrNull(this.startedAt),
       uptime_seconds: this.startedAt ? Math.round((now - this.startedAt.getTime()) / 1000) : 0,
       source: {
