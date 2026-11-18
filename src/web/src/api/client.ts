@@ -11,6 +11,7 @@ import type {
   PausePreviewInput,
   LogEntry,
   LogsResponse,
+  MediaFile,
   Playlist,
   PlaylistInput,
   PlaylistsResponse,
@@ -275,6 +276,10 @@ export const api = {
     get: () => request<Settings>('/api/settings'),
     update: (body: Partial<SettingsUpdate>) => request<Settings>('/api/settings', { method: 'PUT', body }),
   } satisfies SettingsApi,
+
+  media: {
+    list: () => request<{ files: MediaFile[] }>('/api/media'),
+  },
 
   playlists: {
     list: async () =>

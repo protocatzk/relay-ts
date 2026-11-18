@@ -55,6 +55,7 @@ Wichtige Pfade:
 - `src/core/source/` – TikTok-Auflösung und Quell-ffmpeg
 - `src/core/sink/` – YouTube-Sink
 - `src/core/relay/` – MPEG-TS-Relay und DelayBuffer
+- `src/core/media/` – lokale Playlist-Videos (`data/media/`) und ffprobe-Metadaten
 - `src/core/overlays/` – Canvas-Chat, drawtext, PauseScreen, Studio-Preview
 - `src/core/earnings/` – TokTracker-kompatibler Einnahmen-Monitor
 - `src/core/telegram/` – Login-Bot und Token-Store
@@ -94,6 +95,9 @@ Wichtige Pfade:
   startet die Quelle nicht neu. Ein Neustart erfolgt erst bei echtem
   Daten-Stall; so entstehen keine Pausen-/Reconnect-Schleifen bei kleinen
   Streams.
+- Playlist-Einträge mit `file:` verweisen auf `data/media/`; lokale Videos werden
+  einmalig mit `-re` abgespielt und schalten am Dateiende weiter. Der Sink bleibt
+  bestehen; echte Streamer-Einträge funktionieren unverändert.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
   (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart

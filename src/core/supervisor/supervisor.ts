@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Logger } from 'pino';
 import type { LoadedConfig } from '../config/loader.js';
@@ -44,7 +45,12 @@ import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
 import { incMetric } from '../metrics.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
-import { PlaylistController, type PlaylistRunState } from './playlist-controller.js';
+import {
+  PlaylistController,
+  type PlaylistRunState,
+  type PlaylistStartOptions,
+} from './playlist-controller.js';
+import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
 import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
@@ -114,6 +120,7 @@ export class Supervisor {
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
+  private activeMediaFile: string | null = null;
   private readonly playlistController: PlaylistController;
   private activeKey = '';
   private activeOverlayFilters: string[] = [];
@@ -155,6 +162,7 @@ export class Supervisor {
       lock: this.lock,
       isShuttingDown: () => this.shuttingDown,
       startStreamer: (streamer, options) => this.startStreamerLocked(streamer, options),
+      startFile: (file, options) => this.startFileLocked(file, options),
       stopAll: () => this.stopInternalLocked(),
       transition: (state, reason) => this.transitionTo(state, reason),
       emitStatus: () => this.emitStatus(),
@@ -231,7 +239,7 @@ export class Supervisor {
       relay: relayEndpoint,
       logger,
       redact: this.deps.redact,
-      onExit: () => this.handleSourceExit(),
+      onExit: (code, signal) => this.handleSourceExit(code, signal),
       onCodecProblem: (line) => this.handleCodecProblem(line),
     });
     this.sink = new YouTubeSink({
@@ -516,6 +524,74 @@ export class Supervisor {
       this.chatEngine,
     );
     if (this.chatEngine) this.chatEngine.setMessages(this.currentChatMessages);
+  }
+
+  private async startFileLocked(
+    file: string,
+    options: PlaylistStartOptions,
+  ): Promise<StatusSnapshot> {
+    if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
+    const path = mediaFilePath(this.deps.config.paths.dataDir, file);
+    if (!path || !existsSync(path)) {
+      throw new ValidationError(`Lokales Video "${file}" wurde nicht gefunden`);
+    }
+    this.clearSinkStartTimer();
+    const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
+    const prepared = this.overlays.prepare();
+    const signature = this.overlaySignature(prepared.filters, undefined);
+    await this.stopSourceAndChatLocked();
+    if (this.sink.running) await this.stopSinkLocked();
+    this.buffer.reset();
+    this.resetTimeline();
+    this.chatEngine?.stop();
+    this.chatEngine = undefined;
+    this.currentChatMessages = [];
+    this.lastChatMessageAt = null;
+    this.applyConfiguredDelay();
+
+    this.activeStreamer = null;
+    this.activeMediaFile = file;
+    this.activeKey = options.key;
+    this.activeOverlayFilters = prepared.filters;
+    this.activeOverlayInput = undefined;
+    this.activeOverlaySignature = signature;
+    this.startedAt = new Date();
+    this.activeTitle = file;
+    this.pauseReason = null;
+    this.manualScreen = null;
+    this.clearPauseLimit();
+    this.reconnectAttempts = 0;
+    this.forceReencodeNext = false;
+
+    const synthetic = StreamerSchema.parse({
+      id: 'media-file',
+      name: file,
+      tiktok: 'media-file',
+      video_mode: 'copy',
+    });
+    const resolved: ResolvedStream = {
+      url: path,
+      vcodec: probe.isH264 ? 'h264' : 'other',
+      height: probe.height,
+      formatId: null,
+      isH264: probe.isH264,
+      title: file,
+      resolvedAt: new Date(),
+    };
+    const offset = 0;
+    this.source.start(synthetic, resolved, false, offset);
+    this.startSinkOrPrefillLocked(options.key, prepared.filters, signature);
+    this.markProducerStarted(offset);
+    this.markSinkGrace();
+    this.earnings.setActive();
+    this.autoRefresh.stop();
+    this.watchdog.reset();
+    this.watchdog.clearError();
+    this.playlistController.activate(options.playlist);
+    this.transitionTo('live');
+    this.emitAll();
+    this.deps.logger.info({ file, playlist: options.playlist.playlist.id }, 'Lokales Video gestartet');
+    return this.buildStatus();
   }
 
   private async startStreamerLocked(
@@ -821,6 +897,7 @@ export class Supervisor {
   }
 
   private async stopSourceAndChatLocked(): Promise<void> {
+    this.activeMediaFile = null;
     if (this.chat) {
       this.chat.stop();
       this.chat = undefined;
@@ -886,6 +963,7 @@ export class Supervisor {
     this.currentChatMessages = [];
     this.lastChatMessageAt = null;
     this.activeStreamer = null;
+    this.activeMediaFile = null;
     this.playlistController.detach();
     this.activeKey = '';
     this.activeOverlayFilters = [];
@@ -1094,8 +1172,22 @@ export class Supervisor {
     this.offlinePauseTimer = undefined;
   }
 
-  private handleSourceExit(): void {
+  private handleSourceExit(
+    code: number | null = null,
+    signal: NodeJS.Signals | null = null,
+  ): void {
     if (this.shuttingDown || this.stoppingSource > 0) return;
+    if (this.activeMediaFile) {
+      const file = this.activeMediaFile;
+      this.activeMediaFile = null;
+      this.deps.logger.info({ file, code, signal }, 'Lokales Playlist-Video beendet');
+      void this.playlistController.advanceAfterFile().catch((error) => {
+        this.lastError = toErrorMessage(error);
+        this.deps.logger.warn({ err: this.lastError }, 'Playlist konnte nach Video nicht fortsetzen');
+        this.emitAll();
+      });
+      return;
+    }
     if (!this.activeStreamer) return;
     if (!['live', 'starting'].includes(this.state)) return;
     incMetric('source_exits_total');
@@ -1511,7 +1603,8 @@ export class Supervisor {
         previous.earnings.overlay_box_color !== next.earnings.overlay_box_color ||
         previous.earnings.overlay_show_box !== next.earnings.overlay_show_box;
       const overlayCarrier =
-        this.activeStreamer ?? (this.manualScreen ? this.screenFallbackStreamer() : null);
+        this.activeStreamer ??
+        (this.manualScreen || this.activeMediaFile ? this.screenFallbackStreamer() : null);
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
         const prepared = this.overlays.prepare();
         this.activeOverlayFilters = prepared.filters;

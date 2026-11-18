@@ -74,6 +74,11 @@ function setup(options: {
       controller.activate(startOptions.playlist);
       return status;
     },
+    startFile: async (file, startOptions) => {
+      started.push({ id: `file:${file}`, index: startOptions.playlist.index });
+      controller.activate(startOptions.playlist);
+      return status;
+    },
     stopAll: async () => {
       stops.push(1);
       controller.detach();
@@ -107,6 +112,14 @@ describe('PlaylistController', () => {
     });
     await controller.play('mix');
     expect(started).toEqual([{ id: 'beta', index: 1 }]);
+  });
+
+  it('starts local file entries and advances after they end', async () => {
+    const { controller, started } = setup({ channels: ['file:intro.mp4', 'alpha'] });
+    await controller.play('mix');
+    expect(started[0]).toEqual({ id: 'file:intro.mp4', index: 0 });
+    await controller.advanceAfterFile();
+    expect(started[1]).toEqual({ id: 'alpha', index: 1 });
   });
 
   it('wraps to the first channel after the last one', async () => {

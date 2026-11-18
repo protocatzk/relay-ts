@@ -40,6 +40,7 @@ export interface SourceCommandOptions {
 
 export function buildSourceCommand(options: SourceCommandOptions): string[] {
   const { media, settings, stream, relay, forceReencode } = options;
+  const localFile = stream.url.startsWith('/') || /^file:/i.test(stream.url);
   const args = [
     '-hide_banner',
     '-nostdin',
@@ -52,25 +53,29 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
     '5',
     '-fflags',
     '+genpts',
-    '-rw_timeout',
-    '15000000',
-    '-reconnect',
-    '1',
-    '-reconnect_streamed',
-    '1',
-    '-reconnect_delay_max',
-    '5',
-    '-user_agent',
-    media.sourceUserAgent,
-    '-headers',
-    'Referer: https://www.tiktok.com/\r\nAccept: */*\r\n',
-    '-i',
-    stream.url,
-    '-map',
-    '0:v:0?',
-    '-map',
-    '0:a:0?',
   ];
+  if (localFile) {
+    // Local playlist videos must be read at real time, not as fast as the disk.
+    args.push('-re', '-i', stream.url);
+  } else {
+    args.push(
+      '-rw_timeout',
+      '15000000',
+      '-reconnect',
+      '1',
+      '-reconnect_streamed',
+      '1',
+      '-reconnect_delay_max',
+      '5',
+      '-user_agent',
+      media.sourceUserAgent,
+      '-headers',
+      'Referer: https://www.tiktok.com/\r\nAccept: */*\r\n',
+      '-i',
+      stream.url,
+    );
+  }
+  args.push('-map', '0:v:0?', '-map', '0:a:0?');
 
   const reencode = forceReencode || !stream.isH264 || options.streamer.video_mode === 'reencode';
   if (reencode) {

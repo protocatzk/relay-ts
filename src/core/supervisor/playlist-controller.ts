@@ -28,6 +28,7 @@ export interface PlaylistControllerDeps {
   lock: AsyncLock;
   isShuttingDown(): boolean;
   startStreamer(streamer: StreamerConfig, options: PlaylistStartOptions): Promise<StatusSnapshot>;
+  startFile(file: string, options: PlaylistStartOptions): Promise<StatusSnapshot>;
   stopAll(): Promise<StatusSnapshot>;
   transition(state: StreamState, reason?: string): void;
   emitStatus(): void;
@@ -94,6 +95,10 @@ export class PlaylistController {
       const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
       const wanted = streamerId.replace(/^@+/, '').toLowerCase();
       const index = playlist.channels.findIndex((channel) => {
+        if (channel.startsWith('file:')) {
+          const file = channel.slice('file:'.length).replace(/^@+/, '').toLowerCase();
+          return file === wanted || channel.replace(/^@+/, '').toLowerCase() === wanted;
+        }
         const resolved = this.resolveChannel(channel);
         return (
           resolved.id === streamerId ||
@@ -153,6 +158,14 @@ export class PlaylistController {
     }, delay);
   }
 
+  /** Called by the supervisor when a local video reaches its end. */
+  async advanceAfterFile(): Promise<StatusSnapshot | null> {
+    return this.deps.lock.run(async () => {
+      if (!this.state) return null;
+      return this.advanceLocked('offline');
+    });
+  }
+
   clearTimers(): void {
     if (this.advanceTimer) clearTimeout(this.advanceTimer);
     if (this.endTimer) clearTimeout(this.endTimer);
@@ -198,6 +211,29 @@ export class PlaylistController {
         }
       }
       const channel = channels[index]!;
+      if (channel.startsWith('file:')) {
+        const file = channel.slice('file:'.length).trim();
+        const key = resolveStreamKey(playlist).key || resolveStreamKey({}).key;
+        tried += 1;
+        if (!file || !key) {
+          index += 1;
+          continue;
+        }
+        try {
+          return await this.deps.startFile(file, {
+            key,
+            playlist: { playlist, index },
+          });
+        } catch (error) {
+          lastError = toErrorMessage(error);
+          this.deps.logger.warn(
+            { playlist: playlist.id, file, err: lastError },
+            'Lokales Playlist-Video konnte nicht gestartet werden',
+          );
+          index += 1;
+          continue;
+        }
+      }
       const streamer = this.resolveChannel(channel);
       const playlistKey = resolveStreamKey(playlist).key;
       const streamerKey = resolveStreamKey(streamer).key;

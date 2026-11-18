@@ -67,6 +67,21 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('Referer: https://www.tiktok.com/');
   });
 
+  it('reads local playlist videos in real time without HTTP reconnect flags', () => {
+    const args = buildSourceCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      streamer,
+      stream: { ...stream, url: '/app/data/media/intro.mp4' },
+      relay,
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-re -i /app/data/media/intro.mp4');
+    expect(line).not.toContain('-reconnect');
+    expect(line).not.toContain('Referer:');
+    expect(line).toContain('tcp://127.0.0.1:12345?tcp_nodelay=1');
+  });
+
   it('re-encodes non-H.264 sources', () => {
     const args = buildSourceCommand({
       media,

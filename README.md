@@ -502,8 +502,15 @@ Chat-Statistik. Uhr und Text haben eigene Ränder und optionale Hintergrundboxen
 
 ## Playlists
 
-Playlists referenzieren Streamer-IDs oder TikTok-Handles und lassen sich im
-Dashboard verwalten. Fehlt ein Streamer, wird ein temporärer Eintrag erzeugt.
+Playlists referenzieren Streamer-IDs, TikTok-Handles oder lokale Videos und
+lassen sich im Dashboard verwalten. Fehlt ein Streamer, wird ein temporärer
+Eintrag erzeugt.
+
+Lokale Videos liegen unter `data/media/` (gitignored) und werden als
+`file:dateiname.mp4` in die Playlist eingetragen. Im Playlist-Editor können
+vorhandene Dateien ausgewählt und eingefügt werden; abgespielt wird einmalig in
+Echtzeit, danach geht es automatisch zum nächsten Eintrag. Unterstützt werden
+MP4, WebM, MOV, MKV und M4V. Der YouTube-Sink bleibt dabei bestehen.
 
 - `auto_advance` wechselt bei Offline-Quelle nach `advance_delay_seconds`.
 - `wrap` springt am Ende zum Anfang.
@@ -625,6 +632,7 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET`    | `/api/streamers/:id/title`  | YouTube-Titel-Vorschau            |
 | `POST`   | `/api/quickstart`           | Handle + Key anlegen und starten  |
 | `GET`    | `/api/status`               | Vollständiger Systemstatus        |
+| `GET`    | `/api/media`                | Lokale Playlist-Videos listen      |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |
 | `GET`    | `/api/earnings/history`     | Verlauf für einen Zeitraum        |
 | `POST`   | `/api/earnings/period`      | Zeitraum-Schnellwahl speichern    |

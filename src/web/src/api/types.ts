@@ -471,6 +471,13 @@ export interface SettingsUpdate {
   };
 }
 
+export interface MediaFile {
+  filename: string;
+  path: string;
+  size: number;
+  modified_at: string;
+}
+
 export interface Playlist {
   id: string;
   name: string;

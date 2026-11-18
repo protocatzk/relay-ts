@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { Playlist, PlaylistInput } from '@/src/api/types';
+import type { MediaFile, Playlist, PlaylistInput } from '@/src/api/types';
 import ModalDialog from '@/src/components/ModalDialog.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useStore } from '@/src/composables/useStore';
@@ -30,6 +30,37 @@ const form = reactive({
 });
 
 const activePlaylist = computed(() => store.status?.active_playlist ?? null);
+const mediaFiles = ref<MediaFile[]>([]);
+const selectedMedia = ref('');
+
+function isMediaChannel(channel: string): boolean {
+  return channel.startsWith('file:');
+}
+
+function channelLabel(channel: string): string {
+  return isMediaChannel(channel) ? channel.slice('file:'.length) : channel;
+}
+
+function addMediaEntry(): void {
+  if (!selectedMedia.value) return;
+  const entry = `file:${selectedMedia.value}`;
+  const channels = form.channels
+    .split(/\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!channels.includes(entry)) channels.push(entry);
+  form.channels = channels.join('\n');
+  selectedMedia.value = '';
+}
+
+async function loadMediaFiles(): Promise<void> {
+  try {
+    const response = await api.media.list();
+    mediaFiles.value = response.files;
+  } catch {
+    mediaFiles.value = [];
+  }
+}
 
 function isActive(playlist: Playlist): boolean {
   return activePlaylist.value?.id === playlist.id;
@@ -189,6 +220,7 @@ async function stop(): Promise<void> {
 onMounted(() => {
   refreshPlaylists().catch((error) => pushToast(errorMessage(error), 'error'));
   refreshStatus().catch(() => undefined);
+  void loadMediaFiles();
 });
 </script>
 
@@ -279,7 +311,10 @@ onMounted(() => {
           <ol v-if="playlist.channels.length > 0" class="channel-list">
             <li v-for="(channel, index) in playlist.channels" :key="`${playlist.id}-${index}`" class="channel-item" :class="{ 'is-current': isCurrentChannel(playlist, index) }">
               <span class="channel-index mono">{{ index + 1 }}</span>
-              <span class="channel-name">{{ channel }}</span>
+              <span class="channel-name">
+                <span v-if="isMediaChannel(channel)" class="badge tone-info badge-xs">VIDEO</span>
+                {{ channelLabel(channel) }}
+              </span>
               <span v-if="isCurrentChannel(playlist, index)" class="badge tone-success">Live</span>
               <button
                 v-else-if="isActive(playlist)"
@@ -358,8 +393,33 @@ onMounted(() => {
           </div>
         </div>
         <div class="field">
-          <label for="playlist-channels">Kanäle (eine pro Zeile oder kommagetrennt)</label>
+          <label for="playlist-channels">Kanäle / Videos (eine pro Zeile oder kommagetrennt)</label>
           <textarea id="playlist-channels" v-model="form.channels" rows="6" spellcheck="false"></textarea>
+          <p class="field-hint">
+            TikTok-Handles oder <code>file:dateiname.mp4</code> für lokale Videos.
+          </p>
+        </div>
+        <div class="field">
+          <label for="playlist-media">Lokales Video einfügen</label>
+          <div class="pause-upload-row">
+            <select id="playlist-media" v-model="selectedMedia">
+              <option value="">Video aus data/media wählen…</option>
+              <option v-for="file in mediaFiles" :key="file.filename" :value="file.filename">
+                {{ file.filename }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="!selectedMedia"
+              @click="addMediaEntry"
+            >
+              Hinzufügen
+            </button>
+          </div>
+          <p v-if="mediaFiles.length === 0" class="field-hint">
+            Keine Videos gefunden. Dateien unter <code>data/media/</code> ablegen.
+          </p>
         </div>
         <div class="form-grid">
           <div class="field">
