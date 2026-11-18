@@ -118,6 +118,29 @@ describe('YouTube routes', () => {
             { status: 200, headers: { 'content-type': 'application/json' } },
           );
         }
+        if (url.includes('/youtube/v3/liveBroadcasts')) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 'live-1',
+                  snippet: { title: 'Live jetzt' },
+                  status: { lifeCycleStatus: 'live', privacyStatus: 'public' },
+                  contentDetails: { boundStreamId: 'stream-1' },
+                },
+              ],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        if (url.includes('/youtube/v3/liveStreams')) {
+          return new Response(
+            JSON.stringify({
+              items: [{ id: 'stream-1', status: { streamStatus: 'active' } }],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
         throw new Error(`unexpected fetch ${url}`);
       }),
     );
@@ -147,6 +170,23 @@ describe('YouTube routes', () => {
       connected: true,
       account: { channel_id: 'UC123', channel_title: 'Testkanal' },
     });
+
+    const broadcasts = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/broadcasts',
+      headers: auth,
+    });
+    expect(broadcasts.statusCode).toBe(200);
+    expect(broadcasts.json().items).toEqual([
+      expect.objectContaining({
+        id: 'live-1',
+        title: 'Live jetzt',
+        status: 'live',
+        stream_status: 'active',
+        watch_url: 'https://www.youtube.com/watch?v=live-1',
+      }),
+    ]);
+    expect(JSON.stringify(broadcasts.json())).not.toContain('streamName');
 
     const disconnect = await app.inject({
       method: 'POST',

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
-import type { YouTubeStatus } from '@/src/api/types';
+import type { YouTubeBroadcast, YouTubeStatus } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
 import { useToast } from '@/src/composables/useToast';
 
@@ -15,6 +15,60 @@ const loading = ref(true);
 const connecting = ref(false);
 const disconnecting = ref(false);
 const error = ref('');
+const broadcasts = ref<YouTubeBroadcast[]>([]);
+const broadcastsLoading = ref(false);
+const broadcastsError = ref('');
+const broadcastsFetchedAt = ref<string | null>(null);
+
+const BROADCAST_STATUS: Record<string, { label: string; tone: string }> = {
+  live: { label: 'Live', tone: 'tone-success' },
+  testing: { label: 'Test', tone: 'tone-info' },
+  ready: { label: 'Bereit', tone: 'tone-success' },
+  created: { label: 'Geplant', tone: 'tone-neutral' },
+  complete: { label: 'Beendet', tone: 'tone-neutral' },
+  revoked: { label: 'Widerrufen', tone: 'tone-danger' },
+};
+
+const PRIVACY_LABELS: Record<string, string> = {
+  public: 'Öffentlich',
+  unlisted: 'Nicht gelistet',
+  private: 'Privat',
+};
+
+const STREAM_STATUS_LABELS: Record<string, string> = {
+  active: 'Aktiv',
+  ready: 'Bereit',
+  inactive: 'Inaktiv',
+  created: 'Neu',
+  error: 'Fehler',
+};
+
+const HEALTH_LABELS: Record<string, string> = {
+  good: 'gut',
+  ok: 'ok',
+  bad: 'schlecht',
+  noData: 'keine Daten',
+};
+
+function broadcastStatusLabel(value: string): string {
+  return BROADCAST_STATUS[value]?.label ?? value;
+}
+
+function broadcastTone(value: string): string {
+  return BROADCAST_STATUS[value]?.tone ?? 'tone-neutral';
+}
+
+function privacyLabel(value: string): string {
+  return PRIVACY_LABELS[value] ?? value;
+}
+
+function streamLabel(broadcast: YouTubeBroadcast): string {
+  if (!broadcast.bound_stream_id) return 'Nicht zugeordnet';
+  const parts = [STREAM_STATUS_LABELS[broadcast.stream_status ?? ''] ?? broadcast.stream_status ?? '–'];
+  const health = broadcast.stream_health ? HEALTH_LABELS[broadcast.stream_health] : '';
+  if (health) parts.push(health);
+  return parts.join(' · ');
+}
 
 const CALLBACK_ERRORS: Record<string, string> = {
   cancelled: 'Die Verbindung wurde abgebrochen.',
@@ -47,6 +101,29 @@ async function load(): Promise<void> {
   }
 }
 
+async function loadBroadcasts(): Promise<void> {
+  if (!status.value?.connected) {
+    broadcasts.value = [];
+    return;
+  }
+  broadcastsLoading.value = true;
+  broadcastsError.value = '';
+  try {
+    const data = await api.youtube.broadcasts();
+    broadcasts.value = data.items;
+    broadcastsFetchedAt.value = data.fetched_at;
+  } catch (err) {
+    broadcastsError.value = errorMessage(err);
+  } finally {
+    broadcastsLoading.value = false;
+  }
+}
+
+async function refresh(): Promise<void> {
+  await load();
+  await loadBroadcasts();
+}
+
 async function connect(): Promise<void> {
   connecting.value = true;
   error.value = '';
@@ -64,6 +141,8 @@ async function disconnect(): Promise<void> {
   error.value = '';
   try {
     status.value = await api.youtube.disconnect();
+    broadcasts.value = [];
+    broadcastsFetchedAt.value = null;
     pushToast('YouTube-Konto getrennt.', 'success');
   } catch (err) {
     error.value = errorMessage(err);
@@ -74,6 +153,7 @@ async function disconnect(): Promise<void> {
 
 onMounted(async () => {
   await load();
+  if (status.value?.connected) await loadBroadcasts();
   if (route.query.connected === '1') {
     pushToast('YouTube-Konto verbunden.', 'success');
     await router.replace({ path: '/youtube' });
@@ -95,7 +175,7 @@ onMounted(async () => {
         </p>
       </div>
       <div class="page-actions">
-        <button type="button" class="btn btn-ghost" :disabled="loading" @click="load()">
+        <button type="button" class="btn btn-ghost" :disabled="loading" @click="refresh()">
           Aktualisieren
         </button>
       </div>
@@ -199,14 +279,64 @@ onMounted(async () => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Broadcasts</h2>
-            <p class="card-sub">Streams anlegen, planen und Status synchronisieren.</p>
+            <p class="card-sub">Geplante, laufende und beendete Streams des Kanals.</p>
           </div>
-          <span class="badge tone-neutral">In Arbeit</span>
+          <span class="badge tone-neutral">
+            {{ broadcastsLoading && broadcasts.length === 0 ? 'Lädt…' : `${broadcasts.length} Einträge` }}
+          </span>
         </div>
-        <p class="muted">
-          Die Broadcast-Verwaltung folgt im nächsten Schritt von #18. Die Verbindung wird bereits
-          jetzt dauerhaft gespeichert und automatisch erneuert.
-        </p>
+
+        <div v-if="broadcastsError" class="alert alert-error" role="alert">
+          {{ broadcastsError }}
+        </div>
+
+        <div v-else-if="broadcastsLoading && broadcasts.length === 0" class="empty">
+          <span class="spinner spinner-lg" aria-hidden="true"></span>
+          <p>Broadcasts werden geladen…</p>
+        </div>
+
+        <div v-else-if="broadcasts.length === 0" class="empty">
+          <p>Keine Broadcasts gefunden. Anlegen und Planen folgt im nächsten Schritt.</p>
+        </div>
+
+        <div v-else class="table-wrap">
+          <table class="data-table" role="table">
+            <caption class="sr-only">YouTube-Broadcasts des verbundenen Kanals</caption>
+            <thead>
+              <tr role="row">
+                <th scope="col" role="columnheader">Titel</th>
+                <th scope="col" role="columnheader">Status</th>
+                <th scope="col" role="columnheader">Sichtbarkeit</th>
+                <th scope="col" role="columnheader">Geplant</th>
+                <th scope="col" role="columnheader">Gebundener Ingest</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="broadcast in broadcasts" :key="broadcast.id" role="row">
+                <td data-label="Titel" role="cell">
+                  <a :href="broadcast.watch_url" target="_blank" rel="noopener noreferrer">
+                    {{ broadcast.title || broadcast.id }}
+                  </a>
+                  <br />
+                  <small class="mono">{{ broadcast.id }}</small>
+                </td>
+                <td data-label="Status" role="cell">
+                  <span class="badge" :class="broadcastTone(broadcast.status)">
+                    {{ broadcastStatusLabel(broadcast.status) }}
+                  </span>
+                </td>
+                <td data-label="Sichtbarkeit" role="cell">{{ privacyLabel(broadcast.privacy) }}</td>
+                <td data-label="Geplant" role="cell">
+                  {{ formatDateTime(broadcast.scheduled_start) }}
+                </td>
+                <td data-label="Gebundener Ingest" role="cell">{{ streamLabel(broadcast) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="broadcastsFetchedAt" class="muted small">
+            Stand {{ formatDateTime(broadcastsFetchedAt) }} · wird 20 s zwischengespeichert
+          </p>
+        </div>
       </section>
     </template>
   </div>

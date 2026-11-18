@@ -664,6 +664,7 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET`    | `/api/media`                | Lokale Playlist-Videos listen      |
 | `GET`    | `/api/preview.ts`           | Live-Vorschau als MPEG-TS          |
 | `GET`    | `/api/youtube/status`       | YouTube-Verbindung ohne Tokens      |
+| `GET`    | `/api/youtube/broadcasts`   | Broadcasts inkl. Ingest-Health      |
 | `GET`    | `/api/youtube/oauth/start`  | Google-Zustimmungs-URL             |
 | `POST`   | `/api/youtube/oauth/disconnect` | YouTube-Verbindung trennen     |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |

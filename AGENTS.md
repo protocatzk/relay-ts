@@ -149,6 +149,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 
 - Ein Google-Konto pro Instanz; Token-Datei `data/youtube-auth.json` (Modus
   `0600`, Klartext), automatischer Refresh 60 s vor Ablauf.
+- Broadcast-Listen werden 20 s gecacht; Ingest-Keys aus `liveStreams` werden
+  nie ausgeliefert.
 - OAuth nutzt State + PKCE (S256), State ist einmalig und 10 Minuten gültig.
 - `GET /api/youtube/oauth/callback` ist der einzige unauthentifizierte
   API-Endpunkt; Schutz erfolgt über State/PKCE, nicht über das Cookie.

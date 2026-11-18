@@ -270,4 +270,91 @@ describe('YouTube OAuth', () => {
     const { service } = harness();
     await expect(service.accessToken()).rejects.toMatchObject({ code: 'youtube_not_connected' });
   });
+
+  it('lists broadcasts without leaking ingest keys', async () => {
+    const { service, advance } = harness();
+    const fetchMock = mockGoogle();
+    await connect(service);
+    advance(1000);
+    fetchMock.mockClear();
+
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('/youtube/v3/liveBroadcasts')) {
+        return jsonResponse({
+          items: [
+            {
+              id: 'done-1',
+              snippet: { title: 'Alt', scheduledStartTime: '2026-01-01T10:00:00Z' },
+              status: { lifeCycleStatus: 'complete', privacyStatus: 'public' },
+            },
+            {
+              id: 'live-1',
+              snippet: {
+                title: 'Jetzt',
+                scheduledStartTime: '2026-01-02T10:00:00Z',
+                actualStartTime: '2026-01-02T10:01:00Z',
+                thumbnails: { default: { url: 'https://img/1.jpg' } },
+              },
+              status: { lifeCycleStatus: 'live', privacyStatus: 'unlisted' },
+              contentDetails: { boundStreamId: 'stream-1' },
+            },
+          ],
+        });
+      }
+      if (url.includes('/youtube/v3/liveStreams')) {
+        return jsonResponse({
+          items: [
+            {
+              id: 'stream-1',
+              status: { streamStatus: 'active', healthStatus: { status: 'good' } },
+              cdn: { ingestionInfo: { streamName: 'secret-key-should-not-leak' } },
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    const list = await service.broadcasts();
+    expect(list.items.map((item) => item.id)).toEqual(['live-1', 'done-1']);
+    expect(list.items[0]).toMatchObject({
+      title: 'Jetzt',
+      status: 'live',
+      privacy: 'unlisted',
+      bound_stream_id: 'stream-1',
+      stream_status: 'active',
+      stream_health: 'good',
+      watch_url: 'https://www.youtube.com/watch?v=live-1',
+    });
+    expect(JSON.stringify(list)).not.toContain('secret-key');
+  });
+
+  it('caches broadcast listings for 20 seconds', async () => {
+    const { service, advance } = harness();
+    const fetchMock = mockGoogle();
+    await connect(service);
+    advance(1000);
+    fetchMock.mockClear();
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('/liveBroadcasts')) return jsonResponse({ items: [] });
+      if (url.includes('/liveStreams')) return jsonResponse({ items: [] });
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    await service.broadcasts();
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    advance(5000);
+    await service.broadcasts();
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+    advance(20_000);
+    await service.broadcasts();
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst + 2);
+  });
+
+  it('requires a connection before listing broadcasts', async () => {
+    const { service } = harness();
+    await expect(service.broadcasts()).rejects.toMatchObject({ code: 'youtube_not_connected' });
+  });
 });

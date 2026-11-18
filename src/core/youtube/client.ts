@@ -26,6 +26,33 @@ export interface ChannelInfo {
   title: string;
 }
 
+export interface LiveBroadcastResource {
+  id: string;
+  snippet?: {
+    title?: string;
+    description?: string;
+    scheduledStartTime?: string;
+    actualStartTime?: string;
+    actualEndTime?: string;
+    thumbnails?: { default?: { url?: string } };
+  };
+  status?: {
+    lifeCycleStatus?: string;
+    privacyStatus?: string;
+  };
+  contentDetails?: {
+    boundStreamId?: string;
+  };
+}
+
+export interface LiveStreamResource {
+  id: string;
+  status?: {
+    streamStatus?: string;
+    healthStatus?: { status?: string };
+  };
+}
+
 async function request<T>(
   accessToken: string,
   path: string,
@@ -80,3 +107,34 @@ export async function fetchChannelInfo(accessToken: string): Promise<ChannelInfo
 }
 
 export { request as youtubeApiRequest };
+
+/** Lists broadcasts of the authenticated channel (single page, newest first). */
+export async function listBroadcasts(
+  accessToken: string,
+  options: { maxResults?: number; status?: string } = {},
+): Promise<LiveBroadcastResource[]> {
+  const data = await request<{ items?: LiveBroadcastResource[] }>(accessToken, '/liveBroadcasts', {
+    part: 'snippet,status,contentDetails',
+    mine: 'true',
+    broadcastType: 'all',
+    maxResults: options.maxResults ?? 50,
+    broadcastStatus: options.status,
+  });
+  return data.items ?? [];
+}
+
+/** Lists ingest streams; the RTMP key inside `cdn` is intentionally dropped. */
+export async function listLiveStreams(accessToken: string): Promise<LiveStreamResource[]> {
+  const data = await request<{ items?: LiveStreamResource[] }>(accessToken, '/liveStreams', {
+    part: 'id,status',
+    mine: 'true',
+    maxResults: 50,
+  });
+  return (data.items ?? []).map((item) => ({
+    id: item.id,
+    status: {
+      streamStatus: item.status?.streamStatus,
+      healthStatus: { status: item.status?.healthStatus?.status },
+    },
+  }));
+}

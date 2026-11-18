@@ -28,6 +28,7 @@ import type {
   TelegramLoginRequest,
   TelegramLoginStatus,
   TitlePreview,
+  YouTubeBroadcastList,
   YouTubeStatus,
 } from './types';
 
@@ -416,6 +417,7 @@ export const api = {
   youtube: {
     status: () => request<YouTubeStatus>('/api/youtube/status'),
     start: () => request<{ url: string }>('/api/youtube/oauth/start'),
+    broadcasts: () => request<YouTubeBroadcastList>('/api/youtube/broadcasts'),
     disconnect: () =>
       request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
   },

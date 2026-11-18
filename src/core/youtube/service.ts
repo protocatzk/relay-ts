@@ -1,7 +1,13 @@
 import type { Logger } from 'pino';
 import { AppError, toErrorMessage } from '../../utils/errors.js';
 import type { YouTubeAuthRecord, YouTubeAuthStore } from './auth-store.js';
-import { fetchChannelInfo } from './client.js';
+import {
+  fetchChannelInfo,
+  listBroadcasts,
+  listLiveStreams,
+  type LiveBroadcastResource,
+  type LiveStreamResource,
+} from './client.js';
 import {
   buildAuthorizationUrl,
   createPkcePair,
@@ -33,6 +39,36 @@ export type CallbackResult =
   | { ok: true }
   | { ok: false; reason: 'not_configured' | 'cancelled' | 'state_invalid' | 'exchange_failed' };
 
+export interface BroadcastSummary {
+  id: string;
+  title: string;
+  status: string;
+  privacy: string;
+  scheduled_start: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  bound_stream_id: string | null;
+  stream_status: string | null;
+  stream_health: string | null;
+  thumbnail_url: string | null;
+  watch_url: string;
+}
+
+export interface BroadcastList {
+  items: BroadcastSummary[];
+  fetched_at: string;
+}
+
+const BROADCAST_STATUS_ORDER: Record<string, number> = {
+  live: 0,
+  testing: 1,
+  ready: 2,
+  created: 3,
+  complete: 4,
+  revoked: 5,
+};
+const BROADCAST_CACHE_MS = 20_000;
+
 interface PendingAuthorization {
   verifier: string;
   createdAt: number;
@@ -53,6 +89,7 @@ export interface YouTubeAuthServiceOptions {
 export class YouTubeAuthService {
   private readonly pending = new Map<string, PendingAuthorization>();
   private refreshPromise: Promise<string> | null = null;
+  private broadcastsCache: { at: number; data: BroadcastList } | null = null;
   private readonly now: () => number;
 
   constructor(private readonly options: YouTubeAuthServiceOptions) {
@@ -159,6 +196,7 @@ export class YouTubeAuthService {
       updated_at: timestamp,
     };
     this.options.store.write(record);
+    this.broadcastsCache = null;
     this.options.logger.info(
       { channel: account.channel_title || account.channel_id || 'unbekannt' },
       'YouTube-Konto verbunden',
@@ -176,6 +214,7 @@ export class YouTubeAuthService {
     }
     this.options.store.clear();
     this.refreshPromise = null;
+    this.broadcastsCache = null;
     this.options.logger.info('YouTube-Konto getrennt');
   }
 
@@ -194,6 +233,35 @@ export class YouTubeAuthService {
       });
     }
     return this.refreshPromise;
+  }
+
+  /**
+   * Lists scheduled, live and completed broadcasts of the connected channel.
+   * Responses are cached briefly because every call costs API quota.
+   */
+  async broadcasts(): Promise<BroadcastList> {
+    if (this.broadcastsCache && this.now() - this.broadcastsCache.at < BROADCAST_CACHE_MS) {
+      return this.broadcastsCache.data;
+    }
+    const token = await this.accessToken();
+    const [broadcasts, streams] = await Promise.all([
+      listBroadcasts(token),
+      listLiveStreams(token).catch((error) => {
+        this.options.logger.warn(
+          { err: toErrorMessage(error) },
+          'YouTube-Streams konnten nicht geladen werden',
+        );
+        return [] as LiveStreamResource[];
+      }),
+    ]);
+    const data: BroadcastList = {
+      items: broadcasts
+        .map((broadcast) => mapBroadcast(broadcast, streams))
+        .sort(compareBroadcasts),
+      fetched_at: new Date(this.now()).toISOString(),
+    };
+    this.broadcastsCache = { at: this.now(), data };
+    return data;
   }
 
   private async refresh(record: YouTubeAuthRecord): Promise<string> {
@@ -243,4 +311,34 @@ export class YouTubeAuthService {
       if (entry.createdAt < cutoff) this.pending.delete(state);
     }
   }
+}
+
+function mapBroadcast(
+  broadcast: LiveBroadcastResource,
+  streams: LiveStreamResource[],
+): BroadcastSummary {
+  const boundStreamId = broadcast.contentDetails?.boundStreamId ?? null;
+  const stream = boundStreamId ? streams.find((item) => item.id === boundStreamId) : undefined;
+  return {
+    id: broadcast.id,
+    title: broadcast.snippet?.title ?? '',
+    status: broadcast.status?.lifeCycleStatus ?? 'created',
+    privacy: broadcast.status?.privacyStatus ?? 'private',
+    scheduled_start: broadcast.snippet?.scheduledStartTime ?? null,
+    actual_start: broadcast.snippet?.actualStartTime ?? null,
+    actual_end: broadcast.snippet?.actualEndTime ?? null,
+    bound_stream_id: boundStreamId,
+    stream_status: stream?.status?.streamStatus ?? null,
+    stream_health: stream?.status?.healthStatus?.status ?? null,
+    thumbnail_url: broadcast.snippet?.thumbnails?.default?.url ?? null,
+    watch_url: `https://www.youtube.com/watch?v=${broadcast.id}`,
+  };
+}
+
+function compareBroadcasts(a: BroadcastSummary, b: BroadcastSummary): number {
+  const rank = (BROADCAST_STATUS_ORDER[a.status] ?? 9) - (BROADCAST_STATUS_ORDER[b.status] ?? 9);
+  if (rank !== 0) return rank;
+  const time = (item: BroadcastSummary): string =>
+    item.actual_start ?? item.scheduled_start ?? '';
+  return time(b).localeCompare(time(a));
 }

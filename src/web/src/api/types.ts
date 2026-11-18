@@ -417,6 +417,26 @@ export interface YouTubeStatus {
   expires_at: string | null;
 }
 
+export interface YouTubeBroadcast {
+  id: string;
+  title: string;
+  status: string;
+  privacy: string;
+  scheduled_start: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  bound_stream_id: string | null;
+  stream_status: string | null;
+  stream_health: string | null;
+  thumbnail_url: string | null;
+  watch_url: string;
+}
+
+export interface YouTubeBroadcastList {
+  items: YouTubeBroadcast[];
+  fetched_at: string;
+}
+
 export interface EarningsSettings {
   enabled: boolean;
   source_url: string;

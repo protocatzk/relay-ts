@@ -1,8 +1,9 @@
 # YouTube-Verwaltung
 
 RELAY verbindet sich über OAuth 2.0 mit **einem** YouTube-Konto. Die Verbindung
-wird für die spätere Broadcast-Verwaltung (#18) genutzt; aktuell umfasst sie den
-Login, automatische Token-Erneuerung und das Trennen der Verbindung.
+wird für die Broadcast-Verwaltung (#18) genutzt: Login, automatische
+Token-Erneuerung, Trennen sowie eine Übersicht der geplanten, laufenden und
+beendeten Broadcasts inklusive Ingest-Health.
 
 ## Google-Cloud-Projekt einrichten
 
@@ -78,6 +79,7 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 | Methode | Endpunkt | Beschreibung |
 | --- | --- | --- |
 | `GET` | `/api/youtube/status` | Verbindungsstatus ohne Tokens |
+| `GET` | `/api/youtube/broadcasts` | Broadcasts inkl. Status und Ingest-Health |
 | `GET` | `/api/youtube/oauth/start` | `{ url }` für die Google-Zustimmung |
 | `GET` | `/api/youtube/oauth/callback` | Google-Redirect; State + PKCE, ohne Session |
 | `POST` | `/api/youtube/oauth/disconnect` | Token widerrufen und Verbindung löschen |
@@ -96,5 +98,7 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 ## Grenzen
 
 - Ein Konto pro RELAY-Instanz; keine Multi-Account-Verwaltung.
+- Broadcast-Liste ist auf eine Seite (50 Einträge) begrenzt.
+- Ingest-Keys aus `liveStreams.cdn` werden bewusst verworfen und nie ausgeliefert.
 - Keine YouTube-Analytics oder Chat-Moderation.
-- Broadcast-Erstellung und -Planung folgen im weiteren Verlauf von #18.
+- Anlegen, Planen und Starten von Broadcasts folgt im nächsten Schritt von #18.

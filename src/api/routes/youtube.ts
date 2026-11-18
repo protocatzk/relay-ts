@@ -20,6 +20,8 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
 
   app.get('/api/youtube/status', async () => service.status());
 
+  app.get('/api/youtube/broadcasts', async () => service.broadcasts());
+
   app.get(
     '/api/youtube/oauth/start',
     { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
