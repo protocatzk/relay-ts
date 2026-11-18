@@ -623,7 +623,8 @@ describe('YouTube broadcast management', () => {
     await service.transitionBroadcastById('bc-1', 'live');
     await service.deleteBroadcastById('bc-1');
 
-    expect(transitions[0]).toContain('broadcastStatus=live');
+    expect(transitions[0]).toContain('broadcastStatus=testing');
+    expect(transitions[1]).toContain('broadcastStatus=live');
     expect(deletes[0]).toContain('id=bc-1');
   });
 

@@ -90,6 +90,15 @@ const CALLBACK_ERRORS: Record<string, string> = {
 };
 
 const connected = computed(() => status.value?.connected ?? false);
+const relayIngestStreamer = computed(() => {
+  const candidates = store.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set);
+  return (
+    candidates.find((streamer) => streamer.status.active) ??
+    candidates.find((streamer) => streamer.preferred) ??
+    candidates[0] ??
+    null
+  );
+});
 const accountLabel = computed(() => {
   const account = status.value?.account;
   if (!account) return '';
@@ -189,9 +198,33 @@ async function runAction(
   }
 }
 
+async function assignToRelay(broadcast: YouTubeBroadcast): Promise<void> {
+  const target = relayIngestStreamer.value;
+  if (!target) {
+    pushToast('Kein RELAY-Ingest konfiguriert.', 'error');
+    return;
+  }
+  if (
+    !window.confirm(
+      `Broadcast „${broadcast.title}“ an den RELAY-Ingest von ${target.name} binden?`,
+    )
+  ) {
+    return;
+  }
+  actingId.value = broadcast.id;
+  try {
+    await api.youtube.assignBroadcast(broadcast.id, target.id);
+    pushToast('Broadcast an den RELAY-Ingest gebunden.', 'success');
+    await loadBroadcasts();
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    actingId.value = null;
+  }
+}
+
 async function startBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
-  if (!window.confirm(`Broadcast „${broadcast.title}“ jetzt live schalten?`)) return;
-  await runAction(
+  if (!window.confirm(`Broadcast „${broadcast.title}“ jetzt live schalten?`)) return;  await runAction(
     broadcast,
     () => api.youtube.transitionBroadcast(broadcast.id, 'live'),
     'Broadcast ist live.',
@@ -442,6 +475,16 @@ onMounted(async () => {
                 <td data-label="Gebundener Ingest" role="cell">{{ streamLabel(broadcast) }}</td>
                 <td data-label="Aktionen" role="cell">
                   <div class="row-actions">
+                    <button
+                      v-if="['created', 'ready'].includes(broadcast.status)"
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      title="An den aktiven RELAY-Ingest binden"
+                      :disabled="actingId !== null"
+                      @click="assignToRelay(broadcast)"
+                    >
+                      Ingest
+                    </button>
                     <button
                       v-if="['created', 'ready', 'testing'].includes(broadcast.status)"
                       type="button"

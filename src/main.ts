@@ -16,6 +16,7 @@ import { listMediaFiles, mediaFilePath } from './core/media/media-files.js';
 import { ValidationError } from './utils/errors.js';
 import { YouTubeAuthStore } from './core/youtube/auth-store.js';
 import { YouTubeAuthService } from './core/youtube/service.js';
+import { resolveRelayIngestKey } from './core/youtube/ingest.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
 import { toErrorMessage } from './utils/errors.js';
 import { VERSION } from './version.js';
@@ -154,7 +155,7 @@ async function main(): Promise<void> {
           youtubeCreate: async (input) => {
             const key = input.streamer_id
               ? resolveStreamKey(store.require(input.streamer_id)).key
-              : undefined;
+              : resolveRelayIngestKey(store, supervisor.buildStatus().active_streamer_id);
             if (input.streamer_id && !key) {
               throw new ValidationError('Für diesen Streamer ist kein YouTube-Key hinterlegt');
             }

@@ -32,6 +32,16 @@ const validationError = ref('');
 const isCreate = computed(() => props.broadcast === null);
 const modalTitle = computed(() => (isCreate.value ? 'Broadcast anlegen' : 'Broadcast bearbeiten'));
 
+const relayIngest = computed(() => {
+  const candidates = props.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set);
+  return (
+    candidates.find((streamer) => streamer.status.active) ??
+    candidates.find((streamer) => streamer.preferred) ??
+    candidates[0] ??
+    null
+  );
+});
+
 function toLocalInput(iso: string | null | undefined): string {
   const date = iso ? new Date(iso) : new Date(Date.now() + 15 * 60 * 1000);
   if (Number.isNaN(date.getTime())) return '';
@@ -119,15 +129,18 @@ function submit(): void {
       </div>
 
       <div v-if="isCreate" class="field">
-        <label for="yt-streamer">Ingest von Streamer</label>
+        <label for="yt-streamer">Ingest</label>
         <select id="yt-streamer" v-model="streamerId">
-          <option value="">Neuen YouTube-Ingest anlegen</option>
+          <option value="">RELAY-Ingest (automatisch)</option>
           <option v-for="streamer in streamers" :key="streamer.id" :value="streamer.id">
             {{ streamer.name }}{{ streamer.youtube_key_set ? '' : ' (kein Key)' }}
           </option>
         </select>
         <p class="field-hint">
-          Ohne Auswahl erzeugt YouTube einen neuen Ingest. Der Key bleibt in RELAY unverändert.
+          Bindet den Broadcast an den Ingest, den RELAY gerade verwendet – kein neuer
+          YouTube-Ingest.
+          <template v-if="relayIngest"> Aktuell: {{ relayIngest.name }}.</template>
+          <template v-else> Kein Streamer mit YouTube-Key konfiguriert.</template>
         </p>
       </div>
 

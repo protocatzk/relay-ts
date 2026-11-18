@@ -236,6 +236,20 @@ describe('YouTube routes', () => {
       bound_stream_id: 'stream-1',
     });
 
+    // Without an explicit streamer RELAY must bind to its own ingest instead
+    // of creating a fresh YouTube liveStream that receives no data.
+    const autoCreated = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts',
+      headers: auth,
+      payload: {
+        title: 'Auto',
+        scheduled_start: '2026-01-03T11:00:00Z',
+      },
+    });
+    expect(autoCreated.statusCode).toBe(200);
+    expect(autoCreated.json()).toMatchObject({ bound_stream_id: 'stream-1' });
+
     const transition = await app.inject({
       method: 'POST',
       url: '/api/youtube/broadcasts/bc-1/transition',

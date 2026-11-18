@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
 import { AppError, ValidationError } from '../../utils/errors.js';
 import { resolveStreamKey } from '../../core/config/schema.js';
+import { resolveRelayIngestKey } from '../../core/youtube/ingest.js';
 
 const CallbackQuery = z.object({
   code: z.string().max(2048).optional(),
@@ -48,6 +49,18 @@ function streamerKey(ctx: ApiContext, id: string): string {
 }
 
 /**
+ * Broadcasts created through RELAY must use the ingest RELAY is actually
+ * streaming to. Prefer the active streamer, then the preferred one, then the
+ * first enabled streamer with a key. Only fall back to YOUTUBE_STREAM_KEY.
+ */
+function relayIngestKey(ctx: ApiContext): string {
+  return resolveRelayIngestKey(
+    ctx.store,
+    ctx.supervisor.buildStatus?.().active_streamer_id ?? null,
+  );
+}
+
+/**
  * YouTube OAuth and broadcast management (#18). The callback is the only
  * public endpoint: Google redirects the browser there without a dashboard
  * session, so it is protected by the single-use OAuth state and PKCE instead
@@ -65,7 +78,7 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
 
   app.post('/api/youtube/broadcasts', writeLimit, async (request) => {
     const body = CreateBroadcastBody.parse(request.body);
-    const key = body.streamer_id ? streamerKey(ctx, body.streamer_id) : undefined;
+    const key = body.streamer_id ? streamerKey(ctx, body.streamer_id) : relayIngestKey(ctx);
     return service.createBroadcast(
       {
         title: body.title,

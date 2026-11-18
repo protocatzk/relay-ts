@@ -420,6 +420,12 @@ export class YouTubeAuthService {
   ): Promise<{ ok: true; status: BroadcastTransition }> {
     const token = await this.accessToken();
     try {
+      // YouTube rejects created -> live in many channel states. Going through
+      // testing first mirrors the automatic start hook and is harmless if the
+      // broadcast is already past that state.
+      if (status === 'live') {
+        await transitionBroadcast(token, id, 'testing').catch(() => undefined);
+      }
       await transitionBroadcast(token, id, status);
     } catch (error) {
       if (error instanceof AppError && /invalidTransition|not.*ready|state/i.test(error.message)) {
