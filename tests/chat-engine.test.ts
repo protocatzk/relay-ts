@@ -41,7 +41,7 @@ describe('Canvas chat overlay', () => {
     });
     const panel = engine.panel;
     expect(panel.width).toBeGreaterThan(100);
-    expect(panel.height).toBeGreaterThan(80);
+    expect(panel.height).toBeGreaterThan(400);
     expect(panel.x).toBeGreaterThanOrEqual(0);
     expect(panel.y).toBeGreaterThanOrEqual(0);
     expect(panel.x + panel.width).toBeLessThanOrEqual(720);

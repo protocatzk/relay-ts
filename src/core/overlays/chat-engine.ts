@@ -264,10 +264,14 @@ export class ChatOverlayEngine {
     const autoWidth = Math.round(outputWidth * (outputWidth >= outputHeight ? 0.6 : 0.92));
     const width = Math.max(200, Math.min(maxWidth, cfg.panel_width > 0 ? cfg.panel_width : autoWidth));
     const lineHeight = Math.round(cfg.font_size * 1.55);
+    const nameLineHeight = Math.round(cfg.font_size * 0.82 * 1.3);
+    const assumedBubbleLines = 2;
+    const autoHeight =
+      cfg.max_lines * (32 + nameLineHeight + lineHeight * assumedBubbleLines) + 32;
     const height =
       cfg.panel_height > 0
         ? Math.max(80, Math.min(outputHeight - margin * 2, cfg.panel_height))
-        : Math.min(outputHeight - margin * 2, Math.max(120, cfg.max_lines * lineHeight + 32));
+        : Math.min(outputHeight - margin * 2, Math.max(120, autoHeight));
     let x = margin;
     if (cfg.position === 'top-right' || cfg.position === 'bottom-right') {
       x = outputWidth - width - margin;

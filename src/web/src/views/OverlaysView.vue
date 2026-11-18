@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
           <div class="studio-subhead">Layout</div>
           <div class="studio-grid">
             <div class="field">
-              <label for="studio-chat-lines">Sichtbare Zeilen</label>
+              <label for="studio-chat-lines">Sichtbare Nachrichten</label>
               <input id="studio-chat-lines" v-model.number="chat.max_lines" type="number" min="1" max="30" />
             </div>
             <div class="field">
