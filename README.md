@@ -325,6 +325,9 @@ Quelle wieder live ist, wird der Pausenscreen gestoppt.
 `pause.fit` (`cover`, `contain`, `stretch`) die Bildanpassung. `stretch` füllt
 die aktuelle Ausgabeauflösung exakt aus, ohne den unteren Bildteil
 abzuschneiden. Dateien im Container z. B. unter `/app/data/pause/` ablegen.
+Hintergrund und Font können im Dashboard direkt hochgeladen, validiert und als
+Vorschau angezeigt werden; die API liegt unter `/api/pause/assets`. Uploads sind
+auf 50 MB begrenzt und werden anhand von Endung und Magic Bytes geprüft.
 
 > [!NOTE]
 > ffmpeg kann animierte SVGs nicht nativ dekodieren. Sie werden als statisches
@@ -518,19 +521,23 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 <details>
 <summary>Playlists und Steuerung</summary>
 
-| Methode | Endpunkt                           | Beschreibung                |
-| ------- | ---------------------------------- | --------------------------- |
-| `GET`   | `/api/playlists`                   | Playlists                   |
-| `POST`  | `/api/playlists/:id/play`          | Playlist starten            |
-| `POST`  | `/api/playlists/next`              | Nächster Eintrag            |
-| `POST`  | `/api/playlists/previous`          | Vorheriger Eintrag          |
-| `POST`  | `/api/playlists/:id/tune/:channel` | Kanal direkt ansteuern      |
-| `POST`  | `/api/playlists/stop`              | Playlist stoppen            |
-| `POST`  | `/api/reload`                      | `streamers.yml` neu laden   |
-| `POST`  | `/api/online/check`                | Online-Status sofort prüfen |
-| `POST`  | `/api/pause/start` / `stop`        | Pausenscreen an/aus         |
-| `POST`  | `/api/system/restart-sink`         | Encoder neu starten         |
-| `POST`  | `/api/system/refresh`              | Quell-URL erneuern          |
+| Methode  | Endpunkt                           | Beschreibung                |
+| -------- | ---------------------------------- | --------------------------- |
+| `GET`    | `/api/playlists`                   | Playlists                   |
+| `POST`   | `/api/playlists/:id/play`          | Playlist starten            |
+| `POST`   | `/api/playlists/next`              | Nächster Eintrag            |
+| `POST`   | `/api/playlists/previous`          | Vorheriger Eintrag          |
+| `POST`   | `/api/playlists/:id/tune/:channel` | Kanal direkt ansteuern      |
+| `POST`   | `/api/playlists/stop`              | Playlist stoppen            |
+| `POST`   | `/api/reload`                      | `streamers.yml` neu laden   |
+| `POST`   | `/api/online/check`                | Online-Status sofort prüfen |
+| `POST`   | `/api/pause/start` / `stop`        | Pausenscreen an/aus         |
+| `GET`    | `/api/pause/assets`                | Hochgeladene Pause-Dateien  |
+| `POST`   | `/api/pause/assets`                | Hintergrund/Font hochladen  |
+| `GET`    | `/api/pause/assets/:filename`      | Pause-Datei ausliefern      |
+| `DELETE` | `/api/pause/assets/:filename`      | Pause-Datei löschen         |
+| `POST`   | `/api/system/restart-sink`         | Encoder neu starten         |
+| `POST`   | `/api/system/refresh`              | Quell-URL erneuern          |
 
 </details>
 

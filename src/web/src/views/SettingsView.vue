@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { Settings, SettingsUpdate, VideoPreset } from '@/src/api/types';
+import type { PauseAsset, Settings, SettingsUpdate, VideoPreset } from '@/src/api/types';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useToast } from '@/src/composables/useToast';
 
@@ -33,6 +33,10 @@ const earningsApiKey = ref('');
 const checkingOnline = ref(false);
 const initialSnapshot = ref('');
 const baselineRestart = ref('');
+const pauseUploading = ref<'background' | 'font' | null>(null);
+const pauseAsset = ref<PauseAsset | null>(null);
+const pausePreviewUrl = ref('');
+const pausePreviewKind = ref<'image' | 'video' | null>(null);
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -54,6 +58,91 @@ const dirty = computed(() => {
 function toNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function pauseFileName(path: string): string | null {
+  const normalized = path.split('?')[0] ?? path;
+  const filename = normalized.split('/').pop();
+  return filename && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(filename) ? filename : null;
+}
+
+const pausePreviewSource = computed(() => {
+  if (pausePreviewUrl.value) return pausePreviewUrl.value;
+  const path = form.value?.pause.background ?? '';
+  if (!path.startsWith('/app/data/pause/') && !path.startsWith('data/pause/')) return '';
+  const filename = pauseFileName(path);
+  return filename ? api.pause.assetUrl(filename) : '';
+});
+
+const pausePreviewIsVideo = computed(() => {
+  if (pausePreviewUrl.value && pausePreviewKind.value) return pausePreviewKind.value === 'video';
+  const path = form.value?.pause.background ?? '';
+  return /\.(mp4|webm|mov|mkv|m4v)$/i.test(path.split('?')[0] ?? path);
+});
+
+const pauseAssetMetadata = computed(() => {
+  const asset = pauseAsset.value;
+  if (!asset) return '';
+  const parts = [asset.kind.toUpperCase(), `${Math.round(asset.size / 1024)} KB`];
+  if (asset.width && asset.height) parts.push(`${asset.width}×${asset.height}`);
+  if (asset.duration) parts.push(`${asset.duration.toFixed(1)} s`);
+  if (asset.loopable) parts.push('loop');
+  return parts.join(' · ');
+});
+
+async function uploadPauseAsset(kind: 'background' | 'font', event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || !form.value) return;
+  pauseUploading.value = kind;
+  try {
+    const asset = await api.pause.upload(file);
+    if (kind === 'background') {
+      form.value.pause.background = asset.path;
+      if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
+      pausePreviewUrl.value = URL.createObjectURL(file);
+      pausePreviewKind.value = asset.kind === 'video' ? 'video' : 'image';
+    } else {
+      form.value.pause.font = asset.path;
+    }
+    pauseAsset.value = asset;
+    pushToast(asset.warning ?? 'Datei hochgeladen.', asset.warning ? 'info' : 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    pauseUploading.value = null;
+  }
+}
+
+async function removePauseAsset(kind: 'background' | 'font'): Promise<void> {
+  if (!form.value) return;
+  const path =
+    kind === 'background' ? form.value.pause.background : form.value.pause.font;
+  if (!path) return;
+  const filename = pauseFileName(path);
+  const localAsset = path.startsWith('/app/data/pause/') || path.startsWith('data/pause/');
+  if (!filename || !localAsset) {
+    if (kind === 'background') form.value.pause.background = '';
+    else form.value.pause.font = '';
+    return;
+  }
+  if (!window.confirm('Datei wirklich löschen?')) return;
+  try {
+    await api.pause.remove(filename);
+    if (kind === 'background') {
+      form.value.pause.background = '';
+      if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
+      pausePreviewUrl.value = '';
+      pausePreviewKind.value = null;
+    } else {
+      form.value.pause.font = '';
+    }
+    pauseAsset.value = null;
+    pushToast('Datei gelöscht.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
 }
 
 async function loadSettings(silent = false): Promise<void> {
@@ -165,6 +254,10 @@ async function save(): Promise<void> {
 
 onMounted(() => {
   void loadSettings();
+});
+
+onBeforeUnmount(() => {
+  if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
 });
 </script>
 
@@ -372,6 +465,43 @@ onMounted(() => {
                 Animiertes SVG wird nicht nativ von ffmpeg dekodiert – dafür WebM/GIF verwenden.
                 Leer = Hintergrundfarbe.
               </p>
+              <div class="pause-upload-row">
+                <label class="btn btn-ghost btn-sm">
+                  <input
+                    class="sr-only"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-matroska"
+                    @change="uploadPauseAsset('background', $event)"
+                  />
+                  Hintergrund hochladen
+                </label>
+                <button
+                  v-if="form.pause.background"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="pauseUploading !== null"
+                  @click="removePauseAsset('background')"
+                >
+                  Entfernen
+                </button>
+                <span v-if="pauseUploading === 'background'" class="muted small">Lädt hoch…</span>
+              </div>
+              <div v-if="pausePreviewSource" class="pause-preview">
+                <video
+                  v-if="pausePreviewIsVideo"
+                  :src="pausePreviewSource"
+                  controls
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                ></video>
+                <img v-else :src="pausePreviewSource" alt="Pausen-Hintergrund-Vorschau" />
+              </div>
+              <p v-if="pauseAssetMetadata && pauseAsset?.kind !== 'font'" class="field-hint mono">
+                {{ pauseAssetMetadata }}
+              </p>
+              <p v-if="pauseAsset?.warning" class="alert alert-warn">{{ pauseAsset.warning }}</p>
             </div>
             <div class="field">
               <label for="pause-font">Schriftdatei (TTF/OTF)</label>
@@ -382,6 +512,30 @@ onMounted(() => {
                 spellcheck="false"
                 placeholder="/app/data/pause/font.ttf"
               />
+              <div class="pause-upload-row">
+                <label class="btn btn-ghost btn-sm">
+                  <input
+                    class="sr-only"
+                    type="file"
+                    accept=".ttf,.otf,font/ttf,font/otf"
+                    @change="uploadPauseAsset('font', $event)"
+                  />
+                  Schrift hochladen
+                </label>
+                <button
+                  v-if="form.pause.font"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="pauseUploading !== null"
+                  @click="removePauseAsset('font')"
+                >
+                  Entfernen
+                </button>
+                <span v-if="pauseUploading === 'font'" class="muted small">Lädt hoch…</span>
+              </div>
+              <p v-if="pauseAsset?.kind === 'font'" class="field-hint mono">
+                {{ pauseAsset.filename }} · {{ Math.round(pauseAsset.size / 1024) }} KB
+              </p>
             </div>
             <div class="field">
               <label for="pause-text-color">Textfarbe</label>

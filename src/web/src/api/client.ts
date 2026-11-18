@@ -4,6 +4,7 @@ import type {
   BulkAddInput,
   BulkAddResult,
   EarningsSnapshot,
+  PauseAsset,
   LogEntry,
   LogsResponse,
   Playlist,
@@ -326,6 +327,33 @@ export const api = {
   pause: {
     start: () => request<unknown>('/api/pause/start', { method: 'POST' }),
     stop: () => request<unknown>('/api/pause/stop', { method: 'POST' }),
+    assetUrl: (filename: string): string =>
+      `/api/pause/assets/${encodeURIComponent(filename)}`,
+    upload: async (file: File): Promise<PauseAsset> => {
+      const form = new FormData();
+      form.append('file', file);
+      let response: Response;
+      try {
+        response = await fetch('/api/pause/assets', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        });
+      } catch {
+        throw new ApiError(0, 'network_error', 'Verbindung zum Server fehlgeschlagen.');
+      }
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const { code, message } = extractMessage(data, response.status);
+        if (response.status === 401) unauthorizedHandler?.();
+        throw new ApiError(response.status, code, message);
+      }
+      return (data as { asset: PauseAsset }).asset;
+    },
+    remove: (filename: string) =>
+      request<{ ok: true }>(`/api/pause/assets/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      }),
   },
 };
 

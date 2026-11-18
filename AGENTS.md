@@ -78,6 +78,7 @@ Wichtige Pfade:
   nutzen. Statische SVGs werden mit Skia zu PNG gerastert; animierte SVGs werden
   nur als statisches Bild dargestellt (für Animation WebM/GIF/MP4 verwenden).
   `pause.fit=stretch` füllt die Ausgabeauflösung ohne Beschnitt.
+  Uploads laufen über `POST /api/pause/assets` (max. 50 MB, Magic-Byte-Prüfung).
 - Der Quell-Raten-Watchdog benötigt 30 s Warmup, ein 10-s-Fenster und drei
   aufeinanderfolgende schlechte Messungen. Das verhindert Fehlstarts kurz nach
   dem Verbindungsaufbau.

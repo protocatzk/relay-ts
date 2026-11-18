@@ -314,6 +314,20 @@ export interface PauseSettings {
   fit: 'cover' | 'contain' | 'stretch';
 }
 
+export interface PauseAsset {
+  filename: string;
+  path: string;
+  size: number;
+  kind: 'image' | 'video' | 'font';
+  mime: string;
+  animated: boolean;
+  loopable: boolean;
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  warning: string | null;
+}
+
 export interface OnlineSettings {
   enabled: boolean;
   source_url: string;

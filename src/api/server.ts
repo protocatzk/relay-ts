@@ -8,6 +8,7 @@ import Fastify, {
 } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { z } from 'zod';
@@ -19,6 +20,7 @@ import { registerStreamerRoutes } from './routes/streamers.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerPlaylistRoutes } from './routes/playlists.js';
 import { registerSystemRoutes } from './routes/system.js';
+import { registerPauseAssetRoutes } from './routes/pause-assets.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -30,6 +32,13 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
 
   await app.register(cookie, { secret: ctx.config.server.sessionSecret });
   await app.register(rateLimit, { global: false });
+  await app.register(multipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024,
+      files: 1,
+      fields: 4,
+    },
+  });
 
   if (ctx.config.server.corsOrigin) {
     const origins = ctx.config.server.corsOrigin
@@ -91,6 +100,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerSettingsRoutes(app, ctx);
   await registerPlaylistRoutes(app, ctx);
   await registerSystemRoutes(app, ctx);
+  await registerPauseAssetRoutes(app, ctx);
 
   const webRoot = ctx.config.paths.webDir;
   const indexFile = join(webRoot, 'index.html');

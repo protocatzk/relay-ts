@@ -280,6 +280,70 @@ describe('API', () => {
     expect(overlays.text).toMatchObject({ enabled: true, show_box: false });
   });
 
+  it('uploads and deletes pause assets', async () => {
+    const boundary = '----relay-test-boundary';
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from('Content-Disposition: form-data; name="file"; filename="test.png"\r\n'),
+      Buffer.from('Content-Type: image/png\r\n\r\n'),
+      png,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const upload = await app.inject({
+      method: 'POST',
+      url: '/api/pause/assets',
+      headers: {
+        cookie: cookieHeader,
+        origin: 'http://localhost',
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+    expect(upload.statusCode).toBe(201);
+    const asset = (upload.json() as {
+      asset: { filename: string; path: string; kind: string; mime: string };
+    }).asset;
+    expect(asset).toMatchObject({ kind: 'image', mime: 'image/png' });
+    expect(asset.filename).toMatch(/\.png$/);
+
+    const served = await app.inject({
+      method: 'GET',
+      url: `/api/pause/assets/${asset.filename}`,
+      headers: { cookie: cookieHeader },
+    });
+    expect(served.statusCode).toBe(200);
+    expect(served.headers['content-type']).toContain('image/png');
+
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/api/pause/assets/${asset.filename}`,
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(remove.statusCode).toBe(200);
+  });
+
+  it('rejects unsupported pause asset types', async () => {
+    const boundary = '----relay-test-boundary';
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from('Content-Disposition: form-data; name="file"; filename="bad.txt"\r\n'),
+      Buffer.from('Content-Type: text/plain\r\n\r\nnot an asset'),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const upload = await app.inject({
+      method: 'POST',
+      url: '/api/pause/assets',
+      headers: {
+        cookie: cookieHeader,
+        origin: 'http://localhost',
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+    expect(upload.statusCode).toBe(400);
+  });
+
   it('returns structured JSON 404 for unknown API routes', async () => {
     const response = await app.inject({
       method: 'GET',
