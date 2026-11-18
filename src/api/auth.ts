@@ -3,7 +3,14 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ServerConfig } from '../core/config/loader.js';
 
 export function authRequired(config: ServerConfig): boolean {
-  return Boolean(config.password || config.apiToken);
+  return Boolean(config.password || config.apiToken || config.telegramAuth);
+}
+
+export function isSecureRequest(request: FastifyRequest, config: ServerConfig): boolean {
+  if (config.secureCookies) return true;
+  const proto = request.headers['x-forwarded-proto'];
+  const value = Array.isArray(proto) ? proto[0] : proto;
+  return value?.split(',')[0]?.trim().toLowerCase() === 'https';
 }
 
 export function safeEqual(left: string, right: string): boolean {
@@ -51,12 +58,16 @@ export function isAuthenticated(request: FastifyRequest, config: ServerConfig): 
   return false;
 }
 
-export function setSessionCookie(reply: FastifyReply, config: ServerConfig): void {
+export function setSessionCookie(
+  reply: FastifyReply,
+  config: ServerConfig,
+  secure = config.secureCookies,
+): void {
   reply.setCookie('rs_auth', 'ok', {
     signed: true,
     httpOnly: true,
     sameSite: 'lax',
-    secure: config.secureCookies,
+    secure,
     path: '/',
     maxAge: 30 * 24 * 3600,
   });

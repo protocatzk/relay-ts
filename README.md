@@ -37,6 +37,8 @@ eigenständig umgesetzt.
 - **Einnahmen-Monitor** (TokTracker-kompatibel) für Dashboard und Overlay
 - **Web-Dashboard** (Vue 3) im TokTracker-Design mit Live-Updates per SSE
 - **Auth**: Passwort-Session-Cookie, Basic Auth und API-Token
+- **Telegram-Login**: Freigabe per Bot-Chat, optional parallel zum Passwort
+- **Reverse-Proxy-ready**: nginx-proxy/Let's-Encrypt-Override für öffentliche Domains
 - **Docker**-Image mit ffmpeg, yt-dlp und Fonts
 
 ---
@@ -105,6 +107,7 @@ docker compose up -d --build
 ```
 
 Dashboard: <http://127.0.0.1:3000>
+Öffentlich (mit nginx-proxy): <https://relay.positronium.dev>
 
 Die Ports sind bewusst an `127.0.0.1` gebunden. Für öffentlichen Zugriff einen
 Reverse-Proxy (Caddy/nginx) davor setzen und `DASHBOARD_PASSWORD` verwenden.
@@ -127,6 +130,43 @@ YOUTUBE_STREAM_KEY_MEIN=xxxx-xxxx-xxxx-xxxx-xxxx
 
 Alternativ kann im Dashboard ein Key eingegeben werden; er wird dann in
 `config/streamers.yml` gespeichert (Datei wird mit Modus `0600` geschrieben).
+
+### Telegram-Login
+
+Der Telegram-Bot dient als Login-Freigabe für das Dashboard. Er nutzt
+Long-Polling und braucht keinen offenen Port. In `.env` eintragen:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_ALLOWED_USER_IDS=123456789
+SECURE_COOKIES=true
+```
+
+Die eigene numerische ID liefert der Bot auf `/id`. Ohne Token oder ohne
+Allow-List bleibt der Telegram-Login deaktiviert (fail-closed). Der Ablauf:
+
+1. Dashboard öffnen und **Mit Telegram anmelden** wählen.
+2. Der Bot öffnet sich mit einem einmaligen Login-Token (10 Minuten gültig).
+3. Im Bot **✅ ANMELDEN FREIGEBEN** drücken.
+4. Der Browser erhält ein signiertes HttpOnly-Session-Cookie (30 Tage).
+
+Nur private Chats von IDs aus `TELEGRAM_ALLOWED_USER_IDS` werden akzeptiert.
+Ein zusätzlich gesetztes `DASHBOARD_PASSWORD` funktioniert parallel.
+
+### Öffentliche Domain (nginx-proxy)
+
+Für TLS + Let's Encrypt liegt eine Override-Vorlage bereit:
+
+```bash
+cp docker-compose.override.example.yml docker-compose.override.yml
+# VIRTUAL_HOST, LETSENCRYPT_HOST und E-Mail anpassen
+docker compose up -d --build
+```
+
+Die Vorlage geht davon aus, dass `nginx-proxy` und `acme-companion` laufen und
+das externe Netz `toktrackerapp_toktracker_net` vorhanden ist. Die
+produktive Konfiguration zeigt auf `relay.positronium.dev`. Bei HTTPS muss
+`SECURE_COOKIES=true` gesetzt sein.
 
 ---
 
@@ -257,6 +297,9 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | Methode | Endpunkt | Beschreibung |
 |---|---|---|
 | `POST` | `/api/auth/login` | `{ password }` → Session-Cookie |
+| `GET` | `/api/auth/methods` | Verfügbare Login-Methoden |
+| `POST` | `/api/auth/telegram/request` | Telegram-Login-Token + Deep-Link |
+| `POST` | `/api/auth/telegram/check` | Freigabe-Status; setzt bei Erfolg das Cookie |
 | `POST` | `/api/auth/logout` | Session beenden |
 | `GET` | `/api/auth/me` | Auth-Status |
 | `GET` | `/api/streamers` | Streamer inkl. Status (ohne Keys) |

@@ -205,6 +205,21 @@ describe('API', () => {
     expect(JSON.stringify(settings)).not.toContain('"api_key":');
   });
 
+  it('exposes login methods publicly', async () => {
+    const methods = await app.inject({ method: 'GET', url: '/api/auth/methods' });
+    expect(methods.statusCode).toBe(200);
+    expect(methods.json()).toMatchObject({
+      auth_required: true,
+      password_auth: true,
+      telegram_auth: false,
+    });
+    const telegram = await app.inject({
+      method: 'POST',
+      url: '/api/auth/telegram/request',
+    });
+    expect(telegram.statusCode).toBe(503);
+  });
+
   it('returns structured JSON 404 for unknown API routes', async () => {
     const response = await app.inject({
       method: 'GET',

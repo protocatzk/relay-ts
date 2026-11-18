@@ -1,0 +1,14 @@
+services:
+  restreamer-ts:
+    environment:
+      VIRTUAL_HOST: relay.positronium.dev
+      VIRTUAL_PORT: "3000"
+      LETSENCRYPT_HOST: relay.positronium.dev
+      LETSENCRYPT_EMAIL: admin@heliac.dev
+    networks:
+      - default
+      - toktrackerapp_toktracker_net
+
+networks:
+  toktrackerapp_toktracker_net:
+    external: true

@@ -41,6 +41,14 @@ export interface ServerConfig {
   sessionSecret: string;
   secureCookies: boolean;
   corsOrigin: string;
+  telegramAuth: boolean;
+}
+
+export interface TelegramConfig {
+  botToken: string;
+  allowedUserIds: number[];
+  notifyChatId: number | null;
+  notifications: boolean;
 }
 
 export interface MediaConfig {
@@ -62,6 +70,7 @@ export interface MediaConfig {
 export interface LoadedConfig {
   paths: AppPaths;
   server: ServerConfig;
+  telegram: TelegramConfig;
   media: MediaConfig;
   settings: Settings;
   streamers: StreamerConfig[];
@@ -93,6 +102,20 @@ function parseBitrate(value: string | undefined): number | undefined {
   const suffix = match[2]?.toLowerCase();
   if (suffix === 'm') return Math.round(amount * 1000);
   return Math.round(amount);
+}
+
+function parseIdList(value: string | undefined): number[] {
+  if (!value) return [];
+  return value
+    .split(/[\s,;]+/)
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item !== 0);
+}
+
+function parseOptionalInt(value: string | undefined): number | null {
+  if (!value?.trim()) return null;
+  const parsed = Number(value.trim());
+  return Number.isInteger(parsed) ? parsed : null;
 }
 
 function parseCli(argv: string[]): {
@@ -243,6 +266,14 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
   }
   const secureCookies = parseBoolean(env.SECURE_COOKIES) ?? false;
 
+  const telegram: TelegramConfig = {
+    botToken: env.TELEGRAM_BOT_TOKEN?.trim() ?? '',
+    allowedUserIds: parseIdList(env.TELEGRAM_ALLOWED_USER_IDS),
+    notifyChatId: parseOptionalInt(env.TELEGRAM_NOTIFY_CHAT_ID),
+    notifications: parseBoolean(env.TELEGRAM_NOTIFICATIONS) ?? true,
+  };
+  const telegramAuth = Boolean(telegram.botToken && telegram.allowedUserIds.length > 0);
+
   const server: ServerConfig = {
     host: cli.host ?? env.SERVER_HOST ?? '0.0.0.0',
     port,
@@ -252,6 +283,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     sessionSecret,
     secureCookies,
     corsOrigin,
+    telegramAuth,
   };
 
   const media: MediaConfig = {
@@ -279,6 +311,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
   return {
     paths,
     server,
+    telegram,
     media,
     settings: settingsResult.data,
     streamers: file.streamers,

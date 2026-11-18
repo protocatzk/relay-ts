@@ -48,7 +48,15 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     if (request.method === 'OPTIONS') return;
     if (path === '/health') return;
     if (!path.startsWith('/api/')) return;
-    if (path === '/api/auth/login' || path === '/api/auth/me') return;
+    if (
+      path === '/api/auth/login' ||
+      path === '/api/auth/me' ||
+      path === '/api/auth/methods' ||
+      path === '/api/auth/telegram/request' ||
+      path === '/api/auth/telegram/check'
+    ) {
+      return;
+    }
     if (!authRequired(ctx.config.server)) return;
     if (!isAuthenticated(request, ctx.config.server)) {
       return unauthorized(reply);

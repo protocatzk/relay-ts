@@ -4,6 +4,8 @@ import type { EventBus } from '../core/events.js';
 import type { SettingsService } from '../core/store/settings-service.js';
 import type { StreamerStore } from '../core/store/streamer-store.js';
 import type { Supervisor } from '../core/supervisor/supervisor.js';
+import type { TelegramAuthStore } from '../core/telegram/auth-store.js';
+import type { TelegramBot } from '../core/telegram/bot.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -14,4 +16,6 @@ export interface ApiContext {
   bus: EventBus;
   ring: LogRing;
   version: string;
+  telegramAuth?: TelegramAuthStore;
+  telegramBot?: TelegramBot | null;
 }

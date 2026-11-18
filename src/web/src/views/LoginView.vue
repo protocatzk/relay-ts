@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { errorMessage } from '@/src/api/client';
-import { loginWithPassword } from '@/src/composables/useStore';
+import { api, errorMessage } from '@/src/api/client';
+import type { AuthMethods } from '@/src/api/types';
+import { loadAuth, loginWithPassword } from '@/src/composables/useStore';
 
 const router = useRouter();
 const route = useRoute();
@@ -11,6 +12,22 @@ const password = ref('');
 const error = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
+const methods = ref<AuthMethods | null>(null);
+const methodsError = ref('');
+
+const telegram = ref({
+  token: '',
+  link: '',
+  status: '',
+  requesting: false,
+});
+let pollTimer: number | null = null;
+
+const showPasswordForm = computed(() => methods.value?.password_auth ?? true);
+const showTelegram = computed(() => methods.value?.telegram_auth ?? false);
+const telegramWaiting = computed(
+  () => telegram.value.requesting || Boolean(telegram.value.token) || telegram.value.status !== '',
+);
 
 function safeRedirect(): string {
   const redirect = route.query.redirect;
@@ -18,6 +35,65 @@ function safeRedirect(): string {
     return redirect;
   }
   return '/';
+}
+
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function pollTelegram(): Promise<void> {
+  if (!telegram.value.token) return;
+  try {
+    const result = await api.auth.telegramCheck(telegram.value.token);
+    if (result.status === 'approved') {
+      stopPolling();
+      telegram.value.status = 'Angemeldet. Weiterleitung…';
+      await loadAuth();
+      await router.replace(safeRedirect());
+      return;
+    }
+    if (result.status === 'denied') {
+      stopPolling();
+      telegram.value.status = 'Anmeldung abgelehnt. Seite neu laden für einen neuen Versuch.';
+      return;
+    }
+    if (result.status === 'expired') {
+      stopPolling();
+      telegram.value.status = 'Anfrage abgelaufen. Seite neu laden für einen neuen Versuch.';
+    }
+  } catch {
+    /* transient error: keep polling */
+  }
+}
+
+async function requestTelegram(): Promise<void> {
+  if (telegram.value.token || telegram.value.requesting) return;
+  telegram.value.requesting = true;
+  telegram.value.status = 'Bereite Anmeldung vor…';
+  try {
+    const request = await api.auth.telegramRequest();
+    telegram.value.token = request.token;
+    telegram.value.link = request.deep_link;
+    telegram.value.status = 'Warte auf Freigabe in Telegram…';
+    stopPolling();
+    pollTimer = window.setInterval(() => void pollTelegram(), 2000);
+  } catch (caught) {
+    telegram.value.status = errorMessage(caught);
+    telegram.value.token = '';
+    telegram.value.link = '';
+  } finally {
+    telegram.value.requesting = false;
+  }
+}
+
+function onTelegramClick(event: MouseEvent): void {
+  if (!telegram.value.link) {
+    event.preventDefault();
+    void requestTelegram();
+  }
 }
 
 async function submit(): Promise<void> {
@@ -36,6 +112,17 @@ async function submit(): Promise<void> {
     loading.value = false;
   }
 }
+
+onMounted(async () => {
+  try {
+    methods.value = await api.auth.methods();
+    if (methods.value.telegram_auth) void requestTelegram();
+  } catch (caught) {
+    methodsError.value = errorMessage(caught);
+  }
+});
+
+onBeforeUnmount(stopPolling);
 </script>
 
 <template>
@@ -61,9 +148,38 @@ async function submit(): Promise<void> {
       </div>
 
       <h1 class="login-title">Anmeldung</h1>
-      <p class="login-sub">Bitte Passwort eingeben, um auf das Dashboard zuzugreifen.</p>
+      <p class="login-sub">
+        <template v-if="showTelegram">
+          Melde dich über den Telegram-Bot an – kein Passwort, kein Code.
+        </template>
+        <template v-else>Bitte Passwort eingeben, um auf das Dashboard zuzugreifen.</template>
+      </p>
 
-      <form class="stack" @submit.prevent="submit">
+      <div v-if="showTelegram" class="login-actions">
+        <a
+          class="btn btn-primary btn-block"
+          :class="{ 'is-disabled': !telegram.link }"
+          :href="telegram.link || '#'"
+          target="_blank"
+          rel="noopener"
+          :aria-disabled="!telegram.link"
+          @click="onTelegramClick"
+        >
+          <span v-if="telegram.requesting" class="spinner" aria-hidden="true"></span>
+          Mit Telegram anmelden
+        </a>
+        <p v-if="telegram.status" class="login-status" :class="{ 'is-error': telegram.status.includes('nicht') || telegram.status.includes('abgelehnt') || telegram.status.includes('abgelaufen') }">
+          {{ telegram.status }}
+        </p>
+        <p v-if="telegram.link && methods?.telegram_bot_username" class="login-hint">
+          Der Link öffnet den Chat mit @{{ methods.telegram_bot_username }}. Nach
+          „Anmelden freigeben“ geht es hier automatisch weiter.
+        </p>
+      </div>
+
+      <div v-if="showTelegram && showPasswordForm" class="login-divider"><span>oder</span></div>
+
+      <form v-if="showPasswordForm" class="stack" @submit.prevent="submit">
         <div class="field">
           <label for="login-password">Passwort</label>
           <div class="input-with-button">
@@ -73,7 +189,7 @@ async function submit(): Promise<void> {
               :type="showPassword ? 'text' : 'password'"
               placeholder="Passwort"
               autocomplete="current-password"
-              autofocus
+              :autofocus="!showTelegram"
             />
             <button
               type="button"
@@ -105,6 +221,11 @@ async function submit(): Promise<void> {
           {{ loading ? 'Anmelden…' : 'Anmelden' }}
         </button>
       </form>
+
+      <div v-if="methodsError" class="alert alert-error" role="alert">{{ methodsError }}</div>
+      <p v-if="showTelegram && telegramWaiting && !telegram.token" class="login-hint">
+        Der Bot ist noch nicht verbunden. Lade die Seite in einigen Sekunden neu.
+      </p>
 
       <p class="login-foot">Sitzung über HttpOnly-Cookie · Nur für autorisierte Nutzer</p>
     </div>

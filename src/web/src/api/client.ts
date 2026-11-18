@@ -1,5 +1,6 @@
 import type {
   AuthMe,
+  AuthMethods,
   BulkAddInput,
   BulkAddResult,
   LogEntry,
@@ -15,6 +16,8 @@ import type {
   StreamerInput,
   StreamersResponse,
   QuickStartInput,
+  TelegramLoginRequest,
+  TelegramLoginStatus,
   TitlePreview,
 } from './types';
 
@@ -129,7 +132,10 @@ function unwrapResource<T>(data: unknown, key: string): T {
 
 export interface AuthApi {
   me(): Promise<AuthMe>;
+  methods(): Promise<AuthMethods>;
   login(password: string): Promise<{ ok: true }>;
+  telegramRequest(): Promise<TelegramLoginRequest>;
+  telegramCheck(token: string): Promise<TelegramLoginStatus>;
   logout(): Promise<{ ok: true }>;
 }
 
@@ -170,10 +176,22 @@ export interface PlaylistsApi {
 export const api = {
   auth: {
     me: () => request<AuthMe>('/api/auth/me', { authRedirect: false }),
+    methods: () => request<AuthMethods>('/api/auth/methods', { authRedirect: false }),
     login: (password: string) =>
       request<{ ok: true }>('/api/auth/login', {
         method: 'POST',
         body: { password },
+        authRedirect: false,
+      }),
+    telegramRequest: () =>
+      request<TelegramLoginRequest>('/api/auth/telegram/request', {
+        method: 'POST',
+        authRedirect: false,
+      }),
+    telegramCheck: (token: string) =>
+      request<TelegramLoginStatus>('/api/auth/telegram/check', {
+        method: 'POST',
+        body: { token },
         authRedirect: false,
       }),
     logout: () =>

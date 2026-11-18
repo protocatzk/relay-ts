@@ -324,6 +324,25 @@ export interface AuthMe {
   auth_required: boolean;
 }
 
+export interface AuthMethods {
+  auth_required: boolean;
+  password_auth: boolean;
+  telegram_auth: boolean;
+  telegram_bot_username: string;
+}
+
+export interface TelegramLoginRequest {
+  token: string;
+  bot_username: string;
+  deep_link: string;
+  expires_in: number;
+}
+
+export interface TelegramLoginStatus {
+  status: 'pending' | 'approved' | 'denied' | 'expired';
+  user?: string;
+}
+
 export interface StreamerOverlaysInput {
   chat: {
     enabled: boolean;
