@@ -14,6 +14,17 @@ gh auth login
 Das Script liest `manifest.jsonl`, legt fehlende Labels/Meilensteine an und
 überspringt Issues, deren Titel bereits existiert.
 
+## Automatisch per GitHub Action
+
+Der Workflow `.github/workflows/create-roadmap-issues.yml` startet bei
+Änderungen an `docs/issues/**` oder manuell über **Actions → Create roadmap
+issues → Run workflow**. Er nutzt das eingebaute `GITHUB_TOKEN` mit
+`issues: write` und ist idempotent: bereits existierende Titel werden
+übersprungen.
+
+SSH-Zugriff allein reicht für die GitHub-API nicht aus; der Workflow umgeht das,
+weil GitHub Actions das Repository-Token bereitstellt.
+
 ## Manuell
 
 1. Datei öffnen,

@@ -1,0 +1,30 @@
+name: Create roadmap issues
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "docs/issues/**"
+      - "scripts/create-issues.sh"
+      - ".github/workflows/create-roadmap-issues.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify GitHub CLI authentication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh auth status
+
+      - name: Create issues from manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/create-issues.sh

@@ -60,6 +60,7 @@ Wichtige Pfade:
 - `tools/render-pause-video.mjs` – rendert das Pausen-Video mit Canvas/ffmpeg
 - `docs/ROADMAP.md` – priorisierter Plan und Issue-Übersicht
 - `docs/issues/` – Issue-Texte + `scripts/create-issues.sh`
+- `.github/workflows/create-roadmap-issues.yml` – legt Issues per Actions-Token an
 
 ## Laufzeit-Invarianten
 
