@@ -84,7 +84,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     reply.header('referrer-policy', 'no-referrer');
     reply.header(
       'content-security-policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
     if (request.url.startsWith('/api/')) {
       reply.header('cache-control', 'no-store');
