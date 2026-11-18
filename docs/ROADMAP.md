@@ -57,6 +57,7 @@ als Folge-Issue außerhalb von v0.3.0.
 | Video Playback im Dashboard ermöglichen | P3 | Streaming/UI |
 | Lokale Videodateien in Playlists abspielen | P3 | Playlists/Media |
 | Einnahmen im Overlay Studio vereinheitlichen | P3 | Overlay/Earnings |
+| YouTube-Streams erstellen, planen und verwalten | P3 | YouTube/API |
 | Per-Streamer-Overlays entfernen und Migration abschließen | P4 | Tech Debt |
 | OpenAPI aus Zod/Fastify generieren und Client typisieren | P4 | Tech Debt |
 
