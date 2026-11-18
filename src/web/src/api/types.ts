@@ -162,17 +162,95 @@ export interface StatusPayload {
   version: string;
 }
 
+export interface EarningsRates {
+  usd_per_diamond: number | null;
+  gross_usd_per_coin: number | null;
+  usd_to_eur_rate: number | null;
+}
+
+export interface EarningsTopGift {
+  name: string;
+  coins: number | null;
+  count: number | null;
+}
+
+export interface EarningsTopGifter {
+  username: string;
+  display_name: string | null;
+  coins: number | null;
+}
+
+export interface EarningsSession {
+  id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  status: string | null;
+  peak_viewers: number | null;
+  last_fan_tickets: number | null;
+  coins: number | null;
+  gifts: number | null;
+  net: number | null;
+  gross: number | null;
+  currency: 'EUR' | 'USD';
+}
+
+export interface EarningsDiagnostics {
+  state: string | null;
+  is_running: boolean | null;
+  connected_since: string | null;
+  last_event_at: string | null;
+  last_message: string | null;
+  reconnect_attempts: number | null;
+  current_viewers: number | null;
+  peak_viewers: number | null;
+  room_fan_tickets: number | null;
+  gifts_received_session: number | null;
+  coins_received_session: number | null;
+  session_id: string | null;
+}
+
+export type EarningsStatus =
+  | 'unconfigured'
+  | 'disabled'
+  | 'inactive'
+  | 'checking'
+  | 'missing'
+  | 'error'
+  | 'ok';
+
 export interface EarningsSnapshot {
   enabled: boolean;
   configured: boolean;
+  status: EarningsStatus;
   streamer_id: string | null;
+  streamer_name: string | null;
+  streamer_handle: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  room_id: string | null;
+  is_live: boolean | null;
+  period: string;
+  period_label: string;
+  view: 'compact' | 'standard' | 'detailed';
   net: number | null;
   gross: number | null;
   coins: number | null;
   viewers: number | null;
+  followers: number | null;
+  gifts: number | null;
+  gifts_sent: number | null;
+  gifters: number | null;
   currency: 'EUR' | 'USD';
-  top_gift: string | null;
+  session: EarningsSession | null;
+  top_gift: EarningsTopGift | null;
+  top_gifter: EarningsTopGifter | null;
+  rates: EarningsRates | null;
+  diagnostics: EarningsDiagnostics | null;
+  last_seen_at: string | null;
+  source: string | null;
   updated_at: string | null;
+  last_run_at: string | null;
+  missing: boolean;
   error: string | null;
 }
 
@@ -262,6 +340,7 @@ export interface EarningsSettings {
   source_url: string;
   api_key_set: boolean;
   interval: number;
+  period: 'today' | '24h' | '7d' | '30d' | 'all';
   view: 'compact' | 'standard' | 'detailed';
   overlay_enabled: boolean;
   overlay_position: OverlayPosition;
@@ -304,6 +383,7 @@ export interface SettingsUpdate {
     overlay_position: OverlayPosition;
     overlay_template: string;
     overlay_font_size: number;
+    period: 'today' | '24h' | '7d' | '30d' | 'all';
     api_key?: string;
   };
 }

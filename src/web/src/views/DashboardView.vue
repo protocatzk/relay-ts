@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { Streamer, TitlePreview } from '@/src/api/types';
+import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
@@ -17,6 +18,7 @@ const { store, refreshStatus, refreshStreamers, refreshPlaylists } = useStore();
 const { pushToast } = useToast();
 
 const busy = ref<string | null>(null);
+const refreshingEarnings = ref(false);
 const quick = reactive({ tiktok: '', youtube_key: '', name: '' });
 const selectedPlaylist = ref('');
 
@@ -86,6 +88,19 @@ async function refreshSource(): Promise<void> {
 
 async function reloadYaml(): Promise<void> {
   await run('reload', () => api.system.reload(), 'Konfiguration neu geladen.');
+}
+
+async function refreshEarnings(): Promise<void> {
+  refreshingEarnings.value = true;
+  try {
+    await api.earnings.refresh();
+    await refreshStatus();
+    pushToast('Einnahmen aktualisiert.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    refreshingEarnings.value = false;
+  }
 }
 
 async function loadTitle(id: string | null | undefined): Promise<void> {
@@ -390,6 +405,13 @@ onBeforeUnmount(() => {
       <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
     </div>
 
+    <EarningsPanel
+      v-if="status?.earnings"
+      :earnings="status.earnings"
+      :refreshing="refreshingEarnings"
+      @refresh="refreshEarnings"
+    />
+
     <section class="card dashboard-live">
       <div class="card-head">
         <div>
@@ -411,13 +433,6 @@ onBeforeUnmount(() => {
             <div><dt>Chat-Engine</dt><dd>{{ status?.chat.engine ?? '–' }}</dd></div>
             <div><dt>Nachrichten</dt><dd>{{ status?.chat.messages ?? 0 }}</dd></div>
             <div><dt>Chat-API</dt><dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd></div>
-            <template v-if="status?.earnings?.enabled">
-              <div><dt>Einnahmen netto</dt><dd class="mono">{{ status.earnings.currency }} {{ status.earnings.net ?? '–' }}</dd></div>
-              <div v-if="status.earnings.gross !== null"><dt>Brutto</dt><dd class="mono">{{ status.earnings.currency }} {{ status.earnings.gross }}</dd></div>
-              <div v-if="status.earnings.coins !== null"><dt>Coins</dt><dd class="mono">{{ status.earnings.coins }}</dd></div>
-              <div v-if="status.earnings.viewers !== null"><dt>Zuschauer</dt><dd class="mono">{{ status.earnings.viewers }}</dd></div>
-              <div v-if="status.earnings.top_gift"><dt>Top-Gift</dt><dd>{{ status.earnings.top_gift }}</dd></div>
-            </template>
           </dl>
           <form class="stack compact" @submit.prevent="sendChatTest">
             <div class="field">

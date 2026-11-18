@@ -1205,6 +1205,131 @@ a.btn.is-disabled {
   }
 }
 
+/* Earnings */
+.earnings-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.earnings-kpis.is-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.earnings-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--border-strong);
+  background: var(--surface-2);
+}
+
+.earnings-kpi-net {
+  border-top-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.earnings-kpi-label {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.earnings-kpi-value {
+  color: var(--text-strong);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.earnings-kpi-net .earnings-kpi-value {
+  color: var(--accent);
+}
+
+.earnings-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.earnings-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.earnings-detail-wide {
+  grid-column: span 3;
+}
+
+.earnings-detail-label {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.earnings-detail strong {
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.earnings-detail small,
+.earnings-source {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.earnings-source {
+  margin: 10px 0 0;
+}
+
+@media (max-width: 1100px) {
+  .earnings-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .earnings-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .earnings-detail-wide {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .earnings-kpis,
+  .earnings-kpis.is-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .earnings-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .earnings-detail-wide {
+    grid-column: span 1;
+  }
+}
+
 /* Footer */
 .app-footer {
   max-width: 1480px;

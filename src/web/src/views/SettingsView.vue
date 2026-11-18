@@ -137,6 +137,7 @@ async function save(): Promise<void> {
       enabled: current.earnings.enabled,
       source_url: current.earnings.source_url.trim(),
       interval: toNumber(current.earnings.interval, 300),
+      period: current.earnings.period,
       view: current.earnings.view,
       overlay_enabled: current.earnings.overlay_enabled,
       overlay_position: current.earnings.overlay_position,
@@ -446,6 +447,16 @@ onMounted(() => {
               <input id="earnings-interval" v-model.number="form.earnings.interval" type="number" min="30" max="3600" />
             </div>
             <div class="field">
+              <label for="earnings-period">Zeitraum</label>
+              <select id="earnings-period" v-model="form.earnings.period">
+                <option value="today">Heute</option>
+                <option value="24h">Letzte 24 h</option>
+                <option value="7d">Letzte 7 Tage</option>
+                <option value="30d">Letzte 30 Tage</option>
+                <option value="all">Gesamt</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="earnings-view">Dashboard-Anzeige</label>
               <select id="earnings-view" v-model="form.earnings.view">
                 <option value="compact">Kompakt</option>
@@ -472,7 +483,12 @@ onMounted(() => {
             <div class="field">
               <label for="earnings-template">Overlay-Template</label>
               <input id="earnings-template" v-model="form.earnings.overlay_template" type="text" maxlength="200" />
-              <p class="field-hint">Platzhalter: {net}, {gross}, {coins}, {viewers}, {top_gift}, {currency}.</p>
+              <p class="field-hint">
+                Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
+                {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
+                {live}, {top_gift}, {top_gifter}, {display_name}, {last_seen}, {name},
+                {username}, {currency}.
+              </p>
             </div>
             <div class="field">
               <label for="earnings-font-size">Overlay-Schriftgröße (px)</label>

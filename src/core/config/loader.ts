@@ -405,6 +405,7 @@ export function applyEnvSettings(
   set(['earnings', 'source_url'], env.EARNINGS_SOURCE_URL?.trim() || undefined);
   set(['earnings', 'api_key'], env.EARNINGS_SOURCE_API_KEY?.trim() || undefined);
   set(['earnings', 'interval'], parseNumber(env.EARNINGS_REFRESH_SECONDS));
+  set(['earnings', 'period'], env.EARNINGS_PERIOD?.trim() || undefined);
   set(['earnings', 'view'], env.EARNINGS_VIEW?.trim() || undefined);
   set(['earnings', 'overlay_enabled'], parseBoolean(env.EARNINGS_OVERLAY_ENABLED));
   set(['earnings', 'overlay_template'], env.EARNINGS_OVERLAY_TEMPLATE?.trim() || undefined);

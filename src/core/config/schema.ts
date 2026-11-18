@@ -290,6 +290,7 @@ export const EarningsSettingsSchema = z.object({
   source_url: z.string().default(''),
   api_key: z.string().default(''),
   interval: z.number().int().min(30).max(3600).default(300),
+  period: z.enum(['today', '24h', '7d', '30d', 'all']).default('today'),
   view: z.enum(['compact', 'standard', 'detailed']).default('standard'),
   overlay_enabled: z.boolean().default(false),
   overlay_position: PositionSchema.default('top-left'),

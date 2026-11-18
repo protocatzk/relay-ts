@@ -95,8 +95,14 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     return ctx.settingsService.sanitized();
   });
 
-  app.post('/api/chat/test', async (request) => {
-    const body = z
+  app.get('/api/earnings', async () => ctx.supervisor.earningsStatus());
+
+  app.post('/api/earnings/refresh', async () => ({
+    ok: true,
+    earnings: await ctx.supervisor.refreshEarnings(),
+  }));
+
+  app.post('/api/chat/test', async (request) => {    const body = z
       .object({
         username: z.string().max(40).optional(),
         text: z.string().max(300).optional(),

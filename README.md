@@ -36,7 +36,8 @@ eigenständig umgesetzt.
   inklusive optionalem automatischem Wechsel zum bevorzugten Streamer
 - **Eigene YouTube-Streams** pro Streamer (`own_stream`) und lokale
   YouTube-Titel-Vorschau per Template
-- **Einnahmen-Monitor** (TokTracker-kompatibel) für Dashboard und Overlay
+- **Einnahmen-Monitor** (TokTracker-kompatibel) für Dashboard und Overlay,
+  inklusive Zeitraum, Sessions, Gifts/Giftern, Top-Gift, Top-Gifter und Kursen
 - **Web-Dashboard** (Vue 3) im TokTracker-Design mit Live-Updates per SSE
   und mobiler Navigation (Drawer, Touch-Targets, responsive Karten/Tabellen)
 - **Auth**: Passwort-Session-Cookie, Basic Auth und API-Token
@@ -238,6 +239,8 @@ Wichtige Umgebungsvariablen (vollständig in `.env.example`):
 | `AUTO_REFRESH_MINUTES` | URL-Refresh-Intervall | `20` |
 | `PAUSE_ON_OFFLINE` | Pausenscreen statt Trennung | `true` |
 | `ONLINE_SOURCE_URL` | JSON-API für Live-Status | – |
+| `EARNINGS_PERIOD` | `today`, `24h`, `7d`, `30d`, `all` | `today` |
+| `EARNINGS_VIEW` | `compact`, `standard`, `detailed` | `standard` |
 | `CHAT_API_URL` | Chat-API, `{handle}` wird ersetzt | – |
 | `FFMPEG_BIN` / `YTDLP_BIN` | Binary-Pfade | `ffmpeg` / `yt-dlp` |
 
@@ -294,6 +297,7 @@ earnings:
   source_url: ""
   api_key: ""
   interval: 300
+  period: today
   view: standard
   overlay_enabled: false
   overlay_position: top-left
@@ -344,6 +348,8 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET` | `/api/streamers/:id/title` | YouTube-Titel-Vorschau aus Template |
 | `POST` | `/api/quickstart` | Handle + Key anlegen und starten |
 | `GET` | `/api/status` | Vollständiger Systemstatus |
+| `GET` | `/api/earnings` | Ausführlicher Einnahmen-Status |
+| `POST` | `/api/earnings/refresh` | Einnahmen sofort aktualisieren |
 | `GET` | `/api/settings` | Einstellungen (Secrets redigiert) |
 | `PUT` | `/api/settings` | Einstellungen speichern |
 | `GET` | `/api/playlists` | Playlists |
@@ -489,15 +495,46 @@ EARNINGS_ENABLED=true
 EARNINGS_SOURCE_URL=https://positronium.dev/track/api/public/overview
 EARNINGS_SOURCE_API_KEY=dein-toktracker-key
 EARNINGS_REFRESH_SECONDS=300
-EARNINGS_VIEW=standard
+EARNINGS_PERIOD=today
+EARNINGS_VIEW=detailed
 EARNINGS_OVERLAY_ENABLED=true
-EARNINGS_OVERLAY_TEMPLATE={net} € · {coins} Coins
+EARNINGS_OVERLAY_TEMPLATE={period}: {net} € · {coins} Coins
 ```
 
-Unterstützte Platzhalter: `{net}`, `{gross}`, `{coins}`, `{viewers}`,
-`{top_gift}` und `{currency}`. Der Parser erkennt `eur_net`/`usd_net`,
-`total_coins`, `current_viewers` und `top_gift`; fehlende Werte werden als `–`
-angezeigt.
+**Zeitraum:** `today`, `24h`, `7d`, `30d`, `all`. Der Parameter wird
+automatisch als `?period=…` an die Quelle angehängt, sofern er nicht schon in
+der URL steht. `{username}`/`{streamer}` in der URL wird durch den TikTok-Handle
+ersetzt.
+
+**Anzeigeformen im Dashboard:**
+
+- `compact`: Zeitraum und Netto
+- `standard`: Netto, Brutto, Coins, Gifts, Gifter
+- `detailed`: zusätzlich Session, Zuschauer, Follower, Top-Gift, Top-Gifter,
+  zuletzt gesehen, Wechselkurse und Monitor-Diagnose
+
+Der Parser akzeptiert die TokTracker-Übersicht (`streamers`-Liste), die
+Detailantwort (`streamer` + `summary`/`totals` + `sessions`) und reine Listen.
+Fehlende Netto-/Bruttowerte werden aus `total_coins` und den mitgelieferten
+`rates` berechnet. Bei einem temporären Quellenfehler bleiben die letzten Werte
+sichtbar und werden als Fehler markiert; fehlt der Streamer in der Antwort,
+zeigt das Dashboard „keine Daten“.
+
+Zusätzlich zu den Beträgen übernimmt der Monitor Live-Status, Zuschauer,
+Follower, letzte Aktivität, Top-Gift, Top-Gifter, Session-Infos
+(`active_session`, `sessions`, `worker_diagnostics`) und Wechselkurse.
+Aktualisieren per API:
+
+```bash
+GET /api/earnings
+POST /api/earnings/refresh
+```
+
+**Overlay-Platzhalter:** `{period}`, `{net}`, `{gross}`, `{coins}`, `{gifts}`,
+`{gifters}`, `{session_net}`, `{session_gross}`, `{session_coins}`,
+`{viewers}`, `{followers}`, `{live}`, `{top_gift}`, `{top_gifter}`,
+`{display_name}`, `{last_seen}`, `{name}`, `{username}`, `{currency}`.
+Währung ist EUR, sofern die Quelle EUR liefert, sonst USD.
 
 ---
 

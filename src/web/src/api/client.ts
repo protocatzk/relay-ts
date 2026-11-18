@@ -3,6 +3,7 @@ import type {
   AuthMethods,
   BulkAddInput,
   BulkAddResult,
+  EarningsSnapshot,
   LogEntry,
   LogsResponse,
   Playlist,
@@ -203,6 +204,14 @@ export const api = {
   status: {
     get: () => request<StatusPayload>('/api/status'),
   } satisfies StatusApi,
+
+  earnings: {
+    get: () => request<EarningsSnapshot | null>('/api/earnings'),
+    refresh: () =>
+      request<{ ok: true; earnings: EarningsSnapshot | null }>('/api/earnings/refresh', {
+        method: 'POST',
+      }),
+  },
 
   streamers: {
     list: async () => normalizeList<Streamer>(await request<StreamersResponse>('/api/streamers'), 'streamers'),

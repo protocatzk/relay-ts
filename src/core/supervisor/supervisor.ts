@@ -1558,6 +1558,15 @@ export class Supervisor {
       : '';
   }
 
+  earningsStatus(): ReturnType<EarningsMonitor['get']> | null {
+    return this.earnings?.get() ?? null;
+  }
+
+  async refreshEarnings(): Promise<ReturnType<EarningsMonitor['get']> | null> {
+    if (!this.earnings) return null;
+    return this.earnings.refresh();
+  }
+
   addTestChatMessage(username: string, text: string): ChatMessage[] {
     if (this.chat) {
       return this.chat.injectMessage(username, text);
