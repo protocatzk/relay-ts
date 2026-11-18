@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.2.0**
+- Aktuelle Version: **0.3.0**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -46,9 +46,12 @@ TikTok → yt-dlp → TikTokSource (ffmpeg) → Relay/DelayBuffer
 Wichtige Pfade:
 
 - `src/core/supervisor/supervisor.ts` – zentrale Zustandsmaschine, Start/Stop,
-  Pause, Playlist, Reconnect, Settings-Anwendung
+  Pause, Reconnect, Settings-Anwendung
 - `src/core/supervisor/state-machine.ts` – explizite Zustandsübergänge
+- `src/core/supervisor/playlist-controller.ts` – Playlist-Zustand, Timer,
+  Kanalwahl und Auto-Advance
 - `src/core/supervisor/reconnect-policy.ts` – Backoff-Berechnung
+- `src/core/supervisor/pause-limit.ts` – Begrenzung automatischer Offline-Pausen
 - `src/core/source/` – TikTok-Auflösung und Quell-ffmpeg
 - `src/core/sink/` – YouTube-Sink
 - `src/core/relay/` – MPEG-TS-Relay und DelayBuffer
@@ -163,7 +166,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
   Grün als Akzent, Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
 - Studio-Preview: `POST /api/overlays/studio.png` mit ungespeicherten Overlays,
-  clientseitig 220 ms Debounce + `AbortController`.
+  clientseitig 220 ms Debounce + `AbortController`. Drag/Resize ändert
+  `offset_x`/`offset_y` bzw. `font_size`; Presets sind JSON-Export/-Import.
+  Ohne Beispielmodus liefert der Server die letzten echten Chat-Nachrichten.
 
 ## Qualitätsregeln
 

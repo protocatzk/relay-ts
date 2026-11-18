@@ -44,7 +44,7 @@ Navigation.
 | **Pausenmodus**     | Pausenscreen statt RTMP-Trennung, konfigurierbare Grace-Periode, maximale Pausendauer, eigener Hintergrund/Font      |
 | **Startbildschirm** | „Starting Soon“-Video/Bild vor dem ersten Live-Bild mit Dauer, Text und Font                                         |
 | **Overlays**        | Canvas-Chat (Bubbles/Panel/Minimal), Emoji, Tier-Badges, Chat-Statistik, Uhr, Text, Einnahmen, drawtext-Fallback     |
-| **Overlay-Studio**  | Vollständige Bühnenvorschau aus ungespeicherten Drafts, Positions-Klick, globale Persistenz, Live-Anwendung          |
+| **Overlay-Studio**  | Bühnenvorschau aus Drafts, Drag/Resize, Live-Nachrichten, Presets, Hilfslinien, Undo/Redo, globale Persistenz        |
 | **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
 | **Einnahmen**       | TokTracker-kompatibel, Zeiträume, Sessions, Gifts/Gifter, Top-Gift/Gifter, Kurse, Detailansicht                      |
 | **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, responsive/mobile Ansicht, Drawer-Navigation                               |
@@ -439,9 +439,14 @@ Es gibt zwei Chat-Engines:
 
 Das Overlay-Studio rendert die komplette Bühne (Chat, Uhr, Text, Einnahmen)
 serverseitig aus **ungespeicherten** Drafts. Die Vorschau wird clientseitig
-entprellt und mit `AbortController` abgebrochen. Ein Klick auf eine Bildecke
-setzt die Position. Speichern schreibt global nach `config/settings.yml` und
-baut bei einem laufenden Stream Chat-Engine/Sink kontrolliert neu auf.
+entprellt und mit `AbortController` abgebrochen. Overlays lassen sich direkt im
+Bild ziehen (freie `offset_x`/`offset_y`-Offsets), am Griff skalieren oder per
+Pfeiltasten verschieben; ein Klick auf eine Ecke setzt die Position exakt.
+Zusätzlich gibt es Hilfslinien (Sicherheitsrand und Drittel), Undo/Redo sowie
+Preset-Import/-Export als JSON. Ohne „Beispielnachrichten“ zeigt die Vorschau
+die zuletzt empfangenen echten Chat-Nachrichten. Speichern schreibt global nach
+`config/settings.yml` und baut bei einem laufenden Stream Chat-Engine/Sink
+kontrolliert neu auf.
 
 Chat-Optionen umfassen Panel/Minimal-Stil, Nachrichtenpuffer,
 maximales Nachrichtenalter, feste Panelhöhe, Namensfarben, Tier-Badges und

@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-18** · Version **0.2.0**
+Stand: **2026-11-18** · Version **0.3.0**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -25,6 +25,11 @@ eigenen Issue-Entwurf unter [`docs/issues`](./issues) und kann mit
 
 Ziel: Sicherheitslücken schließen, Pausen-Assets komfortabel verwalten und die
 wichtigsten Stabilitätsfälle automatisiert testen.
+
+**Status: abgeschlossen in 0.3.0.** Der Supervisor-Split wurde als erster
+Schritt umgesetzt (State-Machine, Reconnect-Policy, PlaylistController); die
+verbleibende Aufteilung in StreamSession/PauseController/OverlayRuntime läuft
+als Folge-Issue außerhalb von v0.3.0.
 
 | Issue | Priorität | Bereich |
 |---|---|---|
