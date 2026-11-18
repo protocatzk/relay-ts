@@ -352,15 +352,26 @@ function pauseBackgroundKind(background: string): 'video' | 'animated' | 'image'
   return 'other';
 }
 
-export function buildPauseCommand(options: PauseCommandOptions): string[] {
-  const { media, settings, relay } = options;
-  const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
-  const fps = settings.video.fps;
-  const bitrate = settings.video.video_bitrate;
+export interface SlateFilterOptions {
+  settings: Settings;
+  background?: string;
+  text: string;
+  subtext: string;
+  fontFile?: string | null;
+  textColor?: string;
+  color?: string;
+  fit?: 'cover' | 'contain' | 'stretch';
+}
+
+/** Scale/fit filters plus the centered pause/startup drawtext block. */
+export function buildSlateFilters(options: SlateFilterOptions): string[] {
+  const [width, height] = options.settings.video.resolution
+    .split('x')
+    .map(Number) as [number, number];
+  const fps = options.settings.video.fps;
   const background = options.background?.trim() ?? '';
-  const kind = background ? pauseBackgroundKind(background) : 'none';
   const textColor = options.textColor?.trim() || 'white';
-  const slateColor = options.color?.trim() || settings.pause.color;
+  const slateColor = options.color?.trim() || options.settings.pause.color;
   const filters: string[] = [];
 
   if (background) {
@@ -393,6 +404,51 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
         `fontsize=${Math.round(width / 30)}:fontcolor=${escapeDrawtext(textColor)}:alpha=0.7:x=(w-tw)/2:y=(h-th)/2+60`,
     );
   }
+
+  return filters;
+}
+
+export function buildPausePreviewArgs(
+  options: SlateFilterOptions & { media: MediaConfig; output: string },
+): string[] {
+  const [width, height] = options.settings.video.resolution
+    .split('x')
+    .map(Number) as [number, number];
+  const background = options.background?.trim() ?? '';
+  const slateColor = options.color?.trim() || options.settings.pause.color;
+  const filters = buildSlateFilters(options);
+  const args = [
+    '-hide_banner',
+    '-nostdin',
+    '-loglevel',
+    options.media.ffmpegLogLevel,
+    '-y',
+  ];
+  if (background) {
+    const kind = pauseBackgroundKind(background);
+    if (kind === 'video' || kind === 'animated') {
+      args.push('-ss', '0', '-i', background);
+    } else {
+      args.push('-i', background);
+    }
+  } else {
+    args.push('-f', 'lavfi', '-i', `color=c=${slateColor}:s=${width}x${height}:d=1`);
+  }
+  args.push('-frames:v', '1', '-an');
+  if (filters.length > 0) args.push('-vf', filters.join(','));
+  args.push('-f', 'image2', options.output);
+  return args;
+}
+
+export function buildPauseCommand(options: PauseCommandOptions): string[] {
+  const { media, settings, relay } = options;
+  const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
+  const fps = settings.video.fps;
+  const bitrate = settings.video.video_bitrate;
+  const background = options.background?.trim() ?? '';
+  const kind = background ? pauseBackgroundKind(background) : 'none';
+  const slateColor = options.color?.trim() || settings.pause.color;
+  const filters = buildSlateFilters(options);
 
   const args = [
     '-hide_banner',

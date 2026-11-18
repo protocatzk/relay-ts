@@ -583,6 +583,7 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `POST`   | `/api/pause/start` / `stop`        | Pausenscreen an/aus              |
 | `GET`    | `/api/pause/assets`                | Hochgeladene Pause-Dateien       |
 | `POST`   | `/api/pause/assets`                | Hintergrund/Font hochladen       |
+| `POST`   | `/api/pause/preview.png`           | Screen-Vorschau mit Text         |
 | `GET`    | `/api/pause/assets/:filename`      | Pause-Datei ausliefern           |
 | `DELETE` | `/api/pause/assets/:filename`      | Pause-Datei löschen              |
 | `POST`   | `/api/system/restart-sink`         | Encoder neu starten              |

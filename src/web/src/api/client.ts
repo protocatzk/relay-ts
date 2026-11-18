@@ -5,6 +5,7 @@ import type {
   BulkAddResult,
   EarningsSnapshot,
   PauseAsset,
+  PausePreviewInput,
   LogEntry,
   LogsResponse,
   Playlist,
@@ -360,6 +361,28 @@ export const api = {
       request<{ ok: true }>(`/api/pause/assets/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
       }),
+    preview: async (body: PausePreviewInput, signal?: AbortSignal): Promise<Blob> => {
+      let response: Response;
+      try {
+        response = await fetch('/api/pause/preview.png', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw error;
+        throw new ApiError(0, 'network_error', 'Verbindung zum Server fehlgeschlagen.');
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const { code, message } = extractMessage(data, response.status);
+        if (response.status === 401) unauthorizedHandler?.();
+        throw new ApiError(response.status, code, message);
+      }
+      return response.blob();
+    },
   },
 };
 

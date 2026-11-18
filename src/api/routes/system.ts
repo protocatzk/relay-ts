@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
 import { StreamerSchema, formatZodError, type StreamerConfig } from '../../core/config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
+import { join } from 'node:path';
+import { renderPausePreview } from '../../core/overlays/pause-preview.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
@@ -19,6 +21,20 @@ const StudioPreviewBody = z.object({
 
 const OverlaySaveBody = z.object({
   overlays: z.unknown(),
+});
+
+const PausePreviewBody = z.object({
+  screen: z.enum(['pause', 'startup']).optional(),
+  text: z.string().max(200).optional(),
+  subtext: z.string().max(200).optional(),
+  color: z
+    .string()
+    .regex(/^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$/, 'Farbe muss 0xRRGGBB oder #RRGGBB sein')
+    .optional(),
+  background: z.string().max(500).optional(),
+  font: z.string().max(500).optional(),
+  text_color: z.string().max(64).optional(),
+  fit: z.enum(['cover', 'contain', 'stretch']).optional(),
 });
 
 export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
@@ -44,6 +60,23 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       .header('cache-control', 'no-store')
       .type('image/png')
       .send(png);
+  });
+
+  app.post('/api/pause/preview.png', async (request, reply) => {
+    const parsed = PausePreviewBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new ValidationError('Ungültige Vorschau-Parameter', parsed.error.issues);
+    }
+    const { screen, ...draft } = parsed.data;
+    const png = await renderPausePreview({
+      media: ctx.config.media,
+      settings: ctx.settingsService.get(),
+      overlaysDir: join(ctx.config.paths.dataDir, 'overlays'),
+      logger: ctx.logger,
+      screen: screen ?? 'pause',
+      draft,
+    });
+    return reply.header('cache-control', 'no-store').type('image/png').send(png);
   });
 
   app.post('/api/overlays/studio.png', async (request, reply) => {

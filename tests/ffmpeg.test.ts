@@ -4,6 +4,8 @@ import type { LoadedConfig } from '../src/core/config/loader.js';
 import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
 import {
   buildPauseCommand,
+  buildPausePreviewArgs,
+  buildSlateFilters,
   buildSinkCommand,
   buildSourceCommand,
   youtubeUrls,
@@ -149,6 +151,40 @@ describe('ffmpeg command builders', () => {
     });
     expect(args.filter((value) => value === 'flv')).toHaveLength(2);
     expect(args).toContain('rtmp://b.rtmp.youtube.com/live2/key?backup=1');
+  });
+
+  it('builds a one-frame preview with the slate drawtext layers', () => {
+    const args = buildPausePreviewArgs({
+      media,
+      settings: DEFAULT_SETTINGS,
+      text: 'Pause: gleich weiter',
+      subtext: 'Bitte warten',
+      fontFile: '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+      output: '/tmp/preview.png',
+    });
+    const line = args.join(' ');
+    expect(args).toContain('-frames:v');
+    expect(line).toContain('color=c=0x101820');
+    expect(line).toContain('drawtext=');
+    expect(line).toContain('Pause\\: gleich weiter');
+    expect(line).toContain('-f image2');
+    expect(args.at(-1)).toBe('/tmp/preview.png');
+  });
+
+  it('applies fit and text color to preview filters', () => {
+    const filters = buildSlateFilters({
+      settings: DEFAULT_SETTINGS,
+      background: '/tmp/background.mp4',
+      text: 'Pause',
+      subtext: '',
+      fontFile: '/font.ttf',
+      textColor: '#ff0000',
+      fit: 'contain',
+    });
+    const line = filters.join(',');
+    expect(line).toContain('force_original_aspect_ratio=decrease');
+    expect(line).toContain('pad=');
+    expect(line).toContain('fontcolor=#ff0000');
   });
 
   it('builds a pause slate with text', () => {

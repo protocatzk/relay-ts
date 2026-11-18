@@ -309,6 +309,7 @@ export interface PauseSettings {
   subtext: string;
   max_minutes: number;
   grace_seconds: number;
+  color: string;
   background: string;
   font: string;
   text_color: string;
@@ -325,6 +326,17 @@ export interface StartupSettings {
   font: string;
   text_color: string;
   fit: 'cover' | 'contain' | 'stretch';
+}
+
+export interface PausePreviewInput {
+  screen?: 'pause' | 'startup';
+  text?: string;
+  subtext?: string;
+  color?: string;
+  background?: string;
+  font?: string;
+  text_color?: string;
+  fit?: 'cover' | 'contain' | 'stretch';
 }
 
 export interface PauseAsset {

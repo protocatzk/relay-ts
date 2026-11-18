@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { PauseAsset, Settings, SettingsUpdate, VideoPreset } from '@/src/api/types';
+import type { PauseAsset, PausePreviewInput, Settings, SettingsUpdate, VideoPreset } from '@/src/api/types';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useToast } from '@/src/composables/useToast';
 
@@ -40,6 +40,11 @@ const pausePreviewKind = ref<'image' | 'video' | null>(null);
 const startupAsset = ref<PauseAsset | null>(null);
 const startupPreviewUrl = ref('');
 const startupPreviewKind = ref<'image' | 'video' | null>(null);
+const pauseComposedUrl = ref('');
+const startupComposedUrl = ref('');
+const composedPreviewError = ref('');
+let composedTimer: number | null = null;
+let composedAbort: AbortController | null = null;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -108,6 +113,75 @@ function assetMetadata(asset: PauseAsset | null): string {
 
 const pauseAssetMetadata = computed(() => assetMetadata(pauseAsset.value));
 const startupAssetMetadata = computed(() => assetMetadata(startupAsset.value));
+
+function slateSignature(screen: 'pause' | 'startup'): string {
+  const section = form.value?.[screen];
+  if (!section) return '';
+  return JSON.stringify([
+    section.text,
+    section.subtext,
+    section.color,
+    section.background,
+    section.font,
+    section.text_color,
+    section.fit,
+  ]);
+}
+
+const pauseComposedSignature = computed(() => slateSignature('pause'));
+const startupComposedSignature = computed(() => slateSignature('startup'));
+
+function slateDraft(screen: 'pause' | 'startup'): PausePreviewInput {
+  const section = form.value![screen];
+  return {
+    screen,
+    text: section.text,
+    subtext: section.subtext,
+    color: section.color,
+    background: section.background.trim(),
+    font: section.font.trim(),
+    text_color: section.text_color.trim() || 'white',
+    fit: section.fit,
+  };
+}
+
+function setComposedUrl(screen: 'pause' | 'startup', blob: Blob): void {
+  const target = screen === 'startup' ? startupComposedUrl : pauseComposedUrl;
+  if (target.value) URL.revokeObjectURL(target.value);
+  target.value = URL.createObjectURL(blob);
+}
+
+async function refreshComposedPreviews(): Promise<void> {
+  if (!form.value) return;
+  composedAbort?.abort();
+  const controller = new AbortController();
+  composedAbort = controller;
+  try {
+    const [pause, startup] = await Promise.all([
+      api.pause.preview(slateDraft('pause'), controller.signal),
+      api.pause.preview(slateDraft('startup'), controller.signal),
+    ]);
+    if (controller.signal.aborted) return;
+    setComposedUrl('pause', pause);
+    setComposedUrl('startup', startup);
+    composedPreviewError.value = '';
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    composedPreviewError.value = errorMessage(error);
+  }
+}
+
+function scheduleComposedPreviews(): void {
+  if (composedTimer !== null) window.clearTimeout(composedTimer);
+  composedTimer = window.setTimeout(() => {
+    composedTimer = null;
+    void refreshComposedPreviews();
+  }, 350);
+}
+
+watch([pauseComposedSignature, startupComposedSignature], scheduleComposedPreviews, {
+  immediate: true,
+});
 
 async function uploadPauseAsset(
   kind: 'background' | 'font',
@@ -240,6 +314,7 @@ async function save(): Promise<void> {
       subtext: current.pause.subtext,
       max_minutes: toNumber(current.pause.max_minutes, 15),
       grace_seconds: toNumber(current.pause.grace_seconds, 2),
+      color: current.pause.color,
       background: current.pause.background.trim(),
       font: current.pause.font.trim(),
       text_color: current.pause.text_color.trim() || 'white',
@@ -303,6 +378,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
   if (startupPreviewUrl.value) URL.revokeObjectURL(startupPreviewUrl.value);
+  if (pauseComposedUrl.value) URL.revokeObjectURL(pauseComposedUrl.value);
+  if (startupComposedUrl.value) URL.revokeObjectURL(startupComposedUrl.value);
+  if (composedTimer !== null) window.clearTimeout(composedTimer);
+  composedAbort?.abort();
 });
 </script>
 
@@ -552,6 +631,10 @@ onBeforeUnmount(() => {
               <p v-if="startupAssetMetadata && startupAsset?.kind !== 'font'" class="field-hint mono">
                 {{ startupAssetMetadata }}
               </p>
+              <p v-if="startupComposedUrl" class="field-hint">Vorschau mit Text (noch nicht gespeichert):</p>
+              <div v-if="startupComposedUrl" class="pause-preview">
+                <img :src="startupComposedUrl" alt="Startbildschirm-Vorschau mit Text" />
+              </div>
             </div>
             <div class="field">
               <label for="startup-font">Schriftdatei (TTF/OTF)</label>
@@ -669,6 +752,11 @@ onBeforeUnmount(() => {
                 {{ pauseAssetMetadata }}
               </p>
               <p v-if="pauseAsset?.warning" class="alert alert-warn">{{ pauseAsset.warning }}</p>
+              <p v-if="pauseComposedUrl" class="field-hint">Vorschau mit Text (noch nicht gespeichert):</p>
+              <div v-if="pauseComposedUrl" class="pause-preview">
+                <img :src="pauseComposedUrl" alt="Pausenscreen-Vorschau mit Text" />
+              </div>
+              <p v-if="composedPreviewError" class="field-hint mono">{{ composedPreviewError }}</p>
             </div>
             <div class="field">
               <label for="pause-font">Schriftdatei (TTF/OTF)</label>
@@ -707,6 +795,10 @@ onBeforeUnmount(() => {
             <div class="field">
               <label for="pause-text-color">Textfarbe</label>
               <input id="pause-text-color" v-model="form.pause.text_color" type="text" placeholder="white" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="pause-color">Hintergrundfarbe (Fallback)</label>
+              <input id="pause-color" v-model="form.pause.color" type="text" spellcheck="false" placeholder="0x101820" />
             </div>
             <div class="field">
               <label for="pause-fit">Bildanpassung</label>

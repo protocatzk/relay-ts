@@ -108,54 +108,66 @@ export class PauseScreen {
     }
   }
 
-  /**
-   * ffmpeg in this image has no SVG decoder. Static SVGs are rasterized once
-   * with Skia; animated SVGs fall back to their first frame (use WebM/GIF for
-   * actual animation).
-   */
   private async resolveBackground(raw: string): Promise<string | undefined> {
-    const value = raw?.trim();
-    if (!value) return undefined;
-    const clean = value.split('?')[0]!.toLowerCase();
-    if (!clean.endsWith('.svg')) return value;
+    return resolveSlateBackground(raw, this.options);
+  }
+}
 
-    try {
-      let data: Buffer;
-      if (/^https?:\/\//i.test(value)) {
-        const response = await fetch(value, {
-          signal: AbortSignal.timeout(15_000),
-          headers: { accept: 'image/svg+xml,image/*' },
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        data = Buffer.from(await response.arrayBuffer());
-      } else {
-        data = readFileSync(value);
-      }
-      const svg = data.toString('utf8');
-      if (ANIMATED_SVG.test(svg)) {
-        this.options.logger.warn(
-          { background: value },
-          'Animiertes SVG wird als statisches Bild verwendet – für Animation WebM/GIF nutzen',
-        );
-      }
-      ensureDir(this.options.overlaysDir);
-      const source = join(this.options.overlaysDir, 'pause-source.svg');
-      writeFileSync(source, data, { mode: 0o600 });
-      const image = await loadImage(source);
-      const width = Math.max(1, image.width || 1920);
-      const height = Math.max(1, image.height || 1080);
-      const canvas = createCanvas(width, height);
-      canvas.getContext('2d').drawImage(image, 0, 0, width, height);
-      const target = join(this.options.overlaysDir, 'pause-background.png');
-      ensureDir(this.options.overlaysDir);
-      writeFileSync(target, canvas.toBuffer('image/png'), { mode: 0o600 });
-      return target;
-    } catch (error) {
-      this.options.logger.warn(
-        { background: value, err: error instanceof Error ? error.message : String(error) },
-        'Pausenscreen-Hintergrund konnte nicht geladen werden – nutze Hintergrundfarbe',
-      );
-      return undefined;
+export interface SlateBackgroundOptions {
+  overlaysDir: string;
+  logger: Logger;
+}
+
+/**
+ * ffmpeg in this image has no SVG decoder. Static SVGs are rasterized once
+ * with Skia; animated SVGs fall back to their first frame (use WebM/GIF for
+ * actual animation).
+ */
+export async function resolveSlateBackground(
+  raw: string,
+  options: SlateBackgroundOptions,
+): Promise<string | undefined> {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  const clean = value.split('?')[0]!.toLowerCase();
+  if (!clean.endsWith('.svg')) return value;
+
+  try {
+    let data: Buffer;
+    if (/^https?:\/\//i.test(value)) {
+      const response = await fetch(value, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { accept: 'image/svg+xml,image/*' },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      data = Buffer.from(await response.arrayBuffer());
+    } else {
+      data = readFileSync(value);
     }
+    const svg = data.toString('utf8');
+    if (ANIMATED_SVG.test(svg)) {
+      options.logger.warn(
+        { background: value },
+        'Animiertes SVG wird als statisches Bild verwendet – für Animation WebM/GIF nutzen',
+      );
+    }
+    ensureDir(options.overlaysDir);
+    const source = join(options.overlaysDir, 'pause-source.svg');
+    writeFileSync(source, data, { mode: 0o600 });
+    const image = await loadImage(source);
+    const width = Math.max(1, image.width || 1920);
+    const height = Math.max(1, image.height || 1080);
+    const canvas = createCanvas(width, height);
+    canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+    const target = join(options.overlaysDir, 'pause-background.png');
+    ensureDir(options.overlaysDir);
+    writeFileSync(target, canvas.toBuffer('image/png'), { mode: 0o600 });
+    return target;
+  } catch (error) {
+    options.logger.warn(
+      { background: value, err: error instanceof Error ? error.message : String(error) },
+      'Pausenscreen-Hintergrund konnte nicht geladen werden – nutze Hintergrundfarbe',
+    );
+    return undefined;
   }
 }
