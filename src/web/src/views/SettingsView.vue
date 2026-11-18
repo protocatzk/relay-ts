@@ -390,8 +390,9 @@ onMounted(() => {
             <div class="field">
               <label for="pause-fit">Bildanpassung</label>
               <select id="pause-fit" v-model="form.pause.fit">
-                <option value="cover">Ausfüllen (cover)</option>
-                <option value="contain">Einpassen (contain)</option>
+                <option value="cover">Ausfüllen (cover, beschneidet)</option>
+                <option value="contain">Einpassen (contain, Ränder)</option>
+                <option value="stretch">Strecken (exakt füllen)</option>
               </select>
             </div>
           </div>

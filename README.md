@@ -321,8 +321,9 @@ Quelle wieder live ist, wird der Pausenscreen gestoppt.
 - statisches SVG (wird mit Skia zu PNG gerastert)
 
 `pause.font` setzt eine TTF/OTF-Datei, `pause.text_color` die Textfarbe und
-`pause.fit` (`cover`/`contain`) die Bildanpassung. Dateien im Container z. B.
-unter `/app/data/pause/` ablegen.
+`pause.fit` (`cover`, `contain`, `stretch`) die Bildanpassung. `stretch` füllt
+die aktuelle Ausgabeauflösung exakt aus, ohne den unteren Bildteil
+abzuschneiden. Dateien im Container z. B. unter `/app/data/pause/` ablegen.
 
 > [!NOTE]
 > ffmpeg kann animierte SVGs nicht nativ dekodieren. Sie werden als statisches

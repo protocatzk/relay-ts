@@ -205,6 +205,23 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('pad=720:1280');
     expect(line).toContain('-tune stillimage');
   });
+
+  it('stretches backgrounds to the exact output resolution', () => {
+    const args = buildPauseCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      relay,
+      text: 'Pause',
+      subtext: 'Gleich weiter',
+      background: '/app/data/pause/portrait.mp4',
+      fit: 'stretch',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('scale=720:1280');
+    expect(line).not.toContain('force_original_aspect_ratio');
+    expect(line).not.toContain('crop=720:1280');
+    expect(line).not.toContain('pad=720:1280');
+  });
 });
 
 describe('resolver', () => {
