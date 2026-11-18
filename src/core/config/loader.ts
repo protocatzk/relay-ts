@@ -374,6 +374,7 @@ export function applyEnvSettings(target: Record<string, unknown>, env: NodeJS.Pr
   set(['earnings', 'view'], env.EARNINGS_VIEW?.trim() || undefined);
   set(['earnings', 'overlay_enabled'], parseBoolean(env.EARNINGS_OVERLAY_ENABLED));
   set(['earnings', 'overlay_template'], env.EARNINGS_OVERLAY_TEMPLATE?.trim() || undefined);
+  set(['earnings', 'overlay_font_size'], parseNumber(env.EARNINGS_OVERLAY_FONT_SIZE));
 }
 
 /** Validates a single streamer for CRUD operations. */

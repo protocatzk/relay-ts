@@ -20,8 +20,11 @@ export const ChatOverlaySchema = z.object({
   enabled: z.boolean().default(false),
   engine: z.enum(['canvas', 'drawtext']).default('canvas'),
   position: PositionSchema.default('bottom-left'),
-  style: z.enum(['bubbles', 'minimal']).default('bubbles'),
+  style: z.enum(['bubbles', 'panel', 'minimal']).default('bubbles'),
   max_lines: z.number().int().min(1).max(30).default(8),
+  max_messages: z.number().int().min(1).max(100).default(30),
+  max_age_seconds: z.number().int().min(0).max(3600).default(0),
+  panel_height: z.number().int().min(0).max(1920).default(0),
   font_size: z.number().int().min(8).max(96).default(22),
   font_color: ColorSchema.default('white'),
   box_color: ColorSchema.default('black@0.45'),
@@ -30,6 +33,9 @@ export const ChatOverlaySchema = z.object({
   render_fps: z.number().int().min(1).max(30).default(10),
   show_timestamps: z.boolean().default(false),
   show_badges: z.boolean().default(true),
+  show_tiers: z.boolean().default(true),
+  show_stats: z.boolean().default(false),
+  name_colors: z.boolean().default(true),
   api_url: z.string().default(''),
   api_key: z.string().default(''),
   poll_interval: z.number().min(1).max(60).default(3),
@@ -43,6 +49,8 @@ export const ClockOverlaySchema = z.object({
   font_size: z.number().int().min(8).max(96).default(28),
   font_color: ColorSchema.default('white'),
   box_color: ColorSchema.default('black@0.45'),
+  show_box: z.boolean().default(true),
+  margin: z.number().int().min(0).max(200).default(32),
 });
 
 export const TextOverlaySchema = z.object({
@@ -54,6 +62,8 @@ export const TextOverlaySchema = z.object({
   box_color: ColorSchema.default('black@0.45'),
   marquee: z.boolean().default(false),
   speed: z.number().min(10).max(1000).default(120),
+  show_box: z.boolean().default(true),
+  margin: z.number().int().min(0).max(200).default(32),
 });
 
 export const OverlaysSchema = z.object({
@@ -98,8 +108,11 @@ const ChatOverlayPatchSchema = z
     enabled: z.boolean().optional(),
     engine: z.enum(['canvas', 'drawtext']).optional(),
     position: PositionSchema.optional(),
-    style: z.enum(['bubbles', 'minimal']).optional(),
+    style: z.enum(['bubbles', 'panel', 'minimal']).optional(),
     max_lines: z.number().int().min(1).max(30).optional(),
+    max_messages: z.number().int().min(1).max(100).optional(),
+    max_age_seconds: z.number().int().min(0).max(3600).optional(),
+    panel_height: z.number().int().min(0).max(1920).optional(),
     font_size: z.number().int().min(8).max(96).optional(),
     font_color: ColorSchema.optional(),
     box_color: ColorSchema.optional(),
@@ -108,6 +121,9 @@ const ChatOverlayPatchSchema = z
     render_fps: z.number().int().min(1).max(30).optional(),
     show_timestamps: z.boolean().optional(),
     show_badges: z.boolean().optional(),
+    show_tiers: z.boolean().optional(),
+    show_stats: z.boolean().optional(),
+    name_colors: z.boolean().optional(),
     api_url: z.string().optional(),
     api_key: z.string().optional(),
     poll_interval: z.number().min(1).max(60).optional(),
@@ -123,6 +139,8 @@ const ClockOverlayPatchSchema = z
     font_size: z.number().int().min(8).max(96).optional(),
     font_color: ColorSchema.optional(),
     box_color: ColorSchema.optional(),
+    show_box: z.boolean().optional(),
+    margin: z.number().int().min(0).max(200).optional(),
   })
   .passthrough();
 
@@ -136,6 +154,8 @@ const TextOverlayPatchSchema = z
     box_color: ColorSchema.optional(),
     marquee: z.boolean().optional(),
     speed: z.number().min(10).max(1000).optional(),
+    show_box: z.boolean().optional(),
+    margin: z.number().int().min(0).max(200).optional(),
   })
   .passthrough();
 
@@ -267,6 +287,7 @@ export const EarningsSettingsSchema = z.object({
   overlay_enabled: z.boolean().default(false),
   overlay_position: PositionSchema.default('top-left'),
   overlay_template: z.string().max(200).default('{net} € · {coins} Coins'),
+  overlay_font_size: z.number().int().min(8).max(96).default(22),
 });
 
 export const SettingsSchema = z.object({

@@ -5,7 +5,8 @@ import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { StreamerStore } from '../src/core/store/streamer-store.js';
 import { SettingsService } from '../src/core/store/settings-service.js';
-import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
+import { DEFAULT_SETTINGS, SettingsSchema } from '../src/core/config/schema.js';
+import { readYamlFile } from '../src/utils/fs.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -103,6 +104,25 @@ describe('SettingsService', () => {
     const { next } = service.update({ video: { fps: 30 } });
     expect(next.video.fps).toBe(30);
     expect(next.online.api_key).toBe('top-secret');
+  });
+
+  it('persists settings to YAML and reloads them', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-settings-'));
+    const file = join(dir, 'settings.yml');
+    const service = new SettingsService(file, DEFAULT_SETTINGS, logger);
+    service.update({
+      pause: { text: 'Kurze Pause', max_minutes: 7 },
+      earnings: { overlay_font_size: 30, overlay_template: '{net} EUR' },
+    });
+    const raw = readYamlFile(file) as Record<string, unknown>;
+    expect(raw).toMatchObject({
+      pause: { text: 'Kurze Pause', max_minutes: 7 },
+      earnings: { overlay_font_size: 30, overlay_template: '{net} EUR' },
+    });
+    const parsed = SettingsSchema.parse(raw);
+    expect(parsed.pause.text).toBe('Kurze Pause');
+    expect(parsed.earnings.overlay_font_size).toBe(30);
+    expect(parsed.video.fps).toBe(DEFAULT_SETTINGS.video.fps);
   });
 
   it('rejects invalid values', () => {

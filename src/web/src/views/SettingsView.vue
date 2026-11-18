@@ -86,7 +86,8 @@ async function checkOnline(): Promise<void> {
   }
 }
 
-async function save(): Promise<void> {  const current = form.value;
+async function save(): Promise<void> {
+  const current = form.value;
   if (!current) return;
   const payload: SettingsUpdate = {
     delay_buffer: {
@@ -139,6 +140,7 @@ async function save(): Promise<void> {  const current = form.value;
       overlay_enabled: current.earnings.overlay_enabled,
       overlay_position: current.earnings.overlay_position,
       overlay_template: current.earnings.overlay_template,
+      overlay_font_size: toNumber(current.earnings.overlay_font_size, 22),
       ...(earningsApiKey.value.trim() ? { api_key: earningsApiKey.value.trim() } : {}),
     },
   };
@@ -464,6 +466,10 @@ onMounted(() => {
               <label for="earnings-template">Overlay-Template</label>
               <input id="earnings-template" v-model="form.earnings.overlay_template" type="text" maxlength="200" />
               <p class="field-hint">Platzhalter: {net}, {gross}, {coins}, {viewers}, {top_gift}, {currency}.</p>
+            </div>
+            <div class="field">
+              <label for="earnings-font-size">Overlay-Schriftgröße (px)</label>
+              <input id="earnings-font-size" v-model.number="form.earnings.overlay_font_size" type="number" min="8" max="96" />
             </div>
           </div>
         </div>

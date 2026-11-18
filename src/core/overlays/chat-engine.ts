@@ -264,10 +264,10 @@ export class ChatOverlayEngine {
     const autoWidth = Math.round(outputWidth * (outputWidth >= outputHeight ? 0.6 : 0.92));
     const width = Math.max(200, Math.min(maxWidth, cfg.panel_width > 0 ? cfg.panel_width : autoWidth));
     const lineHeight = Math.round(cfg.font_size * 1.55);
-    const height = Math.min(
-      outputHeight - margin * 2,
-      Math.max(120, cfg.max_lines * lineHeight + 32),
-    );
+    const height =
+      cfg.panel_height > 0
+        ? Math.max(80, Math.min(outputHeight - margin * 2, cfg.panel_height))
+        : Math.min(outputHeight - margin * 2, Math.max(120, cfg.max_lines * lineHeight + 32));
     let x = margin;
     if (cfg.position === 'top-right' || cfg.position === 'bottom-right') {
       x = outputWidth - width - margin;
@@ -290,7 +290,16 @@ export class ChatOverlayEngine {
   }
 
   setMessages(messages: ChatMessage[]): void {
-    this.messages = messages.slice(-Math.max(1, this.options.streamer.overlays.chat.max_lines * 3));
+    const cfg = this.options.streamer.overlays.chat;
+    const cutoff =
+      cfg.max_age_seconds > 0 ? Date.now() - cfg.max_age_seconds * 1000 : 0;
+    const recent = cutoff
+      ? messages.filter((message) => {
+          const at = (message.timestamp ?? message.receivedAt).getTime();
+          return Number.isFinite(at) ? at >= cutoff : true;
+        })
+      : messages;
+    this.messages = recent.slice(-Math.max(cfg.max_messages, cfg.max_lines));
     this.dirty = true;
   }
 
@@ -303,7 +312,9 @@ export class ChatOverlayEngine {
       timestamp: new Date(),
     };
     this.messages.push(message);
-    if (this.messages.length > 80) this.messages = this.messages.slice(-80);
+    const cfg = this.options.streamer.overlays.chat;
+    const limit = Math.max(1, cfg.max_messages);
+    if (this.messages.length > limit) this.messages = this.messages.slice(-limit);
     this.dirty = true;
     return [...this.messages];
   }
@@ -396,12 +407,16 @@ export class ChatOverlayEngine {
     }
   }
 
-  previewPng(sample = false): Buffer {
+  previewCanvas(sample = false): Canvas {
     const canvas = createCanvas(this.spec.width, this.spec.height);
     const ctx = canvas.getContext('2d');
     const messages = sample || this.messages.length === 0 ? SAMPLE_MESSAGES : this.messages;
     this.render(ctx, canvas.width, canvas.height, messages);
-    return canvas.toBuffer('image/png');
+    return canvas;
+  }
+
+  previewPng(sample = false): Buffer {
+    return this.previewCanvas(sample).toBuffer('image/png');
   }
 
   private renderFrame(messages: ChatMessage[]): Buffer {
@@ -430,16 +445,56 @@ export class ChatOverlayEngine {
     const box = parseColor(cfg.box_color, { r: 0, g: 0, b: 0, a: 0.55 });
     const textColor = rgba(parseColor(cfg.font_color, { r: 255, g: 255, b: 255, a: 1 }));
     const opacity = Math.max(0, Math.min(1, cfg.bubble_opacity));
-    const showBadges = cfg.show_badges;
+    const showTiers = cfg.show_badges && cfg.show_tiers;
     const showTimestamps = cfg.show_timestamps;
+    const useNameColors = cfg.name_colors;
     const style = cfg.style;
     const visible = messages.slice(-cfg.max_lines);
+    let topLimit = padding;
+
+    if (style === 'panel') {
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = rgba(box);
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+      roundedRect(ctx, padding, padding, innerWidth, height - padding * 2, 12);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (cfg.show_stats) {
+      const cutoff = Date.now() - 10 * 60_000;
+      const recent = messages.filter((message) => {
+        const at = (message.timestamp ?? message.receivedAt).getTime();
+        return Number.isFinite(at) ? at >= cutoff : true;
+      });
+      const counts = new Map<string, number>();
+      for (const message of recent) {
+        const name = message.displayName || message.username || 'Chat';
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+      const topChatter = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      const label = [
+        `${recent.length} MSG`,
+        `${counts.size} CHATTER`,
+        `${(recent.length / 10).toFixed(1)}/MIN`,
+        ...(topChatter ? [`TOP ${topChatter}`] : []),
+      ].join(' · ');
+      ctx.textBaseline = 'top';
+      ctx.font = `600 ${Math.round(nameSize * 0.85)}px ${fontFamily}`;
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillText(label.toUpperCase(), padding * 2, topLimit + 2, innerWidth - padding * 2);
+      topLimit += nameLineHeight + 6;
+    }
+
     let bottom = height - padding;
 
     for (let index = visible.length - 1; index >= 0; index -= 1) {
       const message = visible[index]!;
       const name = (message.displayName || message.username || 'Chat').slice(0, 46);
-      const nameLabel = `${name}${showBadges && message.tier ? ` · ${message.tier.toUpperCase()}` : ''}`;
+      const nameLabel = `${name}${showTiers && message.tier ? ` · ${message.tier.toUpperCase()}` : ''}`;
       const timeLabel = showTimestamps ? formatTime(message) : '';
       ctx.font = `600 ${nameSize}px ${fontFamily}`;
       const timeWidth = timeLabel
@@ -448,7 +503,7 @@ export class ChatOverlayEngine {
       ctx.font = `${textSize}px ${fontFamily}`;
       const lines = wrapText(ctx, message.text, innerWidth - padding * 2, 4);
       const bubbleHeight = padding * 2 + nameLineHeight + lines.length * textLineHeight;
-      if (bottom - bubbleHeight < padding) break;
+      if (bottom - bubbleHeight < topLimit) break;
       const top = bottom - bubbleHeight;
 
       if (style === 'bubbles') {
@@ -465,7 +520,7 @@ export class ChatOverlayEngine {
 
       ctx.textBaseline = 'top';
       ctx.font = `600 ${nameSize}px ${fontFamily}`;
-      ctx.fillStyle = nameColor(name);
+      ctx.fillStyle = useNameColors ? nameColor(name) : textColor;
       ctx.fillText(nameLabel, padding * 2, top + padding, innerWidth - padding * 4 - timeWidth);
       if (timeLabel) {
         ctx.font = `${Math.round(nameSize * 0.85)}px ${fontFamily}`;

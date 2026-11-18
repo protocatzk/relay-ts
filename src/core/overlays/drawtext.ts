@@ -61,7 +61,7 @@ export function clockFilter(
 ): string | null {
   const config = streamer.overlays.clock;
   if (!config.enabled) return null;
-  const { x, y } = positionExpressions(config.position);
+  const { x, y } = positionExpressions(config.position, config.margin);
   // Three layers of escaping are required: filtergraph, option parser and
   // drawtext's localtime argument parser. The argument separator needs one
   // backslash, colons inside the strftime format need three.
@@ -70,7 +70,7 @@ export function clockFilter(
     `drawtext=fontfile='${escapePath(fontFile)}':` +
     `text='%{localtime\\:${format}}':` +
     `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
-    `box=1:boxcolor=${config.box_color}:boxborderw=10:x=${x}:y=${y}`
+    `box=${config.show_box ? 1 : 0}:boxcolor=${config.box_color}:boxborderw=10:x=${x}:y=${y}`
   );
 }
 
@@ -82,7 +82,7 @@ export function textFilter(
 ): string | null {
   const config = streamer.overlays.text;
   if (!config.enabled || !config.text.trim()) return null;
-  const { x, y } = positionExpressions(config.position);
+  const { x, y } = positionExpressions(config.position, config.margin);
   const xExpression = config.marquee
     ? `w-mod(t*${config.speed}\\,w+tw)`
     : x;
@@ -90,7 +90,7 @@ export function textFilter(
     `drawtext=fontfile='${escapePath(fontFile)}':` +
     `textfile='${escapePath(textFile)}':reload=1:expansion=none:` +
     `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
-    `box=1:boxcolor=${config.box_color}:boxborderw=10:` +
+    `box=${config.show_box ? 1 : 0}:boxcolor=${config.box_color}:boxborderw=10:` +
     `x=${xExpression}:y=${y}`
   );
 }
@@ -123,7 +123,7 @@ export function earningsFilter(
   return (
     `drawtext=fontfile='${escapePath(fontFile)}':` +
     `textfile='${escapePath(earningsFile)}':reload=1:expansion=none:` +
-    'fontsize=22:fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=10:' +
+    `fontsize=${settings.earnings.overlay_font_size}:fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=10:` +
     `x=${x}:y=${y}`
   );
 }

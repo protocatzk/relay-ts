@@ -18,6 +18,10 @@ const BulkAddBody = z.object({
   playlist_id: z.string().optional(),
 });
 
+const OverlayUpdateBody = z.object({
+  overlays: z.unknown(),
+});
+
 function slugify(value: string): string {
   return (
     value
@@ -128,6 +132,18 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
     const streamer = ctx.store.update(id, request.body);
     ctx.supervisor.notifyStreamersChanged();
     return { streamer: viewById(ctx, streamer.id) };
+  });
+
+  app.put('/api/streamers/:id/overlays', async (request) => {
+    const { id } = request.params as { id: string };
+    const parsed = OverlayUpdateBody.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError('Ungültige Overlay-Einstellungen', parsed.error.issues);
+    }
+    ctx.store.update(id, { overlays: parsed.data.overlays });
+    ctx.supervisor.notifyStreamersChanged();
+    await ctx.supervisor.applyStreamerOverlays(id);
+    return { streamer: viewById(ctx, id) };
   });
 
   app.delete('/api/streamers/:id', async (request) => {

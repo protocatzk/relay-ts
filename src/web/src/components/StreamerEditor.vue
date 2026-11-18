@@ -64,6 +64,9 @@ function defaultOverlays(): StreamerOverlays {
       position: 'bottom-left',
       style: 'bubbles',
       max_lines: 8,
+      max_messages: 30,
+      max_age_seconds: 0,
+      panel_height: 0,
       font_size: 24,
       font_color: '#ffffff',
       box_color: '#000000@0.45',
@@ -72,6 +75,9 @@ function defaultOverlays(): StreamerOverlays {
       render_fps: 10,
       show_timestamps: false,
       show_badges: true,
+      show_tiers: true,
+      show_stats: false,
+      name_colors: true,
       api_url: '',
       api_key_set: false,
       poll_interval: 3,
@@ -84,6 +90,8 @@ function defaultOverlays(): StreamerOverlays {
       font_size: 28,
       font_color: '#ffffff',
       box_color: '#000000@0.45',
+      show_box: true,
+      margin: 32,
     },
     text: {
       enabled: false,
@@ -94,6 +102,8 @@ function defaultOverlays(): StreamerOverlays {
       box_color: '#000000@0.45',
       marquee: false,
       speed: 60,
+      show_box: true,
+      margin: 32,
     },
   };
 }

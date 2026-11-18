@@ -25,9 +25,11 @@ eigenständig umgesetzt.
 - **Auto-Refresh** der TikTok-URL (Standard alle 20 Minuten)
 - **Pausenscreen** bei Offline-Quelle, ohne die RTMP-Verbindung zu trennen,
   inklusive optionaler maximaler Pausendauer
-- **Overlays**: Canvas-Chat-Engine mit Bubbles, Namen, Timestamps, Emoji und
-  Live-Vorschau (drawtext als Fallback), Uhrzeit, freier Text und optionale
-  Einnahmen-Anzeige
+- **Overlays**: Canvas-Chat-Engine mit Bubbles, Panel/Minimal-Stil, Namen,
+  Timestamps, Emoji, Tier-Badges, Chat-Statistik und Live-Vorschau (drawtext
+  als Fallback), Uhrzeit, freier Text und optionale Einnahmen-Anzeige
+- **Overlay-Studio**: vollständige Bühnenvorschau aus ungespeicherten Drafts,
+  Positions-Klick, Persistenz pro Streamer und Live-Anwendung
 - **Playlists** mit Auto-Advance, Wrap, Endzeit, Vor-/Zurück-Springen und
   direktem Ansteuern einzelner Kanäle
 - **Online-Status** über eine konfigurierbare JSON-API (z. B. TokTracker),
@@ -215,6 +217,9 @@ Wichtige Umgebungsvariablen (vollständig in `.env.example`):
 | `DASHBOARD_PASSWORD` | Dashboard-Passwort (leer = kein Login) | – |
 | `API_TOKEN` | Bearer-Token für Skripte/SSE | – |
 | `SESSION_SECRET` | Cookie-Signatur | aus Passwort abgeleitet |
+| `SECURE_COOKIES` | Cookies nur über HTTPS | `false` |
+| `TELEGRAM_BOT_TOKEN` | Bot für Login-Freigaben | – |
+| `TELEGRAM_ALLOWED_USER_IDS` | Erlaubte numerische IDs (kommagetrennt) | – |
 | `TIKTOK_SESSION_ID` | TikTok-`sessionid`-Cookie | – |
 | `STREAMERS_FILE` | Pfad zur Streamer-YAML | `config/streamers.yml` |
 | `SETTINGS_FILE` | Pfad zu Settings-YAML | `config/settings.yml` |
@@ -284,7 +289,14 @@ earnings:
   overlay_enabled: false
   overlay_position: top-left
   overlay_template: "{net} € · {coins} Coins"
+  overlay_font_size: 22
 ```
+
+Änderungen werden sofort nach `config/settings.yml` geschrieben (atomar, Modus
+`0600`) und vom laufenden Prozess übernommen. Secrets bleiben bei Teil-Updates
+erhalten, solange kein neuer `api_key` gesendet wird. Overlay-Einstellungen
+liegen dagegen pro Streamer in `config/streamers.yml` und werden über das
+Overlay-Studio bzw. `PUT /api/streamers/:id/overlays` persistiert.
 
 ---
 
@@ -305,6 +317,7 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET` | `/api/streamers` | Streamer inkl. Status (ohne Keys) |
 | `POST` | `/api/streamers` | Streamer anlegen |
 | `PUT` | `/api/streamers/:id` | Streamer aktualisieren |
+| `PUT` | `/api/streamers/:id/overlays` | Overlays persistieren und live anwenden |
 | `DELETE` | `/api/streamers/:id` | Streamer löschen |
 | `POST` | `/api/streamers/:id/start` | Stream starten |
 | `POST` | `/api/streamers/:id/stop` | Stream stoppen |
@@ -326,6 +339,7 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET` | `/api/logs?limit=200&level=warn&q=...` | Log-Ringpuffer |
 | `DELETE` | `/api/logs` | Log-Ringpuffer leeren |
 | `GET` | `/api/overlays/preview.png?sample=1` | Live-Chat-Overlay als PNG |
+| `POST` | `/api/overlays/studio.png` | Studio-Vorschau aus ungespeicherten Overlays |
 | `POST` | `/api/chat/test` | Testnachricht ins Overlay einspeisen |
 | `GET` | `/api/events` | SSE: `status`, `streamers`, `log` |
 | `POST` | `/api/system/restart-sink` | Encoder neu starten |
@@ -357,7 +371,21 @@ Es gibt zwei Chat-Engines:
 Uhrzeit und freier Text bleiben `drawtext`-Filter. Im Docker-Image sind DejaVu
 Sans und Noto Color Emoji enthalten. Die Vorschau und Testnachrichten gibt es
 im Dashboard unter **Overlays** (`/overlays`); die API liefert
-`/api/overlays/preview.png` und `/api/chat/test`.
+`/api/overlays/preview.png`, `/api/overlays/studio.png` und `/api/chat/test`.
+
+Das Overlay-Studio rendert die komplette Bühne (Chat, Uhr, Text und Einnahmen)
+serverseitig mit `@napi-rs/canvas` aus den **ungespeicherten** Editierwerten.
+Die Vorschau wird clientseitig entprellt und mit `AbortController` abgebrochen,
+wenn eine neuere Anfrage eintrifft. Ein Klick auf eine Bildecke setzt die
+Position des aktiven Overlays. **Speichern** schreibt die Overlays des
+ausgewählten Streamers nach `config/streamers.yml`; läuft dieser Streamer
+gerade, werden Chat-Engine und Sink einmal sauber neu aufgebaut.
+
+Zusätzliche Chat-Optionen gegenüber der ersten Version: Panel-Stil,
+Nachrichtenpuffer (`max_messages`), maximales Nachrichtenalter
+(`max_age_seconds`), feste Panelhöhe, Namensfarben, Tier-Badges und eine
+Chat-Statistikzeile. Uhr und Text haben nun eigene Ränder sowie optional
+abschaltbare Hintergrundboxen. Die Einnahmen-Schriftgröße ist konfigurierbar.
 
 Ein Streamer kann pro Overlay-Editor zwischen Canvas und drawtext wechseln.
 `delay = 0` bedeutet: Chat wird automatisch um die Delay-Buffer-Größe verzögert,

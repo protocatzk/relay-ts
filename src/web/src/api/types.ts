@@ -19,8 +19,11 @@ export interface ChatOverlay {
   enabled: boolean;
   engine: 'canvas' | 'drawtext';
   position: OverlayPosition;
-  style: 'bubbles' | 'minimal';
+  style: 'bubbles' | 'panel' | 'minimal';
   max_lines: number;
+  max_messages: number;
+  max_age_seconds: number;
+  panel_height: number;
   font_size: number;
   font_color: string;
   box_color: string;
@@ -29,6 +32,9 @@ export interface ChatOverlay {
   render_fps: number;
   show_timestamps: boolean;
   show_badges: boolean;
+  show_tiers: boolean;
+  show_stats: boolean;
+  name_colors: boolean;
   api_url: string;
   api_key_set: boolean;
   poll_interval: number;
@@ -42,6 +48,8 @@ export interface ClockOverlay {
   font_size: number;
   font_color: string;
   box_color: string;
+  show_box: boolean;
+  margin: number;
 }
 
 export interface TextOverlay {
@@ -53,6 +61,8 @@ export interface TextOverlay {
   box_color: string;
   marquee: boolean;
   speed: number;
+  show_box: boolean;
+  margin: number;
 }
 
 export interface StreamerOverlays {
@@ -254,6 +264,7 @@ export interface EarningsSettings {
   overlay_enabled: boolean;
   overlay_position: OverlayPosition;
   overlay_template: string;
+  overlay_font_size: number;
 }
 
 export interface ChatSettings {
@@ -289,6 +300,7 @@ export interface SettingsUpdate {
     overlay_enabled: boolean;
     overlay_position: OverlayPosition;
     overlay_template: string;
+    overlay_font_size: number;
     api_key?: string;
   };
 }
@@ -348,7 +360,7 @@ export interface StreamerOverlaysInput {
     enabled: boolean;
     engine: 'canvas' | 'drawtext';
     position: OverlayPosition;
-    style: 'bubbles' | 'minimal';
+    style: 'bubbles' | 'panel' | 'minimal';
     max_lines: number;
     font_size: number;
     font_color: string;
@@ -377,6 +389,13 @@ export interface StreamerInput {
   enabled: boolean;
   own_stream: boolean;
   overlays: StreamerOverlaysInput;
+}
+
+export interface StudioPreviewInput {
+  streamer_id?: string;
+  overlays: StreamerOverlaysInput;
+  sample?: boolean;
+  max_dimension?: number;
 }
 
 export interface StreamerCreateInput extends StreamerInput {

@@ -87,17 +87,19 @@ export class Watchdog {
       if (
         snapshot.state === 'live' &&
         snapshot.sourceOutputSeconds !== null &&
-        this.options.settings.watchdog.min_source_rate_percent > 0
+        this.options.settings.watchdog.min_source_rate_percent > 0 &&
+        snapshot.sourceStartedAt &&
+        now - snapshot.sourceStartedAt.getTime() >= 30_000
       ) {
         const current = { seconds: snapshot.sourceOutputSeconds, at: now };
         if (this.lastSourceOutput) {
           const deltaWall = (current.at - this.lastSourceOutput.at) / 1000;
           const deltaMedia = current.seconds - this.lastSourceOutput.seconds;
-          if (deltaWall >= 5 && deltaMedia >= 0) {
+          if (deltaWall >= 10 && deltaMedia >= 0) {
             const percent = (deltaMedia / deltaWall) * 100;
             if (percent < this.options.settings.watchdog.min_source_rate_percent) {
               this.lowRateCount += 1;
-              if (this.lowRateCount >= 2) {
+              if (this.lowRateCount >= 3) {
                 this.lowRateCount = 0;
                 this.lastError = `Quellrate zu niedrig (${Math.round(percent)} %)`;
                 this.options.logger.warn(

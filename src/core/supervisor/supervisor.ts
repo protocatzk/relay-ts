@@ -32,7 +32,8 @@ import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
-import { EarningsMonitor } from '../earnings/monitor.js';
+import { EarningsMonitor, formatEarningsOverlay } from '../earnings/monitor.js';
+import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
@@ -1518,6 +1519,23 @@ export class Supervisor {
     return (this.chatEngine ?? this.getPreviewEngine()).previewPng(sample);
   }
 
+  studioPreviewPng(streamer: StreamerConfig, sample = true, maxDimension = 720): Buffer {
+    return renderStudioPreview({
+      settings: this.settings,
+      streamer,
+      logger: this.deps.logger,
+      sample,
+      earningsText: this.earningsOverlayText(),
+      maxDimension,
+    });
+  }
+
+  earningsOverlayText(): string {
+    return this.earnings
+      ? formatEarningsOverlay(this.settings.earnings.overlay_template, this.earnings.get())
+      : '';
+  }
+
   addTestChatMessage(username: string, text: string): ChatMessage[] {
     if (this.chat) {
       return this.chat.injectMessage(username, text);
@@ -1555,6 +1573,31 @@ export class Supervisor {
     this.emitStreamers();
   }
 
+  /** Apply freshly saved overlays to the active stream without a full restart. */
+  async applyStreamerOverlays(streamerId: string): Promise<StatusSnapshot> {
+    return this.lock.run(async () => {
+      if (!this.activeStreamer || this.activeStreamer.id !== streamerId) {
+        return this.buildStatus();
+      }
+      const fresh = this.deps.store.get(streamerId);
+      if (!fresh) return this.buildStatus();
+      this.activeStreamer = fresh;
+      const prepared = this.overlays.prepare(fresh);
+      this.activeOverlayFilters = prepared.filters;
+      const rebuilt = this.createChatEngine(fresh);
+      this.chatEngine?.detach();
+      this.chatEngine = rebuilt;
+      this.activeOverlayInput = rebuilt?.panel;
+      this.activeOverlaySignature = this.overlaySignature(prepared.filters, fresh, rebuilt);
+      if (this.state === 'live') {
+        this.startChatLocked(fresh);
+      }
+      if (this.sink.running) await this.restartSinkLocked();
+      this.emitAll();
+      return this.buildStatus();
+    });
+  }
+
   titleFor(id: string): { streamer_id: string; template: string; title: string } {
     const streamer = this.deps.store.get(id);
     if (!streamer) throw new NotFoundError(`Streamer "${id}" wurde nicht gefunden`);
@@ -1571,7 +1614,8 @@ export class Supervisor {
     return { streamer_id: id, template, title };
   }
 
-  streamersView(): StreamerView[] {    const activeId = this.activeStreamer?.id ?? null;
+  streamersView(): StreamerView[] {
+    const activeId = this.activeStreamer?.id ?? null;
     return this.deps.store.list().map((streamer) => {
       const monitor = this.online.isOnline(streamer);
       const online = streamer.id === activeId && this.state === 'live' ? true : monitor;

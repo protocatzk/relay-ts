@@ -1,11 +1,20 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
+import { StreamerSchema, formatZodError, type StreamerConfig } from '../../core/config/schema.js';
+import { ValidationError } from '../../utils/errors.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
   level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   q: z.string().max(200).optional(),
+});
+
+const StudioPreviewBody = z.object({
+  streamer_id: z.string().optional(),
+  overlays: z.unknown(),
+  sample: z.boolean().optional(),
+  max_dimension: z.coerce.number().int().min(120).max(1200).optional(),
 });
 
 export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
@@ -27,6 +36,42 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     const query = request.query as Record<string, unknown>;
     const sample = query.sample === '1' || query.sample === 'true';
     const png = ctx.supervisor.overlayPreviewPng(sample);
+    return reply
+      .header('cache-control', 'no-store')
+      .type('image/png')
+      .send(png);
+  });
+
+  app.post('/api/overlays/studio.png', async (request, reply) => {
+    const parsed = StudioPreviewBody.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError(
+        `Ungültige Overlay-Vorschau: ${formatZodError(parsed.error)}`,
+        parsed.error.issues,
+      );
+    }
+    const base =
+      (parsed.data.streamer_id ? ctx.store.get(parsed.data.streamer_id) : undefined) ??
+      ctx.store.list().find((streamer) => streamer.enabled) ??
+      ctx.store.list()[0] ??
+      StreamerSchema.parse({
+        id: 'preview',
+        name: 'Preview',
+        tiktok: 'preview',
+      });
+    let streamer: StreamerConfig;
+    try {
+      streamer = StreamerSchema.parse({ ...base, overlays: parsed.data.overlays });
+    } catch (error) {
+      throw new ValidationError(
+        `Ungültige Overlay-Einstellungen: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const png = ctx.supervisor.studioPreviewPng(
+      streamer,
+      parsed.data.sample ?? true,
+      parsed.data.max_dimension ?? 720,
+    );
     return reply
       .header('cache-control', 'no-store')
       .type('image/png')

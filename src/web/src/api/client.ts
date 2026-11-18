@@ -14,7 +14,9 @@ import type {
   Streamer,
   StreamerCreateInput,
   StreamerInput,
+  StreamerOverlaysInput,
   StreamersResponse,
+  StudioPreviewInput,
   QuickStartInput,
   TelegramLoginRequest,
   TelegramLoginStatus,
@@ -154,6 +156,7 @@ export interface StreamersApi {
   switchTo(id: string): Promise<unknown>;
   title(id: string): Promise<TitlePreview>;
   bulkAdd(body: BulkAddInput): Promise<BulkAddResult>;
+  updateOverlays(id: string, overlays: StreamerOverlaysInput): Promise<Streamer>;
 }
 
 export interface SettingsApi {
@@ -232,6 +235,14 @@ export const api = {
       request<TitlePreview>(`/api/streamers/${encodeURIComponent(id)}/title`),
     bulkAdd: (body: BulkAddInput) =>
       request<BulkAddResult>('/api/streamers/bulk', { method: 'POST', body }),
+    updateOverlays: async (id: string, overlays: StreamerOverlaysInput) =>
+      unwrapResource<Streamer>(
+        await request<unknown>(`/api/streamers/${encodeURIComponent(id)}/overlays`, {
+          method: 'PUT',
+          body: { overlays },
+        }),
+        'streamer',
+      ),
   } satisfies StreamersApi,
 
   settings: {
@@ -268,6 +279,28 @@ export const api = {
   overlays: {
     previewUrl: (sample = false): string =>
       `/api/overlays/preview.png${sample ? '?sample=1&' : '?'}t=${Date.now()}`,
+    studioPreview: async (body: StudioPreviewInput, signal?: AbortSignal): Promise<Blob> => {
+      let response: Response;
+      try {
+        response = await fetch('/api/overlays/studio.png', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Accept: 'image/png' },
+          body: JSON.stringify(body),
+          signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') throw error;
+        throw new ApiError(0, 'network_error', 'Verbindung zum Server fehlgeschlagen.');
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const { code, message } = extractMessage(data, response.status);
+        if (response.status === 401) unauthorizedHandler?.();
+        throw new ApiError(response.status, code, message);
+      }
+      return response.blob();
+    },
   },
 
   chat: {
