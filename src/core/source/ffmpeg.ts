@@ -329,7 +329,7 @@ export interface PauseCommandOptions {
   timestampOffset?: number;
   background?: string;
   textColor?: string;
-  fit?: 'cover' | 'contain';
+  fit?: 'cover' | 'contain' | 'stretch';
 }
 
 function escapeDrawtext(value: string): string {
@@ -362,12 +362,14 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
   const filters: string[] = [];
 
   if (background) {
-    const fit = options.fit === 'contain' ? 'contain' : 'cover';
+    const fit = options.fit === 'contain' || options.fit === 'stretch' ? options.fit : 'cover';
     if (fit === 'cover') {
       filters.push(
         `scale=${width}:${height}:force_original_aspect_ratio=increase`,
         `crop=${width}:${height}`,
       );
+    } else if (fit === 'stretch') {
+      filters.push(`scale=${width}:${height}`);
     } else {
       filters.push(
         `scale=${width}:${height}:force_original_aspect_ratio=decrease`,

@@ -70,6 +70,7 @@ Wichtige Pfade:
 - Der Pausenscreen kann ein eigenes Hintergrundbild/-video und einen eigenen Font
   nutzen. Statische SVGs werden mit Skia zu PNG gerastert; animierte SVGs werden
   nur als statisches Bild dargestellt (für Animation WebM/GIF/MP4 verwenden).
+  `pause.fit=stretch` füllt die Ausgabeauflösung ohne Beschnitt.
 - Der Quell-Raten-Watchdog benötigt 30 s Warmup, ein 10-s-Fenster und drei
   aufeinanderfolgende schlechte Messungen. Das verhindert Fehlstarts kurz nach
   dem Verbindungsaufbau.

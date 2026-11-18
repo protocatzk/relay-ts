@@ -311,7 +311,7 @@ export interface PauseSettings {
   background: string;
   font: string;
   text_color: string;
-  fit: 'cover' | 'contain';
+  fit: 'cover' | 'contain' | 'stretch';
 }
 
 export interface OnlineSettings {

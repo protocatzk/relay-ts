@@ -269,7 +269,7 @@ export const PauseSettingsSchema = z.object({
   background: z.string().max(500).default(''),
   font: z.string().max(500).default(''),
   text_color: z.string().max(64).default('white'),
-  fit: z.enum(['cover', 'contain']).default('cover'),
+  fit: z.enum(['cover', 'contain', 'stretch']).default('cover'),
 });
 
 export const OnlineSettingsSchema = z.object({
