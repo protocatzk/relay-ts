@@ -78,12 +78,13 @@ export class ChatService {
     );
   }
 
-  stop(): void {
+  stop(clear = true): void {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     if (this.pump) clearInterval(this.pump);
     this.timer = undefined;
     this.pump = undefined;
+    if (!clear) return;
     this.messages = [];
     this.seen.clear();
     this.seenOrder = [];

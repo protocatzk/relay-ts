@@ -847,12 +847,18 @@ export class Supervisor {
     if (this.startupScreen?.running) await this.startupScreen.stop();
   }
 
-  private startChatLocked(streamer: StreamerConfig): void {
-    this.chat?.stop();
-    this.currentChatMessages = [];
-    this.lastChatMessageAt = null;
-    this.chatEngine?.setMessages([]);
-    this.overlays.updateChat([]);
+  private startChatLocked(
+    streamer: StreamerConfig,
+    options: { preserveMessages?: boolean } = {},
+  ): void {
+    const preserve = options.preserveMessages ?? false;
+    this.chat?.stop(!preserve);
+    if (!preserve) {
+      this.currentChatMessages = [];
+      this.lastChatMessageAt = null;
+      this.chatEngine?.setMessages([]);
+      this.overlays.updateChat([]);
+    }
     const effective = this.effectiveStreamer(streamer);
     this.chat = new ChatService({
       streamer: effective,
@@ -1335,10 +1341,9 @@ export class Supervisor {
         this.transitionTo('live');
         this.lastError = null;
         this.autoRefresh.markRefreshed();
-        if (this.chat) {
-          this.chat.stop();
-          this.startChatLocked(streamer);
-        }
+        // Keep the running chat service alive: restarting it would clear the
+        // overlay until the next poll and cause visible flicker.
+        if (!this.chat) this.startChatLocked(streamer);
         this.emitAll();
       } catch (error) {
         this.lastError = toErrorMessage(error);
@@ -1526,8 +1531,7 @@ export class Supervisor {
         this.activeOverlayFilters = prepared.filters;
         this.rebuildChatEngineLocked();
         if (this.state === 'live' && this.activeStreamer) {
-          this.chat?.stop();
-          this.startChatLocked(this.activeStreamer);
+          this.startChatLocked(this.activeStreamer, { preserveMessages: true });
         }
         if (this.sink.running) await this.restartSinkLocked();
       }
@@ -1535,8 +1539,7 @@ export class Supervisor {
       const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
       if (chatChanged && this.activeStreamer) {
         if (this.state === 'live') {
-          this.chat?.stop();
-          this.startChatLocked(this.activeStreamer);
+          this.startChatLocked(this.activeStreamer, { preserveMessages: true });
         } else if (this.state === 'paused') {
           this.chat?.stop();
           this.chat = undefined;
