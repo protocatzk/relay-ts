@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { MediaFile, Playlist, PlaylistInput } from '@/src/api/types';
 import ModalDialog from '@/src/components/ModalDialog.vue';
@@ -32,6 +32,8 @@ const form = reactive({
 const activePlaylist = computed(() => store.status?.active_playlist ?? null);
 const mediaFiles = ref<MediaFile[]>([]);
 const selectedMedia = ref('');
+const mediaLoading = ref(false);
+let mediaTimer: number | null = null;
 
 function isMediaChannel(channel: string): boolean {
   return channel.startsWith('file:');
@@ -53,12 +55,21 @@ function addMediaEntry(): void {
   selectedMedia.value = '';
 }
 
-async function loadMediaFiles(): Promise<void> {
+async function loadMediaFiles(notify = false): Promise<void> {
+  mediaLoading.value = true;
   try {
     const response = await api.media.list();
     mediaFiles.value = response.files;
-  } catch {
-    mediaFiles.value = [];
+    if (
+      selectedMedia.value &&
+      !response.files.some((file) => file.filename === selectedMedia.value)
+    ) {
+      selectedMedia.value = '';
+    }
+  } catch (error) {
+    if (notify) pushToast(errorMessage(error), 'error');
+  } finally {
+    mediaLoading.value = false;
   }
 }
 
@@ -96,6 +107,7 @@ function openCreate(): void {
   editingPlaylist.value = null;
   resetForm();
   editorOpen.value = true;
+  void loadMediaFiles();
 }
 
 function openEdit(playlist: Playlist): void {
@@ -110,6 +122,7 @@ function openEdit(playlist: Playlist): void {
   form.end_time = playlist.end_time ?? '';
   form.youtube_key = '';
   editorOpen.value = true;
+  void loadMediaFiles();
 }
 
 function closeEditor(): void {
@@ -217,10 +230,22 @@ async function stop(): Promise<void> {
   await run('stop', () => api.playlists.stop(), 'Playlist gestoppt.');
 }
 
+function refreshMediaList(): void {
+  void loadMediaFiles(true);
+}
+
 onMounted(() => {
   refreshPlaylists().catch((error) => pushToast(errorMessage(error), 'error'));
   refreshStatus().catch(() => undefined);
   void loadMediaFiles();
+  // data/media can be filled from outside the dashboard (scp, mounts, scripts).
+  mediaTimer = window.setInterval(() => void loadMediaFiles(), 5000);
+  window.addEventListener('focus', refreshMediaList);
+});
+
+onBeforeUnmount(() => {
+  if (mediaTimer !== null) window.clearInterval(mediaTimer);
+  window.removeEventListener('focus', refreshMediaList);
 });
 </script>
 
@@ -415,6 +440,15 @@ onMounted(() => {
               @click="addMediaEntry"
             >
               Hinzufügen
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="mediaLoading"
+              @click="refreshMediaList"
+            >
+              <span v-if="mediaLoading" class="spinner" aria-hidden="true"></span>
+              Aktualisieren
             </button>
           </div>
           <p v-if="mediaFiles.length === 0" class="field-hint">

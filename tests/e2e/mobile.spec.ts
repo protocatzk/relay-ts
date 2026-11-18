@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ensureStreamer, expectNoHorizontalOverflow } from './helpers';
 
 test.describe('mobile layout and drawer', () => {
@@ -55,6 +57,23 @@ test.describe('mobile layout and drawer', () => {
     const card = page.locator('tbody tr').filter({ hasText: 'E2E Streamer' }).first();
     await expect(card.locator('td[data-label="Status"]')).toBeVisible();
     await expect(card.locator('td[data-label="Aktionen"]')).toBeVisible();
+  });
+
+  test('detects videos added to data/media while the editor is open', async ({ page }) => {
+    const mediaDir = join(process.cwd(), '.playwright', 'data', 'media');
+    mkdirSync(mediaDir, { recursive: true });
+    const filename = `e2e-${Date.now()}.mp4`;
+    const path = join(mediaDir, filename);
+    writeFileSync(path, Buffer.from([0, 0, 0, 0]));
+    try {
+      await page.goto('/#/playlists');
+      await page.getByRole('button', { name: 'Neue Playlist' }).click();
+      await expect(page.locator('#playlist-media option', { hasText: filename })).toHaveCount(1, {
+        timeout: 8_000,
+      });
+    } finally {
+      rmSync(path, { force: true });
+    }
   });
 
   test('settings and overlay studio stay usable', async ({ page }) => {

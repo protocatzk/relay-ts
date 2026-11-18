@@ -508,9 +508,11 @@ Eintrag erzeugt.
 
 Lokale Videos liegen unter `data/media/` (gitignored) und werden als
 `file:dateiname.mp4` in die Playlist eingetragen. Im Playlist-Editor können
-vorhandene Dateien ausgewählt und eingefügt werden; abgespielt wird einmalig in
-Echtzeit, danach geht es automatisch zum nächsten Eintrag. Unterstützt werden
-MP4, WebM, MOV, MKV und M4V. Der YouTube-Sink bleibt dabei bestehen.
+vorhandene Dateien ausgewählt und eingefügt werden; die Liste aktualisiert sich
+alle fünf Sekunden bzw. über **Aktualisieren**, damit auch extern abgelegte
+Dateien erscheinen. Abgespielt wird einmalig in Echtzeit, danach geht es
+automatisch zum nächsten Eintrag. Unterstützt werden MP4, WebM, MOV, MKV und
+M4V. Der YouTube-Sink bleibt dabei bestehen.
 
 - `auto_advance` wechselt bei Offline-Quelle nach `advance_delay_seconds`.
 - `wrap` springt am Ende zum Anfang.
