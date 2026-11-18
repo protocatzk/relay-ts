@@ -1,6 +1,10 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ServerConfig } from '../core/config/loader.js';
+import type { AuthProvider, AuthSession, AuthSessionStore } from './session-store.js';
+
+export const SESSION_COOKIE = 'rs_session';
+const LEGACY_COOKIE = 'rs_auth';
 
 export type AuthMode = 'public' | 'cookie' | 'token' | 'basic' | null;
 
@@ -33,8 +37,28 @@ function basicCredentials(header: string | undefined): { user: string; password:
   }
 }
 
+export function signedSessionId(request: FastifyRequest): string | null {
+  const cookie = request.cookies?.[SESSION_COOKIE];
+  if (!cookie) return null;
+  const unsigned = request.unsignCookie(cookie);
+  return unsigned.valid ? unsigned.value : null;
+}
+
+export function currentSession(
+  request: FastifyRequest,
+  config: ServerConfig,
+  sessions: AuthSessionStore,
+): AuthSession | null {
+  if (!authRequired(config)) return null;
+  return sessions.get(signedSessionId(request));
+}
+
 /** Returns how the current request authenticated, or null if it did not. */
-export function authMode(request: FastifyRequest, config: ServerConfig): AuthMode {
+export function authMode(
+  request: FastifyRequest,
+  config: ServerConfig,
+  sessions: AuthSessionStore,
+): AuthMode {
   if (!authRequired(config)) return 'public';
 
   const header = request.headers.authorization;
@@ -42,11 +66,7 @@ export function authMode(request: FastifyRequest, config: ServerConfig): AuthMod
     if (safeEqual(header.slice(7).trim(), config.apiToken)) return 'token';
   }
 
-  const cookie = request.cookies?.rs_auth;
-  if (cookie) {
-    const unsigned = request.unsignCookie(cookie);
-    if (unsigned.valid && unsigned.value === 'ok') return 'cookie';
-  }
+  if (sessions.get(signedSessionId(request))) return 'cookie';
 
   const basic = basicCredentials(header);
   if (basic) {
@@ -57,8 +77,12 @@ export function authMode(request: FastifyRequest, config: ServerConfig): AuthMod
   return null;
 }
 
-export function isAuthenticated(request: FastifyRequest, config: ServerConfig): boolean {
-  return authMode(request, config) !== null;
+export function isAuthenticated(
+  request: FastifyRequest,
+  config: ServerConfig,
+  sessions: AuthSessionStore,
+): boolean {
+  return authMode(request, config, sessions) !== null;
 }
 
 /**
@@ -108,9 +132,13 @@ export function isSameOrigin(request: FastifyRequest, allowedOrigins: string[] =
 export function setSessionCookie(
   reply: FastifyReply,
   config: ServerConfig,
+  sessions: AuthSessionStore,
+  user: string,
+  provider: AuthProvider,
   secure = config.secureCookies,
-): void {
-  reply.setCookie('rs_auth', 'ok', {
+): AuthSession {
+  const session = sessions.create(user, provider);
+  reply.setCookie(SESSION_COOKIE, session.id, {
     signed: true,
     httpOnly: true,
     sameSite: 'lax',
@@ -118,10 +146,18 @@ export function setSessionCookie(
     path: '/',
     maxAge: 30 * 24 * 3600,
   });
+  reply.clearCookie(LEGACY_COOKIE, { path: '/' });
+  return session;
 }
 
-export function clearSessionCookie(reply: FastifyReply): void {
-  reply.clearCookie('rs_auth', { path: '/' });
+export function clearSessionCookie(
+  reply: FastifyReply,
+  request: FastifyRequest,
+  sessions: AuthSessionStore,
+): void {
+  sessions.revoke(signedSessionId(request));
+  reply.clearCookie(SESSION_COOKIE, { path: '/' });
+  reply.clearCookie(LEGACY_COOKIE, { path: '/' });
 }
 
 export function unauthorized(reply: FastifyReply): FastifyReply {

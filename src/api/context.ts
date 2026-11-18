@@ -6,6 +6,7 @@ import type { StreamerStore } from '../core/store/streamer-store.js';
 import type { Supervisor } from '../core/supervisor/supervisor.js';
 import type { TelegramAuthStore } from '../core/telegram/auth-store.js';
 import type { TelegramBot } from '../core/telegram/bot.js';
+import type { AuthSessionStore } from './session-store.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -16,6 +17,7 @@ export interface ApiContext {
   bus: EventBus;
   ring: LogRing;
   version: string;
+  authSessions: AuthSessionStore;
   telegramAuth?: TelegramAuthStore;
   telegramBot?: TelegramBot | null;
 }

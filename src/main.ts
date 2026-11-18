@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 import { loadConfig } from './core/config/loader.js';
 import { resolveStreamKey } from './core/config/schema.js';
 import { EventBus } from './core/events.js';
@@ -6,6 +7,7 @@ import { StreamerStore } from './core/store/streamer-store.js';
 import { SettingsService } from './core/store/settings-service.js';
 import { Supervisor } from './core/supervisor/supervisor.js';
 import { buildServer } from './api/server.js';
+import { AuthSessionStore } from './api/session-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
@@ -51,6 +53,7 @@ async function main(): Promise<void> {
   }
 
   const settingsService = new SettingsService(config.paths.settingsFile, config.settings, logger);
+  const authSessions = new AuthSessionStore(join(config.paths.dataDir, 'sessions.json'));
   const telegramAuth = new TelegramAuthStore();
   const telegramBot = config.server.telegramAuth
     ? new TelegramBot({
@@ -88,6 +91,7 @@ async function main(): Promise<void> {
     bus,
     ring,
     version: VERSION,
+    authSessions,
     telegramAuth,
     telegramBot,
   });

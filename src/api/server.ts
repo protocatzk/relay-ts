@@ -57,7 +57,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     ) {
       return;
     }
-    const mode = authMode(request, ctx.config.server);
+    const mode = authMode(request, ctx.config.server, ctx.authSessions);
     if (!mode) return unauthorized(reply);
     if (mode === 'cookie' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
       const allowedOrigins = ctx.config.server.corsOrigin

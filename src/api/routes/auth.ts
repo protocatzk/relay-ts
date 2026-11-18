@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ApiContext } from '../context.js';
 import {
+  authMode,
   authRequired,
   clearSessionCookie,
-  isAuthenticated,
+  currentSession,
   isSecureRequest,
   safeEqual,
   setSessionCookie,
@@ -54,7 +55,14 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
           error: { code: 'invalid_credentials', message: 'Passwort ist falsch' },
         });
       }
-      setSessionCookie(reply, config.server, isSecureRequest(request, config.server));
+      setSessionCookie(
+        reply,
+        config.server,
+        ctx.authSessions,
+        'Dashboard',
+        'password',
+        isSecureRequest(request, config.server),
+      );
       return { ok: true };
     },
   );
@@ -109,7 +117,14 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
       const entry = auth.get(token);
       if (!entry) return { status: 'expired' };
       if (entry.status === 'approved') {
-        setSessionCookie(reply, config.server, isSecureRequest(request, config.server));
+        setSessionCookie(
+          reply,
+          config.server,
+          ctx.authSessions,
+          entry.user,
+          'telegram',
+          isSecureRequest(request, config.server),
+        );
         auth.delete(token);
         ctx.logger.info({ user: entry.user }, 'Dashboard-Anmeldung per Telegram');
         return { status: 'approved', user: entry.user };
@@ -118,16 +133,62 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
     },
   );
 
-  app.post('/api/auth/logout', async (_request, reply) => {
-    clearSessionCookie(reply);
+  app.post('/api/auth/logout', async (request, reply) => {
+    clearSessionCookie(reply, request, ctx.authSessions);
     return { ok: true };
+  });
+
+  app.get('/api/auth/sessions', async (request, reply) => {
+    const mode = authMode(request, config.server, ctx.authSessions);
+    if (!mode) return unauthorized(reply);
+    const current = currentSession(request, config.server, ctx.authSessions);
+    return {
+      sessions: ctx.authSessions.list().map((session) => ({
+        id: session.id,
+        user: session.user,
+        provider: session.provider,
+        created_at: new Date(session.createdAt).toISOString(),
+        last_seen_at: new Date(session.lastSeenAt).toISOString(),
+        expires_at: new Date(session.expiresAt).toISOString(),
+        current: session.id === current?.id,
+      })),
+    };
+  });
+
+  app.post('/api/auth/sessions/:id/revoke', async (request, reply) => {
+    const mode = authMode(request, config.server, ctx.authSessions);
+    if (!mode) return unauthorized(reply);
+    const { id } = request.params as { id: string };
+    const current = currentSession(request, config.server, ctx.authSessions);
+    ctx.authSessions.revoke(id);
+    if (current?.id === id) clearSessionCookie(reply, request, ctx.authSessions);
+    return { ok: true };
+  });
+
+  app.post('/api/auth/sessions/revoke-all', async (request, reply) => {
+    const mode = authMode(request, config.server, ctx.authSessions);
+    if (!mode) return unauthorized(reply);
+    const removed = ctx.authSessions.revokeAll();
+    clearSessionCookie(reply, request, ctx.authSessions);
+    return { ok: true, removed };
   });
 
   app.get('/api/auth/me', async (request, reply) => {
     if (!authRequired(config.server)) {
-      return { authenticated: true, auth_required: false, version: VERSION };
+      return { authenticated: true, auth_required: false, version: VERSION, user: null };
     }
-    if (!isAuthenticated(request, config.server)) return unauthorized(reply);
-    return { authenticated: true, auth_required: true, version: VERSION };
+    const mode = authMode(request, config.server, ctx.authSessions);
+    if (!mode) return unauthorized(reply);
+    const session = currentSession(request, config.server, ctx.authSessions);
+    const user =
+      session?.user ??
+      (mode === 'token' ? 'API-Token' : mode === 'basic' ? 'Basic Auth' : null);
+    return {
+      authenticated: true,
+      auth_required: true,
+      version: VERSION,
+      user,
+      mode,
+    };
   });
 }

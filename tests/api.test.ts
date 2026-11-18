@@ -11,6 +11,7 @@ import { StreamerStore } from '../src/core/store/streamer-store.js';
 import { SettingsService } from '../src/core/store/settings-service.js';
 import type { Supervisor } from '../src/core/supervisor/supervisor.js';
 import { buildServer } from '../src/api/server.js';
+import { AuthSessionStore } from '../src/api/session-store.js';
 import { LogRing } from '../src/utils/logger.js';
 import { VERSION } from '../src/version.js';
 
@@ -123,6 +124,7 @@ beforeAll(async () => {
     bus: new EventBus(),
     ring: new LogRing(),
     version: VERSION,
+    authSessions: new AuthSessionStore(),
   });
   await app.ready();
 });
@@ -286,5 +288,33 @@ describe('API', () => {
     });
     expect(response.statusCode).toBe(404);
     expect(response.json()).toMatchObject({ error: { code: 'not_found' } });
+  });
+
+  it('lists and revokes server-side sessions', async () => {
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/auth/sessions',
+      headers: { cookie: cookieHeader },
+    });
+    expect(list.statusCode).toBe(200);
+    const sessions = (list.json() as { sessions: { current: boolean; user: string }[] }).sessions;
+    expect(sessions.length).toBeGreaterThanOrEqual(1);
+    expect(sessions.some((session) => session.current)).toBe(true);
+    expect(sessions[0]?.user).toBe('Dashboard');
+
+    const revoke = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sessions/revoke-all',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(revoke.statusCode).toBe(200);
+    expect((revoke.json() as { removed: number }).removed).toBeGreaterThanOrEqual(1);
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/api/streamers',
+      headers: { cookie: cookieHeader },
+    });
+    expect(denied.statusCode).toBe(401);
   });
 });

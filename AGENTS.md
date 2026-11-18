@@ -120,6 +120,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   `TELEGRAM_ALLOWED_USER_IDS`.
 - Login-Token sind einmalig und 10 Minuten gültig; Session-Cookie ist signiert,
   HttpOnly, `SameSite=Lax`, 30 Tage.
+- Sessions liegen serverseitig in `data/sessions.json` (0600) und sind
+  widerrufbar; `data/` bleibt aus Git ausgeschlossen.
 - Bei HTTPS zwingend `SECURE_COOKIES=true`.
 - Cookie-Auth benötigt bei schreibenden Requests einen passenden
   `Origin`/`Referer`; API-Token und Basic Auth sind ausgenommen. Tokens werden

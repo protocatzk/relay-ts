@@ -186,7 +186,7 @@ jedem Start.
 | `API_TOKEN`                        | Bearer-Token für Skripte                        | –                       |
 | `SESSION_SECRET`                   | Cookie-Signatur                                 | aus Passwort abgeleitet |
 | `SECURE_COOKIES`                   | Cookies nur über HTTPS                          | `false`                 |
-| `TRUST_PROXY`                      | Proxy-Header für Client-IPs vertrauen            | `false`                 |
+| `TRUST_PROXY`                      | Proxy-Header für Client-IPs vertrauen           | `false`                 |
 | `SETTINGS_ENV_OVERRIDES`           | `.env` Vorrang vor `settings.yml`               | `false`                 |
 | `STREAMERS_FILE` / `SETTINGS_FILE` | YAML-Pfade                                      | `config/...`            |
 | `LOGS_DIR` / `DATA_DIR`            | Logs und Laufzeitdaten                          | `logs` / `data`         |
@@ -365,6 +365,11 @@ Ablauf:
 3. Im Bot **Anmelden freigeben** drücken.
 4. Der Browser erhält ein signiertes HttpOnly-Cookie (30 Tage).
 
+Sessions werden serverseitig in `data/sessions.json` (Modus `0600`) verwaltet.
+Sie überleben Neustarts, können aber jederzeit widerrufen werden. Die API bietet
+dafür `GET /api/auth/sessions`, `POST /api/auth/sessions/:id/revoke` und
+`POST /api/auth/sessions/revoke-all`.
+
 Nur private Chats von IDs aus `TELEGRAM_ALLOWED_USER_IDS` werden akzeptiert.
 Ohne Token oder Allow-List bleibt Telegram-Login deaktiviert (fail-closed).
 Die gleiche Bot-Token darf nicht parallel in einer zweiten Instanz laufen.
@@ -475,14 +480,17 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 <details>
 <summary>Auth</summary>
 
-| Methode | Endpunkt                     | Beschreibung                    |
-| ------- | ---------------------------- | ------------------------------- |
-| `POST`  | `/api/auth/login`            | `{ password }` → Session-Cookie |
-| `GET`   | `/api/auth/methods`          | Verfügbare Login-Methoden       |
-| `POST`  | `/api/auth/telegram/request` | Telegram-Token + Deep-Link      |
-| `POST`  | `/api/auth/telegram/check`   | Freigabe prüfen, Cookie setzen  |
-| `POST`  | `/api/auth/logout`           | Session beenden                 |
-| `GET`   | `/api/auth/me`               | Auth-Status                     |
+| Methode | Endpunkt                        | Beschreibung                    |
+| ------- | ------------------------------- | ------------------------------- |
+| `POST`  | `/api/auth/login`               | `{ password }` → Session-Cookie |
+| `GET`   | `/api/auth/methods`             | Verfügbare Login-Methoden       |
+| `POST`  | `/api/auth/telegram/request`    | Telegram-Token + Deep-Link      |
+| `POST`  | `/api/auth/telegram/check`      | Freigabe prüfen, Cookie setzen  |
+| `POST`  | `/api/auth/logout`              | Session beenden                 |
+| `GET`   | `/api/auth/sessions`            | Aktive Sessions                 |
+| `POST`  | `/api/auth/sessions/:id/revoke` | Einzelne Session widerrufen     |
+| `POST`  | `/api/auth/sessions/revoke-all` | Alle Sessions widerrufen        |
+| `GET`   | `/api/auth/me`                  | Auth-Status                     |
 
 </details>
 
