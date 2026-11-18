@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import pino from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/core/config/loader.js';
-import { StreamerSchema } from '../src/core/config/schema.js';
+import { PlaylistSchema, StreamerSchema } from '../src/core/config/schema.js';
 import { EventBus } from '../src/core/events.js';
 import { StreamerStore } from '../src/core/store/streamer-store.js';
 import { SettingsService } from '../src/core/store/settings-service.js';
 import { Supervisor } from '../src/core/supervisor/supervisor.js';
+import { StreamerOfflineError } from '../src/utils/errors.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -304,5 +305,184 @@ describe('Supervisor integration', () => {
       }, 6000);
     },
     20_000,
+  );
+
+  it(
+    'keeps the pause screen when auto-reconnect is disabled',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19300 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          AUTO_RECONNECT: 'false',
+          PAUSE_GRACE_SECONDS: '0',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+      });
+      await supervisor.init();
+      expect((await supervisor.start('alpha')).state).toBe('live');
+
+      const sourcePid = supervisor.buildStatus().source.pid;
+      expect(sourcePid).toBeTruthy();
+      process.kill(sourcePid!, 'SIGTERM');
+
+      await waitFor(() => supervisor!.buildStatus().state === 'paused', 4000);
+      await waitFor(() => supervisor!.buildStatus().source.pid === null, 4000);
+      expect(supervisor.buildStatus().sink.running).toBe(true);
+
+      // No reconnect timer may take over while auto-reconnect is disabled.
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      const status = supervisor.buildStatus();
+      expect(status.state).toBe('paused');
+      expect(status.source.pid).toBeNull();
+      expect(status.source.reconnects).toBe(1);
+    },
+    20_000,
+  );
+
+  it(
+    'advances the playlist when the current entry goes offline',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19400 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          PAUSE_GRACE_SECONDS: '0',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+            StreamerSchema.parse({
+              id: 'beta',
+              name: 'Beta',
+              tiktok: 'beta',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [
+            PlaylistSchema.parse({
+              id: 'mix',
+              name: 'Mix',
+              channels: ['alpha', 'beta'],
+              auto_advance: true,
+              advance_delay_seconds: 0,
+              youtube_key: 'playlist-key',
+            }),
+          ],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      const calls = new Map<string, number>();
+      const resolver = {
+        resolve: async (streamer: { id: string }) => {
+          const count = (calls.get(streamer.id) ?? 0) + 1;
+          calls.set(streamer.id, count);
+          if (streamer.id === 'alpha' && count > 1) {
+            throw new StreamerOfflineError('@alpha ist aktuell nicht live');
+          }
+          return {
+            url: 'http://fake/stream.flv',
+            vcodec: 'avc1',
+            height: 720,
+            formatId: 'fake',
+            isH264: true,
+            title: 'Integration Test',
+            resolvedAt: new Date(),
+          };
+        },
+      };
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+        resolver,
+      });
+      await supervisor.init();
+      const started = await supervisor.playPlaylist('mix');
+      expect(started).toMatchObject({ state: 'live', active_streamer_id: 'alpha' });
+      expect(started.active_playlist?.index).toBe(0);
+
+      const sourcePid = supervisor.buildStatus().source.pid;
+      expect(sourcePid).toBeTruthy();
+      process.kill(sourcePid!, 'SIGTERM');
+
+      await waitFor(() => {
+        const status = supervisor!.buildStatus();
+        return (
+          status.state === 'live' &&
+          status.active_streamer_id === 'beta' &&
+          status.active_playlist?.index === 1
+        );
+      }, 12_000);
+      expect(supervisor.buildStatus().sink.running).toBe(true);
+    },
+    25_000,
   );
 });

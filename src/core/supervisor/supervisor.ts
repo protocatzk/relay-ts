@@ -37,6 +37,7 @@ import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
+import { pauseLimitDelayMs } from './pause-limit.js';
 import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
@@ -48,6 +49,8 @@ export interface SupervisorDeps {
   bus: EventBus;
   redact: (text: string) => string;
   registerSecret: (secret: string | undefined) => void;
+  /** Injectable for tests; defaults to the real TikTok resolver. */
+  resolver?: { resolve(streamer: StreamerConfig): Promise<ResolvedStream> };
 }
 
 export interface PlaylistView {
@@ -89,7 +92,7 @@ export class Supervisor {
 
   private buffer!: DelayBuffer;
   private relay!: MpegTsRelay;
-  private resolver!: TikTokResolver;
+  private resolver!: { resolve(streamer: StreamerConfig): Promise<ResolvedStream> };
   private source!: TikTokSource;
   private sink!: YouTubeSink;
   private overlays!: OverlayManager;
@@ -199,12 +202,14 @@ export class Supervisor {
       );
     }
 
-    this.resolver = new TikTokResolver({
-      media: config.media,
-      logger,
-      cookiesFile: config.paths.cookiesFile,
-      redact: this.deps.redact,
-    });
+    this.resolver =
+      this.deps.resolver ??
+      new TikTokResolver({
+        media: config.media,
+        logger,
+        cookiesFile: config.paths.cookiesFile,
+        redact: this.deps.redact,
+      });
     this.source = new TikTokSource({
       media: config.media,
       settings: this.settings,
@@ -1334,7 +1339,8 @@ export class Supervisor {
     if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
     this.pauseLimitTimer = undefined;
     const minutes = this.settings.pause.max_minutes;
-    if (!minutes || minutes <= 0) return;
+    const delayMs = pauseLimitDelayMs(minutes);
+    if (delayMs === null) return;
     this.pauseLimitTimer = setTimeout(() => {
       this.pauseLimitTimer = undefined;
       void this.lock.run(async () => {
@@ -1342,7 +1348,7 @@ export class Supervisor {
         this.deps.logger.warn({ minutes }, 'Maximale Pausendauer erreicht – Stream wird gestoppt');
         await this.stopInternalLocked();
       });
-    }, minutes * 60_000);
+    }, delayMs);
   }
 
   private clearPauseLimit(): void {
