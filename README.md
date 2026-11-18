@@ -492,6 +492,15 @@ Dashboard verwalten. Fehlt ein Streamer, wird ein temporärer Eintrag erzeugt.
 
 ---
 
+### Delay-Puffer und Kaltstart
+
+Ist der Delay-Puffer aktiv, startet der YouTube-Sink erst, wenn der Puffer
+gefüllt ist. Dadurch verbindet sich YouTube direkt mit Medien statt mit einer
+langen Stille; der Cold-Start dauert entsprechend der eingestellten
+Puffergröße (`delay_buffer.size`) länger. Bei kleinen Werten (z. B. 5 s) ist der
+Screen schneller auf YouTube, bei 20 s dauert der erste Verbindungsaufbau
+entsprechend länger.
+
 ## Einnahmen
 
 Der Monitor liest TokTracker-kompatibles JSON und zeigt Werte im Dashboard

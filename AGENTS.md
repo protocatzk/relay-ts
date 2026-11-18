@@ -91,6 +91,9 @@ Wichtige Pfade:
   aufeinanderfolgende schlechte Messungen. Das verhindert Fehlstarts kurz nach
   dem Verbindungsaufbau.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
+- Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
+  (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart
+  sofort Medien statt Stille erhält.
 - Overlay-Änderungen am aktiven Stream bauen Sink/Chat-Engine bewusst neu auf.
   Das ist ein kurzer, kontrollierter Reconnect.
 

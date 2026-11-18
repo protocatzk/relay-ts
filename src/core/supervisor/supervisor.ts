@@ -122,6 +122,8 @@ export class Supervisor {
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
   private sinkRestartTimer?: NodeJS.Timeout;
+  private sinkStartTimer?: NodeJS.Timeout;
+  private sinkStarting = false;
   private pauseRestartTimer?: NodeJS.Timeout;
   private pauseLimitTimer?: NodeJS.Timeout;
   private startupTimer?: NodeJS.Timeout;
@@ -272,6 +274,7 @@ export class Supervisor {
         state: this.state,
         relayLastDataAt: this.relay.lastData,
         sinkRunning: this.sink.running,
+        sinkStarting: this.sinkStarting,
         sinkLastProgressAt: this.sink.lastProgressAt,
         sourceRunning: this.source.running,
         sourceStartedAt: this.source.startedAt,
@@ -526,6 +529,7 @@ export class Supervisor {
     options: StartOptions,
   ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
+    this.clearSinkStartTimer();
     const key = options.key ?? resolveStreamKey(streamer).key;
     if (!key) throw new MissingStreamKeyError();
     this.deps.registerSecret(key);
@@ -587,7 +591,6 @@ export class Supervisor {
       if (this.sink.running) await this.stopSinkLocked();
       this.chatEngine?.stop();
       this.chatEngine = candidateEngine;
-      this.startSinkLocked(key, prepared.filters, signature, overlayInput);
     } else if (!this.chatEngine && candidateEngine) {
       this.chatEngine = candidateEngine;
       this.chatEngine.attach(this.sink.overlayStream());
@@ -637,6 +640,9 @@ export class Supervisor {
       this.watchdog.reset();
       this.watchdog.clearError();
       this.transitionTo('live');
+    }
+    if (!reusable) {
+      this.startSinkOrPrefillLocked(key, prepared.filters, signature, overlayInput);
     }
     this.playlistController.activate(options.playlist ?? null);
     this.emitAll();
@@ -705,7 +711,6 @@ export class Supervisor {
       if (this.sink.running) await this.stopSinkLocked();
       this.chatEngine?.stop();
       this.chatEngine = candidateEngine;
-      this.startSinkLocked(key, prepared.filters, signature, overlayInput);
     } else if (!this.chatEngine && candidateEngine) {
       this.chatEngine = candidateEngine;
       this.chatEngine.attach(this.sink.overlayStream());
@@ -738,12 +743,64 @@ export class Supervisor {
     );
   }
 
+  private clearSinkStartTimer(): void {
+    if (this.sinkStartTimer) clearTimeout(this.sinkStartTimer);
+    this.sinkStartTimer = undefined;
+    this.sinkStarting = false;
+  }
+
+  /**
+   * On a cold start the delay line would hold the first packets for the whole
+   * configured delay, leaving YouTube without media. Start the producer first
+   * and connect the sink once the buffer has been primed.
+   */
+  private startSinkOrPrefillLocked(
+    key: string,
+    filters: string[],
+    signature: string,
+    overlayInput?: SinkOverlayInput,
+  ): void {
+    this.clearSinkStartTimer();
+    this.activeKey = key;
+    this.activeOverlayFilters = filters;
+    this.activeOverlaySignature = signature;
+    this.activeOverlayInput = overlayInput;
+    const delaySeconds = this.settings.delay_buffer.enabled
+      ? Math.max(0, this.settings.delay_buffer.size)
+      : 0;
+    const buffered = this.buffer?.stats().bufferSeconds ?? 0;
+    const remaining = Math.max(0, delaySeconds - buffered);
+    if (remaining <= 0) {
+      this.startSinkLocked(key, filters, signature, overlayInput);
+      return;
+    }
+    this.sinkStarting = true;
+    this.deps.logger.info(
+      { delaySeconds, bufferedSeconds: buffered, waitSeconds: remaining },
+      'Sink startet nach Delay-Prefill',
+    );
+    this.sinkStartTimer = setTimeout(() => {
+      this.sinkStartTimer = undefined;
+      this.sinkStarting = false;
+      void this.lock.run(async () => {
+        if (this.shuttingDown || this.sink.running || this.activeKey !== key) return;
+        if (!this.source.running && !this.pauseScreen.running && !this.startupScreen.running) {
+          this.deps.logger.warn('Delay-Prefill beendet, aber keine Quelle aktiv');
+          return;
+        }
+        this.startSinkLocked(key, filters, signature, overlayInput);
+        this.emitAll();
+      });
+    }, remaining * 1000 + 250);
+  }
+
   private startSinkLocked(
     key: string,
     filters: string[],
     signature: string,
     overlayInput?: SinkOverlayInput,
   ): void {
+    this.clearSinkStartTimer();
     this.stoppingSink = false;
     this.activeKey = key;
     this.activeOverlayFilters = filters;
@@ -759,6 +816,7 @@ export class Supervisor {
   }
 
   private async stopSinkLocked(): Promise<void> {
+    this.clearSinkStartTimer();
     this.stoppingSink = true;
     this.chatEngine?.detach();
     try {
@@ -899,19 +957,27 @@ export class Supervisor {
       this.clearOfflinePauseTimer();
       this.clearPauseLimit();
       this.clearReconnectTimer();
+      this.clearSinkStartTimer();
       await this.stopSourceAndChatLocked();
+
+      let pendingSink: {
+        key: string;
+        filters: string[];
+        signature: string;
+        input?: SinkOverlayInput;
+      } | null = null;
 
       if (this.activeStreamer && this.activeKey) {
         // Keep the existing sink so the RTMP connection survives the swap.
         if (!this.sink.running) {
           this.buffer.reset();
           this.resetTimeline();
-          this.startSinkLocked(
-            this.activeKey,
-            this.activeOverlayFilters,
-            this.activeOverlaySignature,
-            this.activeOverlayInput,
-          );
+          pendingSink = {
+            key: this.activeKey,
+            filters: this.activeOverlayFilters,
+            signature: this.activeOverlaySignature,
+            input: this.activeOverlayInput,
+          };
         }
       } else {
         const target = this.resolveScreenTarget();
@@ -930,17 +996,25 @@ export class Supervisor {
           this.resetTimeline();
           const carrier = target.streamer ?? this.screenFallbackStreamer();
           const prepared = this.overlays.prepare(carrier);
-          this.startSinkLocked(
-            target.key,
-            prepared.filters,
-            this.overlaySignature(prepared.filters, carrier, undefined),
-          );
+          pendingSink = {
+            key: target.key,
+            filters: prepared.filters,
+            signature: this.overlaySignature(prepared.filters, carrier, undefined),
+          };
         }
       }
       this.applyConfiguredDelay();
       const offset = this.nextProducerOffset();
       const screen = type === 'startup' ? this.startupScreen : this.pauseScreen;
       await screen.start(undefined, undefined, offset);
+      if (pendingSink) {
+        this.startSinkOrPrefillLocked(
+          pendingSink.key,
+          pendingSink.filters,
+          pendingSink.signature,
+          pendingSink.input,
+        );
+      }
       this.markProducerStarted(offset);
       this.markSinkGrace();
       this.manualScreen = type;
@@ -1006,6 +1080,7 @@ export class Supervisor {
 
   private clearAllTimers(): void {
     this.clearReconnectTimer();
+    this.clearSinkStartTimer();
     this.playlistController.clearTimers();
     if (this.sinkRestartTimer) clearTimeout(this.sinkRestartTimer);
     this.sinkRestartTimer = undefined;
@@ -1072,6 +1147,14 @@ export class Supervisor {
         this.applyConfiguredDelay();
         const timestampOffset = this.nextProducerOffset();
         this.source.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
+        if (!this.sink.running && this.activeKey) {
+          this.startSinkOrPrefillLocked(
+            this.activeKey,
+            this.activeOverlayFilters,
+            this.activeOverlaySignature,
+            this.activeOverlayInput,
+          );
+        }
         this.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();
@@ -1135,6 +1218,14 @@ export class Supervisor {
     this.applyConfiguredDelay();
     const timestampOffset = this.nextProducerOffset();
     await this.pauseScreen.start(undefined, undefined, timestampOffset);
+    if (!this.sink.running && this.activeKey) {
+      this.startSinkOrPrefillLocked(
+        this.activeKey,
+        this.activeOverlayFilters,
+        this.activeOverlaySignature,
+        this.activeOverlayInput,
+      );
+    }
     this.markProducerStarted(timestampOffset);
     this.markSinkGrace();
     this.pauseReason = 'offline';
@@ -1303,6 +1394,7 @@ export class Supervisor {
 
   private async restartSinkLocked(): Promise<void> {
     if (!this.activeKey) return;
+    this.clearSinkStartTimer();
     incMetric('sink_restarts_total');
     if (this.sinkRestartTimer) {
       clearTimeout(this.sinkRestartTimer);

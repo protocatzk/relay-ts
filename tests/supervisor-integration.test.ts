@@ -170,6 +170,67 @@ describe('Supervisor integration', () => {
   );
 
   it(
+    'primes the delay buffer before starting the sink',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19500 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'true',
+          RELAY_DELAY_SECONDS: '1',
+          AUTO_REFRESH: 'false',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+      });
+      await supervisor.init();
+      const started = await supervisor.start('alpha');
+      expect(started.state).toBe('live');
+      expect(started.sink.running).toBe(false);
+
+      await waitFor(() => supervisor!.buildStatus().sink.running, 5000);
+      expect(supervisor.buildStatus().source.connected).toBe(true);
+    },
+    20_000,
+  );
+
+  it(
     'plays manual screens without an active streamer',
     async () => {
       temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));

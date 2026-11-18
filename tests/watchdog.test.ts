@@ -18,6 +18,7 @@ function snapshot(overrides: Partial<WatchdogSnapshot> = {}): WatchdogSnapshot {
     state: 'live',
     relayLastDataAt: now,
     sinkRunning: true,
+    sinkStarting: false,
     sinkLastProgressAt: now,
     sourceRunning: true,
     sourceStartedAt: now,
