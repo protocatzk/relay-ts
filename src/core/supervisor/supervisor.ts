@@ -139,6 +139,7 @@ export class Supervisor {
   private reconnectTimer?: NodeJS.Timeout;
   private sinkRestartTimer?: NodeJS.Timeout;
   private sinkStartTimer?: NodeJS.Timeout;
+  private youtubeStartTimer?: NodeJS.Timeout;
   private sinkStarting = false;
   private pauseRestartTimer?: NodeJS.Timeout;
   private pauseLimitTimer?: NodeJS.Timeout;
@@ -596,7 +597,6 @@ export class Supervisor {
     this.transitionTo('live');
     this.emitAll();
     this.deps.logger.info({ file, playlist: options.playlist.playlist.id }, 'Lokales Video gestartet');
-    this.notifyYouTubeStarted(options.key);
     return this.buildStatus();
   }
 
@@ -727,7 +727,6 @@ export class Supervisor {
       { streamer: streamer.id, key: '***', reusedSink: reusable, introSeconds },
       introSeconds > 0 ? 'Startbildschirm aktiv' : 'Stream gestartet',
     );
-    this.notifyYouTubeStarted(key);
     return this.buildStatus();
   }
 
@@ -839,6 +838,7 @@ export class Supervisor {
     overlayInput?: SinkOverlayInput,
   ): void {
     this.clearSinkStartTimer();
+    this.clearYouTubeStartTimer();
     this.activeKey = key;
     this.activeOverlayFilters = filters;
     this.activeOverlaySignature = signature;
@@ -887,6 +887,7 @@ export class Supervisor {
     const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
     this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
     this.sink.start(key, filters, overlayInput);
+    this.scheduleYouTubeStarted(key);
     if (this.chatEngine && overlayInput) {
       this.chatEngine.attach(this.sink.overlayStream());
       this.chatEngine.setMessages(this.currentChatMessages);
@@ -895,6 +896,7 @@ export class Supervisor {
 
   private async stopSinkLocked(): Promise<void> {
     this.clearSinkStartTimer();
+    this.clearYouTubeStartTimer();
     this.stoppingSink = true;
     this.chatEngine?.detach();
     try {
@@ -951,6 +953,26 @@ export class Supervisor {
     this.chat.start();
   }
 
+  private clearYouTubeStartTimer(): void {
+    if (this.youtubeStartTimer) clearTimeout(this.youtubeStartTimer);
+    this.youtubeStartTimer = undefined;
+  }
+
+  /**
+   * The hook must run after the sink actually publishes, not when the source
+   * starts. Otherwise YouTube sees an idle ingest and rejects the transition.
+   */
+  private scheduleYouTubeStarted(key: string): void {
+    this.clearYouTubeStartTimer();
+    if (!key) return;
+    this.youtubeStartTimer = setTimeout(() => {
+      this.youtubeStartTimer = undefined;
+      if (this.shuttingDown || !this.sink.running || this.activeKey !== key) return;
+      this.notifyYouTubeStarted(key);
+    }, 5000);
+    this.youtubeStartTimer.unref?.();
+  }
+
   private notifyYouTubeStarted(key: string): void {
     const hook = this.deps.youtube?.streamStarted;
     if (!hook || !key) return;
@@ -976,6 +998,7 @@ export class Supervisor {
   }
 
   private async stopInternalLocked(): Promise<StatusSnapshot> {
+    this.clearYouTubeStartTimer();
     const stoppingKey = this.activeKey;
     this.transitionTo('stopping');
     this.pauseReason = null;
@@ -985,7 +1008,9 @@ export class Supervisor {
     this.watchdog.reset();
     await this.stopSourceAndChatLocked();
     await this.stopSinkLocked();
-    this.notifyYouTubeStopped(stoppingKey);
+    // A container restart is not a user stop. Keep the broadcast for the next
+    // start instead of completing it on every deploy.
+    if (!this.shuttingDown) this.notifyYouTubeStopped(stoppingKey);
     this.chatEngine?.stop();
     this.buffer.reset();
     this.overlays.clear();

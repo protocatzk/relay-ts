@@ -33,6 +33,7 @@ import type {
   YouTubeBroadcastList,
   YouTubeBroadcastTransition,
   YouTubeBroadcastUpdate,
+  YouTubeAutomationStatus,
   YouTubeStatus,
 } from './types';
 
@@ -420,6 +421,15 @@ export const api = {
   },
   youtube: {
     status: () => request<YouTubeStatus>('/api/youtube/status'),
+    updateAutomation: (patch: {
+      mode: 'off' | 'relay_only' | 'all';
+      auto_start?: boolean;
+      auto_stop?: boolean;
+    }) =>
+      request<YouTubeAutomationStatus>('/api/youtube/automation', {
+        method: 'PUT',
+        body: patch,
+      }),
     start: () => request<{ url: string }>('/api/youtube/oauth/start'),
     broadcasts: () => request<YouTubeBroadcastList>('/api/youtube/broadcasts'),
     createBroadcast: (input: YouTubeBroadcastInput) =>

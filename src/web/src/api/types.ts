@@ -405,6 +405,13 @@ export interface StreamingSettings {
   title_template: string;
 }
 
+export interface YouTubeAutomationStatus {
+  mode: 'off' | 'relay_only' | 'all';
+  auto_transition: boolean;
+  auto_start: boolean;
+  auto_stop: boolean;
+}
+
 export interface YouTubeStatus {
   configured: boolean;
   connected: boolean;
@@ -415,6 +422,7 @@ export interface YouTubeStatus {
   scopes: string[];
   connected_at: string | null;
   expires_at: string | null;
+  automation: YouTubeAutomationStatus;
 }
 
 export interface YouTubeBroadcast {
@@ -431,6 +439,7 @@ export interface YouTubeBroadcast {
   stream_health: string | null;
   thumbnail_url: string | null;
   watch_url: string;
+  relay_managed: boolean;
 }
 
 export interface YouTubeBroadcastList {

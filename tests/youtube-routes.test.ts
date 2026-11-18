@@ -42,16 +42,18 @@ beforeAll(async () => {
     logger,
   );
   store.create({ id: 'alpha', name: 'Alpha', tiktok: 'alpha', youtube_key: 'streamer-key' });
+  const settingsService = new SettingsService(config.paths.settingsFile, DEFAULT_SETTINGS, logger);
   service = new YouTubeAuthService({
     config: config.youtube,
     store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
     logger,
+    automation: () => settingsService.get().youtube,
   });
   app = await buildServer({
     config,
     logger,
     store,
-    settingsService: new SettingsService(config.paths.settingsFile, DEFAULT_SETTINGS, logger),
+    settingsService,
     supervisor: {} as unknown as Supervisor,
     bus: new EventBus(),
     ring: new LogRing(),
@@ -266,6 +268,29 @@ describe('YouTube routes', () => {
       payload: { status: 'nope' },
     });
     expect(invalid.statusCode).toBe(400);
+
+    const automation = await app.inject({
+      method: 'PUT',
+      url: '/api/youtube/automation',
+      headers: auth,
+      payload: { mode: 'off' },
+    });
+    expect(automation.statusCode).toBe(200);
+    expect(automation.json()).toMatchObject({ mode: 'off', auto_transition: false });
+
+    const restored = await app.inject({
+      method: 'PUT',
+      url: '/api/youtube/automation',
+      headers: auth,
+      payload: { mode: 'relay_only', auto_start: true, auto_stop: true },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({
+      mode: 'relay_only',
+      auto_transition: true,
+      auto_start: true,
+      auto_stop: true,
+    });
 
     const disconnect = await app.inject({
       method: 'POST',

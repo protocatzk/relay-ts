@@ -39,6 +39,12 @@ const AssignBody = z.object({
   streamer_id: z.string().min(1).max(64),
 });
 
+const AutomationBody = z.object({
+  mode: z.enum(['off', 'relay_only', 'all']),
+  auto_start: z.boolean().optional(),
+  auto_stop: z.boolean().optional(),
+});
+
 function streamerKey(ctx: ApiContext, id: string): string {
   const streamer = ctx.store.require(id);
   const { key } = resolveStreamKey(streamer);
@@ -73,6 +79,21 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
   const writeLimit = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
 
   app.get('/api/youtube/status', async () => service.status());
+
+  app.put('/api/youtube/automation', writeLimit, async (request) => {
+    const body = AutomationBody.parse(request.body);
+    const current = ctx.settingsService.get().youtube;
+    ctx.settingsService.update({
+      youtube: {
+        ...current,
+        auto_transition: body.mode !== 'off',
+        auto_mode: body.mode === 'off' ? (current.auto_mode ?? 'relay_only') : body.mode,
+        ...(body.auto_start === undefined ? {} : { auto_start: body.auto_start }),
+        ...(body.auto_stop === undefined ? {} : { auto_stop: body.auto_stop }),
+      },
+    });
+    return service.automationStatus();
+  });
 
   app.get('/api/youtube/broadcasts', async () => service.broadcasts());
 

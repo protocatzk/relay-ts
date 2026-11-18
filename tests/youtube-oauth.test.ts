@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/core/config/loader.js';
 import { YouTubeAuthStore } from '../src/core/youtube/auth-store.js';
 import { YouTubeAuthService } from '../src/core/youtube/service.js';
+import { YouTubeBroadcastStore } from '../src/core/youtube/broadcast-store.js';
 import type { AutomationSettings } from '../src/core/youtube/automation.js';
 
 const logger = pino({ level: 'silent' });
@@ -25,6 +26,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 const DEFAULT_AUTOMATION: AutomationSettings = {
   auto_transition: true,
+  auto_mode: 'relay_only',
   auto_start: true,
   auto_stop: true,
   default_privacy: 'unlisted',
@@ -35,10 +37,12 @@ function harness(options: { configured?: boolean; automation?: AutomationSetting
   const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-'));
   const file = join(dir, 'youtube-auth.json');
   const store = new YouTubeAuthStore(file, logger);
+  const broadcasts = new YouTubeBroadcastStore(join(dir, 'youtube-broadcasts.json'), logger);
   let now = Date.UTC(2026, 0, 1, 12, 0, 0);
   const service = new YouTubeAuthService({
     config: options.configured === false ? { clientId: '', clientSecret: '', redirectUri: '' } : CREDENTIALS,
     store,
+    broadcasts,
     logger,
     now: () => now,
     automation: () => options.automation ?? DEFAULT_AUTOMATION,
@@ -46,6 +50,7 @@ function harness(options: { configured?: boolean; automation?: AutomationSetting
   return {
     service,
     store,
+    broadcasts,
     file,
     advance: (ms: number) => {
       now += ms;
@@ -135,6 +140,7 @@ describe('YouTube OAuth', () => {
         LOG_LEVEL: 'silent',
         SETTINGS_ENV_OVERRIDES: 'true',
         YOUTUBE_AUTO_TRANSITION: 'false',
+        YOUTUBE_AUTO_MODE: 'all',
         YOUTUBE_AUTO_STOP: 'false',
         YOUTUBE_DEFAULT_PRIVACY: 'public',
         YOUTUBE_DEFAULT_DVR: 'false',
@@ -142,6 +148,7 @@ describe('YouTube OAuth', () => {
     });
     expect(overridden.settings.youtube).toMatchObject({
       auto_transition: false,
+      auto_mode: 'all',
       auto_start: true,
       auto_stop: false,
       default_privacy: 'public',
@@ -540,7 +547,7 @@ describe('YouTube broadcast management', () => {
   });
 
   it('binds to an existing ingest matching a streamer key', async () => {
-    const { service, fetchMock } = await connected();
+    const { service, fetchMock, broadcasts: registry } = await connected();
     let bindUrl = '';
     fetchMock.mockImplementation(
       broadcastApi({
@@ -564,6 +571,8 @@ describe('YouTube broadcast management', () => {
     );
 
     expect(summary.bound_stream_id).toBe('stream-1');
+    expect(summary.relay_managed).toBe(true);
+    expect(registry.get(summary.id)).toMatchObject({ stream_id: 'stream-1' });
     expect(bindUrl).toContain('streamId=stream-1');
     const calls = fetchMock.mock.calls.map(([input]) => String(input));
     expect(calls.some((url) => url.includes('/liveStreams') && url.includes('POST'))).toBe(false);
@@ -628,19 +637,118 @@ describe('YouTube broadcast management', () => {
     expect(deletes[0]).toContain('id=bc-1');
   });
 
-  it('brings the nearest scheduled broadcast live and completes it on stop', async () => {
-    const { service, fetchMock } = await connected();
+  it('starts only a RELAY-owned broadcast inside the schedule window', async () => {
+    const { service, fetchMock, broadcasts: registry } = await connected();
     const transitions: string[] = [];
     const broadcasts = [
       {
-        id: 'bc-live',
-        snippet: { scheduledStartTime: '2026-01-02T10:00:00Z' },
+        id: 'bc-external',
+        snippet: { scheduledStartTime: '2026-01-01T12:05:00Z' },
+        status: { lifeCycleStatus: 'ready' },
+        contentDetails: { boundStreamId: 'stream-1' },
+      },
+      {
+        id: 'bc-old',
+        snippet: { scheduledStartTime: '2026-01-01T08:00:00Z' },
+        status: { lifeCycleStatus: 'ready' },
+        contentDetails: { boundStreamId: 'stream-1' },
+      },
+      {
+        id: 'bc-owned',
+        snippet: { scheduledStartTime: '2026-01-01T12:10:00Z' },
+        status: { lifeCycleStatus: 'ready' },
+        contentDetails: { boundStreamId: 'stream-1' },
+      },
+    ];
+    registry.upsert({
+      id: 'bc-owned',
+      stream_id: 'stream-1',
+      title: 'Owned',
+      scheduled_start: '2026-01-01T12:10:00Z',
+      created_at: '2026-01-01T11:00:00Z',
+      status: 'ready',
+    });
+    fetchMock.mockImplementation(
+      broadcastApi({
+        streams: () =>
+          jsonResponse({
+            items: [{ id: 'stream-1', cdn: { ingestionInfo: { streamName: 'streamer-key' } } }],
+          }),
+        broadcasts: () => jsonResponse({ items: broadcasts }),
+        onTransition: (url) => transitions.push(url),
+      }),
+    );
+
+    await service.onStreamStarted('streamer-key');
+
+    expect(
+      transitions.some(
+        (url) => url.includes('id=bc-owned') && url.includes('broadcastStatus=live'),
+      ),
+    ).toBe(true);
+    expect(transitions.some((url) => url.includes('id=bc-external'))).toBe(false);
+    expect(transitions.some((url) => url.includes('id=bc-old'))).toBe(false);
+  });
+
+  it('completes only RELAY-owned broadcasts in relay_only mode', async () => {
+    const { service, fetchMock, broadcasts: registry } = await connected();
+    const transitions: string[] = [];
+    registry.upsert({
+      id: 'bc-owned',
+      stream_id: 'stream-1',
+      title: 'Owned',
+      scheduled_start: '2026-01-01T12:10:00Z',
+      created_at: '2026-01-01T11:00:00Z',
+      status: 'live',
+    });
+    const broadcasts = [
+      {
+        id: 'bc-owned',
+        snippet: { scheduledStartTime: '2026-01-01T12:10:00Z' },
         status: { lifeCycleStatus: 'live' },
         contentDetails: { boundStreamId: 'stream-1' },
       },
       {
-        id: 'bc-ready',
-        snippet: { scheduledStartTime: '2026-01-02T11:00:00Z' },
+        id: 'bc-external',
+        snippet: { scheduledStartTime: '2026-01-01T12:05:00Z' },
+        status: { lifeCycleStatus: 'live' },
+        contentDetails: { boundStreamId: 'stream-1' },
+      },
+    ];
+    fetchMock.mockImplementation(
+      broadcastApi({
+        streams: () =>
+          jsonResponse({
+            items: [{ id: 'stream-1', cdn: { ingestionInfo: { streamName: 'streamer-key' } } }],
+          }),
+        broadcasts: () => jsonResponse({ items: broadcasts }),
+        onTransition: (url) => transitions.push(url),
+      }),
+    );
+
+    await service.onStreamStopped('streamer-key');
+
+    expect(
+      transitions.some(
+        (url) => url.includes('id=bc-owned') && url.includes('broadcastStatus=complete'),
+      ),
+    ).toBe(true);
+    expect(transitions.some((url) => url.includes('id=bc-external'))).toBe(false);
+  });
+
+  it('manages external broadcasts only in all mode', async () => {
+    const context = harness({
+      automation: { ...DEFAULT_AUTOMATION, auto_mode: 'all' },
+    });
+    const fetchMock = mockGoogle();
+    await connect(context.service);
+    context.advance(1000);
+    fetchMock.mockClear();
+    const transitions: string[] = [];
+    const broadcasts = [
+      {
+        id: 'bc-external',
+        snippet: { scheduledStartTime: '2026-01-01T12:10:00Z' },
         status: { lifeCycleStatus: 'ready' },
         contentDetails: { boundStreamId: 'stream-1' },
       },
@@ -656,14 +764,20 @@ describe('YouTube broadcast management', () => {
       }),
     );
 
-    await service.onStreamStarted('streamer-key');
-    expect(transitions.some((url) => url.includes('id=bc-ready') && url.includes('broadcastStatus=live'))).toBe(true);
-    expect(transitions.some((url) => url.includes('id=bc-live'))).toBe(false);
+    await context.service.onStreamStarted('streamer-key');
+    expect(
+      transitions.some(
+        (url) => url.includes('id=bc-external') && url.includes('broadcastStatus=live'),
+      ),
+    ).toBe(true);
 
     transitions.length = 0;
     broadcasts[0]!.status.lifeCycleStatus = 'live';
-    broadcasts[1]!.status.lifeCycleStatus = 'live';
-    await service.onStreamStopped('streamer-key');
-    expect(transitions.filter((url) => url.includes('broadcastStatus=complete'))).toHaveLength(2);
+    await context.service.onStreamStopped('streamer-key');
+    expect(
+      transitions.some(
+        (url) => url.includes('id=bc-external') && url.includes('broadcastStatus=complete'),
+      ),
+    ).toBe(true);
   });
 });

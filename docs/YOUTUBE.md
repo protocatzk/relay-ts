@@ -68,6 +68,7 @@ Defaults → config/settings.yml → .env (nur mit SETTINGS_ENV_OVERRIDES=true)
 ```yaml
 youtube:
   auto_transition: true   # Hauptschalter für Start/Stop-Automatik
+  auto_mode: relay_only   # off | relay_only | all
   auto_start: true        # Broadcast beim Stream-Start live schalten
   auto_stop: true         # Broadcast beim vollständigen Stop beenden
   default_privacy: unlisted
@@ -75,8 +76,8 @@ youtube:
 ```
 
 Entsprechende Umgebungsvariablen: `YOUTUBE_AUTO_TRANSITION`,
-`YOUTUBE_AUTO_START`, `YOUTUBE_AUTO_STOP`, `YOUTUBE_DEFAULT_PRIVACY`,
-`YOUTUBE_DEFAULT_DVR`.
+`YOUTUBE_AUTO_MODE`, `YOUTUBE_AUTO_START`, `YOUTUBE_AUTO_STOP`,
+`YOUTUBE_DEFAULT_PRIVACY`, `YOUTUBE_DEFAULT_DVR`.
 
 **Pro Broadcast** überschreibt ein Request die Defaults: `privacy` und
 `enable_dvr` beim Anlegen/Ändern gelten nur für diesen Broadcast.
@@ -89,17 +90,22 @@ eine lokale Ausnahme-Datei ergänzen, ohne die Automatik umzubauen.
 
 ## Broadcasts anlegen und planen
 
-- **Anlegen** erzeugt Broadcast + Ingest und bindet beides. Wird ein Streamer
-  ausgewählt, sucht RELAY den passenden Ingest über den Stream-Key und bindet
-  ihn; der Key selbst wird nie übertragen oder angezeigt.
+- **Anlegen** bindet den Broadcast immer an den RELAY-Ingest: aktiver
+  Streamer, sonst bevorzugter, sonst erster aktivierter mit Key. Ein neuer
+  YouTube-Ingest wird nicht mehr still erzeugt. Fehlt ein Key, schlägt das
+  Anlegen mit einer klaren Meldung fehl; der Key wird nie übertragen oder
+  angezeigt.
 - **Sichtbarkeit** ist standardmäßig `unlisted`. Ein späteres
   **Veröffentlichen** setzt `privacyStatus=public` mit einem einzigen
   `liveBroadcasts.update` – ca. 50 Quota-Einheiten, kein Polling.
-- **Auto-Transition:** Beim Stream-Start schaltet RELAY den nächstgelegenen
-  Broadcast des gebundenen Ingests auf `live`, beim vollständigen Stop auf
-  `complete`. Pausenscreen und Streamerwechsel mit gleichem Key beenden den
-  Broadcast nicht. Der Hook ist best-effort und beeinflusst den Stream nie;
-  abschaltbar über `youtube.auto_transition`.
+- **Auto-Transition:** RELAY verwaltet nur Broadcasts, die es selbst angelegt
+  hat (`data/youtube-broadcasts.json`), und nur innerhalb von ±30 Minuten um
+  die geplante Startzeit. Der Hook läuft erst, wenn der Sink tatsächlich
+  sendet, nicht beim Quellenstart. Beim vollständigen Stop wird nur der
+  RELAY-Broadcast beendet; Studio-/Quick-Live-Broadcasts bleiben unberührt.
+  Pausenscreen und Streamerwechsel mit gleichem Key beenden nichts. Der Hook
+  ist best-effort und beeinflusst den Stream nie; `auto_mode` steuert
+  `off`, `relay_only` (Default) oder `all`.
 - **Titel** kommt beim Anlegen aus dem Formular (oder aus
   `YOUTUBE_TITLE_TEMPLATE` im Dashboard); Änderungen laufen über
   `PUT /api/youtube/broadcasts/:id`.

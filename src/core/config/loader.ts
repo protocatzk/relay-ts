@@ -461,6 +461,7 @@ export function applyEnvSettings(
   set(['earnings', 'overlay_template'], env.EARNINGS_OVERLAY_TEMPLATE?.trim() || undefined);
   set(['earnings', 'overlay_font_size'], parseNumber(env.EARNINGS_OVERLAY_FONT_SIZE));
   set(['youtube', 'auto_transition'], parseBoolean(env.YOUTUBE_AUTO_TRANSITION));
+  set(['youtube', 'auto_mode'], env.YOUTUBE_AUTO_MODE?.trim() || undefined);
   set(['youtube', 'auto_start'], parseBoolean(env.YOUTUBE_AUTO_START));
   set(['youtube', 'auto_stop'], parseBoolean(env.YOUTUBE_AUTO_STOP));
   set(['youtube', 'default_privacy'], env.YOUTUBE_DEFAULT_PRIVACY?.trim() || undefined);

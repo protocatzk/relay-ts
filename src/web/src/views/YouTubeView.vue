@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
 import type {
@@ -11,6 +11,7 @@ import { formatDateTime } from '@/src/utils/format';
 import { useToast } from '@/src/composables/useToast';
 import { useStore } from '@/src/composables/useStore';
 import YouTubeBroadcastEditor from '@/src/components/YouTubeBroadcastEditor.vue';
+import ToggleField from '@/src/components/ToggleField.vue';
 
 const { pushToast } = useToast();
 const { store } = useStore();
@@ -31,6 +32,10 @@ const editing = ref<YouTubeBroadcast | null>(null);
 const saving = ref(false);
 const editorError = ref('');
 const actingId = ref<string | null>(null);
+const automationSaving = ref(false);
+const automationMode = ref<'off' | 'relay_only' | 'all'>('relay_only');
+const autoStart = ref(true);
+const autoStop = ref(true);
 
 const BROADCAST_STATUS: Record<string, { label: string; tone: string }> = {
   live: { label: 'Live', tone: 'tone-success' },
@@ -99,6 +104,17 @@ const relayIngestStreamer = computed(() => {
     null
   );
 });
+
+watch(
+  () => status.value?.automation,
+  (automation) => {
+    if (!automation) return;
+    automationMode.value = automation.mode;
+    autoStart.value = automation.auto_start;
+    autoStop.value = automation.auto_stop;
+  },
+  { immediate: true },
+);
 const accountLabel = computed(() => {
   const account = status.value?.account;
   if (!account) return '';
@@ -195,6 +211,30 @@ async function runAction(
     pushToast(errorMessage(err), 'error');
   } finally {
     actingId.value = null;
+  }
+}
+
+async function saveAutomation(patch: {
+  mode?: 'off' | 'relay_only' | 'all';
+  auto_start?: boolean;
+  auto_stop?: boolean;
+}): Promise<void> {
+  automationSaving.value = true;
+  try {
+    const automation = await api.youtube.updateAutomation({
+      mode: patch.mode ?? automationMode.value,
+      auto_start: patch.auto_start ?? autoStart.value,
+      auto_stop: patch.auto_stop ?? autoStop.value,
+    });
+    if (status.value) status.value = { ...status.value, automation };
+    automationMode.value = automation.mode;
+    autoStart.value = automation.auto_start;
+    autoStop.value = automation.auto_stop;
+    pushToast('YouTube-Automatik gespeichert.', 'success');
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    automationSaving.value = false;
   }
 }
 
@@ -417,6 +457,56 @@ onMounted(async () => {
         </div>
       </section>
 
+      <section v-if="connected" class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Automatik</h2>
+            <p class="card-sub">
+              Steuert, ob RELAY Broadcasts selbst live schaltet und beendet.
+            </p>
+          </div>
+          <span class="badge" :class="automationMode === 'off' ? 'tone-muted' : 'tone-success'">
+            {{ automationMode === 'off' ? 'Aus' : automationMode === 'all' ? 'Alle' : 'Nur RELAY' }}
+          </span>
+        </div>
+        <div class="settings-grid">
+          <div class="field">
+            <label for="yt-automation-mode">Modus</label>
+            <select
+              id="yt-automation-mode"
+              v-model="automationMode"
+              :disabled="automationSaving"
+              @change="saveAutomation({ mode: automationMode })"
+            >
+              <option value="off">Aus – nur manuell</option>
+              <option value="relay_only">Nur RELAY-Broadcasts (empfohlen)</option>
+              <option value="all">Alle Broadcasts am Ingest</option>
+            </select>
+            <p class="field-hint">
+              „Alle" umfasst auch in YouTube Studio erzeugte Broadcasts (Quick Live).
+            </p>
+          </div>
+          <ToggleField
+            :model-value="autoStart"
+            label="Automatisch live"
+            description="Nach dem Sink-Start den passenden Broadcast live schalten"
+            :disabled="automationSaving || automationMode === 'off'"
+            @update:model-value="saveAutomation({ auto_start: $event })"
+          />
+          <ToggleField
+            :model-value="autoStop"
+            label="Automatisch beenden"
+            description="Beim Stream-Stop den aktiven Broadcast abschließen"
+            :disabled="automationSaving || automationMode === 'off'"
+            @update:model-value="saveAutomation({ auto_stop: $event })"
+          />
+        </div>
+        <p class="field-hint">
+          Im Modus „Nur RELAY" bleiben Studio-/Quick-Live-Broadcasts unberührt – auch beim
+          automatischen Beenden.
+        </p>
+      </section>
+
       <section class="card">
         <div class="card-head">
           <div>
@@ -460,6 +550,17 @@ onMounted(async () => {
                   <a :href="broadcast.watch_url" target="_blank" rel="noopener noreferrer">
                     {{ broadcast.title || broadcast.id }}
                   </a>
+                  <span
+                    class="badge badge-xs"
+                    :class="broadcast.relay_managed ? 'tone-success' : 'tone-muted'"
+                    :title="
+                      broadcast.relay_managed
+                        ? 'Von RELAY angelegt – Automatik erlaubt'
+                        : 'In YouTube Studio/Quick Live angelegt – RELAY fasst ihn nicht automatisch an'
+                    "
+                  >
+                    {{ broadcast.relay_managed ? 'RELAY' : 'Extern' }}
+                  </span>
                   <br />
                   <small class="mono">{{ broadcast.id }}</small>
                 </td>

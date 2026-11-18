@@ -17,6 +17,7 @@ import { ValidationError } from './utils/errors.js';
 import { YouTubeAuthStore } from './core/youtube/auth-store.js';
 import { YouTubeAuthService } from './core/youtube/service.js';
 import { resolveRelayIngestKey } from './core/youtube/ingest.js';
+import { YouTubeBroadcastStore } from './core/youtube/broadcast-store.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
 import { toErrorMessage } from './utils/errors.js';
 import { VERSION } from './version.js';
@@ -65,6 +66,10 @@ async function main(): Promise<void> {
   const youtubeAuth = new YouTubeAuthService({
     config: config.youtube,
     store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
+    broadcasts: new YouTubeBroadcastStore(
+      join(config.paths.dataDir, 'youtube-broadcasts.json'),
+      logger,
+    ),
     logger,
     automation: () => settingsService.get().youtube,
   });

@@ -159,10 +159,14 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - `invalid_grant` beim Refresh löscht die Verbindung und verlangt erneutes
   Verbinden (`youtube_reconnect_required`).
 - Auto-Transition läuft über `SupervisorDeps.youtube` als best-effort Hook:
-  Start setzt den nächstgelegenen gebundenen Broadcast auf `live`, ein
-  vollständiger Stop auf `complete`; Fehler dürfen den Stream nie beeinflussen.
-- Die Automatik ist über `settings.youtube` (`auto_transition`, `auto_start`,
-  `auto_stop`) und `YOUTUBE_*`-Env abschaltbar; Request-Werte (`privacy`,
+  Der Start erfolgt erst nach dem Sink-Start, nur für Broadcasts aus der
+  RELAY-Registry (`data/youtube-broadcasts.json`) und nur ±30 Minuten um die
+  geplante Zeit; ein vollständiger Stop beendet nur RELAY-Broadcasts.
+  Studio-/Quick-Live-Broadcasts bleiben unberührt. Fehler dürfen den Stream
+  nie beeinflussen.
+- Die Automatik ist über `settings.youtube` (`auto_transition`, `auto_mode`,
+  `auto_start`, `auto_stop`) und `YOUTUBE_*`-Env abschaltbar; `auto_mode`
+  kennt `off`, `relay_only` (Default) und `all`. Request-Werte (`privacy`,
   `enable_dvr`) überschreiben nur den jeweiligen Broadcast. Auswahllogik in
   `src/core/youtube/automation.ts`, inklusive Override-Resolver pro Broadcast.
 - Beim Anlegen mit Streamer wird der Ingest über den Stream-Key gesucht und

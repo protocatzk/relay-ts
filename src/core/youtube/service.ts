@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 import { AppError, NotFoundError, ValidationError, toErrorMessage } from '../../utils/errors.js';
 import type { YouTubeAuthRecord, YouTubeAuthStore } from './auth-store.js';
+import type { YouTubeBroadcastStore } from './broadcast-store.js';
 import {
   automationPolicy,
   pickBroadcastToStart,
@@ -48,6 +49,14 @@ export interface YouTubeStatus {
   scopes: string[];
   connected_at: string | null;
   expires_at: string | null;
+  automation: YouTubeAutomationStatus;
+}
+
+export interface YouTubeAutomationStatus {
+  mode: 'off' | 'relay_only' | 'all';
+  auto_transition: boolean;
+  auto_start: boolean;
+  auto_stop: boolean;
 }
 
 export type CallbackResult =
@@ -68,6 +77,8 @@ export interface BroadcastSummary {
   stream_health: string | null;
   thumbnail_url: string | null;
   watch_url: string;
+  /** True when RELAY created this broadcast and may automate it. */
+  relay_managed: boolean;
 }
 
 export interface BroadcastList {
@@ -116,6 +127,8 @@ export interface YouTubeAuthServiceOptions {
   now?: () => number;
   /** Global automation defaults; per-broadcast overrides can be layered later. */
   automation?: () => AutomationSettings;
+  /** Registry of broadcasts created through RELAY. */
+  broadcasts?: YouTubeBroadcastStore;
 }
 
 /**
@@ -142,6 +155,7 @@ export class YouTubeAuthService {
     return automationPolicy(
       this.options.automation?.() ?? {
         auto_transition: true,
+        auto_mode: 'relay_only',
         auto_start: true,
         auto_stop: true,
         default_privacy: 'unlisted',
@@ -167,6 +181,24 @@ export class YouTubeAuthService {
       scopes: record?.tokens.scope ? record.tokens.scope.split(/\s+/).filter(Boolean) : [],
       connected_at: record?.connected_at || null,
       expires_at: record ? new Date(record.tokens.expiry_date).toISOString() : null,
+      automation: this.automationStatus(),
+    };
+  }
+
+  automationStatus(): YouTubeAutomationStatus {
+    const settings = this.options.automation?.() ?? {
+      auto_transition: true,
+      auto_mode: 'relay_only' as const,
+      auto_start: true,
+      auto_stop: true,
+      default_privacy: 'unlisted' as const,
+      default_dvr: true,
+    };
+    return {
+      mode: settings.auto_transition ? (settings.auto_mode ?? 'relay_only') : 'off',
+      auto_transition: settings.auto_transition,
+      auto_start: settings.auto_start,
+      auto_stop: settings.auto_stop,
     };
   }
 
@@ -311,9 +343,13 @@ export class YouTubeAuthService {
         return [] as LiveStreamResource[];
       }),
     ]);
+    const managed = this.options.broadcasts?.ids();
     const data: BroadcastList = {
       items: broadcasts
-        .map((broadcast) => mapBroadcast(broadcast, streams))
+        .map((broadcast) => ({
+          ...mapBroadcast(broadcast, streams),
+          relay_managed: managed?.has(broadcast.id) ?? false,
+        }))
         .sort(compareBroadcasts),
       fetched_at: new Date(this.now()).toISOString(),
     };
@@ -361,6 +397,14 @@ export class YouTubeAuthService {
     }
 
     this.broadcastsCache = null;
+    this.options.broadcasts?.upsert({
+      id: created.id,
+      stream_id: stream.id,
+      title: created.snippet?.title ?? input.title,
+      scheduled_start: scheduledStartTime,
+      created_at: new Date(this.now()).toISOString(),
+      status: created.status?.lifeCycleStatus ?? 'created',
+    });
     this.options.logger.info(
       {
         broadcast: created.id,
@@ -369,10 +413,10 @@ export class YouTubeAuthService {
       },
       'YouTube-Broadcast angelegt',
     );
-    return mapBroadcast(
-      { ...created, contentDetails: { boundStreamId: stream.id } },
-      [stream],
-    );
+    return {
+      ...mapBroadcast({ ...created, contentDetails: { boundStreamId: stream.id } }, [stream]),
+      relay_managed: true,
+    };
   }
 
   async updateBroadcastById(
@@ -394,19 +438,25 @@ export class YouTubeAuthService {
     if (patch.privacy !== undefined) body.status = { privacyStatus: patch.privacy };
 
     if (!body.snippet && !body.status) {
-      return mapBroadcast(current, []);
+      return {
+        ...mapBroadcast(current, []),
+        relay_managed: this.options.broadcasts?.ids().has(id) ?? false,
+      };
     }
 
     const updated = await updateBroadcast(token, id, body);
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast aktualisiert');
-    return mapBroadcast(
-      {
-        ...updated,
-        contentDetails: updated.contentDetails ?? current.contentDetails,
-      },
-      [],
-    );
+    return {
+      ...mapBroadcast(
+        {
+          ...updated,
+          contentDetails: updated.contentDetails ?? current.contentDetails,
+        },
+        [],
+      ),
+      relay_managed: this.options.broadcasts?.ids().has(id) ?? false,
+    };
   }
 
   /** Makes a previously unlisted broadcast public; one write costs ~50 quota units. */
@@ -436,6 +486,7 @@ export class YouTubeAuthService {
       throw error;
     }
     this.broadcastsCache = null;
+    this.options.broadcasts?.updateStatus(id, status);
     this.options.logger.info({ broadcast: id, status }, 'YouTube-Broadcast-Status gesetzt');
     return { ok: true, status };
   }
@@ -443,6 +494,7 @@ export class YouTubeAuthService {
   async deleteBroadcastById(id: string): Promise<void> {
     const token = await this.accessToken();
     await deleteBroadcast(token, id);
+    this.options.broadcasts?.remove(id);
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast gelöscht');
   }
@@ -459,31 +511,49 @@ export class YouTubeAuthService {
       );
     }
     await bindBroadcast(token, id, stream.id);
+    this.options.broadcasts?.updateStream(id, stream.id);
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id, stream: stream.id }, 'YouTube-Broadcast zugeordnet');
     return { ok: true, stream_status: stream.status?.streamStatus ?? null };
   }
 
-  /** Best-effort: brings the broadcast bound to this key live. Never throws. */
+  /** Best-effort: brings a RELAY-managed broadcast live. Never throws. */
   async onStreamStarted(streamKey: string): Promise<void> {
     if (!streamKey || !this.configured || !this.options.store.read()) return;
     const policy = this.policy();
     if (!policy.autoTransition || !policy.autoStart) return;
+
+    const managedIds =
+      policy.mode === 'relay_only' ? (this.options.broadcasts?.ids() ?? new Set<string>()) : undefined;
+    if (policy.mode === 'relay_only' && (!managedIds || managedIds.size === 0)) return;
+
     try {
       const token = await this.accessToken();
       const stream = await this.findStreamForKey(token, streamKey);
       if (!stream) return;
       const broadcasts = await listBroadcasts(token);
-      const candidate = pickBroadcastToStart(broadcasts, stream.id, this.policy());
+
+      const active = broadcasts.find(
+        (item) =>
+          item.contentDetails?.boundStreamId === stream.id &&
+          ['live', 'testing'].includes(item.status?.lifeCycleStatus ?? ''),
+      );
+      if (active) return;
+
+      const candidate = pickBroadcastToStart(broadcasts, stream.id, policy, undefined, {
+        managedIds,
+        now: this.now(),
+      });
       if (!candidate) return;
-      const status = candidate.status?.lifeCycleStatus;
-      if (status === 'created') {
+
+      if (candidate.status?.lifeCycleStatus === 'created') {
         await transitionBroadcast(token, candidate.id, 'testing').catch(() => undefined);
       }
       await transitionBroadcast(token, candidate.id, 'live');
+      this.options.broadcasts?.updateStatus(candidate.id, 'live');
       this.broadcastsCache = null;
       this.options.logger.info(
-        { broadcast: candidate.id },
+        { broadcast: candidate.id, mode: policy.mode },
         'YouTube-Broadcast automatisch live geschaltet',
       );
     } catch (error) {
@@ -494,21 +564,36 @@ export class YouTubeAuthService {
     }
   }
 
-  /** Best-effort: completes live broadcasts bound to a key that is no longer used. */
+  /** Best-effort: completes only the broadcasts RELAY is allowed to manage. */
   async onStreamStopped(streamKey: string): Promise<void> {
     if (!streamKey || !this.configured || !this.options.store.read()) return;
     const policy = this.policy();
     if (!policy.autoTransition || !policy.autoStop) return;
+
+    const managedIds =
+      policy.mode === 'relay_only' ? (this.options.broadcasts?.ids() ?? new Set<string>()) : undefined;
+    if (policy.mode === 'relay_only' && (!managedIds || managedIds.size === 0)) return;
+
     try {
       const token = await this.accessToken();
       const stream = await this.findStreamForKey(token, streamKey);
       if (!stream) return;
       const broadcasts = await listBroadcasts(token);
-      const live = pickBroadcastsToComplete(broadcasts, stream.id, this.policy());
+      const live = pickBroadcastsToComplete(broadcasts, stream.id, policy, undefined, {
+        managedIds,
+      });
       for (const item of live) {
-        await transitionBroadcast(token, item.id, 'complete').catch(() => undefined);
+        await transitionBroadcast(token, item.id, 'complete')
+          .then(() => this.options.broadcasts?.updateStatus(item.id, 'complete'))
+          .catch(() => undefined);
       }
       if (live.length > 0) this.broadcastsCache = null;
+      if (live.length > 0) {
+        this.options.logger.info(
+          { broadcasts: live.map((item) => item.id), mode: policy.mode },
+          'YouTube-Broadcasts automatisch beendet',
+        );
+      }
     } catch (error) {
       this.options.logger.warn(
         { err: toErrorMessage(error) },
@@ -602,6 +687,7 @@ function mapBroadcast(
     stream_health: stream?.status?.healthStatus?.status ?? null,
     thumbnail_url: broadcast.snippet?.thumbnails?.default?.url ?? null,
     watch_url: `https://www.youtube.com/watch?v=${broadcast.id}`,
+    relay_managed: false,
   };
 }
 

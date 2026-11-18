@@ -260,6 +260,7 @@ export const EarningsSettingsSchema = z.object({
 
 export const YouTubeAutomationSettingsSchema = z.object({
   auto_transition: z.boolean().default(true),
+  auto_mode: z.enum(['off', 'relay_only', 'all']).default('relay_only'),
   auto_start: z.boolean().default(true),
   auto_stop: z.boolean().default(true),
   default_privacy: z.enum(['public', 'unlisted', 'private']).default('unlisted'),
