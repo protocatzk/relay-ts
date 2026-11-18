@@ -314,6 +314,18 @@ export interface PauseSettings {
   fit: 'cover' | 'contain' | 'stretch';
 }
 
+export interface StartupSettings {
+  enabled: boolean;
+  duration_seconds: number;
+  text: string;
+  subtext: string;
+  color: string;
+  background: string;
+  font: string;
+  text_color: string;
+  fit: 'cover' | 'contain' | 'stretch';
+}
+
 export interface PauseAsset {
   filename: string;
   path: string;
@@ -342,6 +354,7 @@ export interface Settings {
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
   pause: PauseSettings;
+  startup: StartupSettings;
   online: OnlineSettings;
   chat: ChatSettings;
   streaming: StreamingSettings;
@@ -377,6 +390,7 @@ export interface SettingsUpdate {
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
   pause: PauseSettings;
+  startup: StartupSettings;
   online: {
     enabled: boolean;
     source_url: string;

@@ -74,6 +74,7 @@ interface StartOptions {
   playlist?: PlaylistState;
   forceReencode?: boolean;
   allowOfflineWait?: boolean;
+  intro?: boolean;
 }
 
 /**
@@ -93,6 +94,7 @@ export class Supervisor {
   private sink!: YouTubeSink;
   private overlays!: OverlayManager;
   private pauseScreen!: PauseScreen;
+  private startupScreen!: PauseScreen;
   private watchdog!: Watchdog;
   private autoRefresh!: AutoRefresh;
   private online!: OnlineMonitor;
@@ -124,6 +126,7 @@ export class Supervisor {
   private playlistAdvancePending = false;
   private pauseRestartTimer?: NodeJS.Timeout;
   private pauseLimitTimer?: NodeJS.Timeout;
+  private startupTimer?: NodeJS.Timeout;
   private offlinePauseTimer?: NodeJS.Timeout;
   private statusTimer?: NodeJS.Timeout;
   private autoStartTimer?: NodeJS.Timeout;
@@ -236,6 +239,16 @@ export class Supervisor {
           this.schedulePauseRestart();
         }
       },
+    });
+    this.startupScreen = new PauseScreen({
+      media: config.media,
+      settings: this.settings,
+      relay: relayEndpoint,
+      logger,
+      overlaysDir: config.paths.overlaysDir,
+      fontFile: this.overlays.font,
+      screen: 'startup',
+      redact: this.deps.redact,
     });
     this.watchdog = new Watchdog({
       settings: this.settings,
@@ -563,15 +576,40 @@ export class Supervisor {
     this.reconnectAttempts = 0;
     this.forceReencodeNext = options.forceReencode ?? false;
 
-    this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
-    this.markProducerStarted(timestampOffset);
-    this.markSinkGrace();
-    this.clearOfflinePauseTimer();
-    this.startChatLocked(streamer);
-    this.earnings.setActive();
-    this.autoRefresh.start();
-    this.watchdog.reset();
-    this.watchdog.clearError();
+    const introSeconds =
+      options.intro !== false &&
+      !options.playlist &&
+      previousState === 'idle' &&
+      this.settings.startup.enabled
+        ? Math.max(0, this.settings.startup.duration_seconds)
+        : 0;
+
+    if (introSeconds > 0) {
+      await this.startupScreen.start(undefined, undefined, timestampOffset);
+      this.markProducerStarted(timestampOffset);
+      this.markSinkGrace();
+      this.clearOfflinePauseTimer();
+      this.earnings.setActive();
+      this.watchdog.reset();
+      this.watchdog.clearError();
+      this.transitionTo('starting', 'startup screen');
+      this.scheduleStartupFinishLocked(
+        streamer,
+        stream,
+        introSeconds,
+      );
+    } else {
+      this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
+      this.markProducerStarted(timestampOffset);
+      this.markSinkGrace();
+      this.clearOfflinePauseTimer();
+      this.startChatLocked(streamer);
+      this.earnings.setActive();
+      this.autoRefresh.start();
+      this.watchdog.reset();
+      this.watchdog.clearError();
+      this.transitionTo('live');
+    }
     if (options.playlist) {
       if (this.playlistAdvanceTimer) clearTimeout(this.playlistAdvanceTimer);
       this.playlistAdvanceTimer = undefined;
@@ -583,13 +621,43 @@ export class Supervisor {
     } else {
       this.clearPlaylistTimers();
     }
-    this.transitionTo('live');
     this.emitAll();
     this.deps.logger.info(
-      { streamer: streamer.id, key: '***', reusedSink: reusable },
-      'Stream gestartet',
+      { streamer: streamer.id, key: '***', reusedSink: reusable, introSeconds },
+      introSeconds > 0 ? 'Startbildschirm aktiv' : 'Stream gestartet',
     );
     return this.buildStatus();
+  }
+
+  private scheduleStartupFinishLocked(
+    streamer: StreamerConfig,
+    stream: ResolvedStream,
+    introSeconds: number,
+  ): void {
+    if (this.startupTimer) clearTimeout(this.startupTimer);
+    this.startupTimer = setTimeout(() => {
+      this.startupTimer = undefined;
+      void this.lock.run(async () => {
+        if (
+          this.shuttingDown ||
+          this.state !== 'starting' ||
+          this.activeStreamer?.id !== streamer.id
+        ) {
+          return;
+        }
+        await this.startupScreen.stop();
+        if (this.source.running) return;
+        const offset = this.nextProducerOffset();
+        this.source.start(streamer, stream, this.forceReencodeNext, offset);
+        this.markProducerStarted(offset);
+        this.markSinkGrace();
+        this.clearOfflinePauseTimer();
+        this.startChatLocked(streamer);
+        this.autoRefresh.start();
+        this.transitionTo('live', 'startup finished');
+        this.emitAll();
+      });
+    }, introSeconds * 1000);
   }
 
   /**
@@ -704,6 +772,7 @@ export class Supervisor {
       }
     }
     if (this.pauseScreen.running) await this.pauseScreen.stop();
+    if (this.startupScreen?.running) await this.startupScreen.stop();
   }
 
   private startChatLocked(streamer: StreamerConfig): void {
@@ -780,6 +849,7 @@ export class Supervisor {
       this.clearReconnectTimer();
       this.pauseReason = 'user';
       this.clearOfflinePauseTimer();
+      this.clearStartupTimer();
       await this.stopSourceAndChatLocked();
       if (!this.sink.running) {
         this.buffer.reset();
@@ -1046,6 +1116,7 @@ export class Supervisor {
     this.pauseRestartTimer = undefined;
     if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
     this.pauseLimitTimer = undefined;
+    this.clearStartupTimer();
     if (this.offlinePauseTimer) clearTimeout(this.offlinePauseTimer);
     this.offlinePauseTimer = undefined;
   }
@@ -1151,6 +1222,8 @@ export class Supervisor {
   }
 
   private async startPauseLocked(): Promise<void> {
+    this.clearStartupTimer();
+    if (this.startupScreen?.running) await this.startupScreen.stop();
     if (this.chat) {
       this.chat.stop();
       this.chat = undefined;
@@ -1189,6 +1262,11 @@ export class Supervisor {
   private clearOfflinePauseTimer(): void {
     if (this.offlinePauseTimer) clearTimeout(this.offlinePauseTimer);
     this.offlinePauseTimer = undefined;
+  }
+
+  private clearStartupTimer(): void {
+    if (this.startupTimer) clearTimeout(this.startupTimer);
+    this.startupTimer = undefined;
   }
 
   /**
@@ -1400,6 +1478,7 @@ export class Supervisor {
       this.online.updateSettings(next);
       this.overlays.updateSettings(next);
       this.pauseScreen.updateSettings(next);
+      this.startupScreen.updateSettings(next);
       this.earnings.updateSettings(next);
 
       const overlaysChanged =

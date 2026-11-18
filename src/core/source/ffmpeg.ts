@@ -329,6 +329,7 @@ export interface PauseCommandOptions {
   timestampOffset?: number;
   background?: string;
   textColor?: string;
+  color?: string;
   fit?: 'cover' | 'contain' | 'stretch';
 }
 
@@ -359,6 +360,7 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
   const background = options.background?.trim() ?? '';
   const kind = background ? pauseBackgroundKind(background) : 'none';
   const textColor = options.textColor?.trim() || 'white';
+  const slateColor = options.color?.trim() || settings.pause.color;
   const filters: string[] = [];
 
   if (background) {
@@ -373,7 +375,7 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
     } else {
       filters.push(
         `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${settings.pause.color}`,
+        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${slateColor}`,
       );
     }
     filters.push('setsar=1', `fps=${fps}`);
@@ -414,7 +416,7 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
       '-f',
       'lavfi',
       '-i',
-      `color=c=${settings.pause.color}:s=${width}x${height}:r=${fps}`,
+      `color=c=${slateColor}:s=${width}x${height}:r=${fps}`,
       '-f',
       'lavfi',
       '-i',

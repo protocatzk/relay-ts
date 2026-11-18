@@ -24,8 +24,6 @@ npm run check          # Typecheck + Vue-Typecheck + ESLint + Tests
 npm run build          # Server + Web
 npm test               # nur Vitest
 npm run build:web      # nur Dashboard
-npm run render:pause   # Pausen-Video aus tools/render-pause-video.mjs erzeugen
-npm run render:brb     # BRB-420X-Pausenscreen erzeugen
 ```
 
 Deployment:
@@ -59,9 +57,8 @@ Wichtige Pfade:
 - `src/core/telegram/` – Login-Bot und Token-Store
 - `src/api/` – Fastify-Routen, Auth, SSE
 - `src/web/src/` – Vue-Dashboard
-- `assets/pause/` – Beispiel-Pausenassets (SVG, HTML und MP4)
-- `tools/render-pause-video.mjs` – rendert das ältere Pausen-Video
-- `tools/render-brb-420x.mjs` – rendert den BRB-420X-Pausenscreen
+- `assets/` – keine persönlichen Pause-/Stream-Assets im Repository
+- `data/pause/` – lokale Pause-/Start-Assets (gitignored)
 - `docs/ROADMAP.md` – priorisierter Plan und Issue-Übersicht
 - `docs/issues/` – Issue-Texte + `scripts/create-issues.sh`
 - `.github/workflows/create-roadmap-issues.yml` – legt Issues per Actions-Token an
@@ -74,6 +71,9 @@ Wichtige Pfade:
   Pausenscreen. Reconnect läuft weiter; bei Erfolg wird der Pausenscreen
   gestoppt.
 - `pause.max_minutes` begrenzt die Pause (0 = unbegrenzt).
+- Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
+  `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
+  Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.
 - Der Pausenscreen kann ein eigenes Hintergrundbild/-video und einen eigenen Font
   nutzen. Statische SVGs werden mit Skia zu PNG gerastert; animierte SVGs werden
   nur als statisches Bild dargestellt (für Animation WebM/GIF/MP4 verwenden).

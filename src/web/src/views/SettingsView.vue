@@ -37,6 +37,9 @@ const pauseUploading = ref<'background' | 'font' | null>(null);
 const pauseAsset = ref<PauseAsset | null>(null);
 const pausePreviewUrl = ref('');
 const pausePreviewKind = ref<'image' | 'video' | null>(null);
+const startupAsset = ref<PauseAsset | null>(null);
+const startupPreviewUrl = ref('');
+const startupPreviewKind = ref<'image' | 'video' | null>(null);
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -80,17 +83,37 @@ const pausePreviewIsVideo = computed(() => {
   return /\.(mp4|webm|mov|mkv|m4v)$/i.test(path.split('?')[0] ?? path);
 });
 
-const pauseAssetMetadata = computed(() => {
-  const asset = pauseAsset.value;
+const startupPreviewSource = computed(() => {
+  if (startupPreviewUrl.value) return startupPreviewUrl.value;
+  const path = form.value?.startup.background ?? '';
+  if (!path.startsWith('/app/data/pause/') && !path.startsWith('data/pause/')) return '';
+  const filename = pauseFileName(path);
+  return filename ? api.pause.assetUrl(filename) : '';
+});
+
+const startupPreviewIsVideo = computed(() => {
+  if (startupPreviewUrl.value && startupPreviewKind.value) return startupPreviewKind.value === 'video';
+  const path = form.value?.startup.background ?? '';
+  return /\.(mp4|webm|mov|mkv|m4v)$/i.test(path.split('?')[0] ?? path);
+});
+
+function assetMetadata(asset: PauseAsset | null): string {
   if (!asset) return '';
   const parts = [asset.kind.toUpperCase(), `${Math.round(asset.size / 1024)} KB`];
   if (asset.width && asset.height) parts.push(`${asset.width}×${asset.height}`);
   if (asset.duration) parts.push(`${asset.duration.toFixed(1)} s`);
   if (asset.loopable) parts.push('loop');
   return parts.join(' · ');
-});
+}
 
-async function uploadPauseAsset(kind: 'background' | 'font', event: Event): Promise<void> {
+const pauseAssetMetadata = computed(() => assetMetadata(pauseAsset.value));
+const startupAssetMetadata = computed(() => assetMetadata(startupAsset.value));
+
+async function uploadPauseAsset(
+  kind: 'background' | 'font',
+  event: Event,
+  target: 'pause' | 'startup' = 'pause',
+): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = '';
@@ -98,15 +121,19 @@ async function uploadPauseAsset(kind: 'background' | 'font', event: Event): Prom
   pauseUploading.value = kind;
   try {
     const asset = await api.pause.upload(file);
+    const section = target === 'startup' ? form.value.startup : form.value.pause;
     if (kind === 'background') {
-      form.value.pause.background = asset.path;
-      if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
-      pausePreviewUrl.value = URL.createObjectURL(file);
-      pausePreviewKind.value = asset.kind === 'video' ? 'video' : 'image';
+      section.background = asset.path;
+      const urlRef = target === 'startup' ? startupPreviewUrl : pausePreviewUrl;
+      const kindRef = target === 'startup' ? startupPreviewKind : pausePreviewKind;
+      if (urlRef.value) URL.revokeObjectURL(urlRef.value);
+      urlRef.value = URL.createObjectURL(file);
+      kindRef.value = asset.kind === 'video' ? 'video' : 'image';
     } else {
-      form.value.pause.font = asset.path;
+      section.font = asset.path;
     }
-    pauseAsset.value = asset;
+    if (target === 'startup') startupAsset.value = asset;
+    else pauseAsset.value = asset;
     pushToast(asset.warning ?? 'Datei hochgeladen.', asset.warning ? 'info' : 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -115,30 +142,36 @@ async function uploadPauseAsset(kind: 'background' | 'font', event: Event): Prom
   }
 }
 
-async function removePauseAsset(kind: 'background' | 'font'): Promise<void> {
+async function removePauseAsset(
+  kind: 'background' | 'font',
+  target: 'pause' | 'startup' = 'pause',
+): Promise<void> {
   if (!form.value) return;
-  const path =
-    kind === 'background' ? form.value.pause.background : form.value.pause.font;
+  const section = target === 'startup' ? form.value.startup : form.value.pause;
+  const path = kind === 'background' ? section.background : section.font;
   if (!path) return;
   const filename = pauseFileName(path);
   const localAsset = path.startsWith('/app/data/pause/') || path.startsWith('data/pause/');
   if (!filename || !localAsset) {
-    if (kind === 'background') form.value.pause.background = '';
-    else form.value.pause.font = '';
+    if (kind === 'background') section.background = '';
+    else section.font = '';
     return;
   }
   if (!window.confirm('Datei wirklich löschen?')) return;
   try {
     await api.pause.remove(filename);
     if (kind === 'background') {
-      form.value.pause.background = '';
-      if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
-      pausePreviewUrl.value = '';
-      pausePreviewKind.value = null;
+      section.background = '';
+      const urlRef = target === 'startup' ? startupPreviewUrl : pausePreviewUrl;
+      const kindRef = target === 'startup' ? startupPreviewKind : pausePreviewKind;
+      if (urlRef.value) URL.revokeObjectURL(urlRef.value);
+      urlRef.value = '';
+      kindRef.value = null;
     } else {
-      form.value.pause.font = '';
+      section.font = '';
     }
-    pauseAsset.value = null;
+    if (target === 'startup') startupAsset.value = null;
+    else pauseAsset.value = null;
     pushToast('Datei gelöscht.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -212,6 +245,17 @@ async function save(): Promise<void> {
       text_color: current.pause.text_color.trim() || 'white',
       fit: current.pause.fit,
     },
+    startup: {
+      enabled: current.startup.enabled,
+      duration_seconds: toNumber(current.startup.duration_seconds, 10),
+      text: current.startup.text,
+      subtext: current.startup.subtext,
+      color: current.startup.color,
+      background: current.startup.background.trim(),
+      font: current.startup.font.trim(),
+      text_color: current.startup.text_color.trim() || 'white',
+      fit: current.startup.fit,
+    },
     online: {
       enabled: current.online.enabled,
       source_url: current.online.source_url.trim(),
@@ -258,6 +302,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (pausePreviewUrl.value) URL.revokeObjectURL(pausePreviewUrl.value);
+  if (startupPreviewUrl.value) URL.revokeObjectURL(startupPreviewUrl.value);
 });
 </script>
 
@@ -415,6 +460,128 @@ onBeforeUnmount(() => {
             <div class="field">
               <label for="refresh-interval">Intervall (Minuten)</label>
               <input id="refresh-interval" v-model.number="form.auto_refresh.interval" type="number" min="1" max="720" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Startbildschirm</h2>
+            <p class="card-sub">Wird beim Start aus dem Idle-Zustand vor dem Live-Stream gezeigt.</p>
+          </div>
+        </div>
+        <div class="settings-body">
+          <ToggleField
+            v-model="form.startup.enabled"
+            label="Startbildschirm aktiviert"
+            description="Zeigt vor dem ersten Live-Bild ein konfigurierbares Video oder Bild."
+          />
+          <div class="settings-grid">
+            <div class="field">
+              <label for="startup-duration">Dauer (Sekunden, 0 = aus)</label>
+              <input id="startup-duration" v-model.number="form.startup.duration_seconds" type="number" min="0" max="300" />
+            </div>
+            <div class="field">
+              <label for="startup-text">Haupttext</label>
+              <input id="startup-text" v-model="form.startup.text" type="text" maxlength="200" />
+            </div>
+            <div class="field">
+              <label for="startup-subtext">Untertext</label>
+              <input id="startup-subtext" v-model="form.startup.subtext" type="text" maxlength="200" />
+            </div>
+            <div class="field">
+              <label for="startup-color">Hintergrundfarbe (Fallback)</label>
+              <input id="startup-color" v-model="form.startup.color" type="text" spellcheck="false" placeholder="0x101820" />
+            </div>
+            <div class="field">
+              <label for="startup-text-color">Textfarbe</label>
+              <input id="startup-text-color" v-model="form.startup.text_color" type="text" spellcheck="false" placeholder="white" />
+            </div>
+            <div class="field">
+              <label for="startup-fit">Bildanpassung</label>
+              <select id="startup-fit" v-model="form.startup.fit">
+                <option value="cover">Ausfüllen (cover, beschneidet)</option>
+                <option value="contain">Einpassen (contain, Ränder)</option>
+                <option value="stretch">Strecken (exakt füllen)</option>
+              </select>
+            </div>
+            <div class="field field-span-2">
+              <label for="startup-background">Hintergrundbild oder -video</label>
+              <input
+                id="startup-background"
+                v-model="form.startup.background"
+                type="text"
+                spellcheck="false"
+                placeholder="/app/data/pause/starting-soon.mp4"
+              />
+              <div class="pause-upload-row">
+                <label class="btn btn-ghost btn-sm">
+                  <input
+                    class="sr-only"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-matroska"
+                    @change="uploadPauseAsset('background', $event, 'startup')"
+                  />
+                  Hintergrund hochladen
+                </label>
+                <button
+                  v-if="form.startup.background"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="pauseUploading !== null"
+                  @click="removePauseAsset('background', 'startup')"
+                >
+                  Entfernen
+                </button>
+                <span v-if="pauseUploading === 'background'" class="muted small">Lädt hoch…</span>
+              </div>
+              <div v-if="startupPreviewSource" class="pause-preview">
+                <video
+                  v-if="startupPreviewIsVideo"
+                  :src="startupPreviewSource"
+                  controls
+                  muted
+                  loop
+                  playsinline
+                  preload="metadata"
+                ></video>
+                <img v-else :src="startupPreviewSource" alt="Startbildschirm-Vorschau" />
+              </div>
+              <p v-if="startupAssetMetadata && startupAsset?.kind !== 'font'" class="field-hint mono">
+                {{ startupAssetMetadata }}
+              </p>
+            </div>
+            <div class="field">
+              <label for="startup-font">Schriftdatei (TTF/OTF)</label>
+              <input
+                id="startup-font"
+                v-model="form.startup.font"
+                type="text"
+                spellcheck="false"
+                placeholder="/app/data/pause/font.ttf"
+              />
+              <div class="pause-upload-row">
+                <label class="btn btn-ghost btn-sm">
+                  <input
+                    class="sr-only"
+                    type="file"
+                    accept=".ttf,.otf,font/ttf,font/otf"
+                    @change="uploadPauseAsset('font', $event, 'startup')"
+                  />
+                  Schrift hochladen
+                </label>
+                <button
+                  v-if="form.startup.font"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="pauseUploading !== null"
+                  @click="removePauseAsset('font', 'startup')"
+                >
+                  Entfernen
+                </button>
+              </div>
             </div>
           </div>
         </div>

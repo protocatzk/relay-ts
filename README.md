@@ -42,6 +42,7 @@ Navigation.
 | **Streaming**      | TikTok → YouTube, Delay-Puffer mit Bitraten-Pacing, MPEG-TS-Relay, CBR-Output mit Filler-Frames, monotone Timestamps |
 | **Stabilität**     | Watchdog für Quelle/Sink, Quell-Ratenüberwachung, Auto-Reconnect mit Backoff, Auto-Refresh der TikTok-URL            |
 | **Pausenmodus**    | Pausenscreen statt RTMP-Trennung, konfigurierbare Grace-Periode, maximale Pausendauer, eigener Hintergrund/Font      |
+| **Startbildschirm** | „Starting Soon“-Video/Bild vor dem ersten Live-Bild mit Dauer, Text und Font                                          |
 | **Overlays**       | Canvas-Chat (Bubbles/Panel/Minimal), Emoji, Tier-Badges, Chat-Statistik, Uhr, Text, Einnahmen, drawtext-Fallback     |
 | **Overlay-Studio** | Vollständige Bühnenvorschau aus ungespeicherten Drafts, Positions-Klick, globale Persistenz, Live-Anwendung          |
 | **Playlists**      | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
@@ -136,7 +137,7 @@ src/
 ├── utils/                Logger, Prozesse, Dateien
 └── web/                  Vue-3-Dashboard (Vite)
 
-assets/pause/             Beispiel-Pausenassets (SVG + MP4)
+data/pause/               lokale Pause-/Start-Assets (nicht im Git)
 tools/                    Asset-Renderer
 tests/                    Vitest Unit-/Integrationstests
 config/                   streamers.yml, settings.yml
@@ -266,6 +267,16 @@ pause:
   font: ''
   text_color: white
   fit: cover
+startup:
+  enabled: false
+  duration_seconds: 10
+  text: 'Gleich geht’s los.'
+  subtext: 'Der Stream startet in wenigen Minuten.'
+  color: '0x101820'
+  background: ''
+  font: ''
+  text_color: white
+  fit: cover
 online:
   enabled: false
   source_url: ''
@@ -333,17 +344,37 @@ auf 50 MB begrenzt und werden anhand von Endung und Magic Bytes geprüft.
 > ffmpeg kann animierte SVGs nicht nativ dekodieren. Sie werden als statisches
 > Bild verwendet. Für echte Animation das SVG zu WebM/GIF/MP4 konvertieren.
 
-Beispielassets: `assets/pause/brb-420x.html` (HTML-Quelle) und
-`assets/pause/brb-420x.mp4` (8-s-Loop, 1280×720). Für die Live-Nutzung nach
-`data/pause/` kopieren und `pause.background` auf
-`/app/data/pause/brb-420x.mp4` setzen. Neu erzeugen:
+### Startbildschirm
 
-```bash
-npm run render:brb
+Der optionale Startbildschirm läuft nur beim Start aus dem Idle-Zustand, bevor
+die erste TikTok-Quelle übernimmt:
+
+```yaml
+startup:
+  enabled: true
+  duration_seconds: 8
+  text: "Gleich geht’s los."
+  subtext: "Der Stream startet in wenigen Minuten."
+  background: /app/data/pause/starting-soon.mp4
+  fit: stretch
 ```
 
-Die älteren Assets `pause-420x.svg`/`pause-420x.mp4` bleiben als Alternative
-erhalten.
+Während der Dauer bleibt der YouTube-Sink aktiv; danach wird die Quelle ohne
+RTMP-Neuaufbau gestartet. Hintergrund, Font und Uploads nutzen dieselbe
+Asset-API wie der Pausenscreen (`/api/pause/assets`). Ohne gültiges Asset wird
+`startup.color` als Hintergrund verwendet.
+
+Pause- und Startbildschirm-Assets sind bewusst **nicht im Repository**. Sie
+liegen lokal unter `data/pause/` (gitignored) und werden über das Dashboard oder
+die Asset-API hochgeladen. Beispiel:
+
+```text
+data/pause/starting-soon.mp4
+data/pause/pausenscreen.mp4
+```
+
+`pause.background` bzw. `startup.background` verweisen dann auf
+`/app/data/pause/<datei>`.
 
 ---
 
@@ -614,7 +645,6 @@ Produktionsbuild und Checks:
 npm run build        # tsc + vite
 npm run check        # Typecheck + Vue-Typecheck + ESLint + Tests
 npm test
-npm run render:pause # Pausen-Asset neu rendern
 ```
 
 ---

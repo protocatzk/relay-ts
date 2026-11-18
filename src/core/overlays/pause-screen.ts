@@ -16,9 +16,15 @@ export interface PauseScreenOptions {
   logger: Logger;
   overlaysDir: string;
   fontFile?: string | null;
+  screen?: 'pause' | 'startup';
   redact?: (text: string) => string;
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
 }
+
+type SlateConfig = Pick<
+  Settings['pause'],
+  'text' | 'subtext' | 'color' | 'background' | 'font' | 'text_color' | 'fit'
+>;
 
 const ANIMATED_SVG = /<(animate|animateTransform|animateMotion|set)\b|@keyframes|animation\s*:/i;
 
@@ -44,22 +50,30 @@ export class PauseScreen {
     this.options.settings = settings;
   }
 
+  private get config(): SlateConfig {
+    return this.options.screen === 'startup'
+      ? this.options.settings.startup
+      : this.options.settings.pause;
+  }
+
   async start(text?: string, subtext?: string, timestampOffset = 0): Promise<void> {
     if (this.process?.running) return;
     this.stopping = false;
-    const background = await this.resolveBackground(this.options.settings.pause.background);
-    const fontFile = resolveFont(this.options.settings.pause.font) ?? this.options.fontFile;
+    const config = this.config;
+    const background = await this.resolveBackground(config.background);
+    const fontFile = resolveFont(config.font) ?? this.options.fontFile;
     const args = buildPauseCommand({
       media: this.options.media,
       settings: this.options.settings,
       relay: this.options.relay,
-      text: text ?? this.options.settings.pause.text,
-      subtext: subtext ?? this.options.settings.pause.subtext,
+      text: text ?? config.text,
+      subtext: subtext ?? config.subtext,
       fontFile,
       timestampOffset,
       background,
-      textColor: this.options.settings.pause.text_color,
-      fit: this.options.settings.pause.fit,
+      textColor: config.text_color,
+      color: config.color,
+      fit: config.fit,
     });
     const process = new ManagedProcess({
       name: 'pause-screen',

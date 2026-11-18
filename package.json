@@ -19,8 +19,6 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "render:pause": "node tools/render-pause-video.mjs",
-    "render:brb": "node tools/render-brb-420x.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "check": "npm run typecheck && npm run typecheck:web && npm run lint && npm run test"

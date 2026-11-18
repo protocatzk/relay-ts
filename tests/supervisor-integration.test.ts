@@ -156,4 +156,69 @@ describe('Supervisor integration', () => {
     },
     20_000,
   );
+
+  it(
+    'shows the startup screen before the source goes live',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19100 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          STARTUP_ENABLED: 'true',
+          STARTUP_DURATION_SECONDS: '1',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+      });
+      await supervisor.init();
+      const started = await supervisor.start('alpha');
+      expect(started.state).toBe('starting');
+      expect(started.sink.running).toBe(true);
+      expect(started.source.connected).toBe(false);
+
+      await waitFor(() => {
+        const status = supervisor!.buildStatus();
+        return status.state === 'live' && status.source.connected;
+      }, 6000);
+    },
+    20_000,
+  );
 });

@@ -400,6 +400,15 @@ export function applyEnvSettings(
   set(['pause', 'font'], env.PAUSE_FONT?.trim() || undefined);
   set(['pause', 'text_color'], env.PAUSE_TEXT_COLOR?.trim() || undefined);
   set(['pause', 'fit'], env.PAUSE_FIT?.trim() || undefined);
+  set(['startup', 'enabled'], parseBoolean(env.STARTUP_ENABLED));
+  set(['startup', 'duration_seconds'], parseNumber(env.STARTUP_DURATION_SECONDS));
+  set(['startup', 'text'], env.STARTUP_TEXT?.trim() || undefined);
+  set(['startup', 'subtext'], env.STARTUP_SUBTEXT?.trim() || undefined);
+  set(['startup', 'color'], env.STARTUP_COLOR?.trim() || undefined);
+  set(['startup', 'background'], env.STARTUP_BACKGROUND?.trim() || undefined);
+  set(['startup', 'font'], env.STARTUP_FONT?.trim() || undefined);
+  set(['startup', 'text_color'], env.STARTUP_TEXT_COLOR?.trim() || undefined);
+  set(['startup', 'fit'], env.STARTUP_FIT?.trim() || undefined);
   set(['online', 'enabled'], parseBoolean(env.ONLINE_CHECK_ENABLED));
   set(['online', 'source_url'], env.ONLINE_SOURCE_URL?.trim() || undefined);
   set(['online', 'api_key'], env.ONLINE_SOURCE_API_KEY?.trim() || undefined);

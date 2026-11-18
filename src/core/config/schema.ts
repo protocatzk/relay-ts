@@ -272,6 +272,21 @@ export const PauseSettingsSchema = z.object({
   fit: z.enum(['cover', 'contain', 'stretch']).default('cover'),
 });
 
+export const StartupSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  duration_seconds: z.number().int().min(0).max(300).default(10),
+  text: z.string().max(200).default('Gleich geht’s los.'),
+  subtext: z.string().max(200).default('Der Stream startet in wenigen Minuten.'),
+  color: z
+    .string()
+    .regex(/^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$/, 'Farbe muss 0xRRGGBB oder #RRGGBB sein')
+    .default('0x101820'),
+  background: z.string().max(500).default(''),
+  font: z.string().max(500).default(''),
+  text_color: z.string().max(64).default('white'),
+  fit: z.enum(['cover', 'contain', 'stretch']).default('cover'),
+});
+
 export const OnlineSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   source_url: z.string().default(''),
@@ -308,6 +323,7 @@ export const SettingsSchema = z.object({
   watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
   auto_refresh: AutoRefreshSettingsSchema.default(AutoRefreshSettingsSchema.parse({})),
   pause: PauseSettingsSchema.default(PauseSettingsSchema.parse({})),
+  startup: StartupSettingsSchema.default(StartupSettingsSchema.parse({})),
   online: OnlineSettingsSchema.default(OnlineSettingsSchema.parse({})),
   chat: ChatSettingsSchema.default(ChatSettingsSchema.parse({})),
   streaming: StreamingSettingsSchema.default(StreamingSettingsSchema.parse({})),
