@@ -160,6 +160,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Vor jedem Commit: `npm run check` und bei UI/Serveränderungen `npm run build`.
 - Neue Backend-Felder immer in Schema, API-Typen, Frontend-Typen und Tests
   ergänzen.
+- `tests/supervisor-integration.test.ts` simuliert Quellenausfall → Pause →
+  Reconnect mit Fake-ffmpeg/yt-dlp.
 - Keine Secrets, `.env`, `config/streamers.yml`, `config/settings.yml`, `data/`
   oder `logs/` committen.
 - Commit-Nachrichten im Conventional-Format, z. B.
