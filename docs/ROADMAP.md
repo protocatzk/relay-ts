@@ -55,6 +55,7 @@ als Folge-Issue außerhalb von v0.3.0.
 | Issue | Priorität | Bereich |
 |---|---|---|
 | Video Playback im Dashboard ermöglichen | P3 | Streaming/UI |
+| Lokale Videodateien in Playlists abspielen | P3 | Playlists/Media |
 | Per-Streamer-Overlays entfernen und Migration abschließen | P4 | Tech Debt |
 | OpenAPI aus Zod/Fastify generieren und Client typisieren | P4 | Tech Debt |
 
