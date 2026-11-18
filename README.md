@@ -330,12 +330,17 @@ abzuschneiden. Dateien im Container z. B. unter `/app/data/pause/` ablegen.
 > ffmpeg kann animierte SVGs nicht nativ dekodieren. Sie werden als statisches
 > Bild verwendet. Für echte Animation das SVG zu WebM/GIF/MP4 konvertieren.
 
-Beispielasset: `assets/pause/pause-420x.svg` (animiert) und
-`assets/pause/pause-420x.mp4` (8-s-Loop). Neu erzeugen:
+Beispielassets: `assets/pause/brb-420x.html` (HTML-Quelle) und
+`assets/pause/brb-420x.mp4` (8-s-Loop, 1280×720). Für die Live-Nutzung nach
+`data/pause/` kopieren und `pause.background` auf
+`/app/data/pause/brb-420x.mp4` setzen. Neu erzeugen:
 
 ```bash
-npm run render:pause
+npm run render:brb
 ```
+
+Die älteren Assets `pause-420x.svg`/`pause-420x.mp4` bleiben als Alternative
+erhalten.
 
 ---
 

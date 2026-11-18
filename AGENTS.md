@@ -25,6 +25,7 @@ npm run build          # Server + Web
 npm test               # nur Vitest
 npm run build:web      # nur Dashboard
 npm run render:pause   # Pausen-Video aus tools/render-pause-video.mjs erzeugen
+npm run render:brb     # BRB-420X-Pausenscreen erzeugen
 ```
 
 Deployment:
@@ -56,8 +57,9 @@ Wichtige Pfade:
 - `src/core/telegram/` – Login-Bot und Token-Store
 - `src/api/` – Fastify-Routen, Auth, SSE
 - `src/web/src/` – Vue-Dashboard
-- `assets/pause/` – Beispiel-Pausenassets (SVG + MP4)
-- `tools/render-pause-video.mjs` – rendert das Pausen-Video mit Canvas/ffmpeg
+- `assets/pause/` – Beispiel-Pausenassets (SVG, HTML und MP4)
+- `tools/render-pause-video.mjs` – rendert das ältere Pausen-Video
+- `tools/render-brb-420x.mjs` – rendert den BRB-420X-Pausenscreen
 - `docs/ROADMAP.md` – priorisierter Plan und Issue-Übersicht
 - `docs/issues/` – Issue-Texte + `scripts/create-issues.sh`
 - `.github/workflows/create-roadmap-issues.yml` – legt Issues per Actions-Token an
