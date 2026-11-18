@@ -6,6 +6,7 @@ import ModalDialog from '@/src/components/ModalDialog.vue';
 import StreamerEditor from '@/src/components/StreamerEditor.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
 const { store, refreshStreamers, refreshPlaylists, refreshStatus } = useStore();
 const { pushToast } = useToast();
@@ -24,8 +25,9 @@ const bulkBusy = ref(false);
 
 const filtered = computed(() => {
   const query = search.value.trim().toLowerCase();
-  if (!query) return store.streamers;
-  return store.streamers.filter((streamer) => {
+  const sorted = sortStreamersByLive(store.streamers);
+  if (!query) return sorted;
+  return sorted.filter((streamer) => {
     return (
       streamer.name.toLowerCase().includes(query) ||
       streamer.tiktok.toLowerCase().includes(query) ||

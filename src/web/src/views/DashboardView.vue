@@ -13,6 +13,7 @@ import {
   formatSeconds,
   formatUptime,
 } from '@/src/utils/format';
+import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
 const { store, refreshStatus, refreshStreamers, refreshPlaylists } = useStore();
 const { pushToast } = useToast();
@@ -54,6 +55,7 @@ const startCandidate = computed<Streamer | null>(() => {
 });
 
 const activePlaylist = computed(() => status.value?.active_playlist ?? null);
+const streamers = computed(() => sortStreamersByLive(store.streamers));
 const previewUrl = ref(api.overlays.previewUrl(false));
 const chatTest = reactive({ username: 'Testuser', text: '' });
 const sendingChat = ref(false);
@@ -670,7 +672,7 @@ onBeforeUnmount(() => {
       </div>
 
       <ul v-else class="streamer-list">
-        <li v-for="streamer in store.streamers" :key="streamer.id" class="streamer-row">
+        <li v-for="streamer in streamers" :key="streamer.id" class="streamer-row">
           <span class="online-indicator" :class="onlineClass(streamer)">
             <span class="dot" aria-hidden="true"></span>
             {{ onlineLabel(streamer) }}
