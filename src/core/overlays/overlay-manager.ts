@@ -68,16 +68,8 @@ export class OverlayManager {
     if (clock) filters.push(clock);
     const text = textFilter(this.settings, effective, this.fontFile, this.textFile);
     if (text) filters.push(text);
-    if (this.settings.earnings.overlay_enabled) {
-      filters.push(
-        earningsFilter(
-          this.settings,
-          this.fontFile,
-          this.earningsFile,
-          this.settings.earnings.overlay_position,
-        ),
-      );
-    }
+    const earnings = earningsFilter(this.settings, this.fontFile, this.earningsFile);
+    if (earnings) filters.push(earnings);
     if (effective.overlays.chat.engine === 'drawtext') {
       const chat = chatFilter(this.settings, effective, this.fontFile, this.chatFile);
       if (chat) filters.push(chat);

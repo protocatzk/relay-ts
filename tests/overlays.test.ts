@@ -3,6 +3,7 @@ import {
   escapeDrawtext,
   chatFilter,
   clockFilter,
+  earningsFilter,
   positionExpressions,
   textFilter,
   wrapChatLine,
@@ -66,6 +67,31 @@ describe('drawtext overlays', () => {
     const chat = chatFilter(DEFAULT_SETTINGS, streamer, font, '/tmp/chat.txt');
     expect(chat).toContain('line_spacing=6');
     expect(chat).toContain("textfile='/tmp/chat.txt'");
+  });
+
+  it('applies earnings overlay position, offsets, colors and box toggle', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      earnings: {
+        ...DEFAULT_SETTINGS.earnings,
+        overlay_enabled: true,
+        overlay_position: 'bottom-right' as const,
+        overlay_font_size: 30,
+        overlay_margin: 40,
+        overlay_offset_x: 10,
+        overlay_offset_y: -5,
+        overlay_font_color: '#ff0000',
+        overlay_box_color: 'black@0.5',
+        overlay_show_box: false,
+      },
+    };
+    const filter = earningsFilter(settings, font, '/tmp/earnings.txt');
+    expect(filter).toContain('fontsize=30');
+    expect(filter).toContain('fontcolor=#ff0000');
+    expect(filter).toContain('box=0');
+    expect(filter).toContain('boxcolor=black@0.5');
+    expect(filter).toContain('x=w-tw-40+10:y=h-th-40-5');
+    expect(earningsFilter({ ...settings, earnings: { ...settings.earnings, overlay_enabled: false } }, font, '/tmp/e.txt')).toBeNull();
   });
 
   it('wraps long chat lines and hard-breaks long tokens', () => {

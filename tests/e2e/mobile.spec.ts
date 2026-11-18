@@ -66,6 +66,17 @@ test.describe('mobile layout and drawer', () => {
     await page.goto('/#/overlays');
     await expect(page.getByRole('heading', { level: 1, name: 'Overlay-Studio' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Live-Vorschau' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Einnahmen' }).click();
+    await expect(page.getByLabel('Template')).toBeVisible();
+    await expect(page.getByLabel('Offset X (px)')).toBeVisible();
+    await expect(page.locator('#studio-earnings-font-color')).toBeVisible();
+    const templateValue = `{net} € · Studio-${Date.now()}`;
+    await page.getByLabel('Template').fill(templateValue);
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.getByText('Globale Overlay-Einstellungen gespeichert.')).toBeVisible();
+    await page.reload();
+    await page.getByRole('tab', { name: 'Einnahmen' }).click();
+    await expect(page.getByLabel('Template')).toHaveValue(templateValue);
     await expectNoHorizontalOverflow(page, '/#/overlays');
   });
 });

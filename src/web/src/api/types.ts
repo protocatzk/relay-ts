@@ -417,6 +417,12 @@ export interface EarningsSettings {
   overlay_position: OverlayPosition;
   overlay_template: string;
   overlay_font_size: number;
+  overlay_margin: number;
+  overlay_offset_x: number;
+  overlay_offset_y: number;
+  overlay_font_color: string;
+  overlay_box_color: string;
+  overlay_show_box: boolean;
 }
 
 export interface ChatSettings {
@@ -455,6 +461,12 @@ export interface SettingsUpdate {
     overlay_position: OverlayPosition;
     overlay_template: string;
     overlay_font_size: number;
+    overlay_margin: number;
+    overlay_offset_x: number;
+    overlay_offset_y: number;
+    overlay_font_color: string;
+    overlay_box_color: string;
+    overlay_show_box: boolean;
     period: 'today' | '24h' | '7d' | '30d' | 'all';
     api_key?: string;
   };
@@ -559,6 +571,7 @@ export interface StreamerInput {
 export interface StudioPreviewInput {
   streamer_id?: string;
   overlays: StreamerOverlaysInput;
+  earnings?: Partial<EarningsSettings>;
   sample?: boolean;
   max_dimension?: number;
 }

@@ -169,7 +169,7 @@ export interface StreamersApi {
 
 export interface SettingsApi {
   get(): Promise<Settings>;
-  update(body: SettingsUpdate): Promise<Settings>;
+  update(body: Partial<SettingsUpdate>): Promise<Settings>;
 }
 
 export interface PlaylistsApi {
@@ -273,7 +273,7 @@ export const api = {
 
   settings: {
     get: () => request<Settings>('/api/settings'),
-    update: (body: SettingsUpdate) => request<Settings>('/api/settings', { method: 'PUT', body }),
+    update: (body: Partial<SettingsUpdate>) => request<Settings>('/api/settings', { method: 'PUT', body }),
   } satisfies SettingsApi,
 
   playlists: {

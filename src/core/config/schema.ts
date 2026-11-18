@@ -321,6 +321,12 @@ export const EarningsSettingsSchema = z.object({
   overlay_position: PositionSchema.default('top-left'),
   overlay_template: z.string().max(200).default('{net} € · {coins} Coins'),
   overlay_font_size: z.number().int().min(8).max(96).default(22),
+  overlay_margin: z.number().int().min(0).max(200).default(32),
+  overlay_offset_x: z.number().int().min(-1920).max(1920).default(0),
+  overlay_offset_y: z.number().int().min(-1080).max(1080).default(0),
+  overlay_font_color: ColorSchema.default('white'),
+  overlay_box_color: ColorSchema.default('black@0.45'),
+  overlay_show_box: z.boolean().default(true),
 });
 
 export const SettingsSchema = z.object({

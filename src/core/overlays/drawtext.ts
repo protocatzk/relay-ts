@@ -136,13 +136,20 @@ export function earningsFilter(
   settings: Settings,
   fontFile: string,
   earningsFile: string,
-  position: OverlayPosition,
-): string {
-  const { x, y } = positionExpressions(position);
+): string | null {
+  const config = settings.earnings;
+  if (!config.overlay_enabled) return null;
+  const { x, y } = positionExpressions(
+    config.overlay_position,
+    config.overlay_margin,
+    config.overlay_offset_x,
+    config.overlay_offset_y,
+  );
   return (
     `drawtext=fontfile='${escapePath(fontFile)}':` +
     `textfile='${escapePath(earningsFile)}':reload=1:expansion=none:` +
-    `fontsize=${settings.earnings.overlay_font_size}:fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=10:` +
+    `fontsize=${config.overlay_font_size}:fontcolor=${config.overlay_font_color}:` +
+    `box=${config.overlay_show_box ? 1 : 0}:boxcolor=${config.overlay_box_color}:boxborderw=10:` +
     `x=${x}:y=${y}`
   );
 }

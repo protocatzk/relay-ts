@@ -400,6 +400,12 @@ async function save(): Promise<void> {
       overlay_position: current.earnings.overlay_position,
       overlay_template: current.earnings.overlay_template,
       overlay_font_size: toNumber(current.earnings.overlay_font_size, 22),
+      overlay_margin: toNumber(current.earnings.overlay_margin, 32),
+      overlay_offset_x: toNumber(current.earnings.overlay_offset_x, 0),
+      overlay_offset_y: toNumber(current.earnings.overlay_offset_y, 0),
+      overlay_font_color: current.earnings.overlay_font_color,
+      overlay_box_color: current.earnings.overlay_box_color,
+      overlay_show_box: current.earnings.overlay_show_box,
       ...(earningsApiKey.value.trim() ? { api_key: earningsApiKey.value.trim() } : {}),
     },
   };
@@ -965,35 +971,10 @@ onBeforeUnmount(() => {
               </select>
             </div>
           </div>
-          <ToggleField
-            v-model="form.earnings.overlay_enabled"
-            label="Einnahmen im Stream anzeigen"
-            description="Werte als Text-Overlay in den Stream einblenden."
-          />
-          <div v-if="form.earnings.overlay_enabled" class="settings-grid">
-            <div class="field">
-              <label for="earnings-position">Overlay-Position</label>
-              <select id="earnings-position" v-model="form.earnings.overlay_position">
-                <option value="top-left">Oben links</option>
-                <option value="top-right">Oben rechts</option>
-                <option value="bottom-left">Unten links</option>
-                <option value="bottom-right">Unten rechts</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="earnings-template">Overlay-Template</label>
-              <input id="earnings-template" v-model="form.earnings.overlay_template" type="text" maxlength="200" />
-              <p class="field-hint">
-                Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
-                {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
-                {live}, {top_gift}, {top_gifter}, {display_name}, {last_seen}, {name},
-                {username}, {currency}.
-              </p>
-            </div>
-            <div class="field">
-              <label for="earnings-font-size">Overlay-Schriftgröße (px)</label>
-              <input id="earnings-font-size" v-model.number="form.earnings.overlay_font_size" type="number" min="8" max="96" />
-            </div>
+          <div class="alert alert-info">
+            Das Einnahmen-Overlay wird im
+            <RouterLink to="/overlays">Overlay-Studio</RouterLink>
+            bearbeitet – inklusive Position, Farben, Template und Vorschau.
           </div>
         </div>
       </section>

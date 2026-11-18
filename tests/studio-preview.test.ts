@@ -63,6 +63,39 @@ describe('studio preview', () => {
     expect(png.length).toBeGreaterThan(500);
   });
 
+  it('renders the earnings overlay with studio offsets and colors', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      earnings: {
+        ...DEFAULT_SETTINGS.earnings,
+        overlay_enabled: true,
+        overlay_position: 'bottom-right' as const,
+        overlay_font_size: 26,
+        overlay_margin: 48,
+        overlay_offset_x: 24,
+        overlay_offset_y: -18,
+        overlay_font_color: '#ff0000',
+        overlay_box_color: 'black@0.5',
+        overlay_show_box: false,
+      },
+    };
+    const streamer = StreamerSchema.parse({
+      id: 'earnings',
+      name: 'Earnings',
+      tiktok: 'earnings',
+    });
+    const png = renderStudioPreview({
+      settings,
+      streamer,
+      logger,
+      sample: true,
+      earningsText: '205,28 € · 42.505 Coins',
+      maxDimension: 480,
+    });
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.length).toBeGreaterThan(500);
+  });
+
   it('renders an empty stage when all overlays are disabled', () => {
     const streamer = StreamerSchema.parse({
       id: 'empty',

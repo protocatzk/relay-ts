@@ -32,7 +32,11 @@ import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
-import { EarningsMonitor, formatEarningsOverlay } from '../earnings/monitor.js';
+import {
+  EarningsMonitor,
+  formatEarningsOverlay,
+  type EarningsSnapshot,
+} from '../earnings/monitor.js';
 import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
 import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
@@ -1497,7 +1501,13 @@ export class Supervisor {
         previous.earnings.overlay_enabled !== next.earnings.overlay_enabled ||
         previous.earnings.overlay_position !== next.earnings.overlay_position ||
         previous.earnings.overlay_template !== next.earnings.overlay_template ||
-        previous.earnings.overlay_font_size !== next.earnings.overlay_font_size;
+        previous.earnings.overlay_font_size !== next.earnings.overlay_font_size ||
+        previous.earnings.overlay_margin !== next.earnings.overlay_margin ||
+        previous.earnings.overlay_offset_x !== next.earnings.overlay_offset_x ||
+        previous.earnings.overlay_offset_y !== next.earnings.overlay_offset_y ||
+        previous.earnings.overlay_font_color !== next.earnings.overlay_font_color ||
+        previous.earnings.overlay_box_color !== next.earnings.overlay_box_color ||
+        previous.earnings.overlay_show_box !== next.earnings.overlay_show_box;
       const overlayCarrier =
         this.activeStreamer ?? (this.manualScreen ? this.screenFallbackStreamer() : null);
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
@@ -1657,16 +1667,63 @@ export class Supervisor {
     sample = true,
     maxDimension = 720,
     chatMessages?: ChatMessage[],
+    earningsDraft?: Partial<Settings['earnings']>,
   ): Buffer {
+    const settings = earningsDraft
+      ? { ...this.settings, earnings: { ...this.settings.earnings, ...earningsDraft } }
+      : this.settings;
     return renderStudioPreview({
-      settings: this.settings,
+      settings,
       streamer,
       logger: this.deps.logger,
       sample,
       chatMessages,
-      earningsText: this.earningsOverlayText(),
+      earningsText: this.studioEarningsText(settings, sample),
       maxDimension,
     });
+  }
+
+  private studioEarningsText(settings: Settings, sample: boolean): string {
+    const current = this.earnings?.get() ?? null;
+    if (current && (current.net !== null || current.gross !== null || current.coins !== null)) {
+      return formatEarningsOverlay(settings.earnings.overlay_template, current);
+    }
+    if (!sample) return '';
+    const demo = {
+      ...current,
+      period: settings.earnings.period,
+      period_label: 'Heute',
+      net: 205.28,
+      gross: 410.64,
+      coins: 42505,
+      viewers: 344,
+      followers: 76800,
+      gifts: 42,
+      gifts_sent: 77,
+      gifters: 12,
+      currency: 'EUR',
+      display_name: 'Beispiel',
+      streamer_name: 'Beispiel',
+      streamer_handle: 'beispiel',
+      is_live: true,
+      session: {
+        id: null,
+        started_at: null,
+        ended_at: null,
+        status: 'active',
+        peak_viewers: 400,
+        last_fan_tickets: 120,
+        coins: 2000,
+        gifts: 4,
+        net: 12.4,
+        gross: 24.8,
+        currency: 'EUR',
+      },
+      top_gift: { name: 'Money Gun', coins: 6000, count: 2 },
+      top_gifter: { username: 'viewer', display_name: null, coins: 1200 },
+      last_seen_at: new Date().toISOString(),
+    } as EarningsSnapshot;
+    return formatEarningsOverlay(settings.earnings.overlay_template, demo);
   }
 
   /** Latest real chat messages, used by the overlay studio when samples are off. */

@@ -6,6 +6,7 @@ import type {
   ClockOverlay,
   OverlayPosition,
   Settings,
+  SettingsUpdate,
   StreamerOverlays,
   StreamerOverlaysInput,
   TextOverlay,
@@ -39,6 +40,7 @@ const loadError = ref('');
 const saving = ref(false);
 const draft = ref<StreamerOverlays | null>(null);
 const settings = ref<Settings | null>(null);
+const settingsBaseline = ref<Settings | null>(null);
 const activeSection = ref<Section>('chat');
 const sample = ref(true);
 const previewUrl = ref('');
@@ -63,6 +65,7 @@ let drag: {
 } | null = null;
 const chatTest = reactive({ username: 'Testuser', text: 'Das Overlay sieht gut aus! 🔥' });
 let initialSnapshot = '';
+let initialEarningsSnapshot = '';
 let previewTimer: number | null = null;
 let previewController: AbortController | null = null;
 let previewObjectUrl = '';
@@ -74,7 +77,10 @@ const text = computed(() => draft.value?.text ?? null);
 const earnings = computed(() => settings.value?.earnings ?? null);
 const resolution = computed(() => settings.value?.video.resolution ?? '720x1280');
 const dirty = computed(
-  () => Boolean(draft.value) && JSON.stringify(draft.value) !== initialSnapshot,
+  () =>
+    Boolean(draft.value) &&
+    (JSON.stringify(draft.value) !== initialSnapshot ||
+      JSON.stringify(settings.value?.earnings) !== initialEarningsSnapshot),
 );
 
 const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
@@ -83,7 +89,39 @@ const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>((
   if (activeSection.value === 'text') return text.value;
   return null;
 });
-const activePosition = computed(() => activeConfig.value?.position ?? null);
+
+interface OverlayGeometry {
+  position: OverlayPosition;
+  font_size: number;
+  offset_x: number;
+  offset_y: number;
+  margin: number;
+}
+
+const activeGeometry = computed<OverlayGeometry | null>(() => {
+  if (activeSection.value === 'earnings') {
+    const config = earnings.value;
+    if (!config) return null;
+    return {
+      position: config.overlay_position,
+      font_size: config.overlay_font_size,
+      offset_x: config.overlay_offset_x,
+      offset_y: config.overlay_offset_y,
+      margin: config.overlay_margin,
+    };
+  }
+  const config = activeConfig.value;
+  if (!config) return null;
+  return {
+    position: config.position,
+    font_size: config.font_size,
+    offset_x: config.offset_x,
+    offset_y: config.offset_y,
+    margin: overlayMargin(config),
+  };
+});
+
+const activePosition = computed(() => activeGeometry.value?.position ?? null);
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -94,25 +132,31 @@ function overlayMargin(config: ChatOverlay | ClockOverlay | TextOverlay): number
 }
 
 const stageBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
-  const config = activeConfig.value;
-  if (!config) return {};
+  const geometry = activeGeometry.value;
+  if (!geometry) return {};
   const [width, height] = resolution.value.split('x').map(Number) as [number, number];
-  const margin = overlayMargin(config);
   const chatConfig = activeSection.value === 'chat' ? chat.value : null;
+  const earningsConfig = activeSection.value === 'earnings' ? earnings.value : null;
   const boxWidth = chatConfig
     ? chatConfig.panel_width > 0
       ? chatConfig.panel_width
       : Math.round(width * (width >= height ? 0.6 : 0.92))
-    : Math.round(width * 0.5);
+    : earningsConfig
+      ? Math.round(width * 0.45)
+      : Math.round(width * 0.5);
   const boxHeight = chatConfig
     ? chatConfig.panel_height > 0
       ? chatConfig.panel_height
       : Math.round(height * 0.34)
-    : Math.round(config.font_size * 1.8);
-  const baseX = config.position.endsWith('left') ? margin : width - boxWidth - margin;
-  const baseY = config.position.startsWith('top') ? margin : height - boxHeight - margin;
-  const x = baseX + config.offset_x;
-  const y = baseY + config.offset_y;
+    : Math.round(geometry.font_size * 1.8);
+  const baseX = geometry.position.endsWith('left')
+    ? geometry.margin
+    : width - boxWidth - geometry.margin;
+  const baseY = geometry.position.startsWith('top')
+    ? geometry.margin
+    : height - boxHeight - geometry.margin;
+  const x = baseX + geometry.offset_x;
+  const y = baseY + geometry.offset_y;
   return {
     left: `${(x / width) * 100}%`,
     top: `${(y / height) * 100}%`,
@@ -120,6 +164,26 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
     height: `${(boxHeight / height) * 100}%`,
   };
 });
+
+function setGeometry(patch: Partial<OverlayGeometry>): void {
+  if (activeSection.value === 'earnings') {
+    const config = earnings.value;
+    if (!config) return;
+    if (patch.position !== undefined) config.overlay_position = patch.position;
+    if (patch.font_size !== undefined) config.overlay_font_size = patch.font_size;
+    if (patch.offset_x !== undefined) config.overlay_offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) config.overlay_offset_y = patch.offset_y;
+    if (patch.margin !== undefined) config.overlay_margin = patch.margin;
+    return;
+  }
+  const config = activeConfig.value;
+  if (!config) return;
+  if (patch.position !== undefined) config.position = patch.position;
+  if (patch.font_size !== undefined) config.font_size = patch.font_size;
+  if (patch.offset_x !== undefined) config.offset_x = patch.offset_x;
+  if (patch.offset_y !== undefined) config.offset_y = patch.offset_y;
+  if (patch.margin !== undefined && 'margin' in config) config.margin = patch.margin;
+}
 
 function resetHistory(): void {
   const snapshot = draft.value ? JSON.stringify(draft.value) : '';
@@ -158,26 +222,29 @@ function redo(): void {
 }
 
 function nudge(dx: number, dy: number): void {
-  const config = activeConfig.value;
-  if (!config) return;
-  config.offset_x = clamp(config.offset_x + dx, -1920, 1920);
-  config.offset_y = clamp(config.offset_y + dy, -1080, 1080);
+  const geometry = activeGeometry.value;
+  if (!geometry) return;
+  setGeometry({
+    offset_x: clamp(geometry.offset_x + dx, -1920, 1920),
+    offset_y: clamp(geometry.offset_y + dy, -1080, 1080),
+  });
 }
 
 function onDragMove(event: PointerEvent): void {
-  const config = activeConfig.value;
   const stage = stageRef.value;
-  if (!config || !drag || !stage) return;
+  if (!activeGeometry.value || !drag || !stage) return;
   const rect = stage.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
   const [width, height] = resolution.value.split('x').map(Number) as [number, number];
   const dx = ((event.clientX - drag.startX) / rect.width) * width;
   const dy = ((event.clientY - drag.startY) / rect.height) * height;
   if (drag.mode === 'move') {
-    config.offset_x = Math.round(clamp(drag.baseX + dx, -1920, 1920));
-    config.offset_y = Math.round(clamp(drag.baseY + dy, -1080, 1080));
+    setGeometry({
+      offset_x: Math.round(clamp(drag.baseX + dx, -1920, 1920)),
+      offset_y: Math.round(clamp(drag.baseY + dy, -1080, 1080)),
+    });
   } else {
-    config.font_size = Math.round(clamp(drag.baseSize + dy * 0.15, 8, 96));
+    setGeometry({ font_size: Math.round(clamp(drag.baseSize + dy * 0.15, 8, 96)) });
   }
 }
 
@@ -189,16 +256,16 @@ function endDrag(): void {
 }
 
 function startDrag(event: PointerEvent, mode: 'move' | 'resize'): void {
-  const config = activeConfig.value;
-  if (!config) return;
+  const geometry = activeGeometry.value;
+  if (!geometry) return;
   event.preventDefault();
   drag = {
     mode,
     startX: event.clientX,
     startY: event.clientY,
-    baseX: config.offset_x,
-    baseY: config.offset_y,
-    baseSize: config.font_size,
+    baseX: geometry.offset_x,
+    baseY: geometry.offset_y,
+    baseSize: geometry.font_size,
   };
   window.addEventListener('pointermove', onDragMove);
   window.addEventListener('pointerup', endDrag, { once: true });
@@ -259,6 +326,12 @@ function overlaysInput(): StreamerOverlaysInput {
   };
 }
 
+function earningsInput(): SettingsUpdate['earnings'] {
+  const current = clone(settings.value!.earnings);
+  delete (current as Partial<typeof current>).api_key_set;
+  return current as SettingsUpdate['earnings'];
+}
+
 async function renderPreview(): Promise<void> {
   if (!draft.value) return;
   previewController?.abort();
@@ -269,6 +342,7 @@ async function renderPreview(): Promise<void> {
     const blob = await api.overlays.studioPreview(
       {
         overlays: overlaysInput(),
+        earnings: earningsInput(),
         sample: sample.value,
         max_dimension: 720,
       },
@@ -295,31 +369,35 @@ function schedulePreview(immediate = false): void {
 }
 
 function resetDraft(): void {
-  const current = settings.value;
-  if (!current) return;
-  draft.value = normalizeOverlays(current.overlays);
+  const baseline = settingsBaseline.value;
+  if (!baseline) return;
+  settings.value = clone(baseline);
+  draft.value = normalizeOverlays(baseline.overlays);
   initialSnapshot = JSON.stringify(draft.value);
+  initialEarningsSnapshot = JSON.stringify(baseline.earnings);
   resetHistory();
   pushToast('Änderungen verworfen.', 'info');
   schedulePreview(true);
 }
 
 function setPosition(position: OverlayPosition): void {
-  const config = activeConfig.value;
-  if (!config) return;
-  config.position = position;
-  config.offset_x = 0;
-  config.offset_y = 0;
+  if (!activeGeometry.value) return;
+  setGeometry({ position, offset_x: 0, offset_y: 0 });
 }
 
 async function save(): Promise<void> {
   if (!draft.value) return;
   saving.value = true;
   try {
-    const saved = await api.overlays.save(overlaysInput());
+    const saved = await api.settings.update({
+      overlays: overlaysInput(),
+      earnings: earningsInput(),
+    });
     settings.value = saved;
+    settingsBaseline.value = clone(saved);
     draft.value = normalizeOverlays(saved.overlays);
     initialSnapshot = JSON.stringify(draft.value);
+    initialEarningsSnapshot = JSON.stringify(saved.earnings);
     resetHistory();
     await refreshStatus();
     pushToast('Globale Overlay-Einstellungen gespeichert.', 'success');
@@ -354,6 +432,11 @@ watch(
   },
   { deep: true },
 );
+watch(
+  () => settings.value?.earnings,
+  () => schedulePreview(),
+  { deep: true },
+);
 watch(sample, () => schedulePreview(true));
 
 onMounted(async () => {
@@ -361,8 +444,10 @@ onMounted(async () => {
   try {
     await refreshStatus().catch(() => undefined);
     settings.value = await api.settings.get();
+    settingsBaseline.value = clone(settings.value);
     draft.value = normalizeOverlays(settings.value.overlays);
     initialSnapshot = JSON.stringify(draft.value);
+    initialEarningsSnapshot = JSON.stringify(settings.value.earnings);
     resetHistory();
     schedulePreview(true);
   } catch (error) {
@@ -476,7 +561,7 @@ onBeforeUnmount(() => {
             <span class="spinner" aria-hidden="true"></span>
             Vorschau wird gerendert…
           </div>
-          <div v-if="activeConfig" class="studio-hotzones" aria-label="Overlay-Position">
+          <div v-if="activeGeometry" class="studio-hotzones" aria-label="Overlay-Position">
             <button
               v-for="position in POSITIONS"
               :key="position.value"
@@ -497,7 +582,7 @@ onBeforeUnmount(() => {
             <span class="studio-guide-h2"></span>
           </div>
           <div
-            v-if="activeConfig"
+            v-if="activeGeometry"
             class="studio-drag-box"
             :style="stageBoxStyle"
             role="group"
@@ -509,7 +594,9 @@ onBeforeUnmount(() => {
             @keydown.up.prevent="nudge(0, -5)"
             @keydown.down.prevent="nudge(0, 5)"
           >
-            <span class="studio-drag-label">{{ activeSection }} · {{ activeConfig.font_size }} px</span>
+            <span class="studio-drag-label">
+              {{ activeSection }} · {{ activeGeometry?.font_size }} px
+            </span>
             <button
               type="button"
               class="studio-resize-handle"
@@ -782,17 +869,68 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else-if="activeSection === 'earnings' && earnings" class="studio-body">
-          <div class="alert alert-info">
-            Einnahmen-Overlays gelten global und werden in den Einstellungen persistiert.
+          <ToggleField
+            v-model="earnings.overlay_enabled"
+            label="Einnahmen-Overlay"
+            description="Aktuelle Einnahmen als Text im Stream einblenden."
+          />
+          <div class="field">
+            <label for="studio-earnings-template">Template</label>
+            <input
+              id="studio-earnings-template"
+              v-model="earnings.overlay_template"
+              type="text"
+              maxlength="200"
+            />
+            <p class="field-hint">
+              Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
+              {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
+              {live}, {top_gift}, {top_gifter}, {display_name}, {last_seen}, {name},
+              {username}, {currency}.
+            </p>
           </div>
-          <dl class="settings-summary">
-            <div><dt>Status</dt><dd>{{ earnings.enabled ? 'Aktiv' : 'Aus' }}</dd></div>
-            <div><dt>Im Stream</dt><dd>{{ earnings.overlay_enabled ? 'An' : 'Aus' }}</dd></div>
-            <div><dt>Position</dt><dd>{{ earnings.overlay_position }}</dd></div>
-            <div><dt>Template</dt><dd class="mono">{{ earnings.overlay_template }}</dd></div>
-            <div><dt>Schriftgröße</dt><dd>{{ earnings.overlay_font_size }} px</dd></div>
-          </dl>
-          <RouterLink to="/settings" class="btn btn-secondary">Einnahmen bearbeiten</RouterLink>
+          <div class="studio-grid">
+            <div class="field">
+              <label for="studio-earnings-position">Position</label>
+              <select id="studio-earnings-position" v-model="earnings.overlay_position">
+                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
+                  {{ position.label }}
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="studio-earnings-size">Schriftgröße (px)</label>
+              <input id="studio-earnings-size" v-model.number="earnings.overlay_font_size" type="number" min="8" max="96" />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-margin">Rand (px)</label>
+              <input id="studio-earnings-margin" v-model.number="earnings.overlay_margin" type="number" min="0" max="200" />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-offset-x">Offset X (px)</label>
+              <input id="studio-earnings-offset-x" v-model.number="earnings.overlay_offset_x" type="number" min="-1920" max="1920" />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-offset-y">Offset Y (px)</label>
+              <input id="studio-earnings-offset-y" v-model.number="earnings.overlay_offset_y" type="number" min="-1080" max="1080" />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-font-color">Schriftfarbe</label>
+              <ColorInput id="studio-earnings-font-color" v-model="earnings.overlay_font_color" />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-box-color">Boxfarbe</label>
+              <ColorInput id="studio-earnings-box-color" v-model="earnings.overlay_box_color" alpha />
+            </div>
+          </div>
+          <label class="checkbox studio-checks">
+            <input v-model="earnings.overlay_show_box" type="checkbox" />
+            Hintergrundbox anzeigen
+          </label>
+          <p class="field-hint">
+            Quelle, Zeitraum und Anzeige-Ansicht werden unter
+            <RouterLink to="/settings">Einstellungen → Einnahmen</RouterLink> gepflegt.
+          </p>
         </div>
       </section>
     </div>

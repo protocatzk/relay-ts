@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
-import { StreamerSchema, formatZodError, type StreamerConfig } from '../../core/config/schema.js';
+import {
+  EarningsSettingsSchema,
+  StreamerSchema,
+  formatZodError,
+  type StreamerConfig,
+} from '../../core/config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
 import { join } from 'node:path';
 import { renderPausePreview } from '../../core/overlays/pause-preview.js';
@@ -16,6 +21,7 @@ const LogQuery = z.object({
 const StudioPreviewBody = z.object({
   streamer_id: z.string().optional(),
   overlays: z.unknown(),
+  earnings: EarningsSettingsSchema.partial().optional(),
   sample: z.boolean().optional(),
   max_dimension: z.coerce.number().int().min(120).max(1200).optional(),
 });
@@ -146,6 +152,7 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       sample,
       parsed.data.max_dimension ?? 720,
       sample ? undefined : ctx.supervisor.recentChatMessages(),
+      parsed.data.earnings,
     );
     return reply
       .header('cache-control', 'no-store')

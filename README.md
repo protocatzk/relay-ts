@@ -477,9 +477,11 @@ Bild ziehen (freie `offset_x`/`offset_y`-Offsets), am Griff skalieren oder per
 Pfeiltasten verschieben; ein Klick auf eine Ecke setzt die Position exakt.
 Zusätzlich gibt es Hilfslinien (Sicherheitsrand und Drittel), Undo/Redo sowie
 Preset-Import/-Export als JSON. Ohne „Beispielnachrichten“ zeigt die Vorschau
-die zuletzt empfangenen echten Chat-Nachrichten. Speichern schreibt global nach
-`config/settings.yml` und baut bei einem laufenden Stream Chat-Engine/Sink
-kontrolliert neu auf.
+die zuletzt empfangenen echten Chat-Nachrichten. Das Einnahmen-Overlay ist eine
+eigene Studio-Sektion mit Template, Position, Offsets, Schriftgröße, Farben und
+Box-Toggle; Quelle, Zeitraum und Dashboard-Ansicht bleiben unter Einstellungen.
+Speichern schreibt global nach `config/settings.yml` und baut bei einem laufenden
+Stream Chat-Engine/Sink kontrolliert neu auf.
 
 Chat-Optionen umfassen Panel/Minimal-Stil, Nachrichtenpuffer,
 maximales Nachrichtenalter, feste Panelhöhe, Namensfarben, Tier-Badges und
@@ -549,6 +551,10 @@ wenn die Daten älter als fünf Minuten sind.
 
 **API:** `GET /api/earnings`, `GET /api/earnings/history?period=7d`,
 `POST /api/earnings/period`, `POST /api/earnings/refresh`.
+
+Das Einnahmen-Overlay wird im **Overlay-Studio → Einnahmen** gestaltet
+(Template, Position, Offsets, Schriftgröße, Farben, Box). Die Einstellungen
+enthalten nur noch Quelle, Intervall, Zeitraum und Dashboard-Ansicht.
 
 **Overlay-Platzhalter:** `{period}`, `{net}`, `{gross}`, `{coins}`, `{gifts}`,
 `{gifters}`, `{session_net}`, `{session_gross}`, `{session_coins}`,

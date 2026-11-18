@@ -160,11 +160,13 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
         width,
         height,
         fontSize: settings.earnings.overlay_font_size,
-        fontColor: 'white',
-        boxColor: 'black@0.45',
-        showBox: true,
-        margin: 32,
+        fontColor: settings.earnings.overlay_font_color,
+        boxColor: settings.earnings.overlay_box_color,
+        showBox: settings.earnings.overlay_show_box,
+        margin: settings.earnings.overlay_margin,
         alignTop: settings.earnings.overlay_position.startsWith('top'),
+        offsetX: settings.earnings.overlay_offset_x,
+        offsetY: settings.earnings.overlay_offset_y,
       },
     );
   }

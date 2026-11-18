@@ -124,6 +124,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Ansichten: `compact`, `standard`, `detailed`.
 - Verlauf liegt in `data/earnings-history.json` (nur Aggregate, 90 Tage,
   max. 4000 Punkte); Dashboard zeigt Chart, Delta und Veraltet-Hinweis.
+- Einnahmen-Overlay wird im Overlay-Studio bearbeitet (Template, Position,
+  Offsets, Farben, Margin, Box); Einstellungen enthalten nur Quelle/Zeitraum/View.
 - Zeitraum-Schnellwahl im Dashboard nutzt `POST /api/earnings/period`.
 - Fehlende Geldwerte werden aus `total_coins` und `rates` berechnet.
 - Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer
