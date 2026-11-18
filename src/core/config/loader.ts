@@ -253,7 +253,11 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     settingsRaw.overlays = structuredClone(source.overlays);
     migratedOverlays = true;
   }
-  applyEnvSettings(settingsRaw, env);
+  applyEnvSettings(
+    settingsRaw,
+    env,
+    parseBoolean(env.SETTINGS_ENV_OVERRIDES) ?? false,
+  );
   const settingsResult = SettingsSchema.safeParse(deepMerge(DEFAULT_SETTINGS, settingsRaw));
   if (!settingsResult.success) {
     throw new ConfigError(`Ungültige Einstellungen: ${formatZodError(settingsResult.error)}`);
@@ -345,9 +349,22 @@ export function ensureCookieFile(path: string, sessionId: string, targetIdc = ''
   writeFileAtomic(path, `${lines.join('\n')}\n`, 0o600);
 }
 
-export function applyEnvSettings(target: Record<string, unknown>, env: NodeJS.ProcessEnv): void {
+export function applyEnvSettings(
+  target: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+  overrides = false,
+): void {
+  const hasPath = (path: string[]): boolean => {
+    let cursor: unknown = target;
+    for (const key of path) {
+      if (!cursor || typeof cursor !== 'object' || !Object.hasOwn(cursor, key)) return false;
+      cursor = (cursor as Record<string, unknown>)[key];
+    }
+    return true;
+  };
   const set = (path: string[], value: unknown) => {
     if (value === undefined) return;
+    if (!overrides && hasPath(path)) return;
     let cursor = target;
     for (let index = 0; index < path.length - 1; index += 1) {
       const key = path[index]!;

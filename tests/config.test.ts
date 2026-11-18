@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadConfig, readStreamersFile } from '../src/core/config/loader.js';
+import { loadConfig, readStreamersFile, applyEnvSettings } from '../src/core/config/loader.js';
 import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
 
 function tempDir(): string {
@@ -46,6 +46,19 @@ describe('config loader', () => {
     expect(config.settings.watchdog.stall_timeout).toBe(60);
     expect(config.settings.auto_refresh.interval).toBe(30);
     expect(config.settings.online.enabled).toBe(true);
+  });
+
+  it('keeps persisted settings unless env overrides are explicitly enabled', () => {
+    const persisted = { video: { fps: 25 } };
+    applyEnvSettings(persisted, { OUTPUT_FPS: '30' });
+    expect(persisted.video.fps).toBe(25);
+
+    const missing = { video: {} as Record<string, unknown> };
+    applyEnvSettings(missing, { OUTPUT_FPS: '30' });
+    expect(missing.video.fps).toBe(30);
+
+    applyEnvSettings(persisted, { OUTPUT_FPS: '30' }, true);
+    expect(persisted.video.fps).toBe(30);
   });
 
   it('reads streamers and rejects duplicate ids', () => {

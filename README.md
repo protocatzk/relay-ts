@@ -207,7 +207,10 @@ npm run check        # alles zusammen
 ## Konfiguration
 
 Priorität: **Defaults → `streamers.yml` (settings) → `settings.yml` →
-Umgebungsvariablen → CLI**.
+Umgebungsvariablen (nur fehlende Werte) → CLI**. Mit
+`SETTINGS_ENV_OVERRIDES=true` überschreiben Umgebungsvariablen die
+`settings.yml` bei jedem Start; standardmäßig gewinnen die im Dashboard
+gespeicherten Werte.
 
 Wichtige Umgebungsvariablen (vollständig in `.env.example`):
 
