@@ -249,6 +249,7 @@ export interface Settings {
   chat: ChatSettings;
   streaming: StreamingSettings;
   earnings: EarningsSettings;
+  overlays: StreamerOverlays;
 }
 
 export interface StreamingSettings {
@@ -292,6 +293,7 @@ export interface SettingsUpdate {
   streaming: {
     title_template: string;
   };
+  overlays?: StreamerOverlaysInput;
   earnings: {
     enabled: boolean;
     source_url: string;

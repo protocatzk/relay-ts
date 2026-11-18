@@ -241,10 +241,25 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     throw new ConfigError(`${paths.settingsFile} muss ein YAML-Objekt enthalten`);
   }
   if (settingsFileRaw) Object.assign(settingsRaw, settingsFileRaw as Record<string, unknown>);
+  let migratedOverlays = false;
+  if (!Object.hasOwn(settingsRaw, 'overlays') && file.streamers.length > 0) {
+    const source =
+      file.streamers.find(
+        (streamer) =>
+          streamer.overlays.chat.enabled ||
+          streamer.overlays.clock.enabled ||
+          streamer.overlays.text.enabled,
+      ) ?? file.streamers[0]!;
+    settingsRaw.overlays = structuredClone(source.overlays);
+    migratedOverlays = true;
+  }
   applyEnvSettings(settingsRaw, env);
   const settingsResult = SettingsSchema.safeParse(deepMerge(DEFAULT_SETTINGS, settingsRaw));
   if (!settingsResult.success) {
     throw new ConfigError(`Ungültige Einstellungen: ${formatZodError(settingsResult.error)}`);
+  }
+  if (migratedOverlays) {
+    writeYamlFile(paths.settingsFile, settingsResult.data);
   }
 
   const password = (env.DASHBOARD_PASSWORD ?? '').trim();

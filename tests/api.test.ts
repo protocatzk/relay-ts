@@ -102,7 +102,6 @@ beforeAll(async () => {
     streamersView: () => [store.view(store.require('alpha'))],
     playlistsView: () => [],
     notifyStreamersChanged: () => undefined,
-    applyStreamerOverlays: async () => status(),
     start: async () => status(),
     stop: async () => status(),
     switchTo: async () => status(),
@@ -221,10 +220,10 @@ describe('API', () => {
     expect(telegram.statusCode).toBe(503);
   });
 
-  it('persists overlay settings for a streamer', async () => {
+  it('persists global overlay settings', async () => {
     const response = await app.inject({
       method: 'PUT',
-      url: '/api/streamers/alpha/overlays',
+      url: '/api/overlays',
       headers: { cookie: cookieHeader },
       payload: {
         overlays: {
@@ -235,23 +234,21 @@ describe('API', () => {
       },
     });
     expect(response.statusCode).toBe(200);
-    const streamer = (response.json() as {
-      streamer: {
-        overlays: {
-          chat: { enabled: boolean; show_stats: boolean; panel_height: number; style: string };
-          clock: { enabled: boolean; margin: number; show_box: boolean };
-          text: { enabled: boolean; show_box: boolean };
-        };
+    const overlays = (response.json() as {
+      overlays: {
+        chat: { enabled: boolean; show_stats: boolean; panel_height: number; style: string };
+        clock: { enabled: boolean; margin: number; show_box: boolean };
+        text: { enabled: boolean; show_box: boolean };
       };
-    }).streamer;
-    expect(streamer.overlays.chat).toMatchObject({
+    }).overlays;
+    expect(overlays.chat).toMatchObject({
       enabled: true,
       show_stats: true,
       panel_height: 240,
       style: 'bubbles',
     });
-    expect(streamer.overlays.clock).toMatchObject({ enabled: true, margin: 50, show_box: false });
-    expect(streamer.overlays.text).toMatchObject({ enabled: true, show_box: false });
+    expect(overlays.clock).toMatchObject({ enabled: true, margin: 50, show_box: false });
+    expect(overlays.text).toMatchObject({ enabled: true, show_box: false });
   });
 
   it('returns structured JSON 404 for unknown API routes', async () => {

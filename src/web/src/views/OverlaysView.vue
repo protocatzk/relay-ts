@@ -31,13 +31,12 @@ const POSITIONS: { value: OverlayPosition; label: string }[] = [
   { value: 'bottom-right', label: 'Unten rechts' },
 ];
 
-const { store, refreshStatus, refreshStreamers } = useStore();
+const { store, refreshStatus } = useStore();
 const { pushToast } = useToast();
 
 const loading = ref(true);
 const loadError = ref('');
 const saving = ref(false);
-const selectedId = ref('');
 const draft = ref<StreamerOverlays | null>(null);
 const settings = ref<Settings | null>(null);
 const activeSection = ref<Section>('chat');
@@ -52,9 +51,6 @@ let previewTimer: number | null = null;
 let previewController: AbortController | null = null;
 let previewObjectUrl = '';
 
-const selectedStreamer = computed(
-  () => store.streamers.find((streamer) => streamer.id === selectedId.value) ?? null,
-);
 const chatStatus = computed(() => store.status?.chat ?? null);
 const chat = computed(() => draft.value?.chat ?? null);
 const clock = computed(() => draft.value?.clock ?? null);
@@ -97,7 +93,6 @@ async function renderPreview(): Promise<void> {
   try {
     const blob = await api.overlays.studioPreview(
       {
-        ...(selectedId.value ? { streamer_id: selectedId.value } : {}),
         overlays: overlaysInput(),
         sample: sample.value,
         max_dimension: 720,
@@ -124,29 +119,10 @@ function schedulePreview(immediate = false): void {
   }, immediate ? 0 : 220);
 }
 
-function selectStreamer(id: string, force = false): boolean {
-  const streamer = store.streamers.find((item) => item.id === id);
-  if (!streamer) return false;
-  if (id === selectedId.value && draft.value) return true;
-  if (!force && dirty.value && !window.confirm('Ungespeicherte Änderungen verwerfen?')) {
-    return false;
-  }
-  selectedId.value = id;
-  draft.value = clone(streamer.overlays);
-  initialSnapshot = JSON.stringify(draft.value);
-  schedulePreview(true);
-  return true;
-}
-
-function onStreamerChange(event: Event): void {
-  const element = event.target as HTMLSelectElement;
-  if (!selectStreamer(element.value)) element.value = selectedId.value;
-}
-
 function resetDraft(): void {
-  const streamer = selectedStreamer.value;
-  if (!streamer) return;
-  draft.value = clone(streamer.overlays);
+  const current = settings.value;
+  if (!current) return;
+  draft.value = clone(current.overlays);
   initialSnapshot = JSON.stringify(draft.value);
   pushToast('Änderungen verworfen.', 'info');
   schedulePreview(true);
@@ -158,17 +134,15 @@ function setPosition(position: OverlayPosition): void {
 }
 
 async function save(): Promise<void> {
-  if (!draft.value || !selectedId.value) return;
+  if (!draft.value) return;
   saving.value = true;
   try {
-    await api.streamers.updateOverlays(selectedId.value, overlaysInput());
-    await Promise.allSettled([refreshStreamers(), refreshStatus()]);
-    const fresh = store.streamers.find((streamer) => streamer.id === selectedId.value);
-    if (fresh) {
-      draft.value = clone(fresh.overlays);
-      initialSnapshot = JSON.stringify(draft.value);
-    }
-    pushToast('Overlay-Einstellungen gespeichert.', 'success');
+    const saved = await api.overlays.save(overlaysInput());
+    settings.value = saved;
+    draft.value = clone(saved.overlays);
+    initialSnapshot = JSON.stringify(draft.value);
+    await refreshStatus();
+    pushToast('Globale Overlay-Einstellungen gespeichert.', 'success');
     schedulePreview(true);
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -198,18 +172,11 @@ watch(sample, () => schedulePreview(true));
 onMounted(async () => {
   loading.value = true;
   try {
-    await Promise.allSettled([refreshStreamers(), refreshStatus()]);
-    try {
-      settings.value = await api.settings.get();
-    } catch {
-      /* preview still works with server-side settings */
-    }
-    const preferred =
-      store.streamers.find((streamer) => streamer.id === store.status?.active_streamer_id) ??
-      store.streamers.find((streamer) => streamer.enabled) ??
-      store.streamers[0];
-    if (preferred) selectStreamer(preferred.id, true);
-    else loadError.value = 'Noch keine Streamer vorhanden.';
+    await refreshStatus().catch(() => undefined);
+    settings.value = await api.settings.get();
+    draft.value = clone(settings.value.overlays);
+    initialSnapshot = JSON.stringify(draft.value);
+    schedulePreview(true);
   } catch (error) {
     loadError.value = errorMessage(error);
   } finally {
@@ -229,20 +196,10 @@ onBeforeUnmount(() => {
     <div class="page-head">
       <div>
         <h1>Overlay-Studio</h1>
-        <p class="page-sub">Overlays pro Streamer gestalten, live prüfen und persistieren.</p>
+        <p class="page-sub">Globale Overlays für alle Streamer gestalten, prüfen und speichern.</p>
       </div>
       <div class="page-actions">
-        <select
-          class="studio-streamer-select"
-          :value="selectedId"
-          aria-label="Streamer auswählen"
-          @change="onStreamerChange"
-        >
-          <option v-if="store.streamers.length === 0" value="">Keine Streamer</option>
-          <option v-for="streamer in store.streamers" :key="streamer.id" :value="streamer.id">
-            {{ streamer.name }}
-          </option>
-        </select>
+        <span class="badge tone-info">Global</span>
         <span v-if="dirty" class="badge tone-warning">Ungespeichert</span>
         <button type="button" class="btn btn-ghost" :disabled="!dirty || saving" @click="resetDraft">
           Verwerfen
@@ -271,9 +228,7 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Live-Vorschau</h2>
-            <p class="card-sub">
-              {{ selectedStreamer?.name ?? 'Streamer' }} · {{ resolution }}
-            </p>
+            <p class="card-sub">Gilt für alle Streamer · {{ resolution }}</p>
           </div>
           <div class="studio-preview-tools">
             <label class="checkbox">

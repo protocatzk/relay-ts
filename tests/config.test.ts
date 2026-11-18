@@ -85,4 +85,34 @@ describe('config loader', () => {
     expect(config.settings.video.fps).toBe(20);
     expect(config.settings.video.video_bitrate).toBe(DEFAULT_SETTINGS.video.video_bitrate);
   });
+
+  it('migrates per-streamer overlays to global settings once', () => {
+    const dir = tempDir();
+    const file = join(dir, 'streamers.yml');
+    const streamers = (fontSize: number) =>
+      [
+        'streamers:',
+        '  - id: alpha',
+        '    name: Alpha',
+        '    tiktok: alpha',
+        '    overlays:',
+        '      chat:',
+        '        enabled: true',
+        `        font_size: ${fontSize}`,
+        '      clock:',
+        '        enabled: true',
+        '        margin: 44',
+      ].join('\n');
+    writeFileSync(file, streamers(30));
+    const first = loadConfig({ cwd: dir, env: { STREAMERS_FILE: file } });
+    expect(first.settings.overlays.chat.enabled).toBe(true);
+    expect(first.settings.overlays.chat.font_size).toBe(30);
+    expect(first.settings.overlays.clock.margin).toBe(44);
+    expect(readFileSync(first.paths.settingsFile, 'utf8')).toContain('overlays:');
+
+    // Once persisted, later per-streamer changes must not overwrite the global config.
+    writeFileSync(file, streamers(40));
+    const second = loadConfig({ cwd: dir, env: { STREAMERS_FILE: file } });
+    expect(second.settings.overlays.chat.font_size).toBe(30);
+  });
 });

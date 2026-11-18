@@ -17,6 +17,10 @@ const StudioPreviewBody = z.object({
   max_dimension: z.coerce.number().int().min(120).max(1200).optional(),
 });
 
+const OverlaySaveBody = z.object({
+  overlays: z.unknown(),
+});
+
 export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
   app.get('/health', async () => ({
     status: 'ok',
@@ -76,6 +80,19 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       .header('cache-control', 'no-store')
       .type('image/png')
       .send(png);
+  });
+
+  app.put('/api/overlays', async (request) => {
+    const parsed = OverlaySaveBody.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError(
+        `Ungültige Overlay-Einstellungen: ${formatZodError(parsed.error)}`,
+        parsed.error.issues,
+      );
+    }
+    const { previous, next } = ctx.settingsService.update({ overlays: parsed.data.overlays });
+    await ctx.supervisor.applySettings(next, previous);
+    return ctx.settingsService.sanitized();
   });
 
   app.post('/api/chat/test', async (request) => {

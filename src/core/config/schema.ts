@@ -72,6 +72,12 @@ export const OverlaysSchema = z.object({
   text: TextOverlaySchema.optional(),
 });
 
+export const OverlaysSettingsSchema = z.object({
+  chat: ChatOverlaySchema.default(ChatOverlaySchema.parse({})),
+  clock: ClockOverlaySchema.default(ClockOverlaySchema.parse({})),
+  text: TextOverlaySchema.default(TextOverlaySchema.parse({})),
+});
+
 export const StreamerFieldsSchema = z
   .object({
     id: z
@@ -300,6 +306,7 @@ export const SettingsSchema = z.object({
   chat: ChatSettingsSchema.default(ChatSettingsSchema.parse({})),
   streaming: StreamingSettingsSchema.default(StreamingSettingsSchema.parse({})),
   earnings: EarningsSettingsSchema.default(EarningsSettingsSchema.parse({})),
+  overlays: OverlaysSettingsSchema.default(OverlaysSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z

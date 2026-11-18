@@ -4,10 +4,13 @@ import { ValidationError } from '../../utils/errors.js';
 import { readYamlFile, writeYamlFile } from '../../utils/fs.js';
 import { deepMerge } from '../../utils/format.js';
 
-export type SanitizedSettings = Omit<Settings, 'online' | 'chat' | 'earnings'> & {
+export type SanitizedSettings = Omit<Settings, 'online' | 'chat' | 'earnings' | 'overlays'> & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
   earnings: Omit<Settings['earnings'], 'api_key'> & { api_key_set: boolean };
+  overlays: Omit<Settings['overlays'], 'chat'> & {
+    chat: Omit<Settings['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
+  };
 };
 
 export class SettingsService {
@@ -36,6 +39,14 @@ export class SettingsService {
         ...settings.earnings,
         api_key: undefined,
         api_key_set: Boolean(settings.earnings.api_key),
+      },
+      overlays: {
+        ...settings.overlays,
+        chat: {
+          ...settings.overlays.chat,
+          api_key: undefined,
+          api_key_set: Boolean(settings.overlays.chat.api_key),
+        },
       },
     } as SanitizedSettings;
   }
@@ -75,6 +86,13 @@ function stripSecretFlags(input: Record<string, unknown>): Record<string, unknow
     const value = result[section];
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       delete (value as Record<string, unknown>).api_key_set;
+    }
+  }
+  const overlays = result.overlays;
+  if (overlays && typeof overlays === 'object' && !Array.isArray(overlays)) {
+    const chat = (overlays as Record<string, unknown>).chat;
+    if (chat && typeof chat === 'object' && !Array.isArray(chat)) {
+      delete (chat as Record<string, unknown>).api_key_set;
     }
   }
   return result;

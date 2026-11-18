@@ -171,6 +171,7 @@ onMounted(() => {
       </div>
       <div class="page-actions">
         <span v-if="dirty" class="badge tone-warning">Ungespeicherte Änderungen</span>
+        <RouterLink to="/overlays" class="btn btn-ghost">Overlay-Studio</RouterLink>
         <button type="button" class="btn btn-ghost" :disabled="loading || saving" @click="loadSettings()">
           Zurücksetzen
         </button>

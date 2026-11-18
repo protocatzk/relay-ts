@@ -29,7 +29,7 @@ eigenständig umgesetzt.
   Timestamps, Emoji, Tier-Badges, Chat-Statistik und Live-Vorschau (drawtext
   als Fallback), Uhrzeit, freier Text und optionale Einnahmen-Anzeige
 - **Overlay-Studio**: vollständige Bühnenvorschau aus ungespeicherten Drafts,
-  Positions-Klick, Persistenz pro Streamer und Live-Anwendung
+  Positions-Klick, globale Persistenz und Live-Anwendung für alle Streamer
 - **Playlists** mit Auto-Advance, Wrap, Endzeit, Vor-/Zurück-Springen und
   direktem Ansteuern einzelner Kanäle
 - **Online-Status** über eine konfigurierbare JSON-API (z. B. TokTracker),
@@ -278,6 +278,10 @@ online:
 chat:
   api_url: ""
   api_key: ""
+overlays:
+  chat: { enabled: true, engine: canvas, position: bottom-left, style: bubbles }
+  clock: { enabled: false, position: top-right, format: "%H:%M:%S" }
+  text: { enabled: false, position: top-left, text: "" }
 streaming:
   title_template: "{name} – LIVE"
 earnings:
@@ -295,8 +299,8 @@ earnings:
 Änderungen werden sofort nach `config/settings.yml` geschrieben (atomar, Modus
 `0600`) und vom laufenden Prozess übernommen. Secrets bleiben bei Teil-Updates
 erhalten, solange kein neuer `api_key` gesendet wird. Overlay-Einstellungen
-liegen dagegen pro Streamer in `config/streamers.yml` und werden über das
-Overlay-Studio bzw. `PUT /api/streamers/:id/overlays` persistiert.
+gelten global für alle Streamer und werden ebenfalls in `config/settings.yml`
+persistiert (`PUT /api/overlays` bzw. Overlay-Studio).
 
 ---
 
@@ -317,7 +321,6 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET` | `/api/streamers` | Streamer inkl. Status (ohne Keys) |
 | `POST` | `/api/streamers` | Streamer anlegen |
 | `PUT` | `/api/streamers/:id` | Streamer aktualisieren |
-| `PUT` | `/api/streamers/:id/overlays` | Overlays persistieren und live anwenden |
 | `DELETE` | `/api/streamers/:id` | Streamer löschen |
 | `POST` | `/api/streamers/:id/start` | Stream starten |
 | `POST` | `/api/streamers/:id/stop` | Stream stoppen |
@@ -340,6 +343,7 @@ für Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `DELETE` | `/api/logs` | Log-Ringpuffer leeren |
 | `GET` | `/api/overlays/preview.png?sample=1` | Live-Chat-Overlay als PNG |
 | `POST` | `/api/overlays/studio.png` | Studio-Vorschau aus ungespeicherten Overlays |
+| `PUT` | `/api/overlays` | Globale Overlays speichern und live anwenden |
 | `POST` | `/api/chat/test` | Testnachricht ins Overlay einspeisen |
 | `GET` | `/api/events` | SSE: `status`, `streamers`, `log` |
 | `POST` | `/api/system/restart-sink` | Encoder neu starten |
@@ -377,15 +381,22 @@ Das Overlay-Studio rendert die komplette Bühne (Chat, Uhr, Text und Einnahmen)
 serverseitig mit `@napi-rs/canvas` aus den **ungespeicherten** Editierwerten.
 Die Vorschau wird clientseitig entprellt und mit `AbortController` abgebrochen,
 wenn eine neuere Anfrage eintrifft. Ein Klick auf eine Bildecke setzt die
-Position des aktiven Overlays. **Speichern** schreibt die Overlays des
-ausgewählten Streamers nach `config/streamers.yml`; läuft dieser Streamer
-gerade, werden Chat-Engine und Sink einmal sauber neu aufgebaut.
+Position des aktiven Overlays. **Speichern** schreibt die Overlays global nach
+`config/settings.yml`; läuft ein Streamer, werden Chat-Engine und Sink einmal
+sauber neu aufgebaut. Die Einstellungen gelten damit für alle Streamer und
+Playlists.
 
 Zusätzliche Chat-Optionen gegenüber der ersten Version: Panel-Stil,
 Nachrichtenpuffer (`max_messages`), maximales Nachrichtenalter
 (`max_age_seconds`), feste Panelhöhe, Namensfarben, Tier-Badges und eine
 Chat-Statistikzeile. Uhr und Text haben nun eigene Ränder sowie optional
 abschaltbare Hintergrundboxen. Die Einnahmen-Schriftgröße ist konfigurierbar.
+
+Beim ersten Start nach dem Update werden vorhandene Streamer-Overlays einmalig
+als globaler Default in `settings.yml` übernommen. Danach ist das Studio die
+einzige Quelle für Overlay-Änderungen; per-Streamer-Overlays in
+`streamers.yml` bleiben nur aus Kompatibilitätsgründen erhalten und werden
+nicht mehr angewendet.
 
 Ein Streamer kann pro Overlay-Editor zwischen Canvas und drawtext wechseln.
 `delay = 0` bedeutet: Chat wird automatisch um die Delay-Buffer-Größe verzögert,
