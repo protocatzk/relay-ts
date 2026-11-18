@@ -35,6 +35,8 @@ export interface ChatOverlay {
   show_tiers: boolean;
   show_stats: boolean;
   name_colors: boolean;
+  offset_x: number;
+  offset_y: number;
   api_url: string;
   api_key_set: boolean;
   poll_interval: number;
@@ -50,6 +52,8 @@ export interface ClockOverlay {
   box_color: string;
   show_box: boolean;
   margin: number;
+  offset_x: number;
+  offset_y: number;
 }
 
 export interface TextOverlay {
@@ -63,6 +67,8 @@ export interface TextOverlay {
   speed: number;
   show_box: boolean;
   margin: number;
+  offset_x: number;
+  offset_y: number;
 }
 
 export interface StreamerOverlays {

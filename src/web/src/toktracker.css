@@ -962,6 +962,9 @@ a.btn.is-disabled {
   display: block;
   width: 100%;
   height: auto;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .studio-preview-empty {
@@ -1043,6 +1046,113 @@ a.btn.is-disabled {
 }
 
 .studio-hotzone.is-active span {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.studio-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.studio-guide-safe {
+  position: absolute;
+  inset: 5%;
+  border: 1px dashed rgba(63, 185, 80, 0.55);
+}
+
+.studio-guide-v1,
+.studio-guide-v2,
+.studio-guide-h1,
+.studio-guide-h2 {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.studio-guide-v1,
+.studio-guide-v2 {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.studio-guide-v1 {
+  left: 33.333%;
+}
+
+.studio-guide-v2 {
+  left: 66.666%;
+}
+
+.studio-guide-h1,
+.studio-guide-h2 {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.studio-guide-h1 {
+  top: 33.333%;
+}
+
+.studio-guide-h2 {
+  top: 66.666%;
+}
+
+.studio-drag-box {
+  position: absolute;
+  z-index: 3;
+  min-width: 24px;
+  min-height: 18px;
+  border: 1px dashed var(--accent);
+  border-radius: 2px;
+  background: rgba(63, 185, 80, 0.1);
+  cursor: grab;
+  touch-action: none;
+}
+
+.studio-drag-box:active {
+  cursor: grabbing;
+}
+
+.studio-drag-box:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.studio-drag-label {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  padding: 2px 5px;
+  border: 1px solid var(--accent-border);
+  background: var(--surface);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.studio-resize-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.btn.is-active {
   border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent);
@@ -1729,6 +1839,18 @@ body {
 
   .overlay-preview-stage {
     padding: 8px;
+  }
+
+  .studio-resize-handle {
+    right: -10px;
+    bottom: -10px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .studio-drag-label {
+    top: -24px;
+    font-size: 10px;
   }
 
   .log-view {

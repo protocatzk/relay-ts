@@ -280,7 +280,13 @@ export class ChatOverlayEngine {
       cfg.position === 'top-left' || cfg.position === 'top-right'
         ? margin
         : outputHeight - height - margin;
-    this.spec = { width, height, x, y, fps: cfg.render_fps };
+    this.spec = {
+      width,
+      height,
+      x: x + cfg.offset_x,
+      y: y + cfg.offset_y,
+      fps: cfg.render_fps,
+    };
     this.canvas = createCanvas(width, height);
     this.ctx = this.canvas.getContext('2d');
   }

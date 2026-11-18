@@ -3,7 +3,6 @@ import type { LoadedConfig } from '../config/loader.js';
 import {
   StreamerSchema,
   resolveStreamKey,
-  type PlaylistConfig,
   type Settings,
   type StreamerConfig,
 } from '../config/schema.js';
@@ -39,6 +38,7 @@ import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
 import { incMetric } from '../metrics.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
+import { PlaylistController, type PlaylistRunState } from './playlist-controller.js';
 import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
@@ -68,14 +68,10 @@ export interface PlaylistView {
   index: number | null;
 }
 
-interface PlaylistState {
-  playlist: PlaylistConfig;
-  index: number;
-}
 
 interface StartOptions {
   key?: string;
-  playlist?: PlaylistState;
+  playlist?: PlaylistRunState;
   forceReencode?: boolean;
   allowOfflineWait?: boolean;
   intro?: boolean;
@@ -112,7 +108,7 @@ export class Supervisor {
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
-  private activePlaylist: PlaylistState | null = null;
+  private readonly playlistController: PlaylistController;
   private activeKey = '';
   private activeOverlayFilters: string[] = [];
   private activeOverlayInput?: SinkOverlayInput;
@@ -124,10 +120,6 @@ export class Supervisor {
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
   private sinkRestartTimer?: NodeJS.Timeout;
-  private playlistAdvanceTimer?: NodeJS.Timeout;
-  private playlistEndTimer?: NodeJS.Timeout;
-  private playlistEndAt: number | null = null;
-  private playlistAdvancePending = false;
   private pauseRestartTimer?: NodeJS.Timeout;
   private pauseLimitTimer?: NodeJS.Timeout;
   private startupTimer?: NodeJS.Timeout;
@@ -149,6 +141,20 @@ export class Supervisor {
     this.deps = deps;
     this.settings = deps.settingsService.get();
     this.stateMachine = new SupervisorStateMachine('idle', deps.logger);
+    this.playlistController = new PlaylistController({
+      store: deps.store,
+      logger: deps.logger,
+      lock: this.lock,
+      isShuttingDown: () => this.shuttingDown,
+      startStreamer: (streamer, options) => this.startStreamerLocked(streamer, options),
+      stopAll: () => this.stopInternalLocked(),
+      transition: (state, reason) => this.transitionTo(state, reason),
+      emitStatus: () => this.emitStatus(),
+      emitAll: () => this.emitAll(),
+      setLastError: (message) => {
+        this.lastError = message;
+      },
+    });
   }
 
   private get state(): StreamState {
@@ -270,7 +276,7 @@ export class Supervisor {
         sinkStartedAt: this.sink.startedAt,
         sourceBitrateKbps: this.source.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
         sourceOutputSeconds: this.source.outputTimeSeconds,
-        suppressStall: this.playlistAdvancePending,
+        suppressStall: this.playlistController.isAdvancePending,
         sinkGraceUntil: this.sinkGraceUntil,
       }),
       onRelayStall: (age) => void this.handleRelayStall(age),
@@ -392,7 +398,7 @@ export class Supervisor {
       this.shuttingDown ||
       !this.settings.online.enabled ||
       !this.settings.online.auto_switch_preferred ||
-      this.activePlaylist ||
+      this.playlistController.current ||
       this.state === 'stopping'
     ) {
       return;
@@ -413,7 +419,11 @@ export class Supervisor {
     if (!candidate) return;
 
     await this.lock.run(async () => {
-      if (this.shuttingDown || this.activePlaylist || this.activeStreamer?.id === candidate.id)
+      if (
+        this.shuttingDown ||
+        this.playlistController.current ||
+        this.activeStreamer?.id === candidate.id
+      )
         return;
       const key = resolveStreamKey(candidate).key;
       if (!key) return;
@@ -582,7 +592,6 @@ export class Supervisor {
     this.activeOverlayFilters = prepared.filters;
     this.activeOverlayInput = overlayInput;
     this.activeOverlaySignature = signature;
-    this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
     this.activeTitle = stream.title;
     this.pauseReason = null;
@@ -622,17 +631,7 @@ export class Supervisor {
       this.watchdog.clearError();
       this.transitionTo('live');
     }
-    if (options.playlist) {
-      if (this.playlistAdvanceTimer) clearTimeout(this.playlistAdvanceTimer);
-      this.playlistAdvanceTimer = undefined;
-      this.playlistAdvancePending = false;
-      if (this.playlistEndAt === null) {
-        this.playlistEndAt = this.playlistEndTimestamp(options.playlist.playlist);
-      }
-      this.schedulePlaylistEndLocked();
-    } else {
-      this.clearPlaylistTimers();
-    }
+    this.playlistController.activate(options.playlist ?? null);
     this.emitAll();
     this.deps.logger.info(
       { streamer: streamer.id, key: '***', reusedSink: reusable, introSeconds },
@@ -710,7 +709,6 @@ export class Supervisor {
     this.activeOverlayFilters = prepared.filters;
     this.activeOverlayInput = overlayInput;
     this.activeOverlaySignature = signature;
-    this.activePlaylist = options.playlist ?? null;
     this.startedAt = new Date();
     this.activeTitle = streamer.name;
     this.reconnectAttempts = 0;
@@ -720,14 +718,7 @@ export class Supervisor {
     this.watchdog.reset();
     this.watchdog.clearError();
 
-    if (options.playlist) {
-      if (this.playlistEndAt === null) {
-        this.playlistEndAt = this.playlistEndTimestamp(options.playlist.playlist);
-      }
-      this.schedulePlaylistEndLocked();
-    } else {
-      this.clearPlaylistTimers();
-    }
+    this.playlistController.activate(options.playlist ?? null);
 
     await this.startPauseLocked();
     this.earnings.setActive();
@@ -830,7 +821,7 @@ export class Supervisor {
     this.currentChatMessages = [];
     this.lastChatMessageAt = null;
     this.activeStreamer = null;
-    this.activePlaylist = null;
+    this.playlistController.detach();
     this.activeKey = '';
     this.activeOverlayFilters = [];
     this.activeOverlayInput = undefined;
@@ -974,7 +965,7 @@ export class Supervisor {
       this.clearStartupTimer();
       return this.startStreamerLocked(streamer, {
         key: this.activeKey,
-        playlist: this.activePlaylist ?? undefined,
+        playlist: this.playlistController.current ?? undefined,
         allowOfflineWait: true,
         intro: false,
       });
@@ -982,221 +973,23 @@ export class Supervisor {
   }
 
   async playPlaylist(id: string): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
-      const playlist = this.deps.store.playlist(id);
-      if (!playlist) throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
-      this.clearPlaylistTimers();
-      this.playlistEndAt = this.playlistEndTimestamp(playlist);
-      return this.startPlaylistEntryLocked(playlist, 0);
-    });
+    return this.playlistController.play(id);
   }
 
   async playlistNext(): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
-      if (!this.activePlaylist) throw new ValidationError('Es ist keine Playlist aktiv');
-      return this.advancePlaylistLocked('manual');
-    });
+    return this.playlistController.next();
   }
 
   async playlistPrevious(): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
-      const state = this.activePlaylist;
-      if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
-      let index = state.index - 1;
-      if (index < 0) index = playlist.wrap ? playlist.channels.length - 1 : 0;
-      return this.startPlaylistEntryLocked(playlist, index);
-    });
+    return this.playlistController.previous();
   }
 
   async playlistTune(streamerId: string): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
-      const state = this.activePlaylist;
-      if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
-      const wanted = streamerId.replace(/^@+/, '').toLowerCase();
-      const index = playlist.channels.findIndex((channel) => {
-        const resolved = this.resolvePlaylistChannel(channel);
-        return (
-          resolved.id === streamerId ||
-          resolved.tiktok.replace(/^@+/, '').toLowerCase() === wanted ||
-          channel.replace(/^@+/, '').toLowerCase() === wanted
-        );
-      });
-      if (index < 0) throw new NotFoundError(`Kanal "${streamerId}" ist nicht in der Playlist`);
-      return this.startPlaylistEntryLocked(playlist, index);
-    });
+    return this.playlistController.tune(streamerId);
   }
 
   async stopPlaylist(): Promise<StatusSnapshot> {
     return this.stop();
-  }
-
-  private async startPlaylistEntryLocked(
-    playlist: PlaylistConfig,
-    startIndex: number,
-  ): Promise<StatusSnapshot> {
-    const { channels } = playlist;
-    if (channels.length === 0) throw new ValidationError('Die Playlist enthält keine Kanäle');
-    let index = startIndex;
-    let tried = 0;
-    let lastError: string | null = null;
-    while (tried < channels.length) {
-      if (index >= channels.length) {
-        if (playlist.wrap && tried > 0) {
-          index = 0;
-        } else {
-          break;
-        }
-      }
-      const channel = channels[index]!;
-      const streamer = this.resolvePlaylistChannel(channel);
-      const playlistKey = resolveStreamKey(playlist).key;
-      const streamerKey = resolveStreamKey(streamer).key;
-      // Explicitly marked own streams keep their own YouTube key even inside
-      // a playlist with a shared key.
-      const key = streamer.own_stream && streamerKey ? streamerKey : playlistKey || streamerKey;
-      tried += 1;
-      if (!streamer.enabled || !key) {
-        index += 1;
-        continue;
-      }
-      try {
-        return await this.startStreamerLocked(streamer, {
-          key,
-          playlist: { playlist, index },
-        });
-      } catch (error) {
-        lastError = toErrorMessage(error);
-        this.deps.logger.warn(
-          { playlist: playlist.id, channel: streamer.id, err: lastError },
-          'Playlist-Eintrag konnte nicht gestartet werden',
-        );
-        if (!(error instanceof StreamerOfflineError)) throw error;
-        index += 1;
-      }
-    }
-    await this.stopInternalLocked();
-    this.lastError = lastError ?? 'Kein Streamer der Playlist ist verfügbar';
-    this.transitionTo('error');
-    this.emitAll();
-    throw new StreamerOfflineError(this.lastError);
-  }
-
-  private resolvePlaylistChannel(channel: string): StreamerConfig {
-    const existing = this.deps.store.findForChannel(channel);
-    if (existing) return existing;
-    const handle = channel.replace(/^@+/, '');
-    const id = handle
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 64);
-    return StreamerSchema.parse({
-      id: id || `channel-${Date.now()}`,
-      name: handle,
-      tiktok: handle,
-      quality: 'best',
-      enabled: true,
-    });
-  }
-
-  private async advancePlaylistLocked(
-    reason: 'manual' | 'offline' | 'end_after',
-  ): Promise<StatusSnapshot> {
-    const state = this.activePlaylist;
-    if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-    const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
-    if (reason === 'end_after') {
-      return this.stopInternalLocked();
-    }
-    if (this.playlistAdvanceTimer) clearTimeout(this.playlistAdvanceTimer);
-    this.playlistAdvanceTimer = undefined;
-    this.playlistAdvancePending = false;
-    const nextIndex = state.index + 1;
-    if (nextIndex >= playlist.channels.length && !playlist.wrap) {
-      this.deps.logger.info({ playlist: playlist.id }, 'Playlist beendet');
-      return this.stopInternalLocked();
-    }
-    return this.startPlaylistEntryLocked(
-      playlist,
-      nextIndex >= playlist.channels.length ? 0 : nextIndex,
-    );
-  }
-
-  private schedulePlaylistAdvanceLocked(): void {
-    if (!this.activePlaylist || !this.activePlaylist.playlist.auto_advance) return;
-    if (this.playlistAdvanceTimer) return;
-    const delay = Math.max(0, this.activePlaylist.playlist.advance_delay_seconds) * 1000;
-    this.playlistAdvancePending = true;
-    this.transitionTo('reconnecting');
-    this.emitStatus();
-    this.deps.logger.info(
-      { playlist: this.activePlaylist.playlist.id, delaySeconds: delay / 1000 },
-      'Playlist wechselt zum nächsten Kanal',
-    );
-    this.playlistAdvanceTimer = setTimeout(() => {
-      this.playlistAdvanceTimer = undefined;
-      this.playlistAdvancePending = false;
-      this.transitionTo('starting');
-      this.emitStatus();
-      void this.lock.run(async () => {
-        if (!this.activePlaylist || this.shuttingDown) return;
-        incMetric('playlist_advances_total');
-        try {
-          await this.advancePlaylistLocked('offline');
-        } catch (error) {
-          this.lastError = toErrorMessage(error);
-          this.transitionTo('error');
-          this.emitAll();
-        }
-      });
-    }, delay);
-  }
-
-  /** Optional daily end time ("HH:MM") or duration after the playlist starts. */
-  private playlistEndTimestamp(playlist: PlaylistConfig): number | null {
-    const time = playlist.end_time?.trim();
-    if (time) {
-      const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(time);
-      if (match) {
-        const target = new Date();
-        target.setHours(Number(match[1]), Number(match[2]), 0, 0);
-        if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
-        return target.getTime();
-      }
-    }
-    if (playlist.end_after_minutes && playlist.end_after_minutes > 0) {
-      return Date.now() + playlist.end_after_minutes * 60_000;
-    }
-    return null;
-  }
-
-  private schedulePlaylistEndLocked(): void {
-    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
-    this.playlistEndTimer = undefined;
-    if (!this.playlistEndAt) return;
-    const delay = Math.max(0, this.playlistEndAt - Date.now());
-    this.playlistEndTimer = setTimeout(() => {
-      this.playlistEndTimer = undefined;
-      void this.lock.run(async () => {
-        if (!this.activePlaylist || this.shuttingDown) return;
-        this.deps.logger.info(
-          { playlist: this.activePlaylist.playlist.id },
-          'Playlist-Endzeit erreicht',
-        );
-        await this.stopInternalLocked();
-      });
-    }, delay);
-  }
-
-  private clearPlaylistTimers(): void {
-    if (this.playlistAdvanceTimer) clearTimeout(this.playlistAdvanceTimer);
-    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
-    this.playlistAdvanceTimer = undefined;
-    this.playlistEndTimer = undefined;
-    this.playlistAdvancePending = false;
-    this.playlistEndAt = null;
   }
 
   private clearReconnectTimer(): void {
@@ -1206,7 +999,7 @@ export class Supervisor {
 
   private clearAllTimers(): void {
     this.clearReconnectTimer();
-    this.clearPlaylistTimers();
+    this.playlistController.clearTimers();
     if (this.sinkRestartTimer) clearTimeout(this.sinkRestartTimer);
     this.sinkRestartTimer = undefined;
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
@@ -1296,9 +1089,10 @@ export class Supervisor {
           { streamer: this.activeStreamer.id, err: message },
           'Neuverbindung fehlgeschlagen',
         );
-        if (error instanceof StreamerOfflineError && this.activePlaylist) {
-          if (this.activePlaylist.playlist.auto_advance) {
-            this.schedulePlaylistAdvanceLocked();
+        const playlist = this.playlistController.current;
+        if (error instanceof StreamerOfflineError && playlist) {
+          if (playlist.playlist.auto_advance) {
+            this.playlistController.scheduleAdvance();
             this.emitStatus();
             return;
           }
@@ -1388,7 +1182,7 @@ export class Supervisor {
       void this.lock.run(async () => {
         if (this.shuttingDown) return;
         if (this.source.running || this.pauseScreen.running || !this.sink.running) return;
-        if (this.playlistAdvancePending) return;
+        if (this.playlistController.isAdvancePending) return;
         if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return;
         if (this.state === 'paused' && this.pauseReason === 'user') return;
         await this.startPauseLocked();
@@ -1452,7 +1246,9 @@ export class Supervisor {
         }
         if (error instanceof StreamerOfflineError) {
           this.deps.logger.warn('Auto-Refresh: Streamer ist offline');
-          if (this.activePlaylist?.playlist.auto_advance) this.schedulePlaylistAdvanceLocked();
+          if (this.playlistController.current?.playlist.auto_advance) {
+            this.playlistController.scheduleAdvance();
+          }
         } else {
           this.deps.logger.warn({ err: this.lastError }, 'Auto-Refresh fehlgeschlagen');
         }
@@ -1519,7 +1315,7 @@ export class Supervisor {
     await this.lock.run(async () => {
       if (!this.activeStreamer || this.shuttingDown) return;
       if (!['live', 'reconnecting'].includes(this.state)) return;
-      if (this.playlistAdvancePending) return;
+      if (this.playlistController.isAdvancePending) return;
       const last = this.relay.lastData;
       if (last && Date.now() - last.getTime() < this.settings.watchdog.stall_timeout * 1000) {
         return;
@@ -1554,7 +1350,7 @@ export class Supervisor {
   ): Promise<void> {
     await this.lock.run(async () => {
       if (!this.activeStreamer || this.shuttingDown) return;
-      if (this.state !== 'live' || this.playlistAdvancePending) return;
+      if (this.state !== 'live' || this.playlistController.isAdvancePending) return;
       this.lastError = reason;
       incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ...context, reason }, 'Quelle wird neu gestartet');
@@ -1572,7 +1368,7 @@ export class Supervisor {
   private async handleSinkStall(ageSeconds: number): Promise<void> {
     await this.lock.run(async () => {
       if (this.shuttingDown || !this.activeKey) return;
-      if (this.playlistAdvancePending) return;
+      if (this.playlistController.isAdvancePending) return;
       const last = this.sink.lastProgressAt;
       if (last && Date.now() - last.getTime() < this.settings.watchdog.stall_timeout * 1000) {
         return;
@@ -1757,15 +1553,26 @@ export class Supervisor {
     return (this.chatEngine ?? this.getPreviewEngine()).previewPng(sample);
   }
 
-  studioPreviewPng(streamer: StreamerConfig, sample = true, maxDimension = 720): Buffer {
+  studioPreviewPng(
+    streamer: StreamerConfig,
+    sample = true,
+    maxDimension = 720,
+    chatMessages?: ChatMessage[],
+  ): Buffer {
     return renderStudioPreview({
       settings: this.settings,
       streamer,
       logger: this.deps.logger,
       sample,
+      chatMessages,
       earningsText: this.earningsOverlayText(),
       maxDimension,
     });
+  }
+
+  /** Latest real chat messages, used by the overlay studio when samples are off. */
+  recentChatMessages(): ChatMessage[] {
+    return this.currentChatMessages.map((message) => ({ ...message }));
   }
 
   earningsOverlayText(): string {
@@ -1846,13 +1653,13 @@ export class Supervisor {
   }
 
   playlistsView(): PlaylistView[] {
-    const active = this.activePlaylist;
+    const active = this.playlistController.current;
     return this.deps.store.playlists().map((playlist) => {
       const playlistKey = resolveStreamKey(playlist).key;
       const channelsHaveKey =
         Boolean(playlistKey) ||
         playlist.channels.some((channel) =>
-          Boolean(resolveStreamKey(this.resolvePlaylistChannel(channel)).key),
+          Boolean(resolveStreamKey(this.playlistController.resolveChannel(channel)).key),
         );
       return {
         id: playlist.id,
@@ -1899,6 +1706,7 @@ export class Supervisor {
     const refresh = this.autoRefresh?.stats();
     const now = Date.now();
     const activeId = this.activeStreamer?.id ?? null;
+    const activePlaylist = this.playlistController.current;
     const monitorOnline = this.activeStreamer
       ? (this.online?.isOnline(this.activeStreamer) ?? null)
       : null;
@@ -1906,12 +1714,12 @@ export class Supervisor {
       state: this.state,
       active_streamer_id: activeId,
       active_streamer_name: this.activeStreamer?.name ?? null,
-      active_playlist: this.activePlaylist
+      active_playlist: activePlaylist
         ? {
-            id: this.activePlaylist.playlist.id,
-            name: this.activePlaylist.playlist.name,
-            index: this.activePlaylist.index,
-            total: this.activePlaylist.playlist.channels.length,
+            id: activePlaylist.playlist.id,
+            name: activePlaylist.playlist.name,
+            index: activePlaylist.index,
+            total: activePlaylist.playlist.channels.length,
           }
         : null,
       manual_screen: this.manualScreen,

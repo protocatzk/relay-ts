@@ -78,6 +78,8 @@ function defaultOverlays(): StreamerOverlays {
       show_tiers: true,
       show_stats: false,
       name_colors: true,
+      offset_x: 0,
+      offset_y: 0,
       api_url: '',
       api_key_set: false,
       poll_interval: 3,
@@ -92,6 +94,8 @@ function defaultOverlays(): StreamerOverlays {
       box_color: '#000000@0.45',
       show_box: true,
       margin: 32,
+      offset_x: 0,
+      offset_y: 0,
     },
     text: {
       enabled: false,
@@ -104,6 +108,8 @@ function defaultOverlays(): StreamerOverlays {
       speed: 60,
       show_box: true,
       margin: 32,
+      offset_x: 0,
+      offset_y: 0,
     },
   };
 }

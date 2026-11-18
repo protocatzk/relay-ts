@@ -131,10 +131,12 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         `Ungültige Overlay-Einstellungen: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    const sample = parsed.data.sample ?? true;
     const png = ctx.supervisor.studioPreviewPng(
       streamer,
-      parsed.data.sample ?? true,
+      sample,
       parsed.data.max_dimension ?? 720,
+      sample ? undefined : ctx.supervisor.recentChatMessages(),
     );
     return reply
       .header('cache-control', 'no-store')

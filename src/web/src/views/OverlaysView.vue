@@ -45,6 +45,22 @@ const previewUrl = ref('');
 const previewError = ref('');
 const previewLoading = ref(false);
 const sendingTest = ref(false);
+const stageRef = ref<HTMLDivElement | null>(null);
+const presetInput = ref<HTMLInputElement | null>(null);
+const showGuides = ref(true);
+const history = ref<string[]>([]);
+const historyIndex = ref(-1);
+const canUndo = computed(() => historyIndex.value > 0);
+const canRedo = computed(() => historyIndex.value < history.value.length - 1);
+let historyTimer: number | null = null;
+let drag: {
+  mode: 'move' | 'resize';
+  startX: number;
+  startY: number;
+  baseX: number;
+  baseY: number;
+  baseSize: number;
+} | null = null;
 const chatTest = reactive({ username: 'Testuser', text: 'Das Overlay sieht gut aus! 🔥' });
 let initialSnapshot = '';
 let previewTimer: number | null = null;
@@ -69,8 +85,167 @@ const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>((
 });
 const activePosition = computed(() => activeConfig.value?.position ?? null);
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function overlayMargin(config: ChatOverlay | ClockOverlay | TextOverlay): number {
+  return 'margin' in config ? config.margin : 32;
+}
+
+const stageBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
+  const config = activeConfig.value;
+  if (!config) return {};
+  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
+  const margin = overlayMargin(config);
+  const chatConfig = activeSection.value === 'chat' ? chat.value : null;
+  const boxWidth = chatConfig
+    ? chatConfig.panel_width > 0
+      ? chatConfig.panel_width
+      : Math.round(width * (width >= height ? 0.6 : 0.92))
+    : Math.round(width * 0.5);
+  const boxHeight = chatConfig
+    ? chatConfig.panel_height > 0
+      ? chatConfig.panel_height
+      : Math.round(height * 0.34)
+    : Math.round(config.font_size * 1.8);
+  const baseX = config.position.endsWith('left') ? margin : width - boxWidth - margin;
+  const baseY = config.position.startsWith('top') ? margin : height - boxHeight - margin;
+  const x = baseX + config.offset_x;
+  const y = baseY + config.offset_y;
+  return {
+    left: `${(x / width) * 100}%`,
+    top: `${(y / height) * 100}%`,
+    width: `${(boxWidth / width) * 100}%`,
+    height: `${(boxHeight / height) * 100}%`,
+  };
+});
+
+function resetHistory(): void {
+  const snapshot = draft.value ? JSON.stringify(draft.value) : '';
+  history.value = snapshot ? [snapshot] : [];
+  historyIndex.value = snapshot ? 0 : -1;
+}
+
+function pushHistory(): void {
+  if (!draft.value) return;
+  const snapshot = JSON.stringify(draft.value);
+  if (history.value[historyIndex.value] === snapshot) return;
+  history.value = [...history.value.slice(0, historyIndex.value + 1), snapshot].slice(-60);
+  historyIndex.value = history.value.length - 1;
+}
+
+function scheduleHistory(): void {
+  if (historyTimer !== null) window.clearTimeout(historyTimer);
+  historyTimer = window.setTimeout(() => {
+    historyTimer = null;
+    pushHistory();
+  }, 450);
+}
+
+function undo(): void {
+  if (!canUndo.value) return;
+  historyIndex.value -= 1;
+  draft.value = clone(JSON.parse(history.value[historyIndex.value]!) as StreamerOverlays);
+  schedulePreview(true);
+}
+
+function redo(): void {
+  if (!canRedo.value) return;
+  historyIndex.value += 1;
+  draft.value = clone(JSON.parse(history.value[historyIndex.value]!) as StreamerOverlays);
+  schedulePreview(true);
+}
+
+function nudge(dx: number, dy: number): void {
+  const config = activeConfig.value;
+  if (!config) return;
+  config.offset_x = clamp(config.offset_x + dx, -1920, 1920);
+  config.offset_y = clamp(config.offset_y + dy, -1080, 1080);
+}
+
+function onDragMove(event: PointerEvent): void {
+  const config = activeConfig.value;
+  const stage = stageRef.value;
+  if (!config || !drag || !stage) return;
+  const rect = stage.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
+  const dx = ((event.clientX - drag.startX) / rect.width) * width;
+  const dy = ((event.clientY - drag.startY) / rect.height) * height;
+  if (drag.mode === 'move') {
+    config.offset_x = Math.round(clamp(drag.baseX + dx, -1920, 1920));
+    config.offset_y = Math.round(clamp(drag.baseY + dy, -1080, 1080));
+  } else {
+    config.font_size = Math.round(clamp(drag.baseSize + dy * 0.15, 8, 96));
+  }
+}
+
+function endDrag(): void {
+  if (!drag) return;
+  drag = null;
+  window.removeEventListener('pointermove', onDragMove);
+  pushHistory();
+}
+
+function startDrag(event: PointerEvent, mode: 'move' | 'resize'): void {
+  const config = activeConfig.value;
+  if (!config) return;
+  event.preventDefault();
+  drag = {
+    mode,
+    startX: event.clientX,
+    startY: event.clientY,
+    baseX: config.offset_x,
+    baseY: config.offset_y,
+    baseSize: config.font_size,
+  };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', endDrag, { once: true });
+  window.addEventListener('pointercancel', endDrag, { once: true });
+}
+
+function exportPreset(): void {
+  if (!draft.value) return;
+  const blob = new Blob([JSON.stringify(draft.value, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `relay-overlays-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importPreset(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text()) as Partial<StreamerOverlays>;
+    if (!parsed || typeof parsed !== 'object' || !parsed.chat || !parsed.clock || !parsed.text) {
+      throw new Error('Das JSON enthält keine vollständige Overlay-Konfiguration.');
+    }
+    draft.value = normalizeOverlays(parsed as StreamerOverlays);
+    pushHistory();
+    schedulePreview(true);
+    pushToast('Preset geladen – noch nicht gespeichert.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
+}
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function normalizeOverlays(value: StreamerOverlays): StreamerOverlays {
+  const result = clone(value);
+  for (const key of ['chat', 'clock', 'text'] as const) {
+    result[key].offset_x ??= 0;
+    result[key].offset_y ??= 0;
+  }
+  return result;
 }
 
 function overlaysInput(): StreamerOverlaysInput {
@@ -122,15 +297,19 @@ function schedulePreview(immediate = false): void {
 function resetDraft(): void {
   const current = settings.value;
   if (!current) return;
-  draft.value = clone(current.overlays);
+  draft.value = normalizeOverlays(current.overlays);
   initialSnapshot = JSON.stringify(draft.value);
+  resetHistory();
   pushToast('Änderungen verworfen.', 'info');
   schedulePreview(true);
 }
 
 function setPosition(position: OverlayPosition): void {
   const config = activeConfig.value;
-  if (config) config.position = position;
+  if (!config) return;
+  config.position = position;
+  config.offset_x = 0;
+  config.offset_y = 0;
 }
 
 async function save(): Promise<void> {
@@ -139,8 +318,9 @@ async function save(): Promise<void> {
   try {
     const saved = await api.overlays.save(overlaysInput());
     settings.value = saved;
-    draft.value = clone(saved.overlays);
+    draft.value = normalizeOverlays(saved.overlays);
     initialSnapshot = JSON.stringify(draft.value);
+    resetHistory();
     await refreshStatus();
     pushToast('Globale Overlay-Einstellungen gespeichert.', 'success');
     schedulePreview(true);
@@ -166,7 +346,14 @@ async function sendTest(): Promise<void> {
   }
 }
 
-watch(draft, () => schedulePreview(), { deep: true });
+watch(
+  draft,
+  () => {
+    schedulePreview();
+    scheduleHistory();
+  },
+  { deep: true },
+);
 watch(sample, () => schedulePreview(true));
 
 onMounted(async () => {
@@ -174,8 +361,9 @@ onMounted(async () => {
   try {
     await refreshStatus().catch(() => undefined);
     settings.value = await api.settings.get();
-    draft.value = clone(settings.value.overlays);
+    draft.value = normalizeOverlays(settings.value.overlays);
     initialSnapshot = JSON.stringify(draft.value);
+    resetHistory();
     schedulePreview(true);
   } catch (error) {
     loadError.value = errorMessage(error);
@@ -186,6 +374,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (previewTimer !== null) window.clearTimeout(previewTimer);
+  if (historyTimer !== null) window.clearTimeout(historyTimer);
+  window.removeEventListener('pointermove', onDragMove);
   previewController?.abort();
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
 });
@@ -201,6 +391,7 @@ onBeforeUnmount(() => {
       <div class="page-actions">
         <span class="badge tone-info">Global</span>
         <span v-if="dirty" class="badge tone-warning">Ungespeichert</span>
+        <span v-if="dirty" class="badge tone-info">Speichern: kurzer Sink-Neustart</span>
         <button type="button" class="btn btn-ghost" :disabled="!dirty || saving" @click="resetDraft">
           Verwerfen
         </button>
@@ -231,6 +422,46 @@ onBeforeUnmount(() => {
             <p class="card-sub">Gilt für alle Streamer · {{ resolution }}</p>
           </div>
           <div class="studio-preview-tools">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="!canUndo"
+              aria-label="Rückgängig"
+              @click="undo"
+            >
+              ↶
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="!canRedo"
+              aria-label="Wiederholen"
+              @click="redo"
+            >
+              ↷
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :class="{ 'is-active': showGuides }"
+              :aria-pressed="showGuides"
+              @click="showGuides = !showGuides"
+            >
+              Hilfslinien
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="exportPreset">
+              Export
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="presetInput?.click()">
+              Import
+            </button>
+            <input
+              ref="presetInput"
+              class="sr-only"
+              type="file"
+              accept="application/json,.json"
+              @change="importPreset"
+            />
             <label class="checkbox">
               <input v-model="sample" type="checkbox" />
               Beispielnachrichten
@@ -239,7 +470,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="overlay-preview-stage studio-stage">
+        <div ref="stageRef" class="overlay-preview-stage studio-stage">
           <img v-if="previewUrl" :src="previewUrl" alt="Overlay-Vorschau" />
           <div v-else class="studio-preview-empty">
             <span class="spinner" aria-hidden="true"></span>
@@ -258,14 +489,45 @@ onBeforeUnmount(() => {
               <span>{{ position.label }}</span>
             </button>
           </div>
+          <div v-if="showGuides" class="studio-guides" aria-hidden="true">
+            <span class="studio-guide-safe"></span>
+            <span class="studio-guide-v1"></span>
+            <span class="studio-guide-v2"></span>
+            <span class="studio-guide-h1"></span>
+            <span class="studio-guide-h2"></span>
+          </div>
+          <div
+            v-if="activeConfig"
+            class="studio-drag-box"
+            :style="stageBoxStyle"
+            role="group"
+            tabindex="0"
+            :aria-label="`${activeSection}-Overlay positionieren`"
+            @pointerdown="startDrag($event, 'move')"
+            @keydown.left.prevent="nudge(-5, 0)"
+            @keydown.right.prevent="nudge(5, 0)"
+            @keydown.up.prevent="nudge(0, -5)"
+            @keydown.down.prevent="nudge(0, 5)"
+          >
+            <span class="studio-drag-label">{{ activeSection }} · {{ activeConfig.font_size }} px</span>
+            <button
+              type="button"
+              class="studio-resize-handle"
+              aria-label="Schriftgröße ändern"
+              @pointerdown.stop="startDrag($event, 'resize')"
+            ></button>
+          </div>
           <p v-if="previewError" class="studio-preview-error">{{ previewError }}</p>
         </div>
 
         <div class="studio-preview-foot">
           <p class="muted small">
-            Klick auf eine Ecke setzt die Position des aktiven Overlays. Die Vorschau wird aus den
-            ungespeicherten Einstellungen serverseitig mit TypeScript-Canvas gerendert.
+            Rahmen ziehen, am Griff skalieren oder Pfeiltasten nutzen. Speichern baut Sink und
+            Chat-Engine kurz neu auf; die Vorschau nutzt ungespeicherte Werte.
           </p>
+          <span class="badge tone-neutral">
+            {{ sample ? 'Beispieldaten' : `${chatStatus?.messages ?? 0} Live-Nachrichten` }}
+          </span>
           <span v-if="chatStatus?.canvas_active" class="badge tone-success">Canvas live</span>
           <span v-else class="badge tone-neutral">Canvas inaktiv</span>
         </div>

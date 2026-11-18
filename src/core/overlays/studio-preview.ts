@@ -2,6 +2,7 @@ import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import { ChatOverlayEngine, parseColor } from './chat-engine.js';
+import type { ChatMessage } from './chat-service.js';
 import type { OverlayPosition } from './drawtext.js';
 
 export interface StudioPreviewOptions {
@@ -10,6 +11,7 @@ export interface StudioPreviewOptions {
   logger: Logger;
   sample?: boolean;
   earningsText?: string;
+  chatMessages?: ChatMessage[];
   maxDimension?: number;
 }
 
@@ -37,18 +39,22 @@ function drawBoxedText(
     showBox: boolean;
     margin: number;
     alignTop: boolean;
+    offsetX?: number;
+    offsetY?: number;
   },
 ): void {
   ctx.font = `700 ${opts.fontSize}px "DejaVu Sans", sans-serif`;
   ctx.textBaseline = 'top';
   const width = Math.min(opts.width - opts.margin * 2, ctx.measureText(text).width);
   const boxHeight = Math.round(opts.fontSize * 1.45);
-  const x = target.endsWith('left')
-    ? opts.margin
-    : Math.max(opts.margin, opts.width - width - opts.margin);
-  const y = opts.alignTop
-    ? opts.margin
-    : Math.max(opts.margin, opts.height - boxHeight - opts.margin);
+  const x =
+    (target.endsWith('left')
+      ? opts.margin
+      : Math.max(opts.margin, opts.width - width - opts.margin)) + (opts.offsetX ?? 0);
+  const y =
+    (opts.alignTop
+      ? opts.margin
+      : Math.max(opts.margin, opts.height - boxHeight - opts.margin)) + (opts.offsetY ?? 0);
   if (opts.showBox) {
     const box = parseColor(opts.boxColor, { r: 0, g: 0, b: 0, a: 0.45 });
     ctx.fillStyle = `rgba(${box.r},${box.g},${box.b},${box.a})`;
@@ -113,6 +119,8 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
       showBox: clock.show_box,
       margin: clock.margin,
       alignTop: clock.position.startsWith('top'),
+      offsetX: clock.offset_x,
+      offsetY: clock.offset_y,
     });
   }
 
@@ -127,12 +135,17 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
       showBox: text.show_box,
       margin: text.margin,
       alignTop: text.position.startsWith('top'),
+      offsetX: text.offset_x,
+      offsetY: text.offset_y,
     });
   }
 
   const chat = streamer.overlays.chat;
   if (chat.enabled) {
     const engine = new ChatOverlayEngine({ settings, streamer, logger });
+    if (options.chatMessages && options.chatMessages.length > 0) {
+      engine.setMessages(options.chatMessages);
+    }
     const panel = engine.panel;
     ctx.drawImage(engine.previewCanvas(sample), panel.x, panel.y);
     engine.stop();

@@ -36,6 +36,8 @@ export const ChatOverlaySchema = z.object({
   show_tiers: z.boolean().default(true),
   show_stats: z.boolean().default(false),
   name_colors: z.boolean().default(true),
+  offset_x: z.number().int().min(-1920).max(1920).default(0),
+  offset_y: z.number().int().min(-1080).max(1080).default(0),
   api_url: z.string().default(''),
   api_key: z.string().default(''),
   poll_interval: z.number().min(1).max(60).default(3),
@@ -51,6 +53,8 @@ export const ClockOverlaySchema = z.object({
   box_color: ColorSchema.default('black@0.45'),
   show_box: z.boolean().default(true),
   margin: z.number().int().min(0).max(200).default(32),
+  offset_x: z.number().int().min(-1920).max(1920).default(0),
+  offset_y: z.number().int().min(-1080).max(1080).default(0),
 });
 
 export const TextOverlaySchema = z.object({
@@ -64,6 +68,8 @@ export const TextOverlaySchema = z.object({
   speed: z.number().min(10).max(1000).default(120),
   show_box: z.boolean().default(true),
   margin: z.number().int().min(0).max(200).default(32),
+  offset_x: z.number().int().min(-1920).max(1920).default(0),
+  offset_y: z.number().int().min(-1080).max(1080).default(0),
 });
 
 export const OverlaysSchema = z.object({

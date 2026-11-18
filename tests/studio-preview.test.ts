@@ -39,6 +39,30 @@ describe('studio preview', () => {
     expect(png.length).toBeGreaterThan(1000);
   });
 
+  it('renders live messages and studio offsets', () => {
+    const streamer = StreamerSchema.parse({
+      id: 'live',
+      name: 'Live',
+      tiktok: 'live',
+      overlays: {
+        chat: { enabled: true, style: 'bubbles', offset_x: 40, offset_y: -30 },
+        clock: { enabled: true, position: 'bottom-right', offset_x: -20, offset_y: 10 },
+      },
+    });
+    const png = renderStudioPreview({
+      settings: DEFAULT_SETTINGS,
+      streamer,
+      logger,
+      sample: false,
+      chatMessages: [
+        { id: '1', username: 'real', text: 'Echte Nachricht', receivedAt: new Date() },
+      ],
+      maxDimension: 480,
+    });
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.length).toBeGreaterThan(500);
+  });
+
   it('renders an empty stage when all overlays are disabled', () => {
     const streamer = StreamerSchema.parse({
       id: 'empty',

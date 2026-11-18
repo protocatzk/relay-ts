@@ -40,17 +40,21 @@ export function escapePath(path: string): string {
 export function positionExpressions(
   position: OverlayPosition,
   margin = 32,
+  offsetX = 0,
+  offsetY = 0,
 ): { x: string; y: string } {
+  const dx = offsetX === 0 ? '' : offsetX > 0 ? `+${offsetX}` : `${offsetX}`;
+  const dy = offsetY === 0 ? '' : offsetY > 0 ? `+${offsetY}` : `${offsetY}`;
   switch (position) {
     case 'top-right':
-      return { x: `w-tw-${margin}`, y: `${margin}` };
+      return { x: `w-tw-${margin}${dx}`, y: `${margin}${dy}` };
     case 'bottom-left':
-      return { x: `${margin}`, y: `h-th-${margin}` };
+      return { x: `${margin}${dx}`, y: `h-th-${margin}${dy}` };
     case 'bottom-right':
-      return { x: `w-tw-${margin}`, y: `h-th-${margin}` };
+      return { x: `w-tw-${margin}${dx}`, y: `h-th-${margin}${dy}` };
     case 'top-left':
     default:
-      return { x: `${margin}`, y: `${margin}` };
+      return { x: `${margin}${dx}`, y: `${margin}${dy}` };
   }
 }
 
@@ -61,7 +65,12 @@ export function clockFilter(
 ): string | null {
   const config = streamer.overlays.clock;
   if (!config.enabled) return null;
-  const { x, y } = positionExpressions(config.position, config.margin);
+  const { x, y } = positionExpressions(
+    config.position,
+    config.margin,
+    config.offset_x,
+    config.offset_y,
+  );
   // Three layers of escaping are required: filtergraph, option parser and
   // drawtext's localtime argument parser. The argument separator needs one
   // backslash, colons inside the strftime format need three.
@@ -82,7 +91,12 @@ export function textFilter(
 ): string | null {
   const config = streamer.overlays.text;
   if (!config.enabled || !config.text.trim()) return null;
-  const { x, y } = positionExpressions(config.position, config.margin);
+  const { x, y } = positionExpressions(
+    config.position,
+    config.margin,
+    config.offset_x,
+    config.offset_y,
+  );
   const xExpression = config.marquee
     ? `w-mod(t*${config.speed}\\,w+tw)`
     : x;
@@ -103,7 +117,12 @@ export function chatFilter(
 ): string | null {
   const config = streamer.overlays.chat;
   if (!config.enabled) return null;
-  const { x, y } = positionExpressions(config.position);
+  const { x, y } = positionExpressions(
+    config.position,
+    32,
+    config.offset_x,
+    config.offset_y,
+  );
   return (
     `drawtext=fontfile='${escapePath(fontFile)}':` +
     `textfile='${escapePath(chatFile)}':reload=1:expansion=none:` +

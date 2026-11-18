@@ -39,6 +39,22 @@ describe('drawtext overlays', () => {
     expect(positionExpressions('bottom-right')).toEqual({ x: 'w-tw-32', y: 'h-th-32' });
   });
 
+  it('applies studio offsets to ffmpeg expressions', () => {
+    expect(positionExpressions('top-left', 32, 100, -40)).toEqual({
+      x: '32+100',
+      y: '32-40',
+    });
+    const moved = StreamerSchema.parse({
+      id: 'moved',
+      name: 'Moved',
+      tiktok: 'moved',
+      overlays: {
+        clock: { enabled: true, position: 'top-right', offset_x: 50, offset_y: 20 },
+      },
+    });
+    expect(clockFilter(DEFAULT_SETTINGS, moved, font)).toContain('x=w-tw-32+50:y=32+20');
+  });
+
   it('builds clock, text and chat filters', () => {
     const clock = clockFilter(DEFAULT_SETTINGS, streamer, font);
     expect(clock).toContain('localtime');
