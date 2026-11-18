@@ -86,6 +86,27 @@ describe('Watchdog', () => {
     expect(onLowBitrate).toHaveBeenCalledWith(100);
   });
 
+  it('rate-limits low bitrate warnings to once per minute', () => {
+    const onLowBitrate = vi.fn();
+    watchdog = new Watchdog({
+      settings: settings(),
+      logger,
+      snapshot: () => snapshot({ sourceBitrateKbps: 100 }),
+      onRelayStall: vi.fn(),
+      onSinkDown: vi.fn(),
+      onSinkStall: vi.fn(),
+      onLowBitrate,
+      onLowSourceRate: vi.fn(),
+    });
+    watchdog.start();
+    vi.advanceTimersByTime(3100);
+    expect(onLowBitrate).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10_000);
+    expect(onLowBitrate).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(50_000);
+    expect(onLowBitrate).toHaveBeenCalledTimes(2);
+  });
+
   it('reports a missing sink', () => {
     const onSinkDown = vi.fn();
     watchdog = new Watchdog({

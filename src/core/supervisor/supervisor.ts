@@ -1443,8 +1443,16 @@ export class Supervisor {
   }
 
   private async handleLowBitrate(kbps: number): Promise<void> {
-    await this.handleSourceProblem(`Quell-Bitrate zu niedrig (${Math.round(kbps)} kbit/s)`, {
-      kbps,
+    await this.lock.run(async () => {
+      if (!this.activeStreamer || this.shuttingDown) return;
+      if (this.state !== 'live') return;
+      incMetric('watchdog_triggers_total');
+      // A low source bitrate is a quality warning, not an outage. Restarting
+      // the source here would cause the output to stall repeatedly.
+      this.deps.logger.warn(
+        { kbps: Math.round(kbps), minimum: this.settings.watchdog.min_bitrate },
+        'Quell-Bitrate niedrig – Stream bleibt aktiv',
+      );
     });
   }
 

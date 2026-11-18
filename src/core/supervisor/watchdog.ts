@@ -37,6 +37,7 @@ export class Watchdog {
   private timer?: NodeJS.Timeout;
   private lastRelayTrigger = 0;
   private lastSinkTrigger = 0;
+  private lastLowBitrateTrigger = 0;
   private lowBitrateCount = 0;
   private lowRateCount = 0;
   private lastSourceOutput: { seconds: number; at: number } | null = null;
@@ -69,6 +70,7 @@ export class Watchdog {
   reset(): void {
     this.lastRelayTrigger = 0;
     this.lastSinkTrigger = 0;
+    this.lastLowBitrateTrigger = 0;
     this.lowBitrateCount = 0;
     this.lowRateCount = 0;
     this.lastSourceOutput = null;
@@ -129,9 +131,12 @@ export class Watchdog {
         snapshot.sourceBitrateKbps > 0
       ) {
         this.lowBitrateCount += 1;
-        if (this.lowBitrateCount >= 3) {
+        if (
+          this.lowBitrateCount >= 3 &&
+          now - this.lastLowBitrateTrigger >= 60_000
+        ) {
           this.lowBitrateCount = 0;
-          this.lastError = `Quell-Bitrate zu niedrig (${Math.round(snapshot.sourceBitrateKbps)} kbit/s)`;
+          this.lastLowBitrateTrigger = now;
           this.options.logger.warn(
             { kbps: snapshot.sourceBitrateKbps, minimum: this.options.settings.watchdog.min_bitrate },
             'Watchdog: Quell-Bitrate zu niedrig',

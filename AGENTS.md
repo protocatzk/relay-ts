@@ -90,6 +90,10 @@ Wichtige Pfade:
 - Der Quell-Raten-Watchdog benötigt 30 s Warmup, ein 10-s-Fenster und drei
   aufeinanderfolgende schlechte Messungen. Das verhindert Fehlstarts kurz nach
   dem Verbindungsaufbau.
+- Eine niedrige Quell-Bitrate ist nur eine Warnung (max. einmal pro Minute) und
+  startet die Quelle nicht neu. Ein Neustart erfolgt erst bei echtem
+  Daten-Stall; so entstehen keine Pausen-/Reconnect-Schleifen bei kleinen
+  Streams.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
   (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart
