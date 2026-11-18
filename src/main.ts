@@ -11,7 +11,9 @@ import { AuthSessionStore } from './api/session-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
-import { listMediaFiles } from './core/media/media-files.js';
+import { existsSync, unlinkSync } from 'node:fs';
+import { listMediaFiles, mediaFilePath } from './core/media/media-files.js';
+import { ValidationError } from './utils/errors.js';
 import { YouTubeAuthStore } from './core/youtube/auth-store.js';
 import { YouTubeAuthService } from './core/youtube/service.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
@@ -103,6 +105,75 @@ async function main(): Promise<void> {
           pause: () => supervisor.pause(),
           resume: () => supervisor.hideScreen(),
           logs: (limit) => ring.list({ limit }),
+          queryLogs: (filter) => ring.list(filter),
+          streamerCreate: (input) => {
+            const streamer = store.create(input);
+            supervisor.notifyStreamersChanged();
+            return streamer;
+          },
+          streamerUpdate: (id, patch) => {
+            const streamer = store.update(id, patch);
+            supervisor.notifyStreamersChanged();
+            return streamer;
+          },
+          streamerDelete: async (id) => {
+            if (supervisor.buildStatus().active_streamer_id === id) {
+              await supervisor.stop();
+            }
+            store.remove(id);
+            supervisor.notifyStreamersChanged();
+          },
+          playlistCreate: (input) => {
+            const playlist = store.createPlaylist(input);
+            supervisor.notifyStreamersChanged();
+            return playlist;
+          },
+          playlistUpdate: (id, patch) => {
+            const playlist = store.updatePlaylist(id, patch);
+            supervisor.notifyStreamersChanged();
+            return playlist;
+          },
+          playlistDelete: async (id) => {
+            if (supervisor.buildStatus().active_playlist?.id === id) {
+              await supervisor.stop();
+            }
+            store.removePlaylist(id);
+            supervisor.notifyStreamersChanged();
+          },
+          playlistPlay: (id) => supervisor.playPlaylist(id),
+          settingsUpdate: async (patch) => {
+            const { previous, next } = settingsService.update(patch);
+            await supervisor.applySettings(next, previous);
+            return next;
+          },
+          mediaDelete: async (filename) => {
+            const path = mediaFilePath(config.paths.dataDir, filename);
+            if (!path) throw new ValidationError('Ungültiger Dateiname');
+            if (existsSync(path)) unlinkSync(path);
+          },
+          youtubeCreate: async (input) => {
+            const key = input.streamer_id
+              ? resolveStreamKey(store.require(input.streamer_id)).key
+              : undefined;
+            if (input.streamer_id && !key) {
+              throw new ValidationError('Für diesen Streamer ist kein YouTube-Key hinterlegt');
+            }
+            return youtubeAuth.createBroadcast(
+              {
+                title: input.title,
+                scheduled_start: input.scheduled_start,
+                privacy: input.privacy,
+              },
+              key,
+            );
+          },
+          youtubeAssign: async (id, streamerId) => {
+            const key = resolveStreamKey(store.require(streamerId)).key;
+            if (!key) {
+              throw new ValidationError('Für diesen Streamer ist kein YouTube-Key hinterlegt');
+            }
+            return youtubeAuth.assignBroadcast(id, key);
+          },
           settings: () => {
             const current = settingsService.get();
             return {

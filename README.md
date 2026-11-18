@@ -454,7 +454,8 @@ Der Bot ist nach der Freigabe auch eine Fernsteuerung:
 
 - `/status` – Zustand, Streamer, Quelle, Sink und Uptime
 - `/menu` – Inline-Buttons für Status, Start/Stop, Playlist und Logs
-- `/streamers` – Streamer starten bzw. wechseln
+- `/streamers` – Streamer starten, wechseln, anlegen, bearbeiten, löschen
+- `/playlists` – Playlists starten und verwalten
 - `/stop`, `/next`, `/prev`, `/pause`
 - `/screens` – Start- und Pausenscreen ein-/ausschalten
 - `/overlays` – Chat, Uhr und Text einzeln umschalten

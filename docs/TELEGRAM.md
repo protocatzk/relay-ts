@@ -13,7 +13,8 @@ gesendet oder geloggt.
 | `/id` | Eigene Telegram-ID |
 | `/menu` | Inline-Menü mit allen Bereichen |
 | `/status` | State, Streamer, Playlist, Quelle, Sink, Uptime |
-| `/streamers` | Streamer-Liste mit Start-Buttons |
+| `/streamers` | Streamer-Liste, anlegen/bearbeiten/löschen, aktivieren, Qualität |
+| `/playlists` | Playlists, Kanäle/Videos, Auto-Advance, Start/Löschen |
 | `/go <id>` | Streamer direkt starten/wechseln |
 | `/stop` | Stream beenden (mit Bestätigung) |
 | `/next` / `/prev` | Playlist vor/zurück |
@@ -39,23 +40,23 @@ gebunden; weitergeleitete Nachrichten können die Aktion nicht auslösen.
 | Dashboard-Status | `/status` | vollständig |
 | Live-Vorschau | Dashboard-Link | eingeschränkt (kein Video in Telegram) |
 | Streamer starten/wechseln | `/streamers`, `/go` | vollständig |
-| Streamer anlegen/bearbeiten/löschen | – | offen |
-| Streamer aktivieren/deaktivieren | – | offen |
-| Playlist starten/next/prev | `/next`, `/prev` | teilweise (Start über Streamer) |
-| Playlist anlegen/bearbeiten | – | offen |
-| Kanäle hinzufügen/entfernen | – | offen |
+| Streamer anlegen/bearbeiten/löschen | `/streamers` | vollständig (Name, Handle, Qualität, Enabled) |
+| Streamer aktivieren/deaktivieren | `/streamers` | vollständig |
+| Playlist starten/next/prev | `/playlists`, `/next`, `/prev` | vollständig |
+| Playlist anlegen/bearbeiten | `/playlists` | vollständig (Name, Auto-Advance, Wrap) |
+| Kanäle/Videos hinzufügen/entfernen | `/playlists` | vollständig (Handle oder `data/media`) |
 | Pause/Startbildschirm | `/screens`, `/pause` | vollständig |
 | Overlays an/aus | `/overlays` | eingeschränkt (keine Position/Stil) |
 | Overlay-Studio | – | bewusst nicht im Bot |
 | Einnahmen + Zeitraum | `/earnings` | vollständig (Kurzfassung) |
-| Einstellungen ändern | – | offen (nur Ansicht) |
-| Logs | `/logs` | teilweise (Level/Suche/Seiten offen) |
+| Einstellungen ändern | `/settings` | teilweise (Delay, Pause, Startup, Auto-Refresh, Schalter) |
+| Logs | `/logs` | vollständig (Level, Suche, Seiten) |
 | Sessions | `/sessions` | vollständig inkl. Bestätigung |
 | Medienliste | `/media` | vollständig (kein Löschen) |
-| Medien löschen | – | offen |
-| YouTube-Broadcasts | `/youtube` | teilweise (Liste, Live, Ende, Publish) |
-| YouTube anlegen/planen | – | offen |
-| YouTube-Ingest zuordnen | – | offen |
+| Medien löschen | `/media` | vollständig (mit Bestätigung) |
+| YouTube-Broadcasts | `/youtube` | vollständig für Liste, Live, Ende, Publish, Ingest |
+| YouTube anlegen/planen | `/youtube` | eingeschränkt (Titel, Startzeit, Sichtbarkeit, Streamer) |
+| YouTube-Ingest zuordnen | `/youtube` | vollständig |
 | Benachrichtigungen | `/notify` | vollständig |
 
 ## Sicherheit
@@ -67,10 +68,24 @@ gebunden; weitergeleitete Nachrichten können die Aktion nicht auslösen.
 - Streamer-/Playlist-IDs werden vor der Ausführung über den Control-Layer
   aufgelöst; ungültige IDs führen zu einer Fehlermeldung statt zu einem Absturz.
 
-## Nächste Schritte
+## Inline-Menü und Eingaben
 
-1. Streamer anlegen/bearbeiten mit geführten Dialogen.
-2. Playlist-Verwaltung inklusive Kanäle und lokaler Videos.
-3. Einstellungen mit Whitelist änderbarer Felder.
-4. Log-Filter (Level/Suche) und Seitenblättern.
-5. Medien löschen und YouTube-Broadcast anlegen/planen.
+Alle Bereiche sind über Inline-Buttons erreichbar (`/menu`). Mehrstufige
+Eingaben laufen als geführte Dialoge (5 Minuten gültig, pro Chat/User):
+
+- Streamer anlegen: ID → Name → Handle
+- Playlist anlegen: ID → Name
+- Kanal/Video hinzufügen: Handle oder Dateiname
+- Einstellungen: Zahl senden (Delay, Pause, Startup, Refresh)
+- Log-Suche: Suchbegriff senden
+- YouTube-Broadcast: Titel → Startzeit (`ISO` oder `+30`) → Sichtbarkeit → Ingest
+
+Jeder Schritt kann mit `abbrechen` beendet werden. Lange IDs werden intern auf
+kurze Refs abgebildet, damit `callback_data` unter 64 Byte bleibt.
+
+## Bewusst nicht im Bot
+
+- Vollständiges Overlay-Studio (Drag/Resize, Presets).
+- Komplette YouTube-Metadaten (Kategorie, Thumbnail, Beschreibung, DVR).
+- Playlist-Endzeit/Dauer und Playlist-Key.
+- Streamer-YouTube-Key setzen (nur Status anzeigen).

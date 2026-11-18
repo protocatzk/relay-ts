@@ -5,7 +5,11 @@ export type PendingAction =
   | { type: 'revoke-session'; id: string }
   | { type: 'revoke-all-sessions' }
   | { type: 'youtube-transition'; id: string; status: 'live' | 'complete' }
-  | { type: 'youtube-publish'; id: string };
+  | { type: 'youtube-publish'; id: string }
+  | { type: 'playlist-remove-channel'; id: string; index: number }
+  | { type: 'media-delete'; filename: string }
+  | { type: 'streamer-delete'; id: string }
+  | { type: 'playlist-delete'; id: string };
 
 interface Entry {
   action: PendingAction;

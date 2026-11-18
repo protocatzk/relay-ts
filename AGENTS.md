@@ -191,8 +191,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   (`getUpdates`-Konflikt).
 - Destruktive Bot-Aktionen (`/stop`, Session-Widerruf, YouTube-Status) laufen
   über `ConfirmationStore`: Nonce 60 s gültig, einmalig, an Chat + User
-  gebunden. Session-Buttons nutzen kurze Refs statt der 64-Zeichen-ID
-  (Telegram-Callback-Limit).
+  gebunden.
+- Inline-Buttons tragen nie rohe lange IDs, sondern Refs aus `RefStore`
+  (Telegram-Callback-Limit 64 Byte). Mehrstufige Eingaben laufen über
+  `ConversationStore` (5 min, pro Chat/User, `abbrechen` bricht ab).
 
 ## Deployment
 

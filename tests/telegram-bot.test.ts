@@ -102,7 +102,17 @@ function setup() {
         status: { online: true, active: true },
       },
     ],
-    playlists: () => [],
+    playlists: () => [
+      {
+        id: 'pl-alpha',
+        name: 'Alpha Liste',
+        channels: ['alpha'],
+        active: false,
+        index: null,
+        auto_advance: true,
+        wrap: false,
+      },
+    ],
     start: async (id) => {
       stopped.push(`start:${id}`);
       return {};
@@ -206,6 +216,57 @@ function setup() {
       stopped.push(`earnings:${period}`);
       return {};
     },
+    queryLogs: (filter) => [
+      {
+        time: '2026-11-18T10:00:00.000Z',
+        level: filter.level ?? 'info',
+        msg: `Test log line${filter.q ? ` ${filter.q}` : ''}`,
+      },
+    ],
+    streamerCreate: async (input) => {
+      stopped.push(`create:${String(input.id)}`);
+      return {};
+    },
+    streamerUpdate: async (id, patch) => {
+      stopped.push(`update:${id}:${JSON.stringify(patch)}`);
+      return {};
+    },
+    streamerDelete: async (id) => {
+      stopped.push(`delete:${id}`);
+      return {};
+    },
+    playlistCreate: async (input) => {
+      stopped.push(`pl-create:${String(input.id)}`);
+      return {};
+    },
+    playlistUpdate: async (id, patch) => {
+      stopped.push(`pl-update:${id}:${JSON.stringify(patch)}`);
+      return {};
+    },
+    playlistDelete: async (id) => {
+      stopped.push(`pl-delete:${id}`);
+      return {};
+    },
+    playlistPlay: async (id) => {
+      stopped.push(`pl-play:${id}`);
+      return {};
+    },
+    settingsUpdate: async (patch) => {
+      stopped.push(`settings:${JSON.stringify(patch)}`);
+      return {};
+    },
+    mediaDelete: async (filename) => {
+      stopped.push(`media-del:${filename}`);
+      return {};
+    },
+    youtubeCreate: async (input) => {
+      stopped.push(`yt-create:${input.title}`);
+      return {};
+    },
+    youtubeAssign: async (id, streamerId) => {
+      stopped.push(`yt-assign:${id}:${streamerId}`);
+      return {};
+    },
   };
   const notifications = new TelegramNotifyStore(null, {
     enabled: true,
@@ -223,6 +284,25 @@ function setup() {
     notify: { chatId: 42, store: notifications },
   });
   return { bot, calls, stopped, notifications };
+}
+
+function findCallback(
+  calls: Array<{ method: string; body: Record<string, unknown> }>,
+  snippet: string,
+): string {
+  for (const call of calls) {
+    const markup = call.body.reply_markup as
+      | { inline_keyboard?: { text?: string; callback_data?: string }[][] }
+      | undefined;
+    for (const row of markup?.inline_keyboard ?? []) {
+      for (const button of row) {
+        if (String(button.text ?? '').includes(snippet) && button.callback_data) {
+          return button.callback_data;
+        }
+      }
+    }
+  }
+  throw new Error(`callback not found: ${snippet}`);
 }
 
 function message(userId: number, text: string) {
@@ -415,6 +495,151 @@ describe('Telegram bot control', () => {
     expect(notifications.get().live).toBe(false);
     await handler.handleMessage(message(42, '/notify live on'));
     expect(notifications.get().live).toBe(true);
+  });
+
+  it('renders an inline menu with all sections', async () => {
+    const { bot, calls } = setup();
+    await (
+      bot as unknown as { handleCallback: (q: unknown) => Promise<void> }
+    ).handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'nav:main',
+      message: message(42, ''),
+    });
+    const edit = calls.find((call) => call.method === 'editMessageText');
+    const markup = edit?.body.reply_markup as { inline_keyboard: unknown[][] };
+    expect(markup.inline_keyboard.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('creates a streamer through the guided flow', async () => {
+    const { bot, stopped } = setup();
+    const handler = bot as unknown as {
+      handleCallback: (q: unknown) => Promise<void>;
+      handleMessage: (m: unknown) => Promise<void>;
+    };
+    await handler.handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'str:new',
+      message: message(42, ''),
+    });
+    await handler.handleMessage(message(42, 'neuer-streamer'));
+    await handler.handleMessage(message(42, 'Neuer Streamer'));
+    await handler.handleMessage(message(42, '@neuerhandle'));
+    expect(stopped).toContain('create:neuer-streamer');
+  });
+
+  it('toggles settings inline and edits values through a flow', async () => {
+    const { bot, stopped } = setup();
+    const handler = bot as unknown as {
+      handleCallback: (q: unknown) => Promise<void>;
+      handleMessage: (m: unknown) => Promise<void>;
+    };
+    await handler.handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'set:toggle:pause_enabled',
+      message: message(42, ''),
+    });
+    expect(stopped).toContain('settings:{"pause":{"enabled":false}}');
+
+    await handler.handleCallback({
+      id: 'cb2',
+      from: { id: 42, username: 'tester' },
+      data: 'set:edit:pause',
+      message: message(42, ''),
+    });
+    await handler.handleMessage(message(42, '25'));
+    expect(stopped).toContain('settings:{"pause":{"max_minutes":25}}');
+  });
+
+  it('adds a channel to a playlist through the flow', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleCallback: (q: unknown) => Promise<void>;
+      handleMessage: (m: unknown) => Promise<void>;
+    };
+    await handler.handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'nav:playlists',
+      message: message(42, ''),
+    });
+    const view = findCallback(calls, 'Alpha Liste');
+    await handler.handleCallback({
+      id: 'cb2',
+      from: { id: 42, username: 'tester' },
+      data: view,
+      message: message(42, ''),
+    });
+    const addChannel = findCallback(calls, 'Kanal');
+    await handler.handleCallback({
+      id: 'cb3',
+      from: { id: 42, username: 'tester' },
+      data: addChannel,
+      message: message(42, ''),
+    });
+    await handler.handleMessage(message(42, 'neuerkanal'));
+    expect(stopped.some((entry) => entry.startsWith('pl-update:pl-alpha:'))).toBe(true);
+  });
+
+  it('deletes media only after confirmation', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleCallback: (q: unknown) => Promise<void>;
+    };
+    await handler.handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'nav:media',
+      message: message(42, ''),
+    });
+    const remove = findCallback(calls, 'intro.mp4');
+    await handler.handleCallback({
+      id: 'cb2',
+      from: { id: 42, username: 'tester' },
+      data: remove,
+      message: message(42, ''),
+    });
+    expect(stopped).not.toContain('media-del:intro.mp4');
+    const nonce = findCallback(calls, 'Ja, ausführen');
+    await handler.handleCallback({
+      id: 'cb3',
+      from: { id: 42, username: 'tester' },
+      data: nonce,
+      message: message(42, ''),
+    });
+    expect(stopped).toContain('media-del:intro.mp4');
+  });
+
+  it('creates a YouTube broadcast through the wizard', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleCallback: (q: unknown) => Promise<void>;
+      handleMessage: (m: unknown) => Promise<void>;
+    };
+    await handler.handleCallback({
+      id: 'cb',
+      from: { id: 42, username: 'tester' },
+      data: 'yt:new',
+      message: message(42, ''),
+    });
+    await handler.handleMessage(message(42, 'Mein Stream'));
+    await handler.handleMessage(message(42, '+30'));
+    await handler.handleCallback({
+      id: 'cb2',
+      from: { id: 42, username: 'tester' },
+      data: 'yt:privacy:public',
+      message: message(42, ''),
+    });
+    await handler.handleCallback({
+      id: 'cb3',
+      from: { id: 42, username: 'tester' },
+      data: 'yt:create:none',
+      message: message(42, ''),
+    });
+    expect(stopped).toContain('yt-create:Mein Stream');
   });
 
   it('sends transition notifications to the configured chat', async () => {
