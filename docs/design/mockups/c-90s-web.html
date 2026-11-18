@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Richtung C — 90s Web / Bevel</title>
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter-latin-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'JB Mono';src:url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');font-weight:100 800;font-display:swap}
+:root{
+  --silver:#c3c3c3;--silver-2:#d4d4d4;--silver-3:#b0b0b0;--shadow:#4a4a4a;--hi:#ffffff;
+  --navy:#000082;--navy-2:#1084d0;--teal:#0a7a7a;--ink:#111;--led:#22c55e;--amber:#e0a800;
+  --ui:Tahoma,Verdana,'DejaVu Sans',sans-serif;--mono:'JB Mono','Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ui);font-size:12px;color:var(--ink);
+  background:var(--teal);
+  background-image:linear-gradient(45deg,rgba(0,0,0,.10) 25%,transparent 25%,transparent 75%,rgba(0,0,0,.10) 75%),
+    linear-gradient(45deg,rgba(0,0,0,.10) 25%,transparent 25%,transparent 75%,rgba(0,0,0,.10) 75%);
+  background-size:8px 8px;background-position:0 0,4px 4px;
+  min-height:100vh;padding:12px}
+a{color:inherit;text-decoration:none}
+button{font-family:var(--ui);font-size:11px;color:#000}
+.shell{display:flex;gap:10px;min-height:calc(100vh - 24px);max-width:1400px;margin:0 auto}
+
+/* generic window */
+.win{background:var(--silver);border:2px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);
+  box-shadow:1px 1px 0 #000;padding:2px}
+.tbar{background:linear-gradient(90deg,var(--navy),var(--navy-2));color:#fff;display:flex;align-items:center;gap:5px;
+  padding:2px 2px 2px 4px;font-weight:700;font-size:11px;letter-spacing:.02em;user-select:none}
+.tbar .glyph{width:14px;height:14px;display:grid;place-items:center;background:var(--silver);border:1px solid;
+  border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);font-size:9px;color:#000;font-family:var(--mono);line-height:1}
+.tbar .sp{flex:1}
+.tbtn{width:16px;height:14px;display:grid;place-items:center;background:var(--silver);color:#000;font-family:var(--mono);
+  font-size:9px;line-height:1;border:1px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);font-weight:700}
+.menu{display:flex;gap:14px;padding:3px 6px;font-size:11px;border-bottom:1px solid #8a8a8a;background:var(--silver)}
+.menu span{cursor:pointer}
+.menu u{text-decoration:underline}
+.inner{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver);padding:8px}
+.raised{border:2px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);background:var(--silver)}
+.sunken{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver)}
+.status{display:flex;gap:2px;padding:2px;margin-top:2px}
+.cell{border:1px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);padding:2px 8px;font-size:10.5px;flex:1;
+  display:flex;align-items:center;gap:6px;overflow:hidden;white-space:nowrap}
+.cell small{color:#444}
+.grip{width:14px;height:14px;margin-left:auto;background:
+  linear-gradient(135deg,transparent 45%,#8a8a8a 45% 55%,transparent 55%),
+  linear-gradient(135deg,transparent 65%,#8a8a8a 65% 75%,transparent 75%);border:1px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow)}
+
+/* sidebar */
+.side{width:224px;flex:0 0 224px;display:flex;flex-direction:column;gap:8px}
+.brand{display:flex;align-items:center;gap:8px;padding:6px 4px 8px}
+.brand img{width:34px;height:34px;border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);image-rendering:pixelated}
+.brand b{font-size:17px;letter-spacing:.08em;font-weight:700;display:block;line-height:1}
+.brand span{font-size:9.5px;color:#333;letter-spacing:.16em;text-transform:uppercase;display:block;margin-top:2px}
+.tree{font-family:var(--mono);font-size:10px;color:#333;padding:0 6px 4px;letter-spacing:.02em}
+.nav{padding:4px 6px;display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;border:1px dotted transparent}
+.nav svg{width:15px;height:15px;flex:none}
+.nav:hover{background:#d8d8d8}
+.nav.on{background:var(--navy);color:#fff;border:1px dotted #fff;outline:1px dotted #000;outline-offset:-4px}
+.nav.on svg{stroke:#fff}
+.sidefoot{margin-top:auto}
+.ledbox{display:flex;align-items:center;gap:7px;padding:5px 8px;font-size:11px}
+.led{width:9px;height:9px;background:var(--led);border:1px solid #0a3d1f;box-shadow:inset 0 0 0 1px #8ef0b0;flex:none}
+.led.amber{background:var(--amber);border-color:#6b4d00}
+.led.off{background:#7a7a7a;border-color:#3c3c3c;box-shadow:inset 0 0 0 1px #b0b0b0}
+.specs{font-family:var(--mono);font-size:9.5px;color:#333;padding:0 8px 6px;display:flex;justify-content:space-between}
+
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.topbar{display:flex;align-items:center;gap:8px;padding:4px 6px}
+.topbar .sep{width:2px;height:20px;border-left:1px solid var(--shadow);border-right:1px solid var(--hi);margin:0 4px}
+.tb{border:2px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);background:var(--silver);height:28px;padding:0 10px;
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;cursor:pointer}
+.tb:active{border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);padding:1px 9px 0 11px}
+.tb svg{width:14px;height:14px}
+.tb.primary{background:var(--navy);color:#fff;border-color:#6f6fd6 #00003c #00003c #6f6fd6}
+.tb.danger{color:#7a0000}
+.spacer{flex:1}
+.clock{border:1px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);padding:3px 9px;font-family:var(--mono);
+  font-size:11px;background:var(--silver);letter-spacing:.05em}
+.content{border:2px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);box-shadow:1px 1px 0 #000;background:var(--silver);
+  padding:11px;display:grid;gap:9px;flex:1;align-content:start}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:0 2px 2px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1}
+.sub{font-size:11.5px;color:#333;margin-top:5px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+
+.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(200px,.85fr);gap:10px;padding:8px}
+.hero-left{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:#fff;padding:10px}
+.hero-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.flag{background:#c00;color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  padding:2px 7px;border:1px solid #000;display:inline-flex;align-items:center;gap:5px}
+.flag i{width:6px;height:6px;background:#fff;display:inline-block;animation:b 1.4s steps(2) infinite}
+@keyframes b{50%{opacity:.15}}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--silver);
+  border:1px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);padding:2px 6px}
+.up{font-family:var(--mono);font-size:10px;color:#444}
+.hero h2{font-family:var(--mono);font-size:27px;font-weight:700;letter-spacing:-.04em;line-height:1.05;color:var(--navy)}
+.hero p{margin-top:7px;font-size:11.5px;line-height:1.55;color:#333;max-width:54ch}
+.hero p b{color:#000}
+.kvrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.well{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver);padding:4px 8px;min-width:92px}
+.well dt{font-family:var(--mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:#444}
+.well dd{font-family:var(--mono);font-size:12px;font-weight:700;margin-top:1px}
+.lights{display:flex;flex-direction:column;gap:7px;justify-content:center}
+.light{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:#e8e8e8;padding:6px 9px;
+  display:flex;align-items:center;gap:8px;justify-content:space-between}
+.light span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#333}
+.light b{font-family:var(--mono);font-size:12px}
+.light .lamp{width:11px;height:11px;background:var(--led);border:1px solid #063d1b;box-shadow:0 0 6px #36d96b;flex:none}
+.lamp.cy{background:#22b8cf;box-shadow:0 0 6px #22b8cf;border-color:#0b4a55}
+
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.metric{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver);padding:6px 8px 7px}
+.metric span{font-family:var(--mono);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#444;display:block}
+.metric b{font-family:var(--mono);font-size:18px;font-weight:700;display:block;margin-top:2px;line-height:1;letter-spacing:-.02em}
+.metric b i{font-style:normal;font-size:8.5px;color:#555;letter-spacing:0;margin-left:2px}
+.metric small{display:block;font-family:var(--mono);font-size:8px;color:#555;margin-top:4px}
+.mchart{display:flex;align-items:flex-end;gap:2px;height:9px;margin-top:4px;padding:1px;background:#a9a9a9;
+  border:1px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow)}
+.mchart i{flex:1;background:var(--navy)}
+
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px}
+.panel{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver);padding:0}
+.panel .phead{background:var(--silver);border-bottom:1px solid #8a8a8a;padding:4px 8px;display:flex;justify-content:space-between;
+  align-items:center;font-size:11px;font-weight:700;letter-spacing:.02em}
+.panel .phead a{font-size:10px;font-weight:400;color:var(--navy);text-decoration:underline}
+.panel .pbody{padding:6px;background:#efefef}
+.list{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:#fff}
+.li{display:flex;align-items:center;gap:8px;padding:4px 7px;border-bottom:1px solid #e2e2e2;font-size:11.5px}
+.li:last-child{border-bottom:none}
+.li:hover{background:#eaf2ff}
+.li.sel{background:var(--navy);color:#fff}
+.ava{width:22px;height:22px;flex:none;background:var(--silver);border:1px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);
+  display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;font-weight:700;color:#000}
+.who{flex:1;min-width:0}
+.who b{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who span{display:block;font-family:var(--mono);font-size:8.5px;color:#666;margin-top:1px}
+.li.sel .who span{color:#b9c8ff}
+.mini{border:1px solid;border-color:var(--hi) var(--shadow) var(--shadow) var(--hi);background:var(--silver);padding:1px 6px;
+  font-size:10px;color:#000;cursor:pointer}
+.mini:active{border-color:var(--shadow) var(--hi) var(--hi) var(--shadow)}
+.state{font-family:var(--mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;display:inline-flex;align-items:center;gap:4px;color:#1a7a3c}
+.state i{width:6px;height:6px;background:var(--led);border:1px solid #0a3d1f;display:inline-block}
+.state.off{color:#777}
+.state.off i{background:#9a9a9a;border-color:#666}
+.plist{display:flex;flex-direction:column;gap:4px}
+.pl{display:flex;align-items:center;gap:7px;padding:4px 6px;background:#fff;border:1px solid #d0d0d0;font-size:11px}
+.pl b{font-family:var(--mono);font-size:8.5px;color:#777;font-weight:400;width:16px;flex:none}
+.pl.sel{background:#000080;color:#fff;border-color:#000080}
+.pl.sel b{color:#c9d4ff}
+.eq{display:inline-flex;align-items:flex-end;gap:1px;height:9px;margin-left:auto}
+.eq i{width:2px;background:#16a34a}
+.pl.sel .eq i{background:#7ef0a0}
+
+/* preview */
+.preview{display:grid;grid-template-columns:minmax(0,1fr);padding:8px;gap:8px}
+.stage{border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);position:relative;aspect-ratio:16/3.9;
+  background:radial-gradient(400px 200px at 72% 18%,rgba(38,227,255,.28),transparent 62%),
+    radial-gradient(340px 200px at 18% 92%,rgba(176,92,255,.3),transparent 66%),#101820;
+  display:grid;place-items:center;overflow:hidden}
+.stage img{width:56px;height:56px;opacity:.28}
+.stage .badge{position:absolute;top:9px;left:9px;background:#c00;color:#fff;font-family:var(--mono);font-size:9px;
+  letter-spacing:.18em;text-transform:uppercase;padding:2px 6px;border:1px solid #000}
+.stage .res{position:absolute;top:9px;right:9px;background:var(--silver);border:1px solid #000;padding:1px 6px;
+  font-family:var(--mono);font-size:9px}
+.stage .note{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#8ea3b8;z-index:2}
+.ovl{position:absolute;z-index:3}
+.ovl.chat{left:12px;bottom:12px;width:244px;border:1px solid #000;background:var(--silver);box-shadow:1px 1px 0 #000}
+.ovl.chat b{display:block;background:linear-gradient(90deg,var(--navy),var(--navy-2));color:#fff;font-size:9px;font-weight:700;padding:1px 5px}
+.ovl.chat span{display:block;padding:1px 6px;font-size:10px;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#fff}
+.ovl.chat span+span{border-top:1px solid #e0e0e0}
+.ovl.chat span i{font-style:normal;font-weight:700;color:var(--navy)}
+.ovl.earn{right:12px;top:36px;border:2px solid;border-color:var(--shadow) var(--hi) var(--hi) var(--shadow);background:var(--silver);padding:3px 8px;text-align:right}
+.ovl.earn small{display:block;font-family:var(--mono);font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:#444}
+.ovl.earn strong{display:block;font-family:var(--mono);font-size:13px;color:#0a5c2b}
+.stage .time{position:absolute;right:9px;bottom:8px;font-family:var(--mono);font-size:9.5px;color:#dbe6f2}
+.pfoot{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;text-transform:uppercase;
+  letter-spacing:.1em;color:#333;padding:0 2px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="win">
+      <div class="tbar"><span class="glyph">R</span>RELAY.EXE<span class="sp"></span><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn">×</span></div>
+      <div class="menu"><span><u>D</u>atei</span><span><u>B</u>earbeiten</span><span><u>A</u>nsicht</span><span>?</span></div>
+      <div class="inner" style="padding:8px 6px">
+        <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+        <div class="tree">C:\RELAY &gt; dashboard</div>
+        <nav style="display:flex;flex-direction:column;gap:1px">
+          <a class="nav on" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c.5-3.2 3-5.2 6.2-5.2s5.7 2 6.2 5.2M16.5 5.2a3.2 3.2 0 0 1 0 6.2"/></svg>Streamer</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><rect x="3" y="4" width="18" height="13"/><path d="M7 9h10M7 13h6M8 21h8"/></svg>Overlays</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m16 14 5 3-5 3v-6Z"/></svg>Playlists</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg>YouTube</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg>Einstellungen</a>
+          <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Logs</a>
+        </nav>
+      </div>
+    </div>
+    <div class="win">
+      <div class="tbar"><span class="glyph">!</span>SYSTEM<span class="sp"></span><span class="tbtn">×</span></div>
+      <div class="inner" style="padding:6px 4px">
+        <div class="ledbox"><i class="led"></i>Quelle verbunden</div>
+        <div class="ledbox"><i class="led"></i>Relay aktiv · 6 Clients</div>
+        <div class="ledbox"><i class="led"></i>Sink stabil</div>
+        <div class="ledbox"><i class="led amber"></i>Update verfügbar</div>
+        <div class="specs"><span>v0.4.2</span><span>build 2026-11</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="win" style="flex:none">
+      <div class="tbar"><span class="glyph">■</span>RELAY — Steuerung<span class="sp"></span><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn">×</span></div>
+      <div class="topbar">
+        <button class="tb primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause starten</button>
+        <button class="tb">Sender wechseln</button>
+        <button class="tb">Sink neu starten</button>
+        <span class="sep"></span>
+        <button class="tb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg></button>
+        <span class="spacer"></span>
+        <span class="clock">02:14:38</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="pagehead">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="sub">Live-Status, Steuerung und Schnellstart deines Restreams.</p>
+        </div>
+        <div class="acts">
+          <button class="tb">Aktualisieren</button>
+          <button class="tb danger">Stream stoppen</button>
+        </div>
+      </div>
+
+      <section class="win hero">
+        <div class="hero-left">
+          <div class="hero-top">
+            <span class="flag"><i></i>On air</span>
+            <span class="tag">TikTok → YouTube</span>
+            <span class="up">Live seit 02:14:38 · Delay 2,4 s</span>
+          </div>
+          <h2>@lunaflows</h2>
+          <p>Playlist <b>Nightshift</b> · Overlays <b>Chat + Einnahmen</b> aktiv. Der Sink läuft stabil,
+            keine Reconnects in den letzten 60 Minuten.</p>
+          <div class="kvrow">
+            <div class="well"><dt>Ziel</dt><dd>YouTube</dd></div>
+            <div class="well"><dt>Zuschauer</dt><dd>1.284</dd></div>
+            <div class="well"><dt>Chat</dt><dd>142/min</dd></div>
+            <div class="well"><dt>Uptime</dt><dd>99,98 %</dd></div>
+          </div>
+        </div>
+        <div class="lights">
+          <div class="light"><span>Quelle</span><b>5,82</b><i class="lamp"></i></div>
+          <div class="light"><span>Ausgang</span><b>5,61</b><i class="lamp cy"></i></div>
+          <div class="light"><span>Puffer</span><b>2,4 s</b><i class="lamp"></i></div>
+          <div class="light"><span>Dropped</span><b>0</b><i class="lamp cy"></i></div>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <div class="metric"><span>Quelle</span><b>5,82<i>Mbit/s</i></b><small>1080p60 · stabil</small>
+          <div class="mchart"><i style="height:60%"></i><i style="height:80%"></i><i style="height:52%"></i><i style="height:92%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:66%"></i><i style="height:96%"></i><i style="height:78%"></i><i style="height:84%"></i></div></div>
+        <div class="metric"><span>Ausgang</span><b>5,61<i>Mbit/s</i></b><small>Ziel 6,0 · Pacing ok</small>
+          <div class="mchart"><i style="height:70%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:62%"></i><i style="height:84%"></i><i style="height:90%"></i><i style="height:72%"></i><i style="height:86%"></i><i style="height:64%"></i><i style="height:80%"></i></div></div>
+        <div class="metric"><span>Relay-Puffer</span><b>2,4<i>s</i></b><small>6 Clients · 1,8 s</small>
+          <div class="mchart"><i style="height:38%"></i><i style="height:44%"></i><i style="height:40%"></i><i style="height:52%"></i><i style="height:46%"></i><i style="height:50%"></i><i style="height:42%"></i><i style="height:56%"></i><i style="height:48%"></i><i style="height:44%"></i></div></div>
+        <div class="metric"><span>Watchdog</span><b>0<i>Stalls</i></b><small>Messung vor 12 s</small>
+          <div class="mchart"><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i></div></div>
+        <div class="metric"><span>Auto-Refresh</span><b>10<i>s</i></b><small>Geprüft vor 3 s</small>
+          <div class="mchart"><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i></div></div>
+      </section>
+
+      <div class="cols">
+        <section class="panel">
+          <div class="phead">Streamer <a href="#">Alle anzeigen…</a></div>
+          <div class="pbody">
+            <div class="list">
+              <div class="li sel"><div class="ava">LF</div><div class="who"><b>lunaflows</b><span>tiktok.com/@lunaflows</span></div><span class="state"><i></i>Live</span><button class="mini">Wechseln</button></div>
+              <div class="li"><div class="ava">NX</div><div class="who"><b>nightxradio</b><span>tiktok.com/@nightxradio</span></div><span class="state off"><i></i>Offline</span><button class="mini">Wechseln</button></div>
+              <div class="li"><div class="ava">K7</div><div class="who"><b>k7_studio</b><span>tiktok.com/@k7_studio</span></div><span class="state off"><i></i>Offline</span><button class="mini">Wechseln</button></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="phead">Playlist — Nightshift <a href="#">Bearbeiten…</a></div>
+          <div class="pbody">
+            <div class="plist">
+              <div class="pl sel"><b>01</b>lunaflows<span class="eq"><i style="height:4px"></i><i style="height:9px"></i><i style="height:5px"></i><i style="height:10px"></i></span></div>
+              <div class="pl"><b>02</b>nightxradio</div>
+              <div class="pl"><b>03</b>k7_studio</div>
+              <div class="pl"><b>04</b><span style="color:#777">file: intro_loop.mp4</span></div>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:6px">
+              <button class="mini" style="flex:1">Hoch</button>
+              <button class="mini" style="flex:1">Runter</button>
+              <button class="mini" style="flex:1">Entfernen</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="win preview">
+        <div class="tbar"><span class="glyph">▣</span>Live-Vorschau — relay.ts<span class="sp"></span><span class="tbtn">_</span><span class="tbtn">×</span></div>
+        <div class="stage">
+          <img src="relay-logo.svg" alt="">
+          <span class="badge">Preview</span>
+          <span class="res">1280 × 720 · 60 fps</span>
+          <div class="ovl earn"><small>Heute</small><strong>€ 42,80</strong></div>
+          <div class="ovl chat"><b>chat.log</b><span><i>nova_92:</i> der drop ist echt gut</span><span><i>kaito:</i> let's gooo</span></div>
+          <span class="note">Relay-Tap · read-only</span>
+          <span class="time">02:14:38</span>
+        </div>
+        <div class="pfoot"><span>Quelle: tiktok · Sink: youtube</span><span>Tap aktiv · 0 verworfen</span></div>
+      </section>
+    </div>
+
+    <div class="win status">
+      <div class="cell"><i class="led"></i>Bereit</div>
+      <div class="cell"><i class="led"></i>Relay: verbunden · 6 Clients</div>
+      <div class="cell"><small>Ziel:</small>YouTube · 6,0 Mbit/s</div>
+      <div class="cell" style="flex:0 0 auto">02:14</div>
+      <div class="grip"></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

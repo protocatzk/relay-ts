@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="relay-title">
+  <title id="relay-title">RELAY</title>
+  <defs>
+    <linearGradient id="relay-gradient" x1="84" y1="72" x2="440" y2="436" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DFFF4F"/>
+      <stop offset="0.34" stop-color="#4CE07F"/>
+      <stop offset="0.68" stop-color="#26E3FF"/>
+      <stop offset="1" stop-color="#B05CFF"/>
+    </linearGradient>
+    <linearGradient id="relay-echo" x1="120" y1="180" x2="300" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DFFF4F"/>
+      <stop offset="1" stop-color="#26E3FF"/>
+    </linearGradient>
+    <radialGradient id="relay-glow" cx="0" cy="0" r="1" gradientTransform="translate(270 248) rotate(90) scale(212)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DE08C" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#3DE08C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="#080C12"/>
+  <rect x="1.5" y="1.5" width="509" height="509" rx="114.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="3"/>
+  <circle cx="272" cy="248" r="208" fill="url(#relay-glow)"/>
+
+  <g transform="rotate(-7 256 256)">
+    <path
+      d="M128 196c0-14 15-22 27-15l124 72c12 7 12 25 0 32l-124 72c-12 7-27-1-27-15Z"
+      fill="url(#relay-echo)"
+      opacity="0.55"
+    />
+    <path
+      d="M198 164c0-21 22-34 40-24l176 106c18 11 18 37 0 48L238 400c-18 11-40-3-40-24Z"
+      fill="url(#relay-gradient)"
+    />
+    <path
+      d="M232 196c0-7 8-11 14-7l126 76c6 4 6 13 0 17l-126 76c-6 4-14 0-14-7Z"
+      fill="#FFFFFF"
+      opacity="0.12"
+    />
+  </g>
+</svg>

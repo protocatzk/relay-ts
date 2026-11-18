@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Design-Richtungen</title>
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter-latin-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#0c0f14;color:#e8eef7;padding:28px 24px 48px}
+h1{font-size:26px;letter-spacing:-.02em}
+p.sub{color:#8d9ab4;font-size:13.5px;margin-top:6px;max-width:80ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:24px}
+figure{background:#121821;border:1px solid #263044;border-radius:6px;overflow:hidden}
+.thumb{position:relative;aspect-ratio:1440/1000;overflow:hidden;background:#000}
+.thumb iframe{position:absolute;top:0;left:0;width:1440px;height:1000px;border:0;transform-origin:0 0}
+figcaption{padding:14px 16px;display:flex;flex-direction:column;gap:5px;border-top:1px solid #263044}
+figcaption b{font-size:14px}
+figcaption span{color:#8d9ab4;font-size:12px;line-height:1.5}
+figcaption a{color:#dfff4f;font-size:11.5px;font-family:ui-monospace,monospace;letter-spacing:.06em;margin-top:4px}
+.chosen{display:inline-block;margin-left:8px;padding:1px 6px;border:1px solid rgba(223,255,79,.45);background:rgba(223,255,79,.1);
+  color:#dfff4f;font-family:ui-monospace,monospace;font-size:9px;letter-spacing:.14em;vertical-align:2px}
+.archiv{display:inline-block;margin-left:8px;padding:1px 6px;border:1px solid #3a4257;color:#7c89a3;
+  font-family:ui-monospace,monospace;font-size:9px;letter-spacing:.14em;vertical-align:2px}
+</style>
+</head>
+<body>
+<h1>RELAY — Designrichtungen</h1>
+<p class="sub">Gleiche Dashboard-Struktur, unterschiedliche visuelle Sprachen. Alle leiten ihre Palette aus dem Logo ab
+(Lime → Mint → Cyan → Violett auf Tiefschwarz). <b>A — Neon-Arcade</b> ist gesetzt; B, C und D bleiben als Archiv.
+Klick auf „Vollbild" öffnet den Mock in Originalgröße.</p>
+<div class="grid">
+  <figure>
+    <div class="thumb"><iframe src="a-neon-arcade.html" title="Richtung A" scrolling="no"></iframe></div>
+    <figcaption><b>A — Neon-Arcade / Y2K</b><span class="chosen">GESETZT</span>
+      <span>Gradient-Kanten, harte Offset-Schatten, Mono-Labels, Glow nur für Live-Zustände. Am nächsten am Logo.</span>
+      <a href="a-neon-arcade.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+  <figure>
+    <div class="thumb"><iframe src="b-70s-print-pop.html" title="Richtung B" scrolling="no"></iframe></div>
+    <figcaption><b>B — 70s Print-Pop</b>
+      <span>Papier, Tinte, Sticker und Sonnenstrahlen. Wärmer und freundlicher, weniger „Technik".</span>
+      <a href="b-70s-print-pop.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+  <figure>
+    <div class="thumb"><iframe src="c-90s-web.html" title="Richtung C" scrolling="no"></iframe></div>
+    <figcaption><b>C — 90s Web / Bevel</b>
+      <span>Fenster-Chrome, 3D-Buttons, Statusleiste. Verspielt durch Nostalgie, mit klarer Panel-Hierarchie.</span>
+      <a href="c-90s-web.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+  <figure>
+    <div class="thumb"><iframe src="d-neon-chrome.html" title="Richtung D" scrolling="no"></iframe></div>
+    <figcaption><b>D — Neon-Chrome (A × C)</b><span class="archiv">ARCHIV</span>
+      <span>Der verworfene Mix: Logo-Farben und Mono-Labels aus A, Fensterleisten und Statusleiste aus C.</span>
+      <a href="d-neon-chrome.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+</div>
+
+<h2 style="margin-top:34px;font-size:18px">Slates &amp; Generator</h2>
+<p class="sub" style="margin-bottom:14px">Pausen-/Startbildschirme und die Oberfläche, die sie erzeugt.</p>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:0">
+  <figure>
+    <div class="thumb"><iframe src="e-pause-screens.html" title="Pausen- und Startbildschirme" scrolling="no"></iframe></div>
+    <figcaption><b>E — Pausen- und Startbildschirme</b>
+      <span>Slates in 16:9 und 9:16, Sicherheitsraster, Tokens für Text und Kontrast.</span>
+      <a href="e-pause-screens.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+  <figure>
+    <div class="thumb"><iframe src="f-slate-generator.html" title="Slate-Generator" scrolling="no"></iframe></div>
+    <figcaption><b>F — Slate-Generator</b>
+      <span>Vorschau, Vorlagen, Inhaltsfelder, Assets und Validierung in einer Oberfläche.</span>
+      <a href="f-slate-generator.html">Vollbild öffnen →</a></figcaption>
+  </figure>
+</div>
+<script>
+function fit(){
+  document.querySelectorAll('.thumb').forEach(function(t){
+    var s = t.clientWidth / 1440;
+    t.querySelector('iframe').style.transform = 'scale(' + s + ')';
+  });
+}
+window.addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

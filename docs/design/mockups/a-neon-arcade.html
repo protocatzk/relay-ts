@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Richtung A — Neon-Arcade / Y2K</title>
+<style>
+@font-face{font-family:'Space Grotesk';src:url('fonts/space-grotesk-latin.woff2') format('woff2');font-weight:300 700;font-display:swap}
+@font-face{font-family:'JB Mono';src:url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');font-weight:100 800}
+:root{
+  --bg:#07090f;--panel:#0b1017;--panel-2:#0f1620;--line:#222a3d;--line-2:#39425f;
+  --ink:#eaf2ff;--muted:#8d9ab4;--dim:#606c86;
+  --lime:#dfff4f;--mint:#4ce07f;--cyan:#26e3ff;--violet:#b05cff;
+  --grad:linear-gradient(100deg,#dfff4f 0%,#4ce07f 34%,#26e3ff 68%,#b05cff 100%);
+  --disp:'Space Grotesk',system-ui,sans-serif;
+  --ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--ui);color:var(--ink);background:var(--bg);min-height:100vh;
+  background-image:
+    radial-gradient(900px 520px at 88% -12%,rgba(38,227,255,.14),transparent 62%),
+    radial-gradient(680px 460px at 6% 108%,rgba(176,92,255,.13),transparent 62%),
+    radial-gradient(520px 380px at 32% 44%,rgba(76,224,127,.055),transparent 70%),
+    linear-gradient(rgba(120,150,200,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(120,150,200,.045) 1px,transparent 1px);
+  background-size:auto,auto,auto,48px 48px,48px 48px;
+  -webkit-font-smoothing:antialiased;
+}
+body::after{content:'';position:fixed;inset:0;z-index:9;pointer-events:none;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.028) 0 1px,transparent 1px 3px);opacity:.5}
+a{color:inherit;text-decoration:none}
+.shell{display:flex;min-height:100vh}
+
+/* sidebar */
+.side{width:236px;flex:0 0 236px;border-right:1px solid var(--line);background:rgba(7,10,16,.86);
+  padding:20px 14px;display:flex;flex-direction:column;gap:22px;position:relative}
+.side::after{content:'';position:absolute;top:0;right:-1px;width:1px;height:120px;background:var(--grad);opacity:.85}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 6px}
+.brand img{width:34px;height:34px;border-radius:9px;filter:drop-shadow(0 0 14px rgba(76,224,127,.35))}
+.brand b{font-family:var(--disp);font-size:17px;font-weight:700;letter-spacing:.22em;display:block}
+.brand span{font-family:var(--mono);font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim);display:block;margin-top:1px}
+.navlabel{font-family:var(--mono);font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);
+  padding:0 10px 8px;display:flex;align-items:center;gap:7px}
+.navlabel::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+nav{display:flex;flex-direction:column;gap:2px}
+.nav{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:5px;color:var(--muted);
+  font-size:12.5px;font-weight:600;border:1px solid transparent;position:relative}
+.nav svg{width:17px;height:17px;opacity:.8;flex:none}
+.nav:hover{background:rgba(255,255,255,.035);color:var(--ink)}
+.nav.on{background:linear-gradient(90deg,rgba(223,255,79,.16),rgba(223,255,79,.02));border-color:rgba(223,255,79,.26);color:var(--lime)}
+.nav.on svg{opacity:1}
+.nav.on::before{content:'';position:absolute;left:-14px;top:8px;bottom:8px;width:3px;background:var(--lime);box-shadow:0 0 12px var(--lime)}
+.sidefoot{margin-top:auto;border-top:1px solid var(--line);padding:13px 6px 0;display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--dim)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 3px rgba(223,255,79,.14),0 0 10px var(--lime)}
+
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:0 26px;height:58px;border-bottom:1px solid var(--line);
+  background:rgba(7,10,16,.7);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
+.crumb{font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+.crumb b{color:var(--ink);font-weight:700}
+.hstat{margin-left:auto;display:flex;align-items:center;gap:7px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--line);border-radius:4px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:#0a0f17}
+.pill .d{width:5px;height:5px;border-radius:50%;background:var(--dim)}
+.pill.live{color:var(--lime);border-color:rgba(223,255,79,.35);background:rgba(223,255,79,.07)}
+.pill.live .d{background:var(--lime);box-shadow:0 0 8px var(--lime);animation:p 2s infinite}
+.pill.cy{color:var(--cyan);border-color:rgba(38,227,255,.3);background:rgba(38,227,255,.06)}
+.pill.cy .d{background:var(--cyan)}
+@keyframes p{50%{opacity:.4}}
+.avatar{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;
+  font-weight:700;color:#07090f;background:var(--grad);border:1px solid rgba(255,255,255,.35)}
+
+.content{padding:20px 26px 24px;display:grid;gap:13px;max-width:1240px;width:100%;margin:0 auto}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+h1{font-family:var(--disp);font-size:25px;font-weight:700;letter-spacing:-.025em;line-height:1}
+.sub{color:var(--muted);font-size:12.5px;margin-top:4px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--line-2);
+  background:#121a26;color:var(--ink);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);cursor:pointer;
+  transition:.15s}
+.btn:hover{border-color:var(--lime);color:var(--lime)}
+.btn.grad{background:var(--grad);border:none;color:#06090e;box-shadow:3px 3px 0 #000,0 0 22px rgba(76,224,127,.22)}
+.btn.grad:hover{filter:brightness(1.06);color:#06090e}
+.btn.ghost{background:transparent}
+
+.card{position:relative;background:linear-gradient(180deg,#0d131d,#0a0f17);border:1px solid var(--line);border-radius:6px;
+  padding:15px;box-shadow:4px 4px 0 rgba(0,0,0,.45)}
+.card::before{content:'';position:absolute;top:-1px;left:-1px;right:-1px;height:2px;background:var(--grad);opacity:.75;border-radius:6px 6px 0 0}
+.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(230px,.85fr);gap:22px;padding:18px;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-90px;top:-110px;width:340px;height:340px;border-radius:50%;
+  background:radial-gradient(circle,rgba(38,227,255,.16),transparent 65%);pointer-events:none}
+.hero-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:3px;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.2em;text-transform:uppercase;font-weight:700;border:1px solid}
+.badge.live{color:#06090e;background:var(--lime);border-color:var(--lime);box-shadow:0 0 16px rgba(223,255,79,.35)}
+.badge.live .d{width:5px;height:5px;border-radius:50%;background:#06090e;animation:p 1.6s infinite}
+.badge.line{color:var(--cyan);border-color:rgba(38,227,255,.4);background:rgba(38,227,255,.07)}
+.badge.vio{color:var(--violet);border-color:rgba(176,92,255,.4);background:rgba(176,92,255,.08)}
+.up{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--dim)}
+.hero h2{font-family:var(--disp);font-size:32px;line-height:1.05;letter-spacing:-.035em;font-weight:700}
+.hero h2 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin-top:6px;color:var(--muted);font-size:12.5px;line-height:1.5}
+.hero p b{color:var(--ink);font-weight:600}
+.kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.kv div{border:1px solid var(--line);border-radius:4px;padding:6px 9px;background:#0a0f17;min-width:96px}
+.kv dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.kv dd{font-family:var(--mono);font-size:12px;margin-top:2px;color:var(--ink);font-weight:700}
+.facts{display:flex;flex-direction:column;gap:9px;justify-content:center;border-left:1px solid var(--line);padding-left:22px;position:relative;z-index:1}
+.fact{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px dashed rgba(57,66,95,.55);padding-bottom:9px}
+.fact:last-child{border:none;padding-bottom:0}
+.fact span{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.fact b{font-family:var(--disp);font-size:14px;font-weight:600}
+.fact b.g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.m{padding:11px 13px;border:1px solid var(--line);border-radius:5px;background:#0a0f17;position:relative;overflow:hidden}
+.m::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--grad);opacity:.35}
+.m span{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);display:block}
+.m b{font-family:var(--disp);font-size:22px;font-weight:600;letter-spacing:-.02em;display:block;margin-top:4px;line-height:1}
+.m b i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--dim);margin-left:4px;letter-spacing:.04em}
+.m small{font-family:var(--mono);font-size:9px;color:var(--muted);display:block;margin-top:5px}
+.spark{display:flex;align-items:flex-end;gap:2px;height:12px;margin-top:6px}
+.spark i{flex:1;background:linear-gradient(180deg,var(--lime),rgba(76,224,127,.15));border-radius:1px}
+
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:13px}
+.sect{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.sect h3{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+.sect h3::before{content:'';width:7px;height:7px;background:var(--lime);box-shadow:0 0 10px rgba(223,255,79,.7)}
+.sect a{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:11px;padding:8px 4px;border-top:1px dashed rgba(57,66,95,.4)}
+.row:first-child{border-top:none}
+.ava{width:30px;height:30px;border-radius:6px;display:grid;place-items:center;font-family:var(--mono);font-size:10px;font-weight:700;
+  color:#06090e;background:linear-gradient(140deg,var(--mint),var(--cyan));flex:none}
+.ava.v2{background:linear-gradient(140deg,var(--violet),var(--cyan))}
+.ava.v3{background:linear-gradient(140deg,var(--lime),var(--mint))}
+.who{min-width:0;flex:1}
+.who b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who span{display:block;font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:2px}
+.tiny{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-2);
+  background:#121a26;border-radius:3px;padding:4px 7px;cursor:pointer}
+.tiny:hover{color:var(--lime);border-color:var(--lime)}
+.on{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--lime)}
+.on .d{width:5px;height:5px;border-radius:50%;background:var(--lime);box-shadow:0 0 7px var(--lime)}
+.off{color:var(--dim)}
+.off .d{background:var(--dim);box-shadow:none}
+.pl{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:#0a0f17;font-size:11.5px;color:var(--muted)}
+.pl+.pl{margin-top:6px}
+.pl b{font-family:var(--mono);font-size:9px;color:var(--dim);font-weight:400;width:16px;flex:none;text-align:right}
+.pl.now{border-color:rgba(223,255,79,.35);background:rgba(223,255,79,.06);color:var(--ink)}
+.pl.now b{color:var(--lime)}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:10px;margin-left:auto}
+.eq i{width:2px;background:var(--lime);border-radius:1px}
+.preview{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.stage{position:relative;aspect-ratio:16/3.6;background:
+  radial-gradient(420px 220px at 70% 20%,rgba(38,227,255,.22),transparent 65%),
+  radial-gradient(340px 200px at 20% 90%,rgba(176,92,255,.2),transparent 65%),
+  linear-gradient(150deg,#0e1722,#080c13);display:grid;place-items:center;border-bottom:1px solid var(--line)}
+.stage img{width:70px;height:70px;opacity:.16;filter:blur(.2px)}
+.stage .corner{position:absolute;width:14px;height:14px;border:2px solid rgba(223,255,79,.55)}
+.corner.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+.corner.tr{top:14px;right:14px;border-left:0;border-bottom:0}
+.corner.bl{bottom:14px;left:14px;border-right:0;border-top:0}
+.corner.br{bottom:14px;right:14px;border-left:0;border-top:0}
+.stage .tag{position:absolute;top:13px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.stage .time{position:absolute;right:14px;bottom:12px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted)}
+.stage .note{position:absolute;right:38px;bottom:32px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.ovl{position:absolute;z-index:2}
+.ovl.chat{left:38px;bottom:40px;width:238px;border:1px solid rgba(223,255,79,.26);border-radius:5px;background:rgba(6,9,14,.74);
+  padding:7px 9px;backdrop-filter:blur(3px);display:flex;flex-direction:column;gap:3px}
+.ovl.chat b{font-family:var(--mono);font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--lime);margin-bottom:2px}
+.ovl.chat span{font-size:10.5px;color:#c9d6e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovl.chat span i{font-style:normal;color:var(--cyan)}
+.ovl.earn{right:38px;top:34px;border:1px solid rgba(176,92,255,.4);border-radius:5px;background:rgba(10,8,18,.8);padding:6px 10px;text-align:right}
+.ovl.earn small{display:block;font-family:var(--mono);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+.ovl.earn strong{display:block;font-family:var(--disp);font-size:15px;letter-spacing:-.02em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.preview .pfoot{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-family:var(--mono);font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.preview .pfoot b{color:var(--cyan);font-weight:700}
+footer{display:flex;justify-content:space-between;gap:12px;padding:12px 26px 20px;font-family:var(--mono);font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:#3f4a60}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+    <nav>
+      <p class="navlabel">Steuerung</p>
+      <a class="nav on" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c.5-3.2 3-5.2 6.2-5.2s5.7 2 6.2 5.2M16.5 5.2a3.2 3.2 0 0 1 0 6.2"/></svg>Streamer</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 9h10M7 13h6M8 21h8"/></svg>Overlays</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m16 14 5 3-5 3v-6Z"/></svg>Playlists</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg>YouTube</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg>Einstellungen</a>
+      <p class="navlabel" style="margin-top:14px">System</p>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Logs</a>
+    </nav>
+    <div class="sidefoot"><span style="display:flex;align-items:center;gap:6px"><i class="live-dot"></i>Live</span><span>v0.4.2</span></div>
+  </aside>
+
+  <div class="main">
+    <header>
+      <div class="crumb">RELAY <span style="color:#39425f">/</span> <b>Steuerung</b></div>
+      <div class="hstat">
+        <span class="pill live"><i class="d"></i>Quelle live</span>
+        <span class="pill cy"><i class="d"></i>Relay 2,4 s</span>
+        <span class="pill"><i class="d"></i>60 fps</span>
+        <span class="avatar">RS</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="top">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="sub">Live-Status, Steuerung und Schnellstart deines Restreams.</p>
+        </div>
+        <div class="acts">
+          <button class="btn grad">Pause starten</button>
+          <button class="btn">Sender wechseln</button>
+          <button class="btn ghost">Sink neu starten</button>
+        </div>
+      </div>
+
+      <section class="card hero">
+        <div>
+          <div class="hero-top">
+            <span class="badge live"><i class="d"></i>On air</span>
+            <span class="badge line">TikTok → YouTube</span>
+            <span class="up">Live seit 02:14:38</span>
+          </div>
+          <h2><em>@lunaflows</em></h2>
+          <p>Playlist <b>Nightshift</b> · Delay <b>2,4 s</b> · Overlays <b>Chat + Einnahmen</b> aktiv.<br>
+            Der Sink läuft stabil, keine Reconnects in den letzten 60 Minuten.</p>
+          <div class="kv">
+            <div><dt>Ziel</dt><dd>YouTube</dd></div>
+            <div><dt>Zuschauer</dt><dd>1.284</dd></div>
+            <div><dt>Chat</dt><dd>142 / min</dd></div>
+          </div>
+        </div>
+        <div class="facts">
+          <div class="fact"><span>Bitrate</span><b class="g">5,82 Mbit/s</b></div>
+          <div class="fact"><span>Puffer</span><b>2,4 s</b></div>
+          <div class="fact"><span>Dropped</span><b>0 Frames</b></div>
+          <div class="fact"><span>Uptime</span><b>99,98 %</b></div>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <div class="m"><span>Quelle</span><b>5,82<i>Mbit/s</i></b><small>1080p60 · stabil</small>
+          <div class="spark"><i style="height:60%"></i><i style="height:80%"></i><i style="height:52%"></i><i style="height:92%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:66%"></i><i style="height:96%"></i><i style="height:78%"></i><i style="height:84%"></i></div></div>
+        <div class="m"><span>Ausgang</span><b>5,61<i>Mbit/s</i></b><small>Ziel 6,0 · Pacing ok</small>
+          <div class="spark"><i style="height:70%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:62%"></i><i style="height:84%"></i><i style="height:90%"></i><i style="height:72%"></i><i style="height:86%"></i><i style="height:64%"></i><i style="height:80%"></i></div></div>
+        <div class="m"><span>Relay-Puffer</span><b>2,4<i>s</i></b><small>6 Clients · 1,8 s Pacing</small>
+          <div class="spark"><i style="height:38%"></i><i style="height:44%"></i><i style="height:40%"></i><i style="height:52%"></i><i style="height:46%"></i><i style="height:50%"></i><i style="height:42%"></i><i style="height:56%"></i><i style="height:48%"></i><i style="height:44%"></i></div></div>
+        <div class="m"><span>Watchdog</span><b>0<i>Stalls</i></b><small>Letzte Messung 12 s</small>
+          <div class="spark"><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i></div></div>
+        <div class="m"><span>Auto-Refresh</span><b>10<i>s</i></b><small>Status geprüft vor 3 s</small>
+          <div class="spark"><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i></div></div>
+      </section>
+
+      <div class="cols">
+        <section class="card">
+          <div class="sect"><h3>Streamer</h3><a href="#">Alle anzeigen</a></div>
+          <div class="rows">
+            <div class="row"><div class="ava">LF</div><div class="who"><b>lunaflows</b><span>tiktok.com/@lunaflows</span></div><span class="on"><i class="d"></i>Live</span><button class="tiny">Wechseln</button></div>
+            <div class="row"><div class="ava v2">NX</div><div class="who"><b>nightxradio</b><span>tiktok.com/@nightxradio</span></div><span class="on off"><i class="d"></i>Offline</span><button class="tiny">Wechseln</button></div>
+            <div class="row"><div class="ava v3">K7</div><div class="who"><b>k7_studio</b><span>tiktok.com/@k7_studio</span></div><span class="on off"><i class="d"></i>Offline</span><button class="tiny">Wechseln</button></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="sect"><h3>Playlist · Nightshift</h3><a href="#">Bearbeiten</a></div>
+          <div class="pl now"><b>01</b>lunaflows<span class="eq"><i style="height:4px"></i><i style="height:9px"></i><i style="height:6px"></i><i style="height:10px"></i></span></div>
+          <div class="pl"><b>02</b>nightxradio</div>
+          <div class="pl"><b>03</b>k7_studio</div>
+          <div class="pl"><b>04</b><span style="color:var(--dim)">file: intro_loop.mp4</span></div>
+        </section>
+      </div>
+
+      <section class="card preview">
+        <div class="stage">
+          <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+          <img src="relay-logo.svg" alt="">
+          <div class="tag"><span class="badge live"><i class="d"></i>Preview</span><span class="badge vio">1280 × 720</span></div>
+          <div class="ovl earn"><small>Heute</small><strong>€ 42,80</strong></div>
+          <div class="ovl chat"><b>Live-Chat</b><span><i>nova_92</i> der drop ist echt gut</span><span><i>kaito</i> let's gooo</span></div>
+          <span class="note">02:14:38</span>
+        </div>
+        <div class="pfoot"><span>Quelle <b>tiktok</b> · Sink <b>youtube</b></span><span>Tap aktiv · 0 verworfen</span></div>
+      </section>
+    </main>
+    <footer><span>RELAY 0.4.2 · positronium.dev</span><span>Neon-Arcade / Y2K</span></footer>
+  </div>
+</div>
+</body>
+</html>

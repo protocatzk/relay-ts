@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Richtung B — 70s Print-Pop</title>
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter-latin-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Bricolage';src:url('fonts/bricolage-latin.woff2') format('woff2');font-weight:200 800;font-display:swap}
+@font-face{font-family:'JB Mono';src:url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');font-weight:100 800;font-display:swap}
+:root{
+  --paper:#f7ecd7;--card:#fff9ec;--ink:#1d1913;
+  --lime:#dbe94f;--mustard:#f2c94c;--coral:#e96a45;--teal:#5cb6a6;--plum:#9a72bd;
+  --ui:'Inter',system-ui,sans-serif;--disp:'Bricolage',Georgia,serif;--mono:'JB Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ui);color:var(--ink);background:var(--paper);min-height:100vh;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(rgba(29,25,19,.10) 1px,transparent 1px);background-size:14px 14px}
+body::before{content:'';position:fixed;inset:0;z-index:8;pointer-events:none;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  mix-blend-mode:multiply}
+a{color:inherit;text-decoration:none}
+.shell{display:flex;min-height:100vh}
+
+/* sidebar */
+.side{width:246px;flex:0 0 246px;background:var(--ink);color:#f7ecd7;padding:20px 16px;display:flex;flex-direction:column;gap:22px;
+  position:relative;overflow:hidden}
+.side::after{content:'';position:absolute;right:-80px;bottom:-60px;width:200px;height:200px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,var(--mustard) 0 9deg,transparent 9deg 18deg);opacity:.07}
+.brand{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.brand img{width:40px;height:40px;border-radius:12px;border:2px solid #f7ecd7}
+.brand b{font-family:var(--disp);font-size:22px;font-weight:800;letter-spacing:.02em;display:block;line-height:1}
+.brand span{font-family:var(--mono);font-size:9px;letter-spacing:.28em;text-transform:uppercase;opacity:.6;display:block;margin-top:3px}
+.navlabel{font-family:var(--mono);font-size:9px;letter-spacing:.24em;text-transform:uppercase;opacity:.55;padding:0 10px 8px}
+nav{display:flex;flex-direction:column;gap:4px;position:relative;z-index:1}
+.nav{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;font-size:13px;font-weight:600;color:#e8ddc9;
+  border:2px solid transparent}
+.nav svg{width:17px;height:17px;flex:none;opacity:.85}
+.nav:hover{background:rgba(247,236,215,.08)}
+.nav.on{background:var(--mustard);color:var(--ink);border-color:var(--ink);box-shadow:3px 3px 0 var(--coral)}
+.nav.on svg{opacity:1}
+.sidefoot{margin-top:auto;border-top:2px solid rgba(247,236,215,.25);padding-top:13px;display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;position:relative;z-index:1}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--lime);border:1.5px solid var(--ink);display:inline-block;margin-right:6px;
+  box-shadow:0 0 0 2px rgba(219,233,79,.25)}
+
+/* main */
+.main{flex:1;min-width:0}
+header{display:flex;align-items:center;gap:14px;height:58px;padding:0 30px;border-bottom:2px solid var(--ink);background:var(--paper);
+  position:sticky;top:0;z-index:6}
+.crumb{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase}
+.crumb span{opacity:.4;margin:0 6px}
+.hstat{margin-left:auto;display:flex;align-items:center;gap:9px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:2px solid var(--ink);border-radius:999px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--card);box-shadow:2px 2px 0 var(--ink)}
+.chip.live{background:var(--lime)}
+.chip.coral{background:var(--coral);color:#fff8ec}
+.chip .d{width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.avatar{width:30px;height:30px;border-radius:50%;border:2px solid var(--ink);background:var(--plum);color:#fff8ec;display:grid;place-items:center;
+  font-family:var(--mono);font-size:10px;font-weight:700;box-shadow:2px 2px 0 var(--ink)}
+
+.content{padding:20px 30px 24px;max-width:1240px;margin:0 auto;display:grid;gap:14px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
+h1{font-family:var(--disp);font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:.95}
+.sub{font-size:13.5px;margin-top:8px;max-width:48ch;opacity:.75}
+.acts{display:flex;gap:9px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;border:2px solid var(--ink);
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;background:var(--card);color:var(--ink);
+  box-shadow:3px 3px 0 var(--ink);cursor:pointer}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+.btn.coral{background:var(--coral);color:#fff8ec}
+.btn.mustard{background:var(--mustard)}
+
+.card{background:var(--card);border:2px solid var(--ink);border-radius:16px;padding:16px;position:relative;box-shadow:6px 6px 0 var(--ink)}
+.hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(220px,.8fr);gap:20px;overflow:hidden;padding:18px}
+.hero::before{content:'';position:absolute;right:-60px;top:-70px;width:280px;height:280px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,var(--mustard) 0 8deg,transparent 8deg 16deg);opacity:.35}
+.hero::after{content:'';position:absolute;right:120px;bottom:-40px;width:120px;height:90px;
+  background-image:radial-gradient(var(--teal) 2.2px,transparent 2.2px);background-size:11px 11px;opacity:.4}
+.hero>*{position:relative;z-index:1}
+.hero-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sticker{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:2px solid var(--ink);border-radius:999px;background:var(--coral);
+  color:#fff8ec;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  box-shadow:2px 2px 0 var(--ink);transform:rotate(-3deg)}
+.sticker .d{width:6px;height:6px;border-radius:50%;background:#fff8ec}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border:2px solid var(--ink);border-radius:6px;background:var(--teal);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;box-shadow:2px 2px 0 var(--ink)}
+.badge.plum{background:var(--plum);color:#fff8ec}
+.up{font-family:var(--mono);font-size:10px;letter-spacing:.1em;opacity:.6}
+.hero h2{font-family:var(--disp);font-size:40px;font-weight:800;letter-spacing:-.035em;line-height:.95;display:inline-block}
+.wave{display:block;margin-top:4px;width:190px;height:9px}
+.hero p{margin-top:9px;font-size:13px;line-height:1.55;max-width:52ch;opacity:.8}
+.hero p b{font-weight:700;opacity:1;border-bottom:2px solid var(--mustard)}
+.kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.kv div{border:2px solid var(--ink);border-radius:8px;padding:5px 10px;background:#fff;box-shadow:2px 2px 0 var(--ink)}
+.kv dt{font-family:var(--mono);font-size:8px;letter-spacing:.16em;text-transform:uppercase;opacity:.55}
+.kv dd{font-family:var(--disp);font-size:14px;font-weight:700;margin-top:1px}
+.facts{display:flex;flex-direction:column;gap:8px;justify-content:center}
+.fact{border:2px solid var(--ink);border-radius:10px;padding:8px 11px;background:#fff;box-shadow:3px 3px 0 var(--ink);
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.fact:nth-child(2){background:#fdf0d2;transform:rotate(-.6deg)}
+.fact:nth-child(3){background:#e9f4ef;transform:rotate(.5deg)}
+.fact span{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.6}
+.fact b{font-family:var(--disp);font-size:16px;font-weight:800}
+
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px}
+.m{border:2px solid var(--ink);border-radius:12px;padding:11px 12px;box-shadow:4px 4px 0 var(--ink);position:relative;overflow:hidden}
+.m:nth-child(1){background:var(--mustard)}
+.m:nth-child(2){background:#bfe6dc}
+.m:nth-child(3){background:#e6d3f5}
+.m:nth-child(4){background:#f9cbb8}
+.m:nth-child(5){background:#eef3bd}
+.m span{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.7;display:block}
+.m b{font-family:var(--disp);font-size:23px;font-weight:800;letter-spacing:-.03em;display:block;margin-top:3px;line-height:1}
+.m b i{font-style:normal;font-family:var(--mono);font-size:9px;font-weight:500;opacity:.65;margin-left:3px;letter-spacing:.02em}
+.m small{display:block;font-family:var(--mono);font-size:8.5px;margin-top:6px;opacity:.65;letter-spacing:.02em}
+.bars{display:flex;align-items:flex-end;gap:3px;height:11px;margin-top:6px}
+.bars i{flex:1;background:var(--ink);opacity:.75;border-radius:1px 1px 0 0}
+
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px}
+.sect{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.sect h3{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.sect h3::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--coral);border:2px solid var(--ink)}
+.sect a{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;text-decoration:underline;text-decoration-thickness:2px;
+  text-underline-offset:3px}
+.row{display:flex;align-items:center;gap:11px;padding:7px 0;border-top:1.5px dashed rgba(29,25,19,.28)}
+.row:first-child{border-top:none;padding-top:2px}
+.ava{width:34px;height:34px;border-radius:10px;border:2px solid var(--ink);display:grid;place-items:center;font-family:var(--mono);
+  font-size:10px;font-weight:700;background:var(--lime);flex:none;box-shadow:2px 2px 0 var(--ink)}
+.ava.v2{background:var(--plum);color:#fff8ec}
+.ava.v3{background:var(--teal)}
+.who{flex:1;min-width:0}
+.who b{display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who span{display:block;font-family:var(--mono);font-size:9.5px;opacity:.55;margin-top:2px}
+.tiny{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;border:2px solid var(--ink);border-radius:7px;
+  background:var(--card);padding:4px 8px;box-shadow:2px 2px 0 var(--ink);cursor:pointer;font-weight:700}
+.on{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+.on .d{width:7px;height:7px;border-radius:50%;background:var(--teal);border:1.5px solid var(--ink)}
+.on.off{opacity:.45}
+.on.off .d{background:#fff}
+.pl{display:flex;align-items:center;gap:10px;padding:6px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff;
+  font-size:12px;margin-top:5px;box-shadow:2px 2px 0 var(--ink)}
+.pl b{font-family:var(--mono);font-size:9px;width:18px;flex:none;opacity:.5;font-weight:500}
+.pl.now{background:var(--lime)}
+.pl.now b{opacity:.8}
+.eq{display:inline-flex;align-items:flex-end;gap:2px;height:11px;margin-left:auto}
+.eq i{width:3px;background:var(--ink);border-radius:1px}
+
+.preview{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.stage{position:relative;aspect-ratio:16/2.55;background:
+  repeating-conic-gradient(from 210deg at 50% 120%,rgba(242,201,76,.35) 0 10deg,transparent 10deg 20deg),
+  radial-gradient(400px 200px at 80% 0%,#f9d9a8,transparent 60%),
+  linear-gradient(160deg,#fdf3df,#f6e2c2);display:grid;place-items:center;border-bottom:2px solid var(--ink)}
+.stage::after{content:'';position:absolute;inset:0;background-image:radial-gradient(rgba(29,25,19,.2) 1.6px,transparent 1.6px);
+  background-size:12px 12px;opacity:.35;mask-image:linear-gradient(180deg,transparent,#000)}
+.stage img{width:58px;height:58px;opacity:.9;transform:rotate(-4deg);filter:drop-shadow(4px 4px 0 rgba(29,25,19,.25));z-index:1}
+.stage .tag{position:absolute;top:14px;left:16px;z-index:2;display:flex;gap:8px}
+.stage .time{position:absolute;right:16px;bottom:13px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;z-index:2}
+.ovl{position:absolute;z-index:3}
+.ovl.chat{left:14px;bottom:14px;width:240px;border:2px solid var(--ink);border-radius:9px;background:#fff9ec;box-shadow:3px 3px 0 var(--ink);
+  padding:5px 9px;transform:rotate(-.8deg);display:flex;flex-direction:column;gap:1px}
+.ovl.chat b{font-family:var(--mono);font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--coral)}
+.ovl.chat span{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovl.chat span i{font-style:normal;font-weight:700}
+.ovl.earn{right:16px;top:14px;border:2px solid var(--ink);border-radius:10px;background:var(--mustard);box-shadow:3px 3px 0 var(--ink);
+  padding:4px 10px;text-align:right;transform:rotate(2deg)}
+.ovl.earn small{display:block;font-family:var(--mono);font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.65}
+.ovl.earn strong{display:block;font-family:var(--disp);font-size:17px;font-weight:800;letter-spacing:-.02em}
+.pfoot{display:flex;justify-content:space-between;padding:11px 16px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+.pfoot b{border-bottom:2px solid var(--coral)}
+footer{display:flex;justify-content:space-between;padding:8px 30px 22px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;opacity:.5}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+    <nav>
+      <p class="navlabel">Steuerung</p>
+      <a class="nav on" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c.5-3.2 3-5.2 6.2-5.2s5.7 2 6.2 5.2M16.5 5.2a3.2 3.2 0 0 1 0 6.2"/></svg>Streamer</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 9h10M7 13h6M8 21h8"/></svg>Overlays</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m16 14 5 3-5 3v-6Z"/></svg>Playlists</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg>YouTube</a>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"/></svg>Einstellungen</a>
+      <p class="navlabel" style="margin-top:14px">System</p>
+      <a class="nav" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Logs</a>
+    </nav>
+    <div class="sidefoot"><span><i class="dot"></i>Live</span><span>v0.4.2</span></div>
+  </aside>
+
+  <div class="main">
+    <header>
+      <div class="crumb">RELAY<span>/</span>Steuerung</div>
+      <div class="hstat">
+        <span class="chip live"><i class="d"></i>Quelle live</span>
+        <span class="chip">Relay 2,4 s</span>
+        <span class="chip coral">60 fps</span>
+        <span class="avatar">RS</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="top">
+        <div>
+          <h1>Dashboard</h1>
+          <p class="sub">Live-Status, Steuerung und Schnellstart deines Restreams.</p>
+        </div>
+        <div class="acts">
+          <button class="btn coral">Pause starten</button>
+          <button class="btn">Sender wechseln</button>
+          <button class="btn mustard">Sink neu starten</button>
+        </div>
+      </div>
+
+      <section class="card hero">
+        <div>
+          <div class="hero-top">
+            <span class="sticker"><i class="d"></i>On air</span>
+            <span class="badge">TikTok → YouTube</span>
+            <span class="up">Live seit 02:14:38</span>
+          </div>
+          <h2>@lunaflows</h2>
+          <svg class="wave" viewBox="0 0 210 10" fill="none"><path d="M1 6c14-6 24 5 38 0s24 5 38 0 24 5 38 0 24 5 38 0 24 5 38 0 18 4 18 4" stroke="#e96a45" stroke-width="4" stroke-linecap="round"/></svg>
+          <p>Playlist <b>Nightshift</b> · Delay <b>2,4 s</b> · Overlays <b>Chat + Einnahmen</b> aktiv.<br>
+            Der Sink läuft stabil, keine Reconnects in den letzten 60 Minuten.</p>
+          <div class="kv">
+            <div><dt>Ziel</dt><dd>YouTube</dd></div>
+            <div><dt>Zuschauer</dt><dd>1.284</dd></div>
+            <div><dt>Chat</dt><dd>142 / min</dd></div>
+          </div>
+        </div>
+        <div class="facts">
+          <div class="fact"><span>Bitrate</span><b>5,82 Mbit/s</b></div>
+          <div class="fact"><span>Puffer</span><b>2,4 s</b></div>
+          <div class="fact"><span>Dropped</span><b>0 Frames</b></div>
+          <div class="fact"><span>Uptime</span><b>99,98 %</b></div>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <div class="m"><span>Quelle</span><b>5,82<i>Mbit/s</i></b><small>1080p60 · stabil</small>
+          <div class="bars"><i style="height:60%"></i><i style="height:80%"></i><i style="height:52%"></i><i style="height:92%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:66%"></i><i style="height:96%"></i><i style="height:78%"></i><i style="height:84%"></i></div></div>
+        <div class="m"><span>Ausgang</span><b>5,61<i>Mbit/s</i></b><small>Ziel 6,0 · Pacing ok</small>
+          <div class="bars"><i style="height:70%"></i><i style="height:74%"></i><i style="height:88%"></i><i style="height:62%"></i><i style="height:84%"></i><i style="height:90%"></i><i style="height:72%"></i><i style="height:86%"></i><i style="height:64%"></i><i style="height:80%"></i></div></div>
+        <div class="m"><span>Relay-Puffer</span><b>2,4<i>s</i></b><small>6 Clients · 1,8 s Pacing</small>
+          <div class="bars"><i style="height:38%"></i><i style="height:44%"></i><i style="height:40%"></i><i style="height:52%"></i><i style="height:46%"></i><i style="height:50%"></i><i style="height:42%"></i><i style="height:56%"></i><i style="height:48%"></i><i style="height:44%"></i></div></div>
+        <div class="m"><span>Watchdog</span><b>0<i>Stalls</i></b><small>Letzte Messung 12 s</small>
+          <div class="bars"><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i></div></div>
+        <div class="m"><span>Auto-Refresh</span><b>10<i>s</i></b><small>Status geprüft vor 3 s</small>
+          <div class="bars"><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i><i style="height:50%"></i></div></div>
+      </section>
+
+      <div class="cols">
+        <section class="card">
+          <div class="sect"><h3>Streamer</h3><a href="#">Alle anzeigen</a></div>
+          <div class="row"><div class="ava">LF</div><div class="who"><b>lunaflows</b><span>tiktok.com/@lunaflows</span></div><span class="on"><i class="d"></i>Live</span><button class="tiny">Wechseln</button></div>
+          <div class="row"><div class="ava v2">NX</div><div class="who"><b>nightxradio</b><span>tiktok.com/@nightxradio</span></div><span class="on off"><i class="d"></i>Offline</span><button class="tiny">Wechseln</button></div>
+          <div class="row"><div class="ava v3">K7</div><div class="who"><b>k7_studio</b><span>tiktok.com/@k7_studio</span></div><span class="on off"><i class="d"></i>Offline</span><button class="tiny">Wechseln</button></div>
+        </section>
+
+        <section class="card">
+          <div class="sect"><h3>Playlist · Nightshift</h3><a href="#">Bearbeiten</a></div>
+          <div class="pl now"><b>01</b>lunaflows<span class="eq"><i style="height:4px"></i><i style="height:10px"></i><i style="height:6px"></i><i style="height:11px"></i></span></div>
+          <div class="pl"><b>02</b>nightxradio</div>
+          <div class="pl"><b>03</b>k7_studio</div>
+          <div class="pl"><b>04</b><span style="opacity:.5">file: intro_loop.mp4</span></div>
+        </section>
+      </div>
+
+      <section class="card preview">
+        <div class="stage">
+          <img src="relay-logo.svg" alt="">
+          <div class="tag"><span class="sticker" style="transform:rotate(1.5deg)">Preview</span><span class="badge plum">1280 × 720</span></div>
+          <div class="ovl earn"><small>Heute</small><strong>€ 42,80</strong></div>
+          <div class="ovl chat"><b>Live-Chat</b><span><i>nova_92</i> der drop ist echt gut</span><span><i>kaito</i> let's gooo</span></div>
+          <span class="time">02:14:38</span>
+        </div>
+        <div class="pfoot"><span>Quelle <b>tiktok</b> · Sink <b>youtube</b></span><span>Tap aktiv · 0 verworfen</span></div>
+      </section>
+    </main>
+    <footer><span>RELAY 0.4.2 · positronium.dev</span><span>70s Print-Pop</span></footer>
+  </div>
+</div>
+</body>
+</html>

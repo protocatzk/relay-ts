@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Pausen- und Startbildschirme</title>
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter-latin-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Space Grotesk';src:url('fonts/space-grotesk-latin.woff2') format('woff2');font-weight:300 700;font-display:swap}
+@font-face{font-family:'JB Mono';src:url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');font-weight:100 800;font-display:swap}
+:root{
+  --bg:#07090f;--surface:#0b1017;--line:#222a3d;--line-2:#39425f;--ink:#eaf2ff;--muted:#8d9ab4;--dim:#7c89a3;
+  --lime:#dfff4f;--mint:#4ce07f;--cyan:#26e3ff;--violet:#b05cff;
+  --grad:linear-gradient(100deg,#dfff4f 0%,#4ce07f 34%,#26e3ff 68%,#b05cff 100%);
+  --disp:'Space Grotesk',sans-serif;--ui:'Inter',sans-serif;--mono:'JB Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ui);background:var(--bg);color:var(--ink);padding:26px 24px 44px;
+  background-image:linear-gradient(rgba(120,150,200,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(120,150,200,.04) 1px,transparent 1px);
+  background-size:48px 48px;-webkit-font-smoothing:antialiased}
+.head{max-width:1480px;margin:0 auto 22px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+h1{font-family:var(--disp);font-size:28px;letter-spacing:-.03em;line-height:1}
+.sub{color:var(--muted);font-size:13px;margin-top:7px;max-width:78ch}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);
+  border:1px solid var(--line);padding:4px 8px;border-radius:2px}
+.wrap{max-width:1480px;margin:0 auto;display:grid;gap:22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px}
+.card{border:1px solid var(--line);border-radius:4px;background:linear-gradient(180deg,#0d131d,#090e16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),3px 3px 0 rgba(0,0,0,.4);padding:12px;position:relative}
+.card::before{content:'';position:absolute;top:-1px;left:-1px;right:-1px;height:2px;background:var(--grad);opacity:.7;border-radius:4px 4px 0 0}
+.winbar{display:flex;align-items:center;gap:7px;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.winbar .sqs{margin-left:auto;display:flex;gap:3px}
+.sq{width:12px;height:10px;border:1px solid var(--line-2);display:grid;place-items:center;font-size:7px;color:var(--dim);background:#0b111b}
+.lamp{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 7px var(--lime);display:inline-block;flex:none}
+.lamp.v{background:var(--violet);box-shadow:0 0 7px var(--violet)}
+.cap{display:flex;justify-content:space-between;gap:10px;padding:10px 2px 0;font-family:var(--mono);font-size:9px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.cap b{color:var(--muted);font-weight:600}
+.note{font-size:12px;color:var(--muted);line-height:1.5;padding:6px 2px 0}
+
+/* slate */
+.slate{position:relative;aspect-ratio:16/9;width:100%;overflow:hidden;background:#0b1017;container-type:inline-size;
+  border:1px solid var(--line-2);border-radius:2px;isolation:isolate}
+.slate .bg{position:absolute;inset:0;background:
+  radial-gradient(50cqw 34cqw at 78% 12%,rgba(38,227,255,.20),transparent 62%),
+  radial-gradient(42cqw 30cqw at 12% 96%,rgba(176,92,255,.18),transparent 66%),
+  radial-gradient(60cqw 50cqw at 50% 55%,rgba(76,224,127,.07),transparent 70%),#0b1017}
+.slate .bg::after{content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(120,150,200,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(120,150,200,.055) 1px,transparent 1px);
+  background-size:6.4cqw 6.4cqw;mask-image:radial-gradient(70% 70% at 50% 50%,#000 30%,transparent 100%)}
+.slate .vig{position:absolute;inset:0;background:radial-gradient(90% 80% at 50% 50%,transparent 40%,rgba(3,5,9,.72) 100%)}
+.slate .topline{position:absolute;top:0;left:0;right:0;height:2px;background:var(--grad);opacity:.9}
+.slate .ghost{position:absolute;right:-6cqw;top:18%;width:60cqw;height:60cqw;opacity:.05;transform:rotate(-9deg)}
+.slate .chrome{position:absolute;left:5%;right:5%;display:flex;align-items:center;gap:1.4cqw;font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.16em;color:var(--dim)}
+.slate .chrome.t{top:5%;justify-content:space-between}
+.slate .chrome.b{bottom:4.5%;justify-content:space-between;font-size:1.15cqw}
+.brand{display:flex;align-items:center;gap:1.2cqw}
+.brand img{width:3.4cqw;height:3.4cqw;border-radius:.8cqw}
+.brand b{font-size:1.8cqw;letter-spacing:.22em;color:var(--ink);font-weight:600;display:block;line-height:1}
+.brand span{font-size:.95cqw;letter-spacing:.26em;color:var(--dim);display:block;margin-top:.3cqw}
+.chip{display:inline-flex;align-items:center;gap:.7cqw;border:1px solid rgba(223,255,79,.4);background:rgba(223,255,79,.07);
+  color:var(--lime);padding:.55cqw 1cqw;font-size:1.05cqw;letter-spacing:.2em;border-radius:.2cqw}
+.chip .lamp{width:.6cqw;height:.6cqw;box-shadow:0 0 1cqw var(--lime)}
+.chip.vio{color:var(--violet);border-color:rgba(176,92,255,.45);background:rgba(176,92,255,.08)}
+.chip.vio .lamp{background:var(--violet);box-shadow:0 0 1cqw var(--violet)}
+.core{position:absolute;left:15%;right:15%;top:50%;transform:translateY(-50%);text-align:center}
+.eyebrow{display:inline-flex;align-items:center;gap:.9cqw;font-family:var(--mono);font-size:1.15cqw;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:2.4cqw}
+.eyebrow .lamp{width:.7cqw;height:.7cqw;box-shadow:0 0 1.2cqw var(--lime)}
+.slate h2{font-family:var(--disp);font-size:7.1cqw;line-height:1;letter-spacing:-.035em;font-weight:700;color:var(--ink)}
+.slate h2 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.rule{width:8cqw;height:2px;background:var(--grad);margin:2.2cqw auto 1.8cqw;opacity:.9}
+.slate p{font-family:var(--ui);font-size:3.3cqw;line-height:1.35;color:var(--muted);max-width:70cqw;margin:0 auto;white-space:nowrap}
+.slate p b{color:var(--ink);font-weight:600}
+.slate .meta{position:absolute;left:0;right:0;bottom:12%;text-align:center;font-family:var(--mono);font-size:1.15cqw;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.frame-10 .slate{aspect-ratio:9/16;max-height:none;margin:0;width:100%}
+.frame-10 .slate .ghost{width:86cqw;height:86cqw;top:6%;right:-30cqw}
+
+/* safe area */
+.safe{position:relative;aspect-ratio:16/9;background:#0b1017;border:1px solid var(--line-2);container-type:inline-size}
+.safe .box{position:absolute;inset:5%;border:1px dashed rgba(223,255,79,.55)}
+.safe .box2{position:absolute;inset:12% 15%;border:1px dashed rgba(38,227,255,.45)}
+.safe .lx{position:absolute;left:5.5%;top:1.2%;font-family:var(--mono);font-size:1.7cqw;color:var(--lime);letter-spacing:.14em}
+.safe .l2{position:absolute;left:15%;bottom:1.2%;font-family:var(--mono);font-size:1.6cqw;color:var(--cyan);letter-spacing:.14em}
+.safe .lm{position:absolute;right:5%;bottom:1.2%;font-family:var(--mono);font-size:1.6cqw;color:var(--dim);letter-spacing:.14em}
+.safe .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
+.safe .center b{display:block;font-family:var(--mono);font-size:2.2cqw;letter-spacing:.16em;color:var(--muted)}
+.safe .center span{display:block;font-family:var(--mono);font-size:1.8cqw;letter-spacing:.14em;color:var(--dim);margin-top:1cqw}
+.safe .logo-zone{position:absolute;left:8%;top:8%;width:18%;height:11%;border:1px solid rgba(255,255,255,.16);
+  display:grid;place-items:center;font-family:var(--mono);font-size:1.55cqw;letter-spacing:.14em;color:var(--dim)}
+
+/* tokens */
+.tokens{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.token{border:1px solid var(--line);background:#0a0f17;border-radius:2px;padding:9px 10px;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.token dt{font-family:var(--mono);font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.token dd{font-family:var(--disp);font-size:16px;font-weight:600;margin-top:3px}
+.token small{display:block;font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-top:3px}
+
+/* A — Neon-Arcade alignment */
+.card{background:linear-gradient(180deg,#0d131d,#0a0f17);border:1px solid var(--line);border-radius:6px;
+  padding:15px;box-shadow:4px 4px 0 rgba(0,0,0,.45)}
+.card::before{height:2px;opacity:.75;border-radius:6px 6px 0 0}
+.sect{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.sect h3{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);display:flex;align-items:center;gap:9px;line-height:1.2}
+.sect h3::before{content:'';width:7px;height:7px;background:var(--lime);box-shadow:0 0 10px rgba(223,255,79,.7);flex:none}
+.sect .meta{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.cap{padding-top:11px;font-size:9px;letter-spacing:.12em}
+.slate{border-radius:3px}
+</style>
+</head>
+<body>
+<div class="head">
+  <div>
+    <h1>Pausen- und Startbildschirme</h1>
+    <p class="sub">Slates im Neon-Arcade-System. Der Pausenscreen hält den Sink am Leben, wenn die Quelle
+      ausfällt oder pausiert wird. Der Startbildschirm überbrückt den Kaltstart aus dem Idle-Zustand.
+      Die Beispiele zeigen den <b style="color:var(--ink)">Clean-Mode</b> (Chat und Einnahmen während des Slates aus).</p>
+  </div>
+  <span class="tag">720 × 1280 Standard · 16:9 und 9:16</span>
+</div>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card">
+      <div class="sect"><h3>Pause · Neon</h3><span class="meta">16:9</span></div>
+      <div class="slate">
+        <div class="bg"></div><div class="vig"></div><div class="topline"></div>
+        <img class="ghost" src="relay-logo.svg" alt="">
+        <div class="chrome t">
+          <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+          <span class="chip"><i class="lamp"></i>Pause</span>
+        </div>
+        <div class="core">
+          <div class="eyebrow"><i class="lamp"></i>Stream pausiert</div>
+          <h2>Kurz <em>durchatmen.</em></h2>
+          <div class="rule"></div>
+          <p>Die Übertragung bleibt bestehen.</p>
+        </div>
+        <div class="chrome b"><span>Gleich geht es weiter</span><span>RELAY · RESTREAMER</span></div>
+      </div>
+      <div class="cap"><b>Pause · Neon</b><span>7,1 % / 3,3 % Schrift</span></div>
+      <p class="note">Standard für den Abendbetrieb. Ruhiger Hintergrund, ein Verlauf als Signal,
+        max. 20 Zeichen Haupttext und 40 Zeichen Untertext.</p>
+    </div>
+
+    <div class="card">
+      <div class="sect"><h3>Start · Neon</h3><span class="meta">16:9</span></div>
+      <div class="slate">
+        <div class="bg" style="background:
+          radial-gradient(50cqw 34cqw at 20% 10%,rgba(176,92,255,.22),transparent 62%),
+          radial-gradient(42cqw 30cqw at 86% 92%,rgba(38,227,255,.18),transparent 66%),
+          radial-gradient(60cqw 50cqw at 50% 55%,rgba(76,224,127,.06),transparent 70%),#0b1017"></div>
+        <div class="vig"></div><div class="topline"></div>
+        <img class="ghost" src="relay-logo.svg" alt="">
+        <div class="chrome t">
+          <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+          <span class="chip vio"><i class="lamp"></i>Start</span>
+        </div>
+        <div class="core">
+          <div class="eyebrow"><i class="lamp"></i>Startbildschirm</div>
+          <h2>Gleich geht's <em>los.</em></h2>
+          <div class="rule"></div>
+          <p>Der Stream startet in wenigen Minuten.</p>
+        </div>
+        <div class="chrome b"><span>Startet gleich</span><span>RELAY · RESTREAMER</span></div>
+      </div>
+      <div class="cap"><b>Start · Neon</b><span>10 s · danach Quelle</span></div>
+      <p class="note">Nur beim Start aus dem Idle-Zustand. Keine Zeitversprechen, wenn der Startzeitpunkt
+        nicht sicher ist – „gleich" ist ehrlicher als „in 2 Minuten".</p>
+    </div>
+
+    <div class="card">
+      <div class="sect"><h3>Raster · Sicherheitsbereich</h3><span class="meta">16:9</span></div>
+      <div class="safe">
+        <div class="box"></div><div class="box2"></div>
+        <span class="lx">5 % Overscan</span>
+        <div class="logo-zone">LOGO</div>
+        <div class="center"><b>ZENTRIERTER STACK</b><span>Haupttext · 2,2 % · Untertext</span></div>
+        <span class="l2">Textblock · max. 70 % Breite</span>
+        <span class="lm">Unterer Rand 4,5 %</span>
+      </div>
+      <div class="cap"><b>Sicherheitsbereich</b><span>5 % Rand, 70 % Text</span></div>
+      <p class="note">Alles Wichtige liegt innerhalb der gestrichelten Linie. Der äußere Rand darf
+        Logo-Wasserzeichen oder Bewegtbild tragen, aber keine Information.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sect"><h3>9:16-Variante · TikTok-Hochformat</h3><span class="meta">720 × 1280</span></div>
+    <div class="grid" style="grid-template-columns:300px 300px minmax(0,1fr);align-items:start;gap:22px">
+      <div class="frame-10">
+        <div class="slate">
+          <div class="bg"></div><div class="vig"></div><div class="topline"></div>
+          <img class="ghost" src="relay-logo.svg" alt="">
+          <div class="chrome t">
+            <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+            <span class="chip"><i class="lamp"></i>Pause</span>
+          </div>
+          <div class="core">
+            <div class="eyebrow"><i class="lamp"></i>Stream pausiert</div>
+            <h2>Kurz <em>durchatmen.</em></h2>
+            <div class="rule"></div>
+            <p>Wir sind gleich zurück.</p>
+          </div>
+          <div class="chrome b"><span>Gleich weiter</span><span>RELAY</span></div>
+        </div>
+        <div class="cap"><b>Pause · 9:16</b><span>720 × 1280</span></div>
+      </div>
+
+      <div class="frame-10">
+        <div class="slate">
+          <div class="bg" style="background:
+            radial-gradient(50cqw 34cqw at 20% 10%,rgba(176,92,255,.22),transparent 62%),
+            radial-gradient(42cqw 30cqw at 86% 92%,rgba(38,227,255,.18),transparent 66%),#0b1017"></div>
+          <div class="vig"></div><div class="topline"></div>
+          <img class="ghost" src="relay-logo.svg" alt="">
+          <div class="chrome t">
+            <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+            <span class="chip vio"><i class="lamp"></i>Start</span>
+          </div>
+          <div class="core">
+            <div class="eyebrow"><i class="lamp"></i>Start</div>
+            <h2>Gleich geht's <em>los.</em></h2>
+            <div class="rule"></div>
+            <p>Der Stream startet in wenigen Minuten.</p>
+          </div>
+          <div class="chrome b"><span>Startet gleich</span><span>RELAY</span></div>
+        </div>
+        <div class="cap"><b>Start · 9:16</b><span>720 × 1280</span></div>
+      </div>
+
+      <div>
+        <p class="note" style="font-size:12.5px">
+          Das Standardformat ist <b style="color:var(--ink)">720 × 1280</b>. Alle Maße skalieren mit der
+          Ausgabebreite: Haupttext 7,1 %, Untertext 3,3 %, Textblock 70 %, Rand 5 %.
+        </p>
+        <p class="note" style="font-size:12.5px">
+          Ein 16:9-Hintergrund wird im Hochformat stark beschnitten (cover). Nutze für TikTok ein
+          9:16-Asset oder rechne mit dem Beschnitt. Der Textblock bleibt in beiden Formaten zentriert.
+        </p>
+        <div class="tokens" style="grid-template-columns:1fr 1fr;margin-top:10px">
+          <div class="token"><dt>Haupttext</dt><dd>7,1 %</dd><small>51 px bei 720 Breite</small></div>
+          <div class="token"><dt>Untertext</dt><dd>3,3 %</dd><small>24 px bei 720 Breite</small></div>
+          <div class="token"><dt>Abstand</dt><dd>2,2 %</dd><small>der Breite</small></div>
+          <div class="token"><dt>Kontrast</dt><dd>≥ 4,5 : 1</dd><small>über dem schlechtesten Bild</small></div>
+        </div>
+      </div>
+  </div>
+
+  <div class="card">
+    <div class="sect"><h3>Tokens für Slates</h3></div>
+    <div class="tokens">
+      <div class="token"><dt>Schutzraum</dt><dd>5 %</dd><small>alle Seiten, Overscan</small></div>
+      <div class="token"><dt>Textblock</dt><dd>70 %</dd><small>der Breite, zentriert</small></div>
+      <div class="token"><dt>Titel</dt><dd>7,1 %</dd><small>der Breite, 700</small></div>
+      <div class="token"><dt>Untertext</dt><dd>3,3 %</dd><small>der Breite, 400</small></div>
+      <div class="token"><dt>Zeichen</dt><dd>20 / 40</dd><small>Titel / Untertext</small></div>
+      <div class="token"><dt>Scrim</dt><dd>≥ 45 %</dd><small>bei Bild-/Videohintergrund</small></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RELAY · Slate-Generator (Konzept)</title>
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter-latin-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Space Grotesk';src:url('fonts/space-grotesk-latin.woff2') format('woff2');font-weight:300 700;font-display:swap}
+@font-face{font-family:'JB Mono';src:url('fonts/jetbrains-mono-latin-var.woff2') format('woff2');font-weight:100 800;font-display:swap}
+:root{
+  --bg:#07090f;--surface:#0b1017;--surface-2:#0e1621;--well:#070c13;
+  --line:#222a3d;--line-2:#39425f;--line-dark:#04060a;
+  --ink:#eaf2ff;--muted:#8d9ab4;--dim:#7c89a3;
+  --lime:#dfff4f;--mint:#4ce07f;--cyan:#26e3ff;--violet:#b05cff;--danger:#ff6b5e;
+  --grad:linear-gradient(100deg,#dfff4f 0%,#4ce07f 34%,#26e3ff 68%,#b05cff 100%);
+  --disp:'Space Grotesk',sans-serif;--ui:'Inter',sans-serif;--mono:'JB Mono',monospace;
+  --bevel:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.55);
+  --sunken:inset 0 1px 3px rgba(0,0,0,.75),0 1px 0 rgba(255,255,255,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ui);background:var(--bg);color:var(--ink);min-height:100vh;
+  background-image:radial-gradient(900px 500px at 86% -12%,rgba(38,227,255,.12),transparent 62%),
+  radial-gradient(680px 460px at 2% 108%,rgba(176,92,255,.11),transparent 62%),
+  linear-gradient(rgba(120,150,200,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(120,150,200,.04) 1px,transparent 1px);
+  background-size:auto,auto,48px 48px,48px 48px;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit;text-decoration:none}
+.sq{width:13px;height:11px;border:1px solid var(--line-2);background:#0b111b;display:inline-grid;place-items:center;
+  font-family:var(--mono);font-size:8px;color:var(--dim);flex:none}
+.lamp{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 7px var(--lime);display:inline-block;flex:none}
+.lamp.v{background:var(--violet);box-shadow:0 0 7px var(--violet)}
+.lamp.c{background:var(--cyan);box-shadow:0 0 7px var(--cyan)}
+
+header{display:flex;align-items:center;gap:12px;height:56px;padding:0 24px;border-bottom:1px solid var(--line);
+  background:rgba(7,10,16,.8);backdrop-filter:blur(10px);position:sticky;top:0;z-index:5}
+.crumb{font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+.crumb i{font-style:normal;color:#39425f;margin:0 5px}
+.crumb b{color:var(--ink);font-weight:600}
+.hstat{margin-left:auto;display:flex;align-items:center;gap:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:3px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:#0a0f17;box-shadow:var(--bevel)}
+.pill.live{color:var(--lime);border-color:rgba(223,255,79,.35);background:rgba(223,255,79,.07)}
+.pill.cy{color:var(--cyan);border-color:rgba(38,227,255,.3);background:rgba(38,227,255,.06)}
+.avatar{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:9px;
+  font-weight:700;color:#07090f;background:var(--grad);border:1px solid rgba(255,255,255,.3)}
+
+.main{padding:14px 24px 20px;display:grid;gap:10px;max-width:1440px;margin:0 auto}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+h1{font-family:var(--disp);font-size:24px;letter-spacing:-.02em;line-height:1}
+.sub{color:var(--muted);font-size:12px;margin-top:4px}
+.acts{display:flex;gap:7px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:3px;border:1px solid var(--line-2);
+  background:linear-gradient(180deg,#151f2d,#0a1019);color:var(--ink);font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;box-shadow:var(--bevel),2px 2px 0 #000}
+.btn:hover{border-color:rgba(223,255,79,.45);color:var(--lime)}
+.btn.grad{background:var(--grad);border-color:#05070b;color:#06090e;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),2px 2px 0 #000,0 0 18px rgba(76,224,127,.2)}
+.btn.ghost{background:#0a0f17}
+
+.card{background:linear-gradient(180deg,#0d131d,#090e16);border:1px solid var(--line);border-radius:4px;
+  box-shadow:var(--bevel),3px 3px 0 rgba(0,0,0,.4);position:relative;padding:12px}
+.card::before{content:'';position:absolute;top:-1px;left:-1px;right:-1px;height:2px;background:var(--grad);opacity:.65;border-radius:4px 4px 0 0}
+.winbar{display:flex;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.winbar .sep{flex:1}
+.winbar .sqs{display:flex;gap:3px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(330px,.9fr);gap:12px;align-items:start}
+
+/* preview */
+.pv .stage{position:relative;aspect-ratio:16/9;background:#0b1017;border:1px solid var(--line-dark);overflow:hidden;container-type:inline-size;
+  box-shadow:inset 0 0 40px rgba(0,0,0,.55)}
+.pv .bg{position:absolute;inset:0;background:
+  radial-gradient(50cqw 34cqw at 78% 12%,rgba(38,227,255,.20),transparent 62%),
+  radial-gradient(42cqw 30cqw at 12% 96%,rgba(176,92,255,.18),transparent 66%),#0b1017}
+.pv .bg::after{content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(120,150,200,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(120,150,200,.055) 1px,transparent 1px);
+  background-size:6.4cqw 6.4cqw;mask-image:radial-gradient(70% 70% at 50% 50%,#000 30%,transparent 100%)}
+.pv .vig{position:absolute;inset:0;background:radial-gradient(90% 80% at 50% 50%,transparent 40%,rgba(3,5,9,.7) 100%)}
+.pv .topline{position:absolute;top:0;left:0;right:0;height:2px;background:var(--grad);opacity:.9}
+.pv .ghost{position:absolute;right:-6cqw;top:18%;width:58cqw;opacity:.05;transform:rotate(-9deg)}
+.pv .chrome{position:absolute;left:5%;right:5%;display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.pv .chrome.t{top:5%}
+.pv .chrome.b{bottom:4.5%;font-size:1.15cqw}
+.pv .brand{display:flex;align-items:center;gap:1.2cqw}
+.pv .brand img{width:3.3cqw;height:3.3cqw;border-radius:.8cqw}
+.pv .brand b{font-size:1.7cqw;letter-spacing:.22em;color:var(--ink);font-weight:600;display:block;line-height:1}
+.pv .brand span{font-size:.9cqw;letter-spacing:.26em;color:var(--dim);display:block;margin-top:.3cqw}
+.pv .chip{display:inline-flex;align-items:center;gap:.7cqw;border:1px solid rgba(223,255,79,.4);background:rgba(223,255,79,.07);
+  color:var(--lime);padding:.5cqw 1cqw;font-size:1cqw;letter-spacing:.2em}
+.pv .chip .lamp{width:.6cqw;height:.6cqw;box-shadow:0 0 1cqw var(--lime)}
+.pv .core{position:absolute;left:15%;right:15%;top:50%;transform:translateY(-50%);text-align:center}
+.pv .eyebrow{display:inline-flex;align-items:center;gap:.9cqw;font-family:var(--mono);font-size:1.1cqw;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:2.3cqw}
+.pv .eyebrow .lamp{width:.65cqw;height:.65cqw;box-shadow:0 0 1.2cqw var(--lime)}
+.pv h2{font-family:var(--disp);font-size:7.1cqw;line-height:1;letter-spacing:-.035em;font-weight:700}
+.pv h2 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pv .rule{width:8cqw;height:2px;background:var(--grad);margin:2.1cqw auto 1.7cqw;opacity:.9}
+.pv p{font-family:var(--ui);font-size:3.3cqw;line-height:1.35;color:var(--muted);max-width:70cqw;margin:0 auto;white-space:nowrap}
+.pvfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:9px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);flex-wrap:wrap}
+.check{display:inline-flex;align-items:center;gap:5px;color:var(--mint)}
+.check i{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 6px var(--mint);display:inline-block}
+.warn{color:var(--warning,#f2c94c);display:inline-flex;align-items:center;gap:5px}
+
+/* controls */
+.panel{padding:12px 12px 10px}
+.group{padding:9px 0 11px;border-bottom:1px solid rgba(34,42,61,.7)}
+.group:last-of-type{border-bottom:none}
+.glabel{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+.glabel b{color:var(--muted);font-weight:600;letter-spacing:.14em}
+.glabel .hint{margin-left:auto;letter-spacing:.06em;text-transform:none;font-family:var(--ui);font-size:10px;color:var(--dim)}
+.presets{display:flex;flex-wrap:wrap;gap:5px}
+.preset{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-2);border-radius:2px;background:#0d1420;
+  padding:4px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);box-shadow:var(--bevel)}
+.preset.on{border-color:rgba(223,255,79,.55);background:rgba(223,255,79,.09);color:var(--lime);box-shadow:var(--bevel),0 0 12px rgba(223,255,79,.08)}
+.preset .lamp{width:4px;height:4px}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:7px}
+.field:first-child{margin-top:0}
+.field label{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.field label span{margin-left:auto;font-family:var(--mono);font-size:8.5px;color:var(--dim);letter-spacing:.06em}
+.input{height:30px;border:1px solid var(--line-dark);border-radius:2px;background:var(--well);box-shadow:var(--sunken);
+  padding:0 8px;font-family:var(--ui);font-size:12px;color:var(--ink);display:flex;align-items:center}
+.input.focus{border-color:rgba(223,255,79,.65);box-shadow:var(--sunken),0 0 0 2px rgba(223,255,79,.13)}
+.input.sel::after{content:'▾';margin-left:auto;color:var(--dim);font-size:9px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.swatch{display:flex;align-items:center;gap:6px;height:30px;border:1px solid var(--line-dark);border-radius:2px;background:var(--well);
+  box-shadow:var(--sunken);padding:0 6px;font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+.swatch i{width:14px;height:14px;border:1px solid rgba(255,255,255,.25);flex:none}
+.seg{display:flex;border:1px solid var(--line-dark);background:var(--well);box-shadow:var(--sunken);height:28px;border-radius:2px;overflow:hidden}
+.seg span{flex:1;display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.seg span.on{background:rgba(223,255,79,.1);color:var(--lime);box-shadow:inset 0 0 0 1px rgba(223,255,79,.3)}
+.asset{display:flex;align-items:center;gap:8px;border:1px solid var(--line-dark);border-radius:2px;background:var(--well);
+  box-shadow:var(--sunken);padding:6px}
+.asset .thumb{width:46px;height:26px;border:1px solid var(--line-2);background:
+  radial-gradient(circle at 70% 20%,rgba(38,227,255,.35),transparent 60%),radial-gradient(circle at 20% 90%,rgba(176,92,255,.35),transparent 60%),#0d1420;flex:none}
+.asset .meta{min-width:0;flex:1}
+.asset .meta b{display:block;font-family:var(--mono);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset .meta span{display:block;font-family:var(--mono);font-size:8px;color:var(--dim);margin-top:2px}
+.asset .acts{display:flex;gap:3px}
+.tiny{width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--line-2);background:#0d1420;color:var(--muted);
+  box-shadow:var(--bevel);font-size:9px;font-family:var(--mono)}
+.slider{position:relative;height:22px;display:flex;align-items:center}
+.slider .track{height:4px;width:100%;background:#131c28;border:1px solid var(--line-dark);box-shadow:var(--sunken)}
+.slider .fill{position:absolute;left:0;top:9px;height:4px;width:55%;background:var(--grad);opacity:.85}
+.slider .knob{position:absolute;left:calc(55% - 5px);top:5px;width:10px;height:12px;border:1px solid var(--line-2);
+  background:linear-gradient(180deg,#16202e,#0a1019);box-shadow:var(--bevel),1px 1px 0 #000}
+.foot{display:flex;align-items:center;gap:7px;padding-top:10px}
+.foot .save{margin-left:auto}
+
+/* preset cards */
+.studio{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pcard{border:1px solid var(--line);background:#0a0f17;border-radius:3px;padding:7px;box-shadow:var(--bevel)}
+.pcard.on{border-color:rgba(223,255,79,.45);box-shadow:var(--bevel),0 0 14px rgba(223,255,79,.07)}
+.thumb{position:relative;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--line-2);container-type:inline-size}
+.thumb .bg{position:absolute;inset:0}
+.thumb .t{position:absolute;left:8%;right:8%;top:50%;transform:translateY(-50%);text-align:center}
+.thumb .t b{display:block;font-family:var(--disp);font-size:8.6cqw;line-height:1;letter-spacing:-.03em}
+.thumb .t i{display:block;font-style:normal;width:10cqw;height:2px;margin:4cqw auto 3cqw}
+.thumb .t span{display:block;font-size:3.4cqw;color:var(--muted);white-space:nowrap}
+.thumb .lbl{position:absolute;left:8%;top:9%;font-family:var(--mono);font-size:2.6cqw;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.pcap{display:flex;justify-content:space-between;gap:6px;padding-top:6px;font-family:var(--mono);font-size:8.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.pcap b{color:var(--muted);font-weight:600}
+.papier{background:#f4ead8;color:#1d1913}
+.papier .lbl{color:#6b6052}
+.papier .t span{color:#5e5546}
+.night{background:#07090f}
+.startv{background:#0b1017}
+
+/* A — Neon-Arcade alignment */
+.card{background:linear-gradient(180deg,#0d131d,#0a0f17);border:1px solid var(--line);border-radius:6px;
+  box-shadow:4px 4px 0 rgba(0,0,0,.45);padding:14px}
+.card::before{height:2px;opacity:.7;border-radius:6px 6px 0 0}
+.sect{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+.sect h3{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);display:flex;align-items:center;gap:9px;line-height:1.2}
+.sect h3::before{content:'';width:7px;height:7px;background:var(--lime);box-shadow:0 0 10px rgba(223,255,79,.7);flex:none}
+.sect .meta{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.btn{height:34px;padding:0 13px;border-radius:4px;border:1px solid var(--line-2);background:#121a26;
+  box-shadow:3px 3px 0 #000;font-size:10.5px;letter-spacing:.09em}
+.btn.grad{box-shadow:3px 3px 0 #000,0 0 20px rgba(76,224,127,.2)}
+.btn.ghost{background:transparent}
+.preset{border:1px solid var(--line-2);border-radius:3px;background:#121a26;box-shadow:2px 2px 0 #000;padding:4px 8px}
+.preset.on{border-color:rgba(223,255,79,.5);background:rgba(223,255,79,.1);color:var(--lime);
+  box-shadow:2px 2px 0 #000,0 0 12px rgba(223,255,79,.08)}
+.input{height:32px;border:1px solid #263549;border-radius:4px;background:#0a0f17;box-shadow:none}
+.input.focus{border-color:rgba(223,255,79,.7);box-shadow:0 0 0 3px rgba(223,255,79,.14)}
+.swatch{border:1px solid #263549;border-radius:4px;background:#0a0f17;box-shadow:none;height:32px}
+.seg{border:1px solid #263549;border-radius:4px;background:#0a0f17;box-shadow:none;height:30px}
+.seg span.on{background:rgba(223,255,79,.1);color:var(--lime);box-shadow:inset 0 0 0 1px rgba(223,255,79,.3)}
+.asset{border:1px solid #263549;border-radius:4px;background:#0a0f17;box-shadow:none;padding:7px}
+.tiny{border:1px solid var(--line-2);border-radius:3px;background:#121a26;box-shadow:2px 2px 0 #000}
+.tiny:hover{color:var(--lime);border-color:rgba(223,255,79,.4)}
+.slider .track{height:3px;background:#121a26;border:1px solid #263549;box-shadow:none}
+.slider .fill{top:10px;height:3px}
+.slider .knob{top:6px;border:1px solid var(--line-2);background:#121a26;box-shadow:2px 2px 0 #000}
+.pcard{border-radius:4px;background:#0a0f17;box-shadow:3px 3px 0 rgba(0,0,0,.4);padding:7px}
+.pcard.on{border-color:rgba(223,255,79,.45);box-shadow:3px 3px 0 rgba(0,0,0,.4),0 0 14px rgba(223,255,79,.08)}
+.thumb{border-radius:2px}
+.sq{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="crumb">relay<i>/</i><b>slates</b><i>/</i>generator</div>
+  <div class="hstat">
+    <span class="pill live"><i class="lamp"></i>Pause aktiv</span>
+    <span class="pill cy"><i class="lamp c"></i>1920 × 1080</span>
+    <span class="pill">Konzept</span>
+    <span class="avatar">RS</span>
+  </div>
+</header>
+
+<div class="main">
+  <div class="top">
+    <div>
+      <h1>Slate-Generator</h1>
+      <p class="sub">Pausen- und Startbildschirm entwerfen, prüfen und speichern. Die Vorschau nutzt denselben
+        Filtergraph wie der Live-Screen.</p>
+    </div>
+    <div class="acts">
+      <button class="btn ghost">Verwerfen</button>
+      <button class="btn">Als Vorlage</button>
+      <button class="btn grad">Speichern</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <section class="card pv">
+      <div class="sect"><h3>Vorschau · Pause</h3><span class="meta">1920 × 1080</span></div>
+      <div class="stage">
+        <div class="bg"></div><div class="vig"></div><div class="topline"></div>
+        <img class="ghost" src="relay-logo.svg" alt="">
+        <div class="chrome t">
+          <div class="brand"><img src="relay-logo.svg" alt=""><div><b>RELAY</b><span>restreamer</span></div></div>
+          <span class="chip"><i class="lamp"></i>Pause</span>
+        </div>
+        <div class="core">
+          <div class="eyebrow"><i class="lamp"></i>Stream pausiert</div>
+          <h2>Kurz <em>durchatmen.</em></h2>
+          <div class="rule"></div>
+          <p>Wir sind gleich zurück.</p>
+        </div>
+        <div class="chrome b"><span>Gleich weiter</span><span>RELAY · RESTREAMER</span></div>
+      </div>
+      <div class="pvfoot">
+        <span class="check"><i></i>Textlänge ok</span>
+        <span class="check"><i></i>Kontrast 14,2 : 1</span>
+        <span>1920 × 1080 · 25 fps</span>
+        <span class="warn"><i style="width:5px;height:5px;border-radius:50%;background:#f2c94c;display:inline-block"></i>Video-Loop 8 s</span>
+      </div>
+    </section>
+
+    <section class="card panel">
+      <div class="sect"><h3>Generator</h3><span class="meta">Konzept</span></div>
+
+      <div class="group">
+        <div class="glabel"><b>Vorlage</b><span class="hint">Farbe, Typo, Raster</span></div>
+        <div class="presets">
+          <button class="preset on"><i class="lamp"></i>Neon Pause</button>
+          <button class="preset">Papier Pause</button>
+          <button class="preset">Neon Start</button>
+          <button class="preset">+ Eigen</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="glabel"><b>Inhalt</b><span class="hint">max. 20 / 40 Zeichen</span></div>
+        <div class="field">
+          <label for="g-title">Haupttext <span>16 / 20</span></label>
+          <div class="input focus" id="g-title">Kurz durchatmen.</div>
+        </div>
+        <div class="field">
+          <label for="g-sub">Untertext <span>22 / 40</span></label>
+          <div class="input" id="g-sub">Wir sind gleich zurück.</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="glabel"><b>Gestaltung</b><span class="hint">Preset-Werte</span></div>
+        <div class="field">
+          <label for="g-font">Schrift</label>
+          <div class="input sel" id="g-font">Space Grotesk · 700</div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="g-color">Textfarbe</label>
+            <div class="swatch" id="g-color"><i style="background:#eaf2ff"></i>#EAF2FF</div>
+          </div>
+          <div class="field">
+            <label for="g-accent">Akzent</label>
+            <div class="swatch" id="g-accent"><i style="background:#dfff4f"></i>#DFFF4F</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bildanpassung</label>
+          <div class="seg"><span class="on">Cover</span><span>Contain</span><span>Stretch</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="glabel"><b>Hintergrund</b><span class="hint">optional</span></div>
+        <div class="asset">
+          <div class="thumb"></div>
+          <div class="meta"><b>pause-loop.webm</b><span>WebM · 1920×1080 · 8,0 s</span></div>
+          <div class="acts"><button class="tiny" title="Ersetzen">⇄</button><button class="tiny" title="Entfernen">×</button></div>
+        </div>
+        <div class="field">
+          <label>Abdunklung <span>55 %</span></label>
+          <div class="slider"><div class="track"></div><div class="fill"></div><div class="knob"></div></div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span class="muted" style="font-family:var(--mono);font-size:8.5px;color:var(--dim)">Gespeichert 17:42</span>
+        <button class="btn ghost save">Vorschau</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="sect"><h3>Vorlagen</h3><span class="meta">4</span></div>
+    <div class="studio">
+      <div class="pcard on">
+        <div class="thumb"><div class="bg" style="background:radial-gradient(60% 50% at 78% 10%,rgba(38,227,255,.25),transparent 65%),radial-gradient(50% 45% at 12% 96%,rgba(176,92,255,.22),transparent 65%),#0b1017"></div>
+          <span class="lbl">Pause</span>
+          <div class="t"><b style="color:#eaf2ff">Kurz <em style="font-style:normal;background:linear-gradient(100deg,#dfff4f,#4ce07f 40%,#26e3ff 75%,#b05cff);-webkit-background-clip:text;background-clip:text;color:transparent">durchatmen.</em></b><i style="background:linear-gradient(100deg,#dfff4f,#26e3ff)"></i><span>Wir sind gleich zurück.</span></div>
+        </div>
+        <div class="pcap"><b>Neon Pause</b><span>Standard</span></div>
+      </div>
+      <div class="pcard">
+        <div class="thumb papier"><span class="lbl">Pause</span>
+          <div class="t"><b style="color:#1d1913">Kurz <em style="font-style:normal;color:#c6492a">durchatmen.</em></b><i style="background:#e96a45"></i><span style="color:#5e5546">Wir sind gleich zurück.</span></div>
+        </div>
+        <div class="pcap"><b>Papier Pause</b><span>Tag</span></div>
+      </div>
+      <div class="pcard">
+        <div class="thumb startv"><div class="bg" style="background:radial-gradient(60% 50% at 20% 10%,rgba(176,92,255,.28),transparent 65%),radial-gradient(50% 45% at 86% 92%,rgba(38,227,255,.2),transparent 65%),#0b1017"></div>
+          <span class="lbl">Start</span>
+          <div class="t"><b style="color:#eaf2ff">Gleich geht's <em style="font-style:normal;background:linear-gradient(100deg,#26e3ff,#b05cff);-webkit-background-clip:text;background-clip:text;color:transparent">los.</em></b><i style="background:linear-gradient(100deg,#b05cff,#26e3ff)"></i><span>Der Stream startet gleich.</span></div>
+        </div>
+        <div class="pcap"><b>Neon Start</b><span>10 s</span></div>
+      </div>
+      <div class="pcard">
+        <div class="thumb night"><span class="lbl">Pause</span>
+          <div class="t"><b style="color:#eaf2ff">Kurz <em style="font-style:normal;color:#dfff4f">durchatmen.</em></b><i style="background:#dfff4f"></i><span>Wir sind gleich zurück.</span></div>
+        </div>
+        <div class="pcap"><b>Night Pause</b><span>Minimal</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
