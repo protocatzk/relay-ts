@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ServerConfig } from '../core/config/loader.js';
 
+export type AuthMode = 'public' | 'cookie' | 'token' | 'basic' | null;
+
 export function authRequired(config: ServerConfig): boolean {
   return Boolean(config.password || config.apiToken || config.telegramAuth);
 }
@@ -31,31 +33,76 @@ function basicCredentials(header: string | undefined): { user: string; password:
   }
 }
 
-export function isAuthenticated(request: FastifyRequest, config: ServerConfig): boolean {
-  if (!authRequired(config)) return true;
+/** Returns how the current request authenticated, or null if it did not. */
+export function authMode(request: FastifyRequest, config: ServerConfig): AuthMode {
+  if (!authRequired(config)) return 'public';
 
   const header = request.headers.authorization;
   if (config.apiToken && header?.startsWith('Bearer ')) {
-    if (safeEqual(header.slice(7).trim(), config.apiToken)) return true;
+    if (safeEqual(header.slice(7).trim(), config.apiToken)) return 'token';
   }
 
   const cookie = request.cookies?.rs_auth;
   if (cookie) {
     const unsigned = request.unsignCookie(cookie);
-    if (unsigned.valid && unsigned.value === 'ok') return true;
+    if (unsigned.valid && unsigned.value === 'ok') return 'cookie';
   }
 
   const basic = basicCredentials(header);
   if (basic) {
-    if (config.password && safeEqual(basic.password, config.password)) return true;
-    if (config.apiToken && safeEqual(basic.password, config.apiToken)) return true;
+    if (config.password && safeEqual(basic.password, config.password)) return 'basic';
+    if (config.apiToken && safeEqual(basic.password, config.apiToken)) return 'basic';
   }
 
-  const query = request.query as Record<string, unknown> | undefined;
-  if (config.apiToken && typeof query?.token === 'string' && safeEqual(query.token, config.apiToken)) {
+  return null;
+}
+
+export function isAuthenticated(request: FastifyRequest, config: ServerConfig): boolean {
+  return authMode(request, config) !== null;
+}
+
+/**
+ * Cookie-authenticated writes must come from the same origin. API tokens and
+ * Basic Auth are exempt because they are not sent automatically by browsers.
+ */
+export function isSameOrigin(request: FastifyRequest, allowedOrigins: string[] = []): boolean {
+  const originHeader = request.headers.origin ?? request.headers.referer;
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
+  if (!origin) return false;
+  let originUrl: URL;
+  try {
+    originUrl = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  const forwardedHost = request.headers['x-forwarded-host'];
+  const hostHeader = request.headers.host;
+  const host = String(
+    (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? hostHeader ?? '',
+  )
+    .split(',')[0]!
+    .trim()
+    .toLowerCase();
+  if (!host) return false;
+
+  const stripDefaultPort = (value: string): string => value.replace(/:(80|443)$/, '');
+  const originHost = originUrl.host.toLowerCase();
+  if (originHost === host || stripDefaultPort(originHost) === stripDefaultPort(host)) {
     return true;
   }
-  return false;
+
+  return allowedOrigins.some((allowed) => {
+    try {
+      const allowedUrl = new URL(allowed);
+      return (
+        allowedUrl.host.toLowerCase() === originHost ||
+        stripDefaultPort(allowedUrl.host.toLowerCase()) === stripDefaultPort(originHost)
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function setSessionCookie(
@@ -80,5 +127,11 @@ export function clearSessionCookie(reply: FastifyReply): void {
 export function unauthorized(reply: FastifyReply): FastifyReply {
   return reply.code(401).send({
     error: { code: 'unauthorized', message: 'Anmeldung erforderlich' },
+  });
+}
+
+export function csrfRejected(reply: FastifyReply): FastifyReply {
+  return reply.code(403).send({
+    error: { code: 'csrf_rejected', message: 'Origin für diese Anfrage nicht erlaubt' },
   });
 }

@@ -13,7 +13,7 @@ import fastifyStatic from '@fastify/static';
 import { z } from 'zod';
 import type { ApiContext } from './context.js';
 import { AppError } from '../utils/errors.js';
-import { authRequired, isAuthenticated, unauthorized } from './auth.js';
+import { authMode, csrfRejected, isSameOrigin, unauthorized } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerStreamerRoutes } from './routes/streamers.js';
 import { registerSettingsRoutes } from './routes/settings.js';
@@ -24,7 +24,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: ctx.logger.child({ module: 'http' }, { level: 'warn' }) as unknown as FastifyBaseLogger,
     bodyLimit: 512 * 1024,
-    trustProxy: false,
+    trustProxy: ctx.config.server.trustProxy,
     forceCloseConnections: true,
   });
 
@@ -57,9 +57,14 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     ) {
       return;
     }
-    if (!authRequired(ctx.config.server)) return;
-    if (!isAuthenticated(request, ctx.config.server)) {
-      return unauthorized(reply);
+    const mode = authMode(request, ctx.config.server);
+    if (!mode) return unauthorized(reply);
+    if (mode === 'cookie' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      const allowedOrigins = ctx.config.server.corsOrigin
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+      if (!isSameOrigin(request, allowedOrigins)) return csrfRejected(reply);
     }
     return undefined;
   });

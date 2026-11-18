@@ -119,6 +119,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Login-Token sind einmalig und 10 Minuten gültig; Session-Cookie ist signiert,
   HttpOnly, `SameSite=Lax`, 30 Tage.
 - Bei HTTPS zwingend `SECURE_COOKIES=true`.
+- Cookie-Auth benötigt bei schreibenden Requests einen passenden
+  `Origin`/`Referer`; API-Token und Basic Auth sind ausgenommen. Tokens werden
+  nicht als Query-Parameter akzeptiert.
+- `TRUST_PROXY=true` nur hinter einem vertrauenswürdigen Reverse-Proxy setzen.
 - Bot-Token niemals loggen oder committen.
 - Derselbe Bot-Token darf nicht parallel in alter Python-App und RELAY laufen
   (`getUpdates`-Konflikt).

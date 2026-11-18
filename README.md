@@ -183,9 +183,10 @@ jedem Start.
 | ---------------------------------- | ----------------------------------------------- | ----------------------- |
 | `SERVER_HOST` / `SERVER_PORT`      | HTTP-Server                                     | `0.0.0.0` / `3000`      |
 | `DASHBOARD_PASSWORD`               | Dashboard-Passwort (leer = kein Passwort-Login) | –                       |
-| `API_TOKEN`                        | Bearer-Token für Skripte/SSE                    | –                       |
+| `API_TOKEN`                        | Bearer-Token für Skripte                        | –                       |
 | `SESSION_SECRET`                   | Cookie-Signatur                                 | aus Passwort abgeleitet |
 | `SECURE_COOKIES`                   | Cookies nur über HTTPS                          | `false`                 |
+| `TRUST_PROXY`                      | Proxy-Header für Client-IPs vertrauen            | `false`                 |
 | `SETTINGS_ENV_OVERRIDES`           | `.env` Vorrang vor `settings.yml`               | `false`                 |
 | `STREAMERS_FILE` / `SETTINGS_FILE` | YAML-Pfade                                      | `config/...`            |
 | `LOGS_DIR` / `DATA_DIR`            | Logs und Laufzeitdaten                          | `logs` / `data`         |
@@ -341,7 +342,10 @@ npm run render:pause
 ## Auth und Telegram
 
 Passwort-Login, Basic Auth und API-Token funktionieren parallel. Optional kann
-der Dashboard-Login per Telegram-Bot freigegeben werden:
+der Dashboard-Login per Telegram-Bot freigegeben werden. Cookie-authentifizierte
+schreibende Anfragen benötigen einen passenden `Origin`/`Referer`; API-Token und
+Basic Auth sind davon ausgenommen. Tokens werden nicht mehr als Query-Parameter
+akzeptiert.
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=123456:ABC...

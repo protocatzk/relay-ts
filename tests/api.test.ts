@@ -185,13 +185,40 @@ describe('API', () => {
     });
     expect(allowed.statusCode).toBe(200);
     const query = await app.inject({ method: 'GET', url: '/api/status?token=api-secret' });
-    expect(query.statusCode).toBe(200);
+    expect(query.statusCode).toBe(401);
     const denied = await app.inject({
       method: 'GET',
       url: '/api/status',
       headers: { authorization: 'Bearer nope' },
     });
     expect(denied.statusCode).toBe(401);
+  });
+
+  it('rejects cookie-authenticated writes from foreign origins', async () => {
+    const payload = { overlays: { chat: { enabled: true } } };
+    const missing = await app.inject({
+      method: 'PUT',
+      url: '/api/overlays',
+      headers: { cookie: cookieHeader },
+      payload,
+    });
+    expect(missing.statusCode).toBe(403);
+
+    const foreign = await app.inject({
+      method: 'PUT',
+      url: '/api/overlays',
+      headers: { cookie: cookieHeader, origin: 'https://evil.example' },
+      payload,
+    });
+    expect(foreign.statusCode).toBe(403);
+
+    const tokenWrite = await app.inject({
+      method: 'PUT',
+      url: '/api/overlays',
+      headers: { authorization: 'Bearer api-secret' },
+      payload,
+    });
+    expect(tokenWrite.statusCode).toBe(200);
   });
 
   it('returns sanitized settings', async () => {
@@ -224,7 +251,7 @@ describe('API', () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/api/overlays',
-      headers: { cookie: cookieHeader },
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
       payload: {
         overlays: {
           chat: { enabled: true, show_stats: true, panel_height: 240 },

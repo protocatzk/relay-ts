@@ -42,6 +42,7 @@ export interface ServerConfig {
   secureCookies: boolean;
   corsOrigin: string;
   telegramAuth: boolean;
+  trustProxy: boolean;
 }
 
 export interface TelegramConfig {
@@ -284,6 +285,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     throw new ConfigError('CORS_ORIGIN darf nicht "*" sein, wenn Cookies verwendet werden');
   }
   const secureCookies = parseBoolean(env.SECURE_COOKIES) ?? false;
+  const trustProxy = parseBoolean(env.TRUST_PROXY) ?? false;
 
   const telegram: TelegramConfig = {
     botToken: env.TELEGRAM_BOT_TOKEN?.trim() ?? '',
@@ -303,6 +305,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     secureCookies,
     corsOrigin,
     telegramAuth,
+    trustProxy,
   };
 
   const media: MediaConfig = {
