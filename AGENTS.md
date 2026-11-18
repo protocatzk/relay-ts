@@ -24,6 +24,7 @@ npm run check          # Typecheck + Vue-Typecheck + ESLint + Tests
 npm run build          # Server + Web
 npm test               # nur Vitest
 npm run build:web      # nur Dashboard
+npm run render:pause   # Pausen-Video aus tools/render-pause-video.mjs erzeugen
 ```
 
 Deployment:
@@ -55,6 +56,8 @@ Wichtige Pfade:
 - `src/core/telegram/` – Login-Bot und Token-Store
 - `src/api/` – Fastify-Routen, Auth, SSE
 - `src/web/src/` – Vue-Dashboard
+- `assets/pause/` – Beispiel-Pausenassets (SVG + MP4)
+- `tools/render-pause-video.mjs` – rendert das Pausen-Video mit Canvas/ffmpeg
 
 ## Laufzeit-Invarianten
 

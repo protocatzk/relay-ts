@@ -10,6 +10,8 @@ export default tseslint.config(
       'src/web/**',
       'logs/**',
       'data/**',
+      'assets/**',
+      'tools/**',
       'coverage/**',
       'config/**',
     ],
