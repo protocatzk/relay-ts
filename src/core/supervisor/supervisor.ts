@@ -1042,6 +1042,7 @@ export class Supervisor {
     if (!['live', 'starting'].includes(this.state)) return;
     this.reconnects += 1;
     this.lastError = 'Stream-Quelle beendet';
+    this.scheduleOfflinePauseLocked();
     if (!this.settings.watchdog.auto_reconnect) {
       this.state = 'error';
       this.emitAll();
@@ -1050,7 +1051,6 @@ export class Supervisor {
     this.state = 'reconnecting';
     this.emitStatus();
     this.deps.logger.warn({ streamer: this.activeStreamer.id }, 'Quelle unerwartet beendet – Neuverbindung');
-    this.scheduleOfflinePauseLocked();
     this.scheduleReconnect();
   }
 
@@ -1184,13 +1184,15 @@ export class Supervisor {
    */
   private scheduleOfflinePauseLocked(): void {
     if (this.offlinePauseTimer || !this.settings.pause.enabled || !this.sink.running) return;
-    const delayMs = Math.min(15, this.settings.watchdog.stall_timeout) * 1000;
+    const delayMs = Math.max(0, this.settings.pause.grace_seconds) * 1000;
     this.offlinePauseTimer = setTimeout(() => {
       this.offlinePauseTimer = undefined;
       void this.lock.run(async () => {
-        if (this.shuttingDown || this.state !== 'reconnecting') return;
+        if (this.shuttingDown) return;
         if (this.source.running || this.pauseScreen.running || !this.sink.running) return;
         if (this.playlistAdvancePending) return;
+        if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return;
+        if (this.state === 'paused' && this.pauseReason === 'user') return;
         this.startPauseLocked();
         this.emitAll();
       });

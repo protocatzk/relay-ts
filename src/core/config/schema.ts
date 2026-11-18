@@ -265,6 +265,7 @@ export const PauseSettingsSchema = z.object({
     .regex(/^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$/, 'Farbe muss 0xRRGGBB oder #RRGGBB sein')
     .default('0x101820'),
   max_minutes: z.number().int().min(0).max(1440).default(15),
+  grace_seconds: z.number().int().min(0).max(60).default(2),
 });
 
 export const OnlineSettingsSchema = z.object({

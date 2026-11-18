@@ -36,6 +36,7 @@ describe('config loader', () => {
         STALL_TIMEOUT: '60',
         AUTO_REFRESH_MINUTES: '30',
         ONLINE_CHECK_ENABLED: 'true',
+        PAUSE_GRACE_SECONDS: '3',
       },
     });
     expect(config.settings.delay_buffer.size).toBe(45);
@@ -46,6 +47,7 @@ describe('config loader', () => {
     expect(config.settings.watchdog.stall_timeout).toBe(60);
     expect(config.settings.auto_refresh.interval).toBe(30);
     expect(config.settings.online.enabled).toBe(true);
+    expect(config.settings.pause.grace_seconds).toBe(3);
   });
 
   it('keeps persisted settings unless env overrides are explicitly enabled', () => {

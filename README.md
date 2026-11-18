@@ -272,6 +272,7 @@ pause:
   text: "Stream pausiert"
   subtext: "Gleich geht es weiter"
   max_minutes: 15
+  grace_seconds: 2
 online:
   enabled: false
   source_url: ""
@@ -304,6 +305,17 @@ earnings:
 erhalten, solange kein neuer `api_key` gesendet wird. Overlay-Einstellungen
 gelten global für alle Streamer und werden ebenfalls in `config/settings.yml`
 persistiert (`PUT /api/overlays` bzw. Overlay-Studio).
+
+### Offline- und Pause-Verhalten
+
+Wenn die TikTok-Quelle endet, pausiert oder vorübergehend nicht auflösbar ist,
+bleibt der YouTube-Sink aktiv. Der Supervisor wartet standardmäßig
+`pause.grace_seconds` (2 s) auf eine schnelle Wiederverbindung und startet dann
+den Pausenscreen als Ersatzquelle im Relay. Die RTMP-Verbindung zu YouTube wird
+dabei nicht neu aufgebaut. Sobald die Quelle wieder live ist, wird der
+Pausenscreen gestoppt und die neue Quelle übernimmt nahtlos. `max_minutes`
+begrenzt, wie lange der Pausenscreen laufen darf; `0` bedeutet unbegrenzt.
+`PAUSE_GRACE_SECONDS=0` schaltet den Pausenscreen ohne Verzögerung ein.
 
 ---
 

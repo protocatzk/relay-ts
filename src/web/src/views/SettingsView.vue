@@ -117,6 +117,7 @@ async function save(): Promise<void> {
       text: current.pause.text,
       subtext: current.pause.subtext,
       max_minutes: toNumber(current.pause.max_minutes, 15),
+      grace_seconds: toNumber(current.pause.grace_seconds, 2),
     },
     online: {
       enabled: current.online.enabled,
@@ -346,6 +347,11 @@ onMounted(() => {
             <div class="field">
               <label for="pause-max">Maximale Pausendauer (Minuten, 0 = unbegrenzt)</label>
               <input id="pause-max" v-model.number="form.pause.max_minutes" type="number" min="0" max="1440" />
+            </div>
+            <div class="field">
+              <label for="pause-grace">Pausenscreen-Verzögerung (Sekunden)</label>
+              <input id="pause-grace" v-model.number="form.pause.grace_seconds" type="number" min="0" max="60" />
+              <p class="field-hint">Kurze Unterbrechungen werden überbrückt, bevor der Pausenscreen übernimmt.</p>
             </div>
           </div>
         </div>

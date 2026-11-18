@@ -229,6 +229,7 @@ export interface PauseSettings {
   text: string;
   subtext: string;
   max_minutes: number;
+  grace_seconds: number;
 }
 
 export interface OnlineSettings {
