@@ -7,6 +7,7 @@ import {
   type TelegramNotifyStore,
   type TelegramNotifySettings,
 } from './notify-store.js';
+import { ConfirmationStore, type PendingAction } from './confirmations.js';
 
 interface TelegramUser {
   id: number;
@@ -63,6 +64,53 @@ export interface TelegramPlaylistSummary {
   index: number | null;
 }
 
+export interface TelegramSettingsSummary {
+  delay_seconds: number;
+  pause_enabled: boolean;
+  pause_max_minutes: number;
+  pause_grace_seconds: number;
+  startup_enabled: boolean;
+  startup_seconds: number;
+  auto_reconnect: boolean;
+  auto_refresh_minutes: number;
+  earnings_period: string;
+  earnings_view: string;
+  youtube_auto_transition: boolean;
+  overlay_chat: boolean;
+  overlay_clock: boolean;
+  overlay_text: boolean;
+}
+
+export interface TelegramSessionInfo {
+  id: string;
+  user: string;
+  provider: string;
+  last_seen_at: string;
+}
+
+export interface TelegramMediaInfo {
+  filename: string;
+  size: number;
+}
+
+export interface TelegramYouTubeBroadcast {
+  id: string;
+  title: string;
+  status: string;
+  privacy: string;
+  scheduled_start: string | null;
+}
+
+export interface TelegramEarnings {
+  period_label: string;
+  currency: string;
+  net: number | null;
+  coins: number | null;
+  viewers: number | null;
+  gifts: number | null;
+  updated_at: string | null;
+}
+
 /** Everything the bot needs from the supervisor/log ring, without a hard import cycle. */
 export interface TelegramControl {
   status(): StatusSnapshot;
@@ -75,11 +123,27 @@ export interface TelegramControl {
   pause(): Promise<unknown>;
   resume(): Promise<unknown>;
   logs(limit: number): LogEntry[];
+  settings?(): TelegramSettingsSummary;
+  sessions?(): TelegramSessionInfo[];
+  revokeSession?(id: string): boolean;
+  revokeAllSessions?(): number;
+  media?(): TelegramMediaInfo[];
+  earnings?(): TelegramEarnings | null;
+  youtubeStatus?(): { connected: boolean; channel_title: string };
+  youtubeBroadcasts?(): Promise<TelegramYouTubeBroadcast[]>;
+  youtubeTransition?(id: string, status: 'live' | 'complete'): Promise<unknown>;
+  youtubePublish?(id: string): Promise<unknown>;
+  showScreen?(type: 'startup' | 'pause'): Promise<unknown>;
+  hideScreen?(): Promise<unknown>;
+  toggleOverlay?(key: 'chat' | 'clock' | 'text'): Promise<unknown>;
+  setEarningsPeriod?(period: 'today' | '24h' | '7d' | '30d' | 'all'): Promise<unknown>;
 }
 
 export interface TelegramBotOptions {
   token: string;
   allowedUserIds: number[];
+  /** Public dashboard base URL for links (preview, YouTube setup). */
+  dashboardUrl?: string;
   auth: TelegramAuthStore;
   logger: Logger;
   control?: TelegramControl;
@@ -108,6 +172,29 @@ function formatUptime(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`;
+}
+
+function formatTimestamp(iso: string | null | undefined): string {
+  if (!iso) return '–';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}. ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatNumber(value: number | null, digits = 0): string {
+  if (value === null || !Number.isFinite(value)) return '–';
+  return value.toLocaleString('de-DE', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toLocaleString('de-DE', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} MB`;
 }
 
 function isNotifyCategory(value: string): value is NotifyCategory {
@@ -146,6 +233,9 @@ export class TelegramBot {
   private subscription?: { unsubscribe(): void };
   private lastStatus: StatusSnapshot | null = null;
   private lastNotifyAt = new Map<string, number>();
+  private readonly confirmations = new ConfirmationStore();
+  private readonly sessionRefs = new Map<string, string>();
+  private sessionRefSeq = 0;
 
   constructor(options: TelegramBotOptions) {
     this.options = options;
@@ -234,7 +324,14 @@ export class TelegramBot {
             { command: 'next', description: 'Playlist: nächster Kanal' },
             { command: 'prev', description: 'Playlist: vorheriger Kanal' },
             { command: 'pause', description: 'Pausenscreen an/aus' },
-            { command: 'logs', description: 'Letzte Logzeilen' },
+            { command: 'logs', description: 'Logs mit Filter' },
+            { command: 'settings', description: 'Einstellungen anzeigen' },
+            { command: 'earnings', description: 'Einnahmen und Zeitraum' },
+            { command: 'sessions', description: 'Dashboard-Sessions' },
+            { command: 'media', description: 'Lokale Videos' },
+            { command: 'youtube', description: 'Streams und Broadcasts' },
+            { command: 'screens', description: 'Start-/Pausenscreen' },
+            { command: 'overlays', description: 'Overlays umschalten' },
             { command: 'notify', description: 'Benachrichtigungen' },
             { command: 'id', description: 'Telegram-ID anzeigen' },
           ],
@@ -286,16 +383,37 @@ export class TelegramBot {
         await this.startStreamer(chatId, args[0]);
         return;
       case '/stop':
-        await this.dispatchAction(chatId, 'stop');
+        await this.dispatchAction(chatId, 'stop', user.id);
         return;
       case '/next':
-        await this.dispatchAction(chatId, 'next');
+        await this.dispatchAction(chatId, 'next', user.id);
         return;
       case '/prev':
-        await this.dispatchAction(chatId, 'prev');
+        await this.dispatchAction(chatId, 'prev', user.id);
         return;
       case '/pause':
-        await this.dispatchAction(chatId, 'pause');
+        await this.dispatchAction(chatId, 'pause', user.id);
+        return;
+      case '/settings':
+        await this.sendSettings(chatId);
+        return;
+      case '/earnings':
+        await this.sendEarnings(chatId, args[0]);
+        return;
+      case '/sessions':
+        await this.sendSessions(chatId);
+        return;
+      case '/media':
+        await this.sendMedia(chatId);
+        return;
+      case '/youtube':
+        await this.sendYouTube(chatId);
+        return;
+      case '/screens':
+        await this.sendScreens(chatId);
+        return;
+      case '/overlays':
+        await this.sendOverlays(chatId);
         return;
       case '/notify':
         await this.handleNotifyCommand(chatId, args);
@@ -392,7 +510,17 @@ export class TelegramBot {
           { text: '⏮ Zurück', callback_data: 'cmd:prev' },
         ],
         [
-          { text: '⏸ Pause', callback_data: 'cmd:pause' },
+          { text: '⏸ Pause', callback_data: 'cmd:screens' },
+          { text: '🎚 Overlays', callback_data: 'cmd:overlays' },
+          { text: '📺 YouTube', callback_data: 'cmd:youtube' },
+        ],
+        [
+          { text: '💰 Einnahmen', callback_data: 'cmd:earnings' },
+          { text: '⚙️ Einstellungen', callback_data: 'cmd:settings' },
+          { text: '🔐 Sessions', callback_data: 'cmd:sessions' },
+        ],
+        [
+          { text: '🎬 Medien', callback_data: 'cmd:media' },
           { text: '📜 Logs', callback_data: 'cmd:logs' },
           { text: '🔔 Benachrichtigungen', callback_data: 'cmd:notify' },
         ],
@@ -465,7 +593,7 @@ export class TelegramBot {
     );
   }
 
-  private async dispatchAction(chatId: number, action: string): Promise<void> {
+  private async dispatchAction(chatId: number, action: string, userId = 0): Promise<void> {
     switch (action) {
       case 'status':
         return this.sendStatus(chatId);
@@ -477,8 +605,22 @@ export class TelegramBot {
         return this.sendLogs(chatId, 10);
       case 'notify':
         return this.sendNotifyMenu(chatId);
+      case 'settings':
+        return this.sendSettings(chatId);
+      case 'earnings':
+        return this.sendEarnings(chatId);
+      case 'sessions':
+        return this.sendSessions(chatId);
+      case 'media':
+        return this.sendMedia(chatId);
+      case 'youtube':
+        return this.sendYouTube(chatId);
+      case 'screens':
+        return this.sendScreens(chatId);
+      case 'overlays':
+        return this.sendOverlays(chatId);
       case 'stop':
-        return this.runAction(chatId, (control) => control.stop(), 'Stream gestoppt.');
+        return this.confirmAction(chatId, userId, 'Stream wirklich stoppen?', { type: 'stop' });
       case 'next':
         return this.runAction(chatId, (control) => control.playlistNext(), 'Nächster Kanal.');
       case 'prev':
@@ -508,6 +650,290 @@ export class TelegramBot {
       await action(control);
       await this.sendMessage(chatId, `✅ ${escapeHtml(success)}`);
       await this.sendStatus(chatId);
+    } catch (error) {
+      await this.sendMessage(chatId, `⚠️ ${escapeHtml(errorName(error))}`);
+    }
+  }
+
+  private async sendSettings(chatId: number): Promise<void> {
+    const settings = this.options.control?.settings?.();
+    if (!settings) {
+      await this.sendMessage(chatId, '⚠️ Einstellungen sind nicht verfügbar.');
+      return;
+    }
+    const yes = (value: boolean): string => (value ? 'an' : 'aus');
+    await this.sendMessage(
+      chatId,
+      [
+        '⚙️ <b>EINSTELLUNGEN</b>',
+        '',
+        `DELAY: ${settings.delay_seconds} s`,
+        `PAUSE: ${yes(settings.pause_enabled)} · max ${settings.pause_max_minutes} min · Grace ${settings.pause_grace_seconds} s`,
+        `STARTUP: ${yes(settings.startup_enabled)} · ${settings.startup_seconds} s`,
+        `AUTO-RECONNECT: ${yes(settings.auto_reconnect)}`,
+        `AUTO-REFRESH: ${settings.auto_refresh_minutes} min`,
+        `EARNINGS: ${escapeHtml(settings.earnings_period)} · ${escapeHtml(settings.earnings_view)}`,
+        `YOUTUBE-AUTO: ${yes(settings.youtube_auto_transition)}`,
+        '',
+        `Overlays: Chat ${yes(settings.overlay_chat)} · Uhr ${yes(settings.overlay_clock)} · Text ${yes(settings.overlay_text)}`,
+      ].join('\n'),
+      this.menuKeyboard(),
+    );
+  }
+
+  private async sendEarnings(chatId: number, period?: string): Promise<void> {
+    const control = this.options.control;
+    if (!control?.earnings) {
+      await this.sendMessage(chatId, '⚠️ Einnahmen sind nicht verfügbar.');
+      return;
+    }
+    const periods = ['today', '24h', '7d', '30d', 'all'] as const;
+    if (period && (periods as readonly string[]).includes(period)) {
+      await control.setEarningsPeriod?.(period as (typeof periods)[number]);
+    }
+    const earnings = control.earnings();
+    const active = period && (periods as readonly string[]).includes(period) ? period : null;
+    const buttons = periods.map((value) => ({
+      text: `${active === value ? '• ' : ''}${value}`,
+      callback_data: `earn:${value}`,
+    }));
+    if (!earnings) {
+      await this.sendMessage(
+        chatId,
+        '💰 <b>EINNAHMEN</b>\n\nNicht konfiguriert. Quelle im Dashboard unter Einstellungen hinterlegen.',
+        { inline_keyboard: [buttons.slice(0, 5)] },
+      );
+      return;
+    }
+    await this.sendMessage(
+      chatId,
+      [
+        `💰 <b>EINNAHMEN · ${escapeHtml(earnings.period_label.toUpperCase())}</b>`,
+        '',
+        `NETTO: ${formatNumber(earnings.net, 2)} ${earnings.currency === 'USD' ? '$' : '€'}`,
+        `COINS: ${formatNumber(earnings.coins)}`,
+        `ZUSCHAUER: ${formatNumber(earnings.viewers)}`,
+        `GIFTS: ${formatNumber(earnings.gifts)}`,
+        `STAND: ${formatTimestamp(earnings.updated_at)}`,
+      ].join('\n'),
+      { inline_keyboard: [buttons.slice(0, 5)] },
+    );
+  }
+
+  private async sendSessions(chatId: number): Promise<void> {
+    const control = this.options.control;
+    const sessions = control?.sessions?.() ?? [];
+    if (sessions.length === 0) {
+      await this.sendMessage(chatId, '🔐 Keine aktiven Dashboard-Sessions.');
+      return;
+    }
+    const lines = ['🔐 <b>DASHBOARD-SESSIONS</b>', ''];
+    sessions.slice(0, 10).forEach((session, index) => {
+      lines.push(
+        `${index + 1}. ${escapeHtml(session.user)} · ${escapeHtml(session.provider)} · ${formatTimestamp(session.last_seen_at)}`,
+      );
+    });
+    // Session ids are 64 hex chars and would exceed Telegram's 64-byte
+    // callback limit, so the buttons reference short-lived local tokens.
+    const rows = sessions.slice(0, 6).map((session) => {
+      const ref = `s${++this.sessionRefSeq}`;
+      this.sessionRefs.set(ref, session.id);
+      return [
+        {
+          text: `Trennen: ${truncate(session.user, 28)}`,
+          callback_data: `revoke:${ref}`,
+        },
+      ];
+    });
+    rows.push([{ text: 'Alle anderen trennen', callback_data: 'revokeall' }]);
+    await this.sendMessage(chatId, lines.join('\n'), { inline_keyboard: rows });
+  }
+
+  private async sendMedia(chatId: number): Promise<void> {
+    const files = this.options.control?.media?.() ?? [];
+    if (files.length === 0) {
+      await this.sendMessage(
+        chatId,
+        '🎬 Keine lokalen Videos in <code>data/media</code>.',
+      );
+      return;
+    }
+    const lines = ['🎬 <b>LOKALE VIDEOS</b>', ''];
+    for (const file of files.slice(0, 20)) {
+      lines.push(`• ${escapeHtml(file.filename)} · ${formatMegabytes(file.size)}`);
+    }
+    if (files.length > 20) lines.push('', `… und ${files.length - 20} weitere`);
+    await this.sendMessage(chatId, lines.join('\n'));
+  }
+
+  private async sendYouTube(chatId: number): Promise<void> {
+    const control = this.options.control;
+    if (!control?.youtubeStatus) {
+      await this.sendMessage(chatId, '⚠️ YouTube-Verwaltung ist nicht verfügbar.');
+      return;
+    }
+    const status = control.youtubeStatus();
+    if (!status.connected) {
+      await this.sendMessage(
+        chatId,
+        [
+          '📺 <b>YOUTUBE</b>',
+          '',
+          'Kein Konto verbunden.',
+          this.options.dashboardUrl
+            ? `Verbinden: ${escapeHtml(this.options.dashboardUrl)}/#/youtube`
+            : 'Konto im Dashboard unter YouTube verbinden.',
+        ].join('\n'),
+      );
+      return;
+    }
+    const broadcasts = (await control.youtubeBroadcasts?.()) ?? [];
+    if (broadcasts.length === 0) {
+      await this.sendMessage(
+        chatId,
+        `📺 <b>YOUTUBE</b>\n\nKanal: ${escapeHtml(status.channel_title || '–')}\nKeine Broadcasts gefunden.`,
+      );
+      return;
+    }
+    const labels: Record<string, string> = {
+      live: 'LIVE',
+      ready: 'BEREIT',
+      testing: 'TEST',
+      created: 'GEPLANT',
+      complete: 'BEENDET',
+      revoked: 'WIDERRUFEN',
+    };
+    const rows: Record<string, unknown>[][] = [];
+    for (const item of broadcasts.slice(0, 8)) {
+      rows.push([
+        {
+          text: `${labels[item.status] ?? item.status} · ${truncate(item.title, 26)}`,
+          callback_data: 'noop',
+        },
+      ]);
+      const actions: Record<string, unknown>[] = [];
+      if (['created', 'ready', 'testing'].includes(item.status)) {
+        actions.push({ text: '▶️ Live', callback_data: `ytlive:${item.id}` });
+      }
+      if (['live', 'testing'].includes(item.status)) {
+        actions.push({ text: '⏹ Ende', callback_data: `ytend:${item.id}` });
+      }
+      if (item.privacy !== 'public' && item.status !== 'complete') {
+        actions.push({ text: '🌐 Öffentlich', callback_data: `ytpub:${item.id}` });
+      }
+      if (actions.length > 0) rows.push(actions);
+    }
+    await this.sendMessage(
+      chatId,
+      [
+        '📺 <b>YOUTUBE</b>',
+        `Kanal: ${escapeHtml(status.channel_title || '–')}`,
+        '',
+        'Aktionen werden vor dem Ausführen bestätigt. Details im Dashboard.',
+      ].join('\n'),
+      { inline_keyboard: rows },
+    );
+  }
+
+  private async sendScreens(chatId: number): Promise<void> {
+    const control = this.options.control;
+    if (!control?.showScreen || !control.hideScreen) {
+      await this.sendMessage(chatId, '⚠️ Screens sind nicht verfügbar.');
+      return;
+    }
+    const current = control.status().manual_screen;
+    await this.sendMessage(
+      chatId,
+      [
+        '🖥 <b>SCREENS</b>',
+        '',
+        `AKTIV: ${current ? escapeHtml(current) : 'keiner'}`,
+        'Pause und Startbildschirm können jederzeit überlagern und unbegrenzt halten.',
+      ].join('\n'),
+      {
+        inline_keyboard: [
+          [
+            { text: '⏸ Pause an', callback_data: 'screen:pause:on' },
+            { text: '▶️ Pause aus', callback_data: 'screen:pause:off' },
+          ],
+          [
+            { text: '🚀 Start an', callback_data: 'screen:startup:on' },
+            { text: '⏹ Start aus', callback_data: 'screen:startup:off' },
+          ],
+        ],
+      },
+    );
+  }
+
+  private async sendOverlays(chatId: number): Promise<void> {
+    const settings = this.options.control?.settings?.();
+    if (!settings) {
+      await this.sendMessage(chatId, '⚠️ Overlays sind nicht verfügbar.');
+      return;
+    }
+    const mark = (enabled: boolean): string => (enabled ? '✅' : '⛔');
+    await this.sendMessage(
+      chatId,
+      [
+        '🎚 <b>OVERLAYS</b>',
+        '',
+        'Änderungen bauen den Sink kurz neu auf (kontrollierter Reconnect).',
+        'Positionen und Stile bleiben im Overlay-Studio.',
+      ].join('\n'),
+      {
+        inline_keyboard: [
+          [
+            { text: `${mark(settings.overlay_chat)} Chat`, callback_data: 'ovl:chat' },
+            { text: `${mark(settings.overlay_clock)} Uhr`, callback_data: 'ovl:clock' },
+            { text: `${mark(settings.overlay_text)} Text`, callback_data: 'ovl:text' },
+          ],
+        ],
+      },
+    );
+  }
+
+  private async confirmAction(
+    chatId: number,
+    userId: number,
+    label: string,
+    action: PendingAction,
+  ): Promise<void> {
+    const nonce = this.confirmations.create(chatId, userId, action);
+    await this.sendMessage(chatId, `⚠️ <b>BESTÄTIGUNG</b>\n\n${escapeHtml(label)}`, {
+      inline_keyboard: [
+        [
+          { text: '✅ Ja, ausführen', callback_data: `confirm:${nonce}` },
+          { text: '❌ Abbrechen', callback_data: `cancel:${nonce}` },
+        ],
+      ],
+    });
+  }
+
+  private async runPending(chatId: number, action: PendingAction): Promise<void> {
+    const control = this.options.control;
+    if (!control) {
+      await this.sendMessage(chatId, '⚠️ Steuerung ist nicht verfügbar.');
+      return;
+    }
+    try {
+      switch (action.type) {
+        case 'stop':
+          await control.stop();
+          break;
+        case 'revoke-session':
+          control.revokeSession?.(action.id);
+          break;
+        case 'revoke-all-sessions':
+          control.revokeAllSessions?.();
+          break;
+        case 'youtube-transition':
+          await control.youtubeTransition?.(action.id, action.status);
+          break;
+        case 'youtube-publish':
+          await control.youtubePublish?.(action.id);
+          break;
+      }
+      await this.sendMessage(chatId, '✅ Ausgeführt.');
     } catch (error) {
       await this.sendMessage(chatId, `⚠️ ${escapeHtml(errorName(error))}`);
     }
@@ -677,7 +1103,7 @@ export class TelegramBot {
     const chatId = query.message.chat.id;
     if (action === 'cmd' && first) {
       await this.answerCallback(query.id, 'Ausgeführt');
-      await this.dispatchAction(chatId, first);
+      await this.dispatchAction(chatId, first, user.id);
       return;
     }
     if (action === 'start' && first) {
@@ -690,6 +1116,109 @@ export class TelegramBot {
       await this.handleNotifyToggle(chatId, first, second);
       return;
     }
+    if (action === 'confirm' && first) {
+      const pending = this.confirmations.consume(first, chatId, user.id);
+      if (!pending) {
+        await this.answerCallback(query.id, 'Abgelaufen');
+        await this.editMessage(query, '⚠️ Diese Bestätigung ist abgelaufen.');
+        return;
+      }
+      await this.answerCallback(query.id, 'Ausgeführt');
+      await this.editMessage(query, '✅ Bestätigt.');
+      await this.runPending(chatId, pending);
+      return;
+    }
+    if (action === 'cancel' && first) {
+      const cancelled = this.confirmations.cancel(first, chatId, user.id);
+      await this.answerCallback(query.id, cancelled ? 'Abgebrochen' : 'Abgelaufen');
+      if (cancelled) await this.editMessage(query, '❌ Abgebrochen.');
+      return;
+    }
+    if (action === 'earn' && first) {
+      await this.answerCallback(query.id, 'Zeitraum gesetzt');
+      await this.sendEarnings(chatId, first);
+      return;
+    }
+    if (action === 'screen' && first && second) {
+      const control = this.options.control;
+      await this.answerCallback(query.id, second === 'on' ? 'Startet…' : 'Beendet…');
+      try {
+        if (second === 'on') {
+          await control?.showScreen?.(first === 'startup' ? 'startup' : 'pause');
+        } else {
+          await control?.hideScreen?.();
+        }
+      } catch (error) {
+        await this.sendMessage(chatId, `⚠️ ${escapeHtml(errorName(error))}`);
+      }
+      await this.sendScreens(chatId);
+      return;
+    }
+    if (action === 'ovl' && first) {
+      await this.answerCallback(query.id, 'Umschalten…');
+      try {
+        await this.options.control?.toggleOverlay?.(first as 'chat' | 'clock' | 'text');
+      } catch (error) {
+        await this.sendMessage(chatId, `⚠️ ${escapeHtml(errorName(error))}`);
+      }
+      await this.sendOverlays(chatId);
+      return;
+    }
+    if (action === 'revoke' && first) {
+      const id = this.sessionRefs.get(first) ?? first;
+      const session = this.options.control
+        ?.sessions?.()
+        .find((item) => item.id === id);
+      await this.answerCallback(query.id, 'Bitte bestätigen');
+      await this.confirmAction(
+        chatId,
+        user.id,
+        `Session von ${session?.user ?? 'Unbekannt'} trennen?`,
+        { type: 'revoke-session', id },
+      );
+      return;
+    }
+    if (action === 'revokeall') {
+      await this.answerCallback(query.id, 'Bitte bestätigen');
+      await this.confirmAction(
+        chatId,
+        user.id,
+        'Alle anderen Dashboard-Sessions trennen?',
+        { type: 'revoke-all-sessions' },
+      );
+      return;
+    }
+    if (action === 'ytlive' && first) {
+      await this.answerCallback(query.id, 'Bitte bestätigen');
+      await this.confirmAction(chatId, user.id, `Broadcast ${first} live schalten?`, {
+        type: 'youtube-transition',
+        id: first,
+        status: 'live',
+      });
+      return;
+    }
+    if (action === 'ytend' && first) {
+      await this.answerCallback(query.id, 'Bitte bestätigen');
+      await this.confirmAction(chatId, user.id, `Broadcast ${first} beenden?`, {
+        type: 'youtube-transition',
+        id: first,
+        status: 'complete',
+      });
+      return;
+    }
+    if (action === 'ytpub' && first) {
+      await this.answerCallback(query.id, 'Bitte bestätigen');
+      await this.confirmAction(chatId, user.id, `Broadcast ${first} öffentlich stellen?`, {
+        type: 'youtube-publish',
+        id: first,
+      });
+      return;
+    }
+    if (action === 'noop') {
+      await this.answerCallback(query.id, '');
+      return;
+    }
+
     const token = first ?? '';
     if (!token || (action !== 'auth_ok' && action !== 'auth_no')) {
       await this.answerCallback(query.id, 'Ungültige Anfrage');

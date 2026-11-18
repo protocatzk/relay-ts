@@ -239,6 +239,7 @@ jedem Start.
 | `TIKTOK_SESSION_ID`                           | TikTok-`sessionid`-Cookie                   |
 | `TELEGRAM_BOT_TOKEN`                          | Bot für Login-Freigaben                     |
 | `TELEGRAM_ALLOWED_USER_IDS`                   | Erlaubte numerische Telegram-IDs            |
+| `DASHBOARD_URL`                               | Öffentliche URL für Telegram-Links          |
 | `ONLINE_SOURCE_URL` / `ONLINE_SOURCE_API_KEY` | Live-Status-Quelle                          |
 | `ONLINE_AUTO_SWITCH_PREFERRED`                | Bevorzugten Streamer automatisch übernehmen |
 | `CHAT_API_URL` / `CHAT_API_KEY`               | Chatquelle                                  |
@@ -455,9 +456,20 @@ Der Bot ist nach der Freigabe auch eine Fernsteuerung:
 - `/menu` – Inline-Buttons für Status, Start/Stop, Playlist und Logs
 - `/streamers` – Streamer starten bzw. wechseln
 - `/stop`, `/next`, `/prev`, `/pause`
+- `/screens` – Start- und Pausenscreen ein-/ausschalten
+- `/overlays` – Chat, Uhr und Text einzeln umschalten
+- `/settings` – wichtige Einstellungen anzeigen
+- `/earnings [Zeitraum]` – Einnahmen mit Zeitraum-Buttons
+- `/youtube` – Broadcasts anzeigen und mit Bestätigung steuern
+- `/sessions` – Dashboard-Sessions anzeigen und widerrufen
+- `/media` – lokale Videos in `data/media`
 - `/logs [n]` – letzte Logzeilen
 - `/notify` – Benachrichtigungen gesamt oder je Kategorie umschalten
   (`live`, `reconnect`, `error`)
+
+Destruktive Aktionen (`/stop`, Session-Widerruf, YouTube-Status) verlangen eine
+Bestätigung. Die vollständige Befehls- und Paritätsübersicht steht in
+[`docs/TELEGRAM.md`](docs/TELEGRAM.md).
 
 Benachrichtigungen gehen an `TELEGRAM_NOTIFY_CHAT_ID`, sonst an die erste ID aus
 der Allow-List. Die Schalter werden in `data/telegram-notify.json` gespeichert;

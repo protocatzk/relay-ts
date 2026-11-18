@@ -11,6 +11,7 @@ import { AuthSessionStore } from './api/session-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
+import { listMediaFiles } from './core/media/media-files.js';
 import { YouTubeAuthStore } from './core/youtube/auth-store.js';
 import { YouTubeAuthService } from './core/youtube/service.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
@@ -87,6 +88,7 @@ async function main(): Promise<void> {
     ? new TelegramBot({
         token: config.telegram.botToken,
         allowedUserIds: config.telegram.allowedUserIds,
+        dashboardUrl: config.server.publicUrl || undefined,
         auth: telegramAuth,
         logger,
         bus,
@@ -101,6 +103,83 @@ async function main(): Promise<void> {
           pause: () => supervisor.pause(),
           resume: () => supervisor.hideScreen(),
           logs: (limit) => ring.list({ limit }),
+          settings: () => {
+            const current = settingsService.get();
+            return {
+              delay_seconds: current.delay_buffer.enabled ? current.delay_buffer.size : 0,
+              pause_enabled: current.pause.enabled,
+              pause_max_minutes: current.pause.max_minutes,
+              pause_grace_seconds: current.pause.grace_seconds,
+              startup_enabled: current.startup.enabled,
+              startup_seconds: current.startup.duration_seconds,
+              auto_reconnect: current.watchdog.auto_reconnect,
+              auto_refresh_minutes: current.auto_refresh.interval,
+              earnings_period: current.earnings.period,
+              earnings_view: current.earnings.view,
+              youtube_auto_transition: current.youtube.auto_transition,
+              overlay_chat: current.overlays.chat.enabled,
+              overlay_clock: current.overlays.clock.enabled,
+              overlay_text: current.overlays.text.enabled,
+            };
+          },
+          sessions: () =>
+            authSessions.list().map((session) => ({
+              id: session.id,
+              user: session.user,
+              provider: session.provider === 'telegram' ? 'Telegram' : 'Passwort',
+              last_seen_at: new Date(session.lastSeenAt).toISOString(),
+            })),
+          revokeSession: (id) => authSessions.revoke(id),
+          revokeAllSessions: () => authSessions.revokeAll(),
+          media: () =>
+            listMediaFiles(config.paths.dataDir).map((file) => ({
+              filename: file.filename,
+              size: file.size,
+            })),
+          earnings: () => {
+            const snapshot = supervisor.earningsStatus();
+            if (!snapshot) return null;
+            return {
+              period_label: snapshot.period_label,
+              currency: snapshot.currency,
+              net: snapshot.net,
+              coins: snapshot.coins,
+              viewers: snapshot.viewers,
+              gifts: snapshot.gifts,
+              updated_at: snapshot.last_seen_at,
+            };
+          },
+          youtubeStatus: () => {
+            const status = youtubeAuth.status();
+            return {
+              connected: status.connected,
+              channel_title: status.account.channel_title,
+            };
+          },
+          youtubeBroadcasts: async () =>
+            (await youtubeAuth.broadcasts()).items.map((item) => ({
+              id: item.id,
+              title: item.title,
+              status: item.status,
+              privacy: item.privacy,
+              scheduled_start: item.scheduled_start,
+            })),
+          youtubeTransition: (id, status) =>
+            youtubeAuth.transitionBroadcastById(id, status),
+          youtubePublish: (id) => youtubeAuth.publishBroadcast(id),
+          showScreen: (type) => supervisor.showScreen(type),
+          hideScreen: () => supervisor.hideScreen(),
+          toggleOverlay: async (key) => {
+            const current = settingsService.get();
+            const overlays = structuredClone(current.overlays);
+            overlays[key].enabled = !overlays[key].enabled;
+            const { previous, next } = settingsService.update({ overlays });
+            await supervisor.applySettings(next, previous);
+          },
+          setEarningsPeriod: async (period) => {
+            const { previous, next } = settingsService.update({ earnings: { period } });
+            await supervisor.applySettings(next, previous);
+          },
         },
         notify: {
           chatId: config.telegram.notifyChatId,

@@ -44,6 +44,7 @@ export interface ServerConfig {
   corsOrigin: string;
   telegramAuth: boolean;
   trustProxy: boolean;
+  publicUrl: string;
 }
 
 export interface TelegramConfig {
@@ -337,6 +338,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     corsOrigin,
     telegramAuth,
     trustProxy,
+    publicUrl: env.DASHBOARD_URL?.trim() ?? '',
   };
 
   const media: MediaConfig = {

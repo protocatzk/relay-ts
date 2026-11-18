@@ -189,6 +189,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Benachrichtigungsschalter liegen in `data/telegram-notify.json`.
 - Derselbe Bot-Token darf nicht parallel in alter Python-App und RELAY laufen
   (`getUpdates`-Konflikt).
+- Destruktive Bot-Aktionen (`/stop`, Session-Widerruf, YouTube-Status) laufen
+  über `ConfirmationStore`: Nonce 60 s gültig, einmalig, an Chat + User
+  gebunden. Session-Buttons nutzen kurze Refs statt der 64-Zeichen-ID
+  (Telegram-Callback-Limit).
 
 ## Deployment
 
