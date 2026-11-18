@@ -24,7 +24,8 @@ eigenständig umgesetzt.
 - **Auto-Reconnect** mit exponentiellem Backoff
 - **Auto-Refresh** der TikTok-URL (Standard alle 20 Minuten)
 - **Pausenscreen** bei Offline-Quelle, ohne die RTMP-Verbindung zu trennen,
-  inklusive optionaler maximaler Pausendauer
+  inklusive optionaler maximaler Pausendauer, eigenem Hintergrundbild/-video
+  und eigener Schrift
 - **Overlays**: Canvas-Chat-Engine mit Bubbles, Panel/Minimal-Stil, Namen,
   Timestamps, Emoji, Tier-Badges, Chat-Statistik und Live-Vorschau (drawtext
   als Fallback), Uhrzeit, freier Text und optionale Einnahmen-Anzeige
@@ -277,6 +278,10 @@ pause:
   subtext: "Gleich geht es weiter"
   max_minutes: 15
   grace_seconds: 2
+  background: ""
+  font: ""
+  text_color: white
+  fit: cover
 online:
   enabled: false
   source_url: ""
@@ -321,6 +326,15 @@ dabei nicht neu aufgebaut. Sobald die Quelle wieder live ist, wird der
 Pausenscreen gestoppt und die neue Quelle übernimmt nahtlos. `max_minutes`
 begrenzt, wie lange der Pausenscreen laufen darf; `0` bedeutet unbegrenzt.
 `PAUSE_GRACE_SECONDS=0` schaltet den Pausenscreen ohne Verzögerung ein.
+
+**Eigener Hintergrund/Font:** `pause.background` akzeptiert einen lokalen Pfad
+oder eine URL. Unterstützt werden PNG/JPG/WebP/GIF/MP4/WebM (Video/GIF werden
+geloopt) sowie statisches SVG. `pause.font` setzt eine TTF/OTF-Datei,
+`pause.text_color` die Textfarbe und `pause.fit` (`cover`/`contain`) die
+Bildanpassung. Dateien im Docker-Container z. B. unter `/app/data/pause/`
+ablegen. Animiertes SVG kann ffmpeg nicht nativ dekodieren; es wird als
+statisches Bild verwendet. Für echte Animation das SVG vorher zu WebM/GIF
+konvertieren.
 
 ---
 

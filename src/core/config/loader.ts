@@ -393,6 +393,10 @@ export function applyEnvSettings(
   set(['pause', 'subtext'], env.PAUSE_SUBTEXT?.trim() || undefined);
   set(['pause', 'max_minutes'], parseNumber(env.PAUSE_MAX_MINUTES));
   set(['pause', 'grace_seconds'], parseNumber(env.PAUSE_GRACE_SECONDS));
+  set(['pause', 'background'], env.PAUSE_BACKGROUND?.trim() || undefined);
+  set(['pause', 'font'], env.PAUSE_FONT?.trim() || undefined);
+  set(['pause', 'text_color'], env.PAUSE_TEXT_COLOR?.trim() || undefined);
+  set(['pause', 'fit'], env.PAUSE_FIT?.trim() || undefined);
   set(['online', 'enabled'], parseBoolean(env.ONLINE_CHECK_ENABLED));
   set(['online', 'source_url'], env.ONLINE_SOURCE_URL?.trim() || undefined);
   set(['online', 'api_key'], env.ONLINE_SOURCE_API_KEY?.trim() || undefined);

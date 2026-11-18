@@ -168,6 +168,43 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('tcp://127.0.0.1:12345?tcp_nodelay=1');
     expect(line).toContain('-output_ts_offset 12.000');
   });
+
+  it('uses a looping video background with cover fit', () => {
+    const args = buildPauseCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      relay,
+      text: 'Pause',
+      subtext: 'Gleich weiter',
+      fontFile: '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+      background: '/app/data/pause/loop.webm',
+      textColor: '#ffcc00',
+      fit: 'cover',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-stream_loop -1 -re -i /app/data/pause/loop.webm');
+    expect(line).toContain('scale=720:1280:force_original_aspect_ratio=increase');
+    expect(line).toContain('crop=720:1280');
+    expect(line).toContain('fontcolor=#ffcc00');
+    expect(line).not.toContain('-tune stillimage');
+  });
+
+  it('loops static images and keeps stillimage tuning', () => {
+    const args = buildPauseCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      relay,
+      text: 'Pause',
+      subtext: 'Gleich weiter',
+      background: '/app/data/pause/background.png',
+      fit: 'contain',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-loop 1 -re -i /app/data/pause/background.png');
+    expect(line).toContain('force_original_aspect_ratio=decrease');
+    expect(line).toContain('pad=720:1280');
+    expect(line).toContain('-tune stillimage');
+  });
 });
 
 describe('resolver', () => {

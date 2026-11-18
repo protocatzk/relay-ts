@@ -266,6 +266,10 @@ export const PauseSettingsSchema = z.object({
     .default('0x101820'),
   max_minutes: z.number().int().min(0).max(1440).default(15),
   grace_seconds: z.number().int().min(0).max(60).default(2),
+  background: z.string().max(500).default(''),
+  font: z.string().max(500).default(''),
+  text_color: z.string().max(64).default('white'),
+  fit: z.enum(['cover', 'contain']).default('cover'),
 });
 
 export const OnlineSettingsSchema = z.object({

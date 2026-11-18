@@ -1,7 +1,12 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
 import type { Settings } from '../config/schema.js';
 import { buildPauseCommand, type RelayEndpoint } from '../source/ffmpeg.js';
+import { ensureDir } from '../../utils/fs.js';
+import { resolveFont } from './drawtext.js';
 import { ManagedProcess } from '../../utils/process.js';
 
 export interface PauseScreenOptions {
@@ -9,10 +14,13 @@ export interface PauseScreenOptions {
   settings: Settings;
   relay: RelayEndpoint;
   logger: Logger;
+  overlaysDir: string;
   fontFile?: string | null;
   redact?: (text: string) => string;
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
 }
+
+const ANIMATED_SVG = /<(animate|animateTransform|animateMotion|set)\b|@keyframes|animation\s*:/i;
 
 /** Replaces the TikTok source with a static slate while the sink keeps running. */
 export class PauseScreen {
@@ -36,17 +44,22 @@ export class PauseScreen {
     this.options.settings = settings;
   }
 
-  start(text?: string, subtext?: string, timestampOffset = 0): void {
+  async start(text?: string, subtext?: string, timestampOffset = 0): Promise<void> {
     if (this.process?.running) return;
     this.stopping = false;
+    const background = await this.resolveBackground(this.options.settings.pause.background);
+    const fontFile = resolveFont(this.options.settings.pause.font) ?? this.options.fontFile;
     const args = buildPauseCommand({
       media: this.options.media,
       settings: this.options.settings,
       relay: this.options.relay,
       text: text ?? this.options.settings.pause.text,
       subtext: subtext ?? this.options.settings.pause.subtext,
-      fontFile: this.options.fontFile,
+      fontFile,
       timestampOffset,
+      background,
+      textColor: this.options.settings.pause.text_color,
+      fit: this.options.settings.pause.fit,
     });
     const process = new ManagedProcess({
       name: 'pause-screen',
@@ -65,7 +78,7 @@ export class PauseScreen {
     });
     this.process = process;
     process.start();
-    this.options.logger.info('Pausenscreen gestartet');
+    this.options.logger.info({ background: Boolean(background) }, 'Pausenscreen gestartet');
   }
 
   async stop(): Promise<void> {
@@ -78,6 +91,57 @@ export class PauseScreen {
       } finally {
         this.stopping = false;
       }
+    }
+  }
+
+  /**
+   * ffmpeg in this image has no SVG decoder. Static SVGs are rasterized once
+   * with Skia; animated SVGs fall back to their first frame (use WebM/GIF for
+   * actual animation).
+   */
+  private async resolveBackground(raw: string): Promise<string | undefined> {
+    const value = raw?.trim();
+    if (!value) return undefined;
+    const clean = value.split('?')[0]!.toLowerCase();
+    if (!clean.endsWith('.svg')) return value;
+
+    try {
+      let data: Buffer;
+      if (/^https?:\/\//i.test(value)) {
+        const response = await fetch(value, {
+          signal: AbortSignal.timeout(15_000),
+          headers: { accept: 'image/svg+xml,image/*' },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        data = Buffer.from(await response.arrayBuffer());
+      } else {
+        data = readFileSync(value);
+      }
+      const svg = data.toString('utf8');
+      if (ANIMATED_SVG.test(svg)) {
+        this.options.logger.warn(
+          { background: value },
+          'Animiertes SVG wird als statisches Bild verwendet – für Animation WebM/GIF nutzen',
+        );
+      }
+      ensureDir(this.options.overlaysDir);
+      const source = join(this.options.overlaysDir, 'pause-source.svg');
+      writeFileSync(source, data, { mode: 0o600 });
+      const image = await loadImage(source);
+      const width = Math.max(1, image.width || 1920);
+      const height = Math.max(1, image.height || 1080);
+      const canvas = createCanvas(width, height);
+      canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+      const target = join(this.options.overlaysDir, 'pause-background.png');
+      ensureDir(this.options.overlaysDir);
+      writeFileSync(target, canvas.toBuffer('image/png'), { mode: 0o600 });
+      return target;
+    } catch (error) {
+      this.options.logger.warn(
+        { background: value, err: error instanceof Error ? error.message : String(error) },
+        'Pausenscreen-Hintergrund konnte nicht geladen werden – nutze Hintergrundfarbe',
+      );
+      return undefined;
     }
   }
 }

@@ -308,6 +308,10 @@ export interface PauseSettings {
   subtext: string;
   max_minutes: number;
   grace_seconds: number;
+  background: string;
+  font: string;
+  text_color: string;
+  fit: 'cover' | 'contain';
 }
 
 export interface OnlineSettings {

@@ -216,6 +216,7 @@ export class Supervisor {
       settings: this.settings,
       relay: relayEndpoint,
       logger,
+      overlaysDir: config.paths.overlaysDir,
       fontFile: this.overlays.font,
       redact: this.deps.redact,
       onExit: () => {
@@ -635,7 +636,7 @@ export class Supervisor {
       this.clearPlaylistTimers();
     }
 
-    this.startPauseLocked();
+    await this.startPauseLocked();
     this.earnings.setActive();
     this.lastError = message;
     this.emitAll();
@@ -779,7 +780,7 @@ export class Supervisor {
       }
       this.applyConfiguredDelay();
       const timestampOffset = this.nextProducerOffset();
-      this.pauseScreen.start(undefined, undefined, timestampOffset);
+      await this.pauseScreen.start(undefined, undefined, timestampOffset);
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.state = 'paused';
@@ -1112,7 +1113,7 @@ export class Supervisor {
             return;
           }
           if (this.settings.pause.enabled && this.sink.running && !this.pauseScreen.running) {
-            this.startPauseLocked();
+            await this.startPauseLocked();
           }
           this.emitStatus();
           this.scheduleReconnect(
@@ -1127,7 +1128,7 @@ export class Supervisor {
           !this.pauseScreen.running &&
           this.reconnectAttempts >= 2
         ) {
-          this.startPauseLocked();
+          await this.startPauseLocked();
         }
         this.emitStatus();
         this.scheduleReconnect(
@@ -1137,14 +1138,14 @@ export class Supervisor {
     });
   }
 
-  private startPauseLocked(): void {
+  private async startPauseLocked(): Promise<void> {
     if (this.chat) {
       this.chat.stop();
       this.chat = undefined;
     }
     this.applyConfiguredDelay();
     const timestampOffset = this.nextProducerOffset();
-    this.pauseScreen.start(undefined, undefined, timestampOffset);
+    await this.pauseScreen.start(undefined, undefined, timestampOffset);
     this.markProducerStarted(timestampOffset);
     this.markSinkGrace();
     this.pauseReason = 'offline';
@@ -1193,19 +1194,20 @@ export class Supervisor {
         if (this.playlistAdvancePending) return;
         if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return;
         if (this.state === 'paused' && this.pauseReason === 'user') return;
-        this.startPauseLocked();
+        await this.startPauseLocked();
         this.emitAll();
       });
     }, delayMs);
   }
 
-  private schedulePauseRestart(): void {    if (this.pauseRestartTimer || this.shuttingDown) return;
+  private schedulePauseRestart(): void {
+    if (this.pauseRestartTimer || this.shuttingDown) return;
     this.pauseRestartTimer = setTimeout(() => {
       this.pauseRestartTimer = undefined;
       void this.lock.run(async () => {
         if (this.shuttingDown || this.state !== 'paused' || this.pauseScreen.running) return;
         const timestampOffset = this.nextProducerOffset();
-        this.pauseScreen.start(undefined, undefined, timestampOffset);
+        await this.pauseScreen.start(undefined, undefined, timestampOffset);
         this.markProducerStarted(timestampOffset);
         this.emitStatus();
       });
@@ -1460,7 +1462,7 @@ export class Supervisor {
       if (this.state === 'paused' && this.pauseScreen.running) {
         await this.pauseScreen.stop();
         const timestampOffset = this.nextProducerOffset();
-        this.pauseScreen.start(undefined, undefined, timestampOffset);
+        await this.pauseScreen.start(undefined, undefined, timestampOffset);
         this.markProducerStarted(timestampOffset);
       }
       if (!next.auto_refresh.enabled) {

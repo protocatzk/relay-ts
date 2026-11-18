@@ -118,6 +118,10 @@ async function save(): Promise<void> {
       subtext: current.pause.subtext,
       max_minutes: toNumber(current.pause.max_minutes, 15),
       grace_seconds: toNumber(current.pause.grace_seconds, 2),
+      background: current.pause.background.trim(),
+      font: current.pause.font.trim(),
+      text_color: current.pause.text_color.trim() || 'white',
+      fit: current.pause.fit,
     },
     online: {
       enabled: current.online.enabled,
@@ -353,6 +357,42 @@ onMounted(() => {
               <label for="pause-grace">Pausenscreen-Verzögerung (Sekunden)</label>
               <input id="pause-grace" v-model.number="form.pause.grace_seconds" type="number" min="0" max="60" />
               <p class="field-hint">Kurze Unterbrechungen werden überbrückt, bevor der Pausenscreen übernimmt.</p>
+            </div>
+            <div class="field field-span-2">
+              <label for="pause-background">Hintergrundbild oder -video</label>
+              <input
+                id="pause-background"
+                v-model="form.pause.background"
+                type="text"
+                spellcheck="false"
+                placeholder="z. B. /app/data/pause/background.webm oder https://…/loop.webm"
+              />
+              <p class="field-hint">
+                Unterstützt PNG/JPG/WebP/GIF/MP4/WebM (loop) sowie statisches SVG.
+                Animiertes SVG wird nicht nativ von ffmpeg dekodiert – dafür WebM/GIF verwenden.
+                Leer = Hintergrundfarbe.
+              </p>
+            </div>
+            <div class="field">
+              <label for="pause-font">Schriftdatei (TTF/OTF)</label>
+              <input
+                id="pause-font"
+                v-model="form.pause.font"
+                type="text"
+                spellcheck="false"
+                placeholder="/app/data/pause/font.ttf"
+              />
+            </div>
+            <div class="field">
+              <label for="pause-text-color">Textfarbe</label>
+              <input id="pause-text-color" v-model="form.pause.text_color" type="text" placeholder="white" spellcheck="false" />
+            </div>
+            <div class="field">
+              <label for="pause-fit">Bildanpassung</label>
+              <select id="pause-fit" v-model="form.pause.fit">
+                <option value="cover">Ausfüllen (cover)</option>
+                <option value="contain">Einpassen (contain)</option>
+              </select>
             </div>
           </div>
         </div>

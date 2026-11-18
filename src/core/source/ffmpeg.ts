@@ -327,6 +327,9 @@ export interface PauseCommandOptions {
   subtext: string;
   fontFile?: string | null;
   timestampOffset?: number;
+  background?: string;
+  textColor?: string;
+  fit?: 'cover' | 'contain';
 }
 
 function escapeDrawtext(value: string): string {
@@ -340,49 +343,92 @@ function escapeDrawtext(value: string): string {
     .replace(/\]/g, '\\]');
 }
 
+function pauseBackgroundKind(background: string): 'video' | 'animated' | 'image' | 'other' {
+  const path = background.split('?')[0]!.toLowerCase();
+  if (/\.(mp4|webm|mov|mkv|m4v)$/.test(path)) return 'video';
+  if (/\.(gif|webp)$/.test(path)) return 'animated';
+  if (/\.(png|jpe?g|bmp|avif)$/.test(path)) return 'image';
+  return 'other';
+}
+
 export function buildPauseCommand(options: PauseCommandOptions): string[] {
   const { media, settings, relay } = options;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const fps = settings.video.fps;
   const bitrate = settings.video.video_bitrate;
+  const background = options.background?.trim() ?? '';
+  const kind = background ? pauseBackgroundKind(background) : 'none';
+  const textColor = options.textColor?.trim() || 'white';
   const filters: string[] = [];
+
+  if (background) {
+    const fit = options.fit === 'contain' ? 'contain' : 'cover';
+    if (fit === 'cover') {
+      filters.push(
+        `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+        `crop=${width}:${height}`,
+      );
+    } else {
+      filters.push(
+        `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
+        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${settings.pause.color}`,
+      );
+    }
+    filters.push('setsar=1', `fps=${fps}`);
+  }
+
   if (options.fontFile) {
     filters.push(
       `drawtext=fontfile='${options.fontFile}':text='${escapeDrawtext(options.text)}':` +
-        `fontsize=${Math.round(width / 14)}:fontcolor=white:x=(w-tw)/2:y=(h-th)/2-40`,
+        `fontsize=${Math.round(width / 14)}:fontcolor=${escapeDrawtext(textColor)}:x=(w-tw)/2:y=(h-th)/2-40`,
     );
     filters.push(
       `drawtext=fontfile='${options.fontFile}':text='${escapeDrawtext(options.subtext)}':` +
-        `fontsize=${Math.round(width / 30)}:fontcolor=white@0.7:x=(w-tw)/2:y=(h-th)/2+60`,
+        `fontsize=${Math.round(width / 30)}:fontcolor=${escapeDrawtext(textColor)}:alpha=0.7:x=(w-tw)/2:y=(h-th)/2+60`,
     );
   }
+
   const args = [
     '-hide_banner',
     '-nostdin',
     '-loglevel',
     media.ffmpegLogLevel,
-    '-re',
-    '-f',
-    'lavfi',
-    '-i',
-    `color=c=${settings.pause.color}:s=${width}x${height}:r=${fps}`,
-    '-f',
-    'lavfi',
-    '-i',
-    'anullsrc=channel_layout=stereo:sample_rate=48000',
-    '-map',
-    '0:v:0',
-    '-map',
-    '1:a:0',
   ];
+
+  if (background) {
+    if (kind === 'video') {
+      args.push('-stream_loop', '-1', '-re', '-i', background);
+    } else if (kind === 'animated') {
+      args.push('-stream_loop', '-1', '-re', '-i', background);
+    } else {
+      args.push('-loop', '1', '-re', '-i', background);
+    }
+    args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
+  } else {
+    args.push(
+      '-re',
+      '-f',
+      'lavfi',
+      '-i',
+      `color=c=${settings.pause.color}:s=${width}x${height}:r=${fps}`,
+      '-f',
+      'lavfi',
+      '-i',
+      'anullsrc=channel_layout=stereo:sample_rate=48000',
+    );
+  }
+
+  args.push('-map', '0:v:0', '-map', '1:a:0');
+
   if (filters.length > 0) args.push('-vf', filters.join(','));
   args.push(
     '-c:v',
     'libx264',
     '-preset',
     'veryfast',
-    '-tune',
-    'stillimage',
+  );
+  if (!background || kind === 'image') args.push('-tune', 'stillimage');
+  args.push(
     '-pix_fmt',
     'yuv420p',
     '-b:v',
