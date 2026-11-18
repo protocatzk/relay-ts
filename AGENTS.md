@@ -56,6 +56,7 @@ Wichtige Pfade:
 - `src/core/sink/` – YouTube-Sink
 - `src/core/relay/` – MPEG-TS-Relay und DelayBuffer
 - `src/core/media/` – lokale Playlist-Videos (`data/media/`) und ffprobe-Metadaten
+- `src/api/routes/preview.ts` – MPEG-TS-Tap für die Live-Vorschau
 - `src/core/overlays/` – Canvas-Chat, drawtext, PauseScreen, Studio-Preview
 - `src/core/earnings/` – TokTracker-kompatibler Einnahmen-Monitor
 - `src/core/telegram/` – Login-Bot und Token-Store
@@ -98,6 +99,8 @@ Wichtige Pfade:
 - Playlist-Einträge mit `file:` verweisen auf `data/media/`; lokale Videos werden
   einmalig mit `-re` abgespielt und schalten am Dateiende weiter. Der Sink bleibt
   bestehen; echte Streamer-Einträge funktionieren unverändert.
+- Die Live-Vorschau (`GET /api/preview.ts`) ist ein Read-only-Tap am Relay und
+  darf den Sink nicht beeinflussen; pro Client wird bei Rückstau getrennt.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
   (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart

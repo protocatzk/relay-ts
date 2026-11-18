@@ -1739,6 +1739,10 @@ export class Supervisor {
     return this.previewEngine;
   }
 
+  subscribePreview(listener: (chunk: Buffer) => void): () => void {
+    return this.relay.subscribe(listener);
+  }
+
   overlayPreviewPng(sample = false): Buffer {
     return (this.chatEngine ?? this.getPreviewEngine()).previewPng(sample);
   }

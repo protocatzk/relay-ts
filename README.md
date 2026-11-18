@@ -63,7 +63,7 @@ Navigation.
 | **Overlay-Studio**  | Bühnenvorschau aus Drafts, Drag/Resize, Live-Nachrichten, Presets, Hilfslinien, Undo/Redo, globale Persistenz        |
 | **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
 | **Einnahmen**       | TokTracker-kompatibel, Verlauf/Charts, Delta, Zeitraum-Schnellwahl, Sessions, Gifts/Gifter, Kurse, Detailansicht     |
-| **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, responsive/mobile Ansicht, Drawer-Navigation                               |
+| **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, Live-Vorschau, responsive/mobile Ansicht, Drawer-Navigation                |
 | **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Login, Session-Liste, Bot-Steuerung und Benachrichtigungen                  |
 | **Betrieb**         | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
 
@@ -462,6 +462,18 @@ Nur private Chats von IDs aus `TELEGRAM_ALLOWED_USER_IDS` werden akzeptiert.
 Ohne Token oder Allow-List bleibt Telegram-Login deaktiviert (fail-closed).
 Die gleiche Bot-Token darf nicht parallel in einer zweiten Instanz laufen.
 
+### Live-Vorschau
+
+Das Dashboard kann den aktiven Relay-Stream direkt im Browser abspielen
+(MPEG-TS über MSE/mpegts.js). Die Vorschau ist ein separater Tap am Relay und
+startet oder stoppt **nie** den YouTube-Sink. Sie zeigt die Quelle mit geringer
+Latenz (typisch 1–3 s), aber ohne die im Sink gerenderten Overlays.
+
+- Authentifizierter Endpunkt: `GET /api/preview.ts`
+- Player: Start/Stop, Ton, Vollbild und Neuladen
+- Kein Zugriff auf Stream-Keys oder YouTube-APIs
+- Benötigt einen Browser mit Media Source Extensions (Chrome/Firefox/Edge)
+
 ---
 
 ## Overlays und Studio
@@ -635,6 +647,7 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `POST`   | `/api/quickstart`           | Handle + Key anlegen und starten  |
 | `GET`    | `/api/status`               | Vollständiger Systemstatus        |
 | `GET`    | `/api/media`                | Lokale Playlist-Videos listen      |
+| `GET`    | `/api/preview.ts`           | Live-Vorschau als MPEG-TS          |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |
 | `GET`    | `/api/earnings/history`     | Verlauf für einen Zeitraum        |
 | `POST`   | `/api/earnings/period`      | Zeitraum-Schnellwahl speichern    |

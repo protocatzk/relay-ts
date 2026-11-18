@@ -21,6 +21,7 @@ export class MpegTsRelay {
   private lastDataAt: Date | null = null;
   private totalBytes = 0;
   private sourceConnections = 0;
+  private readonly subscribers = new Set<(chunk: Buffer) => void>();
   private readonly startedAt = new Date();
 
   constructor(options: RelayOptions) {
@@ -69,6 +70,13 @@ export class MpegTsRelay {
       this.lastDataAt = new Date();
       this.totalBytes += chunk.length;
       this.options.buffer.enqueue(chunk);
+      for (const subscriber of this.subscribers) {
+        try {
+          subscriber(chunk);
+        } catch {
+          /* a preview client must never break the stream */
+        }
+      }
     });
     socket.on('error', (error) => {
       this.options.logger.warn({ err: error.message }, 'Quellen-Socket-Fehler');
@@ -79,6 +87,12 @@ export class MpegTsRelay {
         this.options.logger.warn('Stream-Quelle getrennt');
       }
     });
+  }
+
+  /** Raw MPEG-TS tap for the dashboard preview. */
+  subscribe(listener: (chunk: Buffer) => void): () => void {
+    this.subscribers.add(listener);
+    return () => this.subscribers.delete(listener);
   }
 
   get connected(): boolean {

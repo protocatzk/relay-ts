@@ -213,6 +213,11 @@ describe('API', () => {
     expect(me.json()).toMatchObject({ authenticated: true, auth_required: true });
   });
 
+  it('protects the live preview stream', async () => {
+    const denied = await app.inject({ method: 'GET', url: '/api/preview.ts' });
+    expect(denied.statusCode).toBe(401);
+  });
+
   it('accepts a bearer API token', async () => {
     const allowed = await app.inject({
       method: 'GET',

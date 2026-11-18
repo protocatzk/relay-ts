@@ -22,6 +22,7 @@ import { registerPlaylistRoutes } from './routes/playlists.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerPauseAssetRoutes } from './routes/pause-assets.js';
 import { registerMediaRoutes } from './routes/media.js';
+import { registerPreviewRoutes } from './routes/preview.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -103,6 +104,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerSystemRoutes(app, ctx);
   await registerPauseAssetRoutes(app, ctx);
   await registerMediaRoutes(app, ctx);
+  await registerPreviewRoutes(app, ctx);
 
   const webRoot = ctx.config.paths.webDir;
   const indexFile = join(webRoot, 'index.html');
