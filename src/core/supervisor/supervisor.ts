@@ -36,6 +36,8 @@ import { EarningsMonitor, formatEarningsOverlay } from '../earnings/monitor.js';
 import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
+import { SupervisorStateMachine } from './state-machine.js';
+import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
 export interface SupervisorDeps {
@@ -102,7 +104,7 @@ export class Supervisor {
   private currentChatMessages: ChatMessage[] = [];
   private lastChatMessageAt: Date | null = null;
 
-  private state: StreamState = 'idle';
+  private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
   private activePlaylist: PlaylistState | null = null;
   private activeKey = '';
@@ -138,6 +140,15 @@ export class Supervisor {
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
     this.settings = deps.settingsService.get();
+    this.stateMachine = new SupervisorStateMachine('idle', deps.logger);
+  }
+
+  private get state(): StreamState {
+    return this.stateMachine.state;
+  }
+
+  private transitionTo(next: StreamState, reason = ''): void {
+    this.stateMachine.transition(next, reason);
   }
 
   get currentSettings(): Settings {
@@ -486,7 +497,7 @@ export class Supervisor {
 
     this.clearReconnectTimer();
     const previousState = this.state;
-    this.state = 'starting';
+    this.transitionTo('starting');
     this.lastError = null;
     this.resolving = true;
     this.emitStatus();
@@ -506,8 +517,10 @@ export class Supervisor {
         await this.beginWaitingSessionLocked(streamer, key, options, message);
         return this.buildStatus();
       }
-      this.state =
-        previousState === 'live' || previousState === 'paused' ? previousState : 'error';
+      this.transitionTo(
+        previousState === 'live' || previousState === 'paused' ? previousState : 'error',
+        'start failed',
+      );
       this.emitAll();
       throw error;
     }
@@ -570,7 +583,7 @@ export class Supervisor {
     } else {
       this.clearPlaylistTimers();
     }
-    this.state = 'live';
+    this.transitionTo('live');
     this.emitAll();
     this.deps.logger.info(
       { streamer: streamer.id, key: '***', reusedSink: reusable },
@@ -721,7 +734,7 @@ export class Supervisor {
   }
 
   private async stopInternalLocked(): Promise<StatusSnapshot> {
-    this.state = 'stopping';
+    this.transitionTo('stopping');
     this.pauseReason = null;
     this.clearAllTimers();
     this.autoRefresh.stop();
@@ -747,7 +760,7 @@ export class Supervisor {
     this.reconnectAttempts = 0;
     this.resetTimeline();
     this.earnings.setActive();
-    this.state = 'idle';
+    this.transitionTo('idle');
     this.emitAll();
     this.deps.logger.info('Stream gestoppt');
     return this.buildStatus();
@@ -783,7 +796,7 @@ export class Supervisor {
       await this.pauseScreen.start(undefined, undefined, timestampOffset);
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
-      this.state = 'paused';
+      this.transitionTo('paused');
       this.schedulePauseLimitLocked();
       this.autoRefresh.stop();
       this.emitAll();
@@ -903,7 +916,7 @@ export class Supervisor {
     }
     await this.stopInternalLocked();
     this.lastError = lastError ?? 'Kein Streamer der Playlist ist verfügbar';
-    this.state = 'error';
+    this.transitionTo('error');
     this.emitAll();
     throw new StreamerOfflineError(this.lastError);
   }
@@ -949,7 +962,7 @@ export class Supervisor {
     if (this.playlistAdvanceTimer) return;
     const delay = Math.max(0, this.activePlaylist.playlist.advance_delay_seconds) * 1000;
     this.playlistAdvancePending = true;
-    this.state = 'reconnecting';
+    this.transitionTo('reconnecting');
     this.emitStatus();
     this.deps.logger.info(
       { playlist: this.activePlaylist.playlist.id, delaySeconds: delay / 1000 },
@@ -958,7 +971,7 @@ export class Supervisor {
     this.playlistAdvanceTimer = setTimeout(() => {
       this.playlistAdvanceTimer = undefined;
       this.playlistAdvancePending = false;
-      this.state = 'starting';
+      this.transitionTo('starting');
       this.emitStatus();
       void this.lock.run(async () => {
         if (!this.activePlaylist || this.shuttingDown) return;
@@ -966,7 +979,7 @@ export class Supervisor {
           await this.advancePlaylistLocked('offline');
         } catch (error) {
           this.lastError = toErrorMessage(error);
-          this.state = 'error';
+          this.transitionTo('error');
           this.emitAll();
         }
       });
@@ -1045,11 +1058,11 @@ export class Supervisor {
     this.lastError = 'Stream-Quelle beendet';
     this.scheduleOfflinePauseLocked();
     if (!this.settings.watchdog.auto_reconnect) {
-      this.state = 'error';
+      this.transitionTo('error');
       this.emitAll();
       return;
     }
-    this.state = 'reconnecting';
+    this.transitionTo('reconnecting');
     this.emitStatus();
     this.deps.logger.warn({ streamer: this.activeStreamer.id }, 'Quelle unerwartet beendet – Neuverbindung');
     this.scheduleReconnect();
@@ -1058,9 +1071,8 @@ export class Supervisor {
   private scheduleReconnect(delayMs?: number): void {
     if (this.shuttingDown || !this.activeStreamer || this.reconnectTimer) return;
     this.reconnectAttempts += 1;
-    const maxDelay = Math.max(2, this.settings.watchdog.max_reconnect_delay) * 1000;
-    const delay = delayMs ?? Math.min(maxDelay, 2000 * 2 ** Math.min(6, this.reconnectAttempts - 1));
-    if (this.state !== 'paused') this.state = 'reconnecting';
+    const delay = reconnectDelay(this.reconnectAttempts, this.settings, delayMs);
+    if (this.state !== 'paused') this.transitionTo('reconnecting', 'reconnect scheduled');
     this.emitStatus();
     this.deps.logger.info(
       { attempt: this.reconnectAttempts, delaySeconds: Math.round(delay / 100) / 10 },
@@ -1077,7 +1089,7 @@ export class Supervisor {
       if (this.shuttingDown || !this.activeStreamer) return;
       if (this.state === 'paused' && this.pauseReason === 'user') return;
       if (this.source.running) return;
-      this.state = 'reconnecting';
+      this.transitionTo('reconnecting');
       this.emitStatus();
       try {
         const stream = await this.resolver.resolve(this.activeStreamer);
@@ -1096,7 +1108,7 @@ export class Supervisor {
         this.reconnectAttempts = 0;
         this.watchdog.clearError();
         if (!this.chat) this.startChatLocked(this.activeStreamer);
-        this.state = 'live';
+        this.transitionTo('live');
         this.emitAll();
         this.deps.logger.info({ streamer: this.activeStreamer.id }, 'Stream wieder verbunden');
       } catch (error) {
@@ -1149,7 +1161,7 @@ export class Supervisor {
     this.markProducerStarted(timestampOffset);
     this.markSinkGrace();
     this.pauseReason = 'offline';
-    this.state = 'paused';
+    this.transitionTo('paused');
     this.schedulePauseLimitLocked();
     this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
   }
@@ -1238,7 +1250,7 @@ export class Supervisor {
         this.activeTitle = stream.title;
         this.clearPauseLimit();
         this.pauseReason = null;
-        this.state = 'live';
+        this.transitionTo('live');
         this.lastError = null;
         this.autoRefresh.markRefreshed();
         if (this.chat) {

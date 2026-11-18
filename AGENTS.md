@@ -49,6 +49,8 @@ Wichtige Pfade:
 
 - `src/core/supervisor/supervisor.ts` – zentrale Zustandsmaschine, Start/Stop,
   Pause, Playlist, Reconnect, Settings-Anwendung
+- `src/core/supervisor/state-machine.ts` – explizite Zustandsübergänge
+- `src/core/supervisor/reconnect-policy.ts` – Backoff-Berechnung
 - `src/core/source/` – TikTok-Auflösung und Quell-ffmpeg
 - `src/core/sink/` – YouTube-Sink
 - `src/core/relay/` – MPEG-TS-Relay und DelayBuffer
