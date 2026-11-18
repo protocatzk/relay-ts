@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import { normalizeHandle } from '../../utils/format.js';
+import { incMetric } from '../metrics.js';
 
 export const EARNINGS_PERIOD_LABELS: Record<string, string> = {
   today: 'Heute',
@@ -814,6 +815,7 @@ export class EarningsMonitor {
       };
       this.emit();
     } catch (error) {
+      incMetric('earnings_poll_errors_total');
       const message = error instanceof Error ? error.message : String(error);
       this.snapshot = {
         ...base,

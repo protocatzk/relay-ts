@@ -147,6 +147,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Ports bleiben lokal auf `127.0.0.1:3000` gebunden; der Proxy erreicht den
   Container intern über Port 3000.
 - `SECURE_COOKIES=true` ist für die produktive Domain gesetzt.
+- `GET /health` liefert Source-/Relay-/Sink-/Pause-Details; `GET /api/metrics`
+  liefert JSON-Zähler (Auth erforderlich).
+- `scripts/backup.sh` und `scripts/restore.sh` sichern `config/` und `data/`
+  ohne `data/sessions.json` und Laufzeit-Overlays.
 
 ## Frontend-Konventionen
 

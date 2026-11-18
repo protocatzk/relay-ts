@@ -140,7 +140,36 @@ describe('API', () => {
   it('serves health without authentication', async () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ status: 'ok', version: VERSION });
+    expect(response.json()).toMatchObject({
+      status: 'ok',
+      version: VERSION,
+      source: expect.objectContaining({ reconnects: expect.any(Number) }),
+      relay: expect.objectContaining({ ingest_clients: expect.any(Number) }),
+      sink: expect.objectContaining({ running: expect.any(Boolean) }),
+      pause: expect.objectContaining({ active: expect.any(Boolean) }),
+    });
+  });
+
+  it('exposes process metrics for authenticated users', async () => {
+    const denied = await app.inject({ method: 'GET', url: '/api/metrics' });
+    expect(denied.statusCode).toBe(401);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/metrics',
+      headers: { authorization: 'Bearer api-secret' },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      started_at: string;
+      counters: Record<string, number>;
+    };
+    expect(typeof body.started_at).toBe('string');
+    expect(body.counters).toMatchObject({
+      source_exits_total: expect.any(Number),
+      sink_restarts_total: expect.any(Number),
+      chat_poll_errors_total: expect.any(Number),
+    });
   });
 
   it('protects API routes and accepts a valid login session', async () => {

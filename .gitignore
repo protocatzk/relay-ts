@@ -10,3 +10,4 @@ config/cookies.txt
 *.log
 coverage/
 .DS_Store
+backups/

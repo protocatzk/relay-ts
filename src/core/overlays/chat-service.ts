@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 import type { ChatOverlayConfig, Settings, StreamerConfig } from '../config/schema.js';
 import { normalizeHandle } from '../../utils/format.js';
+import { incMetric } from '../metrics.js';
 
 export interface ChatMessage {
   id: string;
@@ -174,6 +175,7 @@ export class ChatService {
   }
 
   private logError(message: string): void {
+    incMetric('chat_poll_errors_total');
     const now = Date.now();
     if (now - this.lastErrorLog < 120_000) return;
     this.lastErrorLog = now;

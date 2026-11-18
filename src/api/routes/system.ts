@@ -5,6 +5,7 @@ import { StreamerSchema, formatZodError, type StreamerConfig } from '../../core/
 import { ValidationError } from '../../utils/errors.js';
 import { join } from 'node:path';
 import { renderPausePreview } from '../../core/overlays/pause-preview.js';
+import { metricsSnapshot } from '../../core/metrics.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
@@ -38,12 +39,38 @@ const PausePreviewBody = z.object({
 });
 
 export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
-  app.get('/health', async () => ({
-    status: 'ok',
-    version: ctx.version,
-    uptime_seconds: Math.round(process.uptime()),
-    state: ctx.supervisor.buildStatus().state,
-  }));
+  app.get('/health', async () => {
+    const status = ctx.supervisor.buildStatus();
+    return {
+      status: 'ok',
+      version: ctx.version,
+      uptime_seconds: Math.round(process.uptime()),
+      state: status.state,
+      source: {
+        online: status.source.online,
+        connected: status.source.connected,
+        reconnects: status.source.reconnects,
+        last_data_at: status.source.last_data_at,
+      },
+      relay: {
+        ingest_clients: status.relay.ingest_clients,
+        output_connected: status.relay.output_connected,
+        buffered_bytes: status.relay.buffered_bytes,
+        buffer_seconds: status.relay.buffer_seconds,
+      },
+      sink: {
+        running: status.sink.running,
+        bitrate_kbps: status.sink.bitrate_kbps,
+        fps: status.sink.fps,
+      },
+      pause: {
+        active: status.state === 'paused',
+        manual_screen: status.manual_screen,
+      },
+    };
+  });
+
+  app.get('/api/metrics', async () => metricsSnapshot());
 
   app.get('/api/status', async () => ctx.supervisor.buildStatus());
 

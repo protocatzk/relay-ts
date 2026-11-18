@@ -644,6 +644,50 @@ Die Vorlage erwartet `nginx-proxy` und `acme-companion` sowie das externe Netz
 
 ---
 
+## Betrieb und Monitoring
+
+### Health und Metriken
+
+`GET /health` ist ohne Anmeldung erreichbar und liefert neben Status/Version
+auch Source-, Relay-, Sink- und Pause-Details. Für das Monitoring gibt es
+zusätzlich JSON-Metriken ohne weitere Abhängigkeit:
+
+```bash
+curl -fsS https://relay.positronium.dev/health
+curl -fsS -H "Authorization: Bearer $API_TOKEN" \
+  https://relay.positronium.dev/api/metrics
+```
+
+`/api/metrics` liefert `started_at`, `uptime_seconds` und Zähler wie
+`source_exits_total`, `source_reconnects_total`, `reconnect_success_total`,
+`reconnect_failures_total`, `pause_starts_total`, `pause_limit_hits_total`,
+`sink_restarts_total`, `watchdog_triggers_total`, `playlist_advances_total`,
+`manual_screens_total`, `startup_screens_total`, `chat_poll_errors_total` und
+`earnings_poll_errors_total`.
+
+### Backup und Restore
+
+```bash
+scripts/backup.sh                        # -> backups/relay-<timestamp>.tar.gz
+scripts/backup.sh /pfad/ziel.tar.gz
+scripts/restore.sh backups/relay-....tar.gz          # mit Rückfrage
+scripts/restore.sh backups/relay-....tar.gz --force  # ohne Rückfrage
+```
+
+Gesichert werden `config/` und `data/`. Ausgeschlossen sind
+`data/sessions.json` (Sessions werden nach dem Restore neu erstellt) und
+`data/overlays/active` (Laufzeitdateien). Das Archiv wird mit Modus `0600`
+angelegt; die Scripts geben keine Secrets aus. `backups/` ist gitignored.
+
+### Logrotation
+
+- Docker: Der Container schreibt in den `json-file`-Treiber; `docker-compose.yml`
+  begrenzt das auf 10 MB pro Datei und drei Dateien.
+- Bare Metal: `logs/restreamer.log` per `logrotate` wöchentlich rotieren und
+  `copytruncate` verwenden, weil der Prozess die Datei offen hält.
+
+---
+
 ## Entwicklung
 
 Voraussetzungen:

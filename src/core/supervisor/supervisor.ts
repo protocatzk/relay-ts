@@ -37,6 +37,7 @@ import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
+import { incMetric } from '../metrics.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
 import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
@@ -599,6 +600,7 @@ export class Supervisor {
         : 0;
 
     if (introSeconds > 0) {
+      incMetric('startup_screens_total');
       await this.startupScreen.start(undefined, undefined, timestampOffset);
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
@@ -945,6 +947,7 @@ export class Supervisor {
       this.markSinkGrace();
       this.manualScreen = type;
       this.pauseReason = 'user';
+      incMetric('manual_screens_total');
       this.transitionTo('paused', `manual ${type} screen`);
       this.autoRefresh.stop();
       this.emitAll();
@@ -1139,6 +1142,7 @@ export class Supervisor {
       this.emitStatus();
       void this.lock.run(async () => {
         if (!this.activePlaylist || this.shuttingDown) return;
+        incMetric('playlist_advances_total');
         try {
           await this.advancePlaylistLocked('offline');
         } catch (error) {
@@ -1220,6 +1224,7 @@ export class Supervisor {
     if (this.shuttingDown || this.stoppingSource > 0) return;
     if (!this.activeStreamer) return;
     if (!['live', 'starting'].includes(this.state)) return;
+    incMetric('source_exits_total');
     this.reconnects += 1;
     this.lastError = 'Stream-Quelle beendet';
     this.scheduleOfflinePauseLocked();
@@ -1239,6 +1244,7 @@ export class Supervisor {
 
   private scheduleReconnect(delayMs?: number): void {
     if (this.shuttingDown || !this.activeStreamer || this.reconnectTimer) return;
+    incMetric('source_reconnects_total');
     this.reconnectAttempts += 1;
     const delay = reconnectDelay(this.reconnectAttempts, this.settings, delayMs);
     if (this.state !== 'paused') this.transitionTo('reconnecting', 'reconnect scheduled');
@@ -1279,11 +1285,13 @@ export class Supervisor {
         this.watchdog.clearError();
         if (!this.chat) this.startChatLocked(this.activeStreamer);
         this.transitionTo('live');
+        incMetric('reconnect_success_total');
         this.emitAll();
         this.deps.logger.info({ streamer: this.activeStreamer.id }, 'Stream wieder verbunden');
       } catch (error) {
         const message = toErrorMessage(error);
         this.lastError = message;
+        incMetric('reconnect_failures_total');
         this.deps.logger.warn(
           { streamer: this.activeStreamer.id, err: message },
           'Neuverbindung fehlgeschlagen',
@@ -1331,6 +1339,7 @@ export class Supervisor {
     this.pauseReason = 'offline';
     this.manualScreen = null;
     this.transitionTo('paused');
+    incMetric('pause_starts_total');
     this.schedulePauseLimitLocked();
     this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
   }
@@ -1345,6 +1354,7 @@ export class Supervisor {
       this.pauseLimitTimer = undefined;
       void this.lock.run(async () => {
         if (this.shuttingDown || this.state !== 'paused') return;
+        incMetric('pause_limit_hits_total');
         this.deps.logger.warn({ minutes }, 'Maximale Pausendauer erreicht – Stream wird gestoppt');
         await this.stopInternalLocked();
       });
@@ -1490,6 +1500,7 @@ export class Supervisor {
 
   private async restartSinkLocked(): Promise<void> {
     if (!this.activeKey) return;
+    incMetric('sink_restarts_total');
     if (this.sinkRestartTimer) {
       clearTimeout(this.sinkRestartTimer);
       this.sinkRestartTimer = undefined;
@@ -1514,6 +1525,7 @@ export class Supervisor {
         return;
       }
       this.lastError = `Quelle liefert seit ${ageSeconds}s keine Daten`;
+      incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ageSeconds }, 'Quelle wird wegen Stall neu gestartet');
       this.stoppingSource += 1;
       try {
@@ -1544,6 +1556,7 @@ export class Supervisor {
       if (!this.activeStreamer || this.shuttingDown) return;
       if (this.state !== 'live' || this.playlistAdvancePending) return;
       this.lastError = reason;
+      incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ...context, reason }, 'Quelle wird neu gestartet');
       this.stoppingSource += 1;
       try {
@@ -1565,6 +1578,7 @@ export class Supervisor {
         return;
       }
       this.lastError = `Encoder liefert seit ${ageSeconds}s keinen Fortschritt`;
+      incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ageSeconds }, 'Sink wird neu gestartet');
       await this.restartSinkLocked();
     });
