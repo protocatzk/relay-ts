@@ -2,6 +2,13 @@ import type { Logger } from 'pino';
 import { AppError, NotFoundError, ValidationError, toErrorMessage } from '../../utils/errors.js';
 import type { YouTubeAuthRecord, YouTubeAuthStore } from './auth-store.js';
 import {
+  automationPolicy,
+  pickBroadcastToStart,
+  pickBroadcastsToComplete,
+  type AutomationPolicy,
+  type AutomationSettings,
+} from './automation.js';
+import {
   bindBroadcast,
   deleteBroadcast,
   fetchChannelInfo,
@@ -72,7 +79,7 @@ export interface CreateBroadcastInput {
   title: string;
   description?: string;
   scheduled_start: string;
-  privacy: 'public' | 'unlisted' | 'private';
+  privacy?: 'public' | 'unlisted' | 'private';
   enable_dvr?: boolean;
   enable_auto_start?: boolean;
   enable_auto_stop?: boolean;
@@ -107,6 +114,8 @@ export interface YouTubeAuthServiceOptions {
   store: YouTubeAuthStore;
   logger: Logger;
   now?: () => number;
+  /** Global automation defaults; per-broadcast overrides can be layered later. */
+  automation?: () => AutomationSettings;
 }
 
 /**
@@ -127,6 +136,26 @@ export class YouTubeAuthService {
   get configured(): boolean {
     const { clientId, clientSecret } = this.options.config;
     return Boolean(clientId && clientSecret);
+  }
+
+  private policy(): AutomationPolicy {
+    return automationPolicy(
+      this.options.automation?.() ?? {
+        auto_transition: true,
+        auto_start: true,
+        auto_stop: true,
+        default_privacy: 'unlisted',
+        default_dvr: true,
+      },
+    );
+  }
+
+  private get defaults(): { privacy: 'public' | 'unlisted' | 'private'; dvr: boolean } {
+    const settings = this.options.automation?.();
+    return {
+      privacy: settings?.default_privacy ?? 'unlisted',
+      dvr: settings?.default_dvr ?? true,
+    };
   }
 
   status(): YouTubeStatus {
@@ -314,10 +343,10 @@ export class YouTubeAuthService {
         scheduledStartTime,
       },
       status: {
-        privacyStatus: input.privacy,
+        privacyStatus: input.privacy ?? this.defaults.privacy,
       },
       contentDetails: {
-        enableDvr: input.enable_dvr ?? true,
+        enableDvr: input.enable_dvr ?? this.defaults.dvr,
         enableAutoStart: input.enable_auto_start ?? false,
         enableAutoStop: input.enable_auto_stop ?? false,
         recordFromStart: true,
@@ -333,7 +362,11 @@ export class YouTubeAuthService {
 
     this.broadcastsCache = null;
     this.options.logger.info(
-      { broadcast: created.id, stream: stream.id, privacy: input.privacy },
+      {
+        broadcast: created.id,
+        stream: stream.id,
+        privacy: input.privacy ?? this.defaults.privacy,
+      },
       'YouTube-Broadcast angelegt',
     );
     return mapBroadcast(
@@ -428,21 +461,14 @@ export class YouTubeAuthService {
   /** Best-effort: brings the broadcast bound to this key live. Never throws. */
   async onStreamStarted(streamKey: string): Promise<void> {
     if (!streamKey || !this.configured || !this.options.store.read()) return;
+    const policy = this.policy();
+    if (!policy.autoTransition || !policy.autoStart) return;
     try {
       const token = await this.accessToken();
       const stream = await this.findStreamForKey(token, streamKey);
       if (!stream) return;
       const broadcasts = await listBroadcasts(token);
-      const candidate = broadcasts
-        .filter((item) => item.contentDetails?.boundStreamId === stream.id)
-        .filter((item) =>
-          ['created', 'ready', 'testing'].includes(item.status?.lifeCycleStatus ?? ''),
-        )
-        .sort((a, b) =>
-          (a.snippet?.scheduledStartTime ?? '').localeCompare(
-            b.snippet?.scheduledStartTime ?? '',
-          ),
-        )[0];
+      const candidate = pickBroadcastToStart(broadcasts, stream.id, this.policy());
       if (!candidate) return;
       const status = candidate.status?.lifeCycleStatus;
       if (status === 'created') {
@@ -465,16 +491,14 @@ export class YouTubeAuthService {
   /** Best-effort: completes live broadcasts bound to a key that is no longer used. */
   async onStreamStopped(streamKey: string): Promise<void> {
     if (!streamKey || !this.configured || !this.options.store.read()) return;
+    const policy = this.policy();
+    if (!policy.autoTransition || !policy.autoStop) return;
     try {
       const token = await this.accessToken();
       const stream = await this.findStreamForKey(token, streamKey);
       if (!stream) return;
       const broadcasts = await listBroadcasts(token);
-      const live = broadcasts.filter(
-        (item) =>
-          item.contentDetails?.boundStreamId === stream.id &&
-          ['live', 'testing'].includes(item.status?.lifeCycleStatus ?? ''),
-      );
+      const live = pickBroadcastsToComplete(broadcasts, stream.id, this.policy());
       for (const item of live) {
         await transitionBroadcast(token, item.id, 'complete').catch(() => undefined);
       }

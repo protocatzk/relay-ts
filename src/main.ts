@@ -62,6 +62,7 @@ async function main(): Promise<void> {
     config: config.youtube,
     store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
     logger,
+    automation: () => settingsService.get().youtube,
   });
   if (config.youtube.clientId) {
     logger.info(

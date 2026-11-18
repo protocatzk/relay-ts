@@ -161,6 +161,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Auto-Transition läuft über `SupervisorDeps.youtube` als best-effort Hook:
   Start setzt den nächstgelegenen gebundenen Broadcast auf `live`, ein
   vollständiger Stop auf `complete`; Fehler dürfen den Stream nie beeinflussen.
+- Die Automatik ist über `settings.youtube` (`auto_transition`, `auto_start`,
+  `auto_stop`) und `YOUTUBE_*`-Env abschaltbar; Request-Werte (`privacy`,
+  `enable_dvr`) überschreiben nur den jeweiligen Broadcast. Auswahllogik in
+  `src/core/youtube/automation.ts`, inklusive Override-Resolver pro Broadcast.
 - Beim Anlegen mit Streamer wird der Ingest über den Stream-Key gesucht und
   gebunden; der Key wird nie an die API-Antwort oder ins Log gegeben.
 - App muss für Dauerbetrieb in Google Cloud `In production` sein; `Testing`

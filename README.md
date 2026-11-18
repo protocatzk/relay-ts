@@ -244,6 +244,8 @@ jedem Start.
 | `CHAT_API_URL` / `CHAT_API_KEY`               | Chatquelle                                  |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`   | YouTube-OAuth-Client (#18)                  |
 | `GOOGLE_REDIRECT_URI`                         | Exakt im Google-Client hinterlegte Callback-URI |
+| `YOUTUBE_AUTO_TRANSITION` / `_START` / `_STOP` | Broadcast-Automation (Default `true`)       |
+| `YOUTUBE_DEFAULT_PRIVACY` / `_DVR`            | Defaults für neue Broadcasts                |
 | `EARNINGS_PERIOD`                             | `today`, `24h`, `7d`, `30d`, `all`          |
 | `EARNINGS_VIEW`                               | `compact`, `standard`, `detailed`           |
 | `FFMPEG_BIN` / `YTDLP_BIN`                    | Binary-Pfade                                |

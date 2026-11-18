@@ -258,6 +258,14 @@ export const EarningsSettingsSchema = z.object({
   overlay_show_box: z.boolean().default(true),
 });
 
+export const YouTubeAutomationSettingsSchema = z.object({
+  auto_transition: z.boolean().default(true),
+  auto_start: z.boolean().default(true),
+  auto_stop: z.boolean().default(true),
+  default_privacy: z.enum(['public', 'unlisted', 'private']).default('unlisted'),
+  default_dvr: z.boolean().default(true),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -270,6 +278,7 @@ export const SettingsSchema = z.object({
   streaming: StreamingSettingsSchema.default(StreamingSettingsSchema.parse({})),
   earnings: EarningsSettingsSchema.default(EarningsSettingsSchema.parse({})),
   overlays: OverlaysSettingsSchema.default(OverlaysSettingsSchema.parse({})),
+  youtube: YouTubeAutomationSettingsSchema.default(YouTubeAutomationSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -283,6 +292,7 @@ export const StreamersFileSchema = z
 export type StreamerConfig = z.infer<typeof StreamerSchema>;
 export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
+export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

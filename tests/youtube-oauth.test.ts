@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/core/config/loader.js';
 import { YouTubeAuthStore } from '../src/core/youtube/auth-store.js';
 import { YouTubeAuthService } from '../src/core/youtube/service.js';
+import type { AutomationSettings } from '../src/core/youtube/automation.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -22,7 +23,15 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function harness(options: { configured?: boolean } = {}) {
+const DEFAULT_AUTOMATION: AutomationSettings = {
+  auto_transition: true,
+  auto_start: true,
+  auto_stop: true,
+  default_privacy: 'unlisted',
+  default_dvr: true,
+};
+
+function harness(options: { configured?: boolean; automation?: AutomationSettings } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-'));
   const file = join(dir, 'youtube-auth.json');
   const store = new YouTubeAuthStore(file, logger);
@@ -32,6 +41,7 @@ function harness(options: { configured?: boolean } = {}) {
     store,
     logger,
     now: () => now,
+    automation: () => options.automation ?? DEFAULT_AUTOMATION,
   });
   return {
     service,
@@ -112,6 +122,31 @@ describe('YouTube OAuth', () => {
       env: { SERVER_PORT: '4567', LOG_LEVEL: 'silent' },
     });
     expect(config.youtube.redirectUri).toBe('http://localhost:4567/api/youtube/oauth/callback');
+  });
+
+  it('ships automation defaults and allows env overrides', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-config-'));
+    const config = loadConfig({ cwd: dir, env: { LOG_LEVEL: 'silent' } });
+    expect(config.settings.youtube).toEqual(DEFAULT_AUTOMATION);
+
+    const overridden = loadConfig({
+      cwd: dir,
+      env: {
+        LOG_LEVEL: 'silent',
+        SETTINGS_ENV_OVERRIDES: 'true',
+        YOUTUBE_AUTO_TRANSITION: 'false',
+        YOUTUBE_AUTO_STOP: 'false',
+        YOUTUBE_DEFAULT_PRIVACY: 'public',
+        YOUTUBE_DEFAULT_DVR: 'false',
+      },
+    });
+    expect(overridden.settings.youtube).toMatchObject({
+      auto_transition: false,
+      auto_start: true,
+      auto_stop: false,
+      default_privacy: 'public',
+      default_dvr: false,
+    });
   });
 
   it('refuses to start without credentials', () => {
@@ -427,6 +462,50 @@ describe('YouTube broadcast management', () => {
       throw new Error(`unexpected fetch ${method} ${url}`);
     });
   }
+
+  it('uses automation defaults unless the request overrides them', async () => {
+    const { service, fetchMock } = await connected();
+    const bodies: Record<string, unknown>[] = [];
+    fetchMock.mockImplementation(
+      broadcastApi({
+        onCreate: (body) => bodies.push(body as Record<string, unknown>),
+      }),
+    );
+
+    await service.createBroadcast({
+      title: 'Default',
+      scheduled_start: '2026-01-02T11:00:00Z',
+    });
+    await service.createBroadcast({
+      title: 'Override',
+      scheduled_start: '2026-01-02T12:00:00Z',
+      privacy: 'private',
+      enable_dvr: false,
+    });
+
+    expect(bodies[0]).toMatchObject({
+      status: { privacyStatus: 'unlisted' },
+      contentDetails: { enableDvr: true },
+    });
+    expect(bodies[1]).toMatchObject({
+      status: { privacyStatus: 'private' },
+      contentDetails: { enableDvr: false },
+    });
+  });
+
+  it('skips automation entirely when the policy is disabled', async () => {
+    const context = harness({
+      automation: { ...DEFAULT_AUTOMATION, auto_transition: false },
+    });
+    const fetchMock = mockGoogle();
+    await connect(context.service);
+    context.advance(1000);
+    fetchMock.mockClear();
+
+    await context.service.onStreamStarted('streamer-key');
+    await context.service.onStreamStopped('streamer-key');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it('creates a new ingest, broadcast and binding', async () => {
     const { service, fetchMock } = await connected();

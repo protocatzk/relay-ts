@@ -53,6 +53,40 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 - Grobe Kosten: `liveBroadcasts.insert`, `liveStreams.insert`, `update`,
   `transition`, Thumbnail-Upload je ca. 50 Units; Listen je 1 Unit.
 
+## Automatik und Overrides
+
+Die Automation ist bewusst in Schichten aufgebaut, damit sie ohne Codeänderung
+abgeschaltet oder je Broadcast angepasst werden kann:
+
+```text
+Defaults → config/settings.yml → .env (nur mit SETTINGS_ENV_OVERRIDES=true)
+        → Request-Override beim Anlegen/Ändern
+```
+
+`config/settings.yml`:
+
+```yaml
+youtube:
+  auto_transition: true   # Hauptschalter für Start/Stop-Automatik
+  auto_start: true        # Broadcast beim Stream-Start live schalten
+  auto_stop: true         # Broadcast beim vollständigen Stop beenden
+  default_privacy: unlisted
+  default_dvr: true
+```
+
+Entsprechende Umgebungsvariablen: `YOUTUBE_AUTO_TRANSITION`,
+`YOUTUBE_AUTO_START`, `YOUTUBE_AUTO_STOP`, `YOUTUBE_DEFAULT_PRIVACY`,
+`YOUTUBE_DEFAULT_DVR`.
+
+**Pro Broadcast** überschreibt ein Request die Defaults: `privacy` und
+`enable_dvr` beim Anlegen/Ändern gelten nur für diesen Broadcast.
+`POST …/publish`, `…/transition` und `…/assign` sind explizite Einzelaktionen
+und ignorieren die Automatik vollständig.
+
+Die Auswahl logik liegt in `src/core/youtube/automation.ts` und akzeptiert
+zusätzlich einen Override-Resolver pro Broadcast-ID. Damit lässt sich später
+eine lokale Ausnahme-Datei ergänzen, ohne die Automatik umzubauen.
+
 ## Broadcasts anlegen und planen
 
 - **Anlegen** erzeugt Broadcast + Ingest und bindet beides. Wird ein Streamer
@@ -64,7 +98,8 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 - **Auto-Transition:** Beim Stream-Start schaltet RELAY den nächstgelegenen
   Broadcast des gebundenen Ingests auf `live`, beim vollständigen Stop auf
   `complete`. Pausenscreen und Streamerwechsel mit gleichem Key beenden den
-  Broadcast nicht. Der Hook ist best-effort und beeinflusst den Stream nie.
+  Broadcast nicht. Der Hook ist best-effort und beeinflusst den Stream nie;
+  abschaltbar über `youtube.auto_transition`.
 - **Titel** kommt beim Anlegen aus dem Formular (oder aus
   `YOUTUBE_TITLE_TEMPLATE` im Dashboard); Änderungen laufen über
   `PUT /api/youtube/broadcasts/:id`.

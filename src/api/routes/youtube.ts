@@ -16,7 +16,7 @@ const CreateBroadcastBody = z.object({
   title: z.string().trim().min(1).max(100),
   description: z.string().max(5000).optional(),
   scheduled_start: z.string().min(1).max(64),
-  privacy: z.enum(['public', 'unlisted', 'private']).default('unlisted'),
+  privacy: z.enum(['public', 'unlisted', 'private']).optional(),
   enable_dvr: z.boolean().optional(),
   enable_auto_start: z.boolean().optional(),
   enable_auto_stop: z.boolean().optional(),
