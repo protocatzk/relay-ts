@@ -292,7 +292,7 @@ onMounted(() => {
                 </div>
                 <div class="cell-sub mono">{{ streamer.id }} · @{{ streamer.tiktok.replace(/^@/, '') }}</div>
               </td>
-              <td>
+              <td data-label="Status">
                 <div class="cell-stack">
                   <span class="online-indicator" :class="onlineClass(streamer)">
                     <span class="dot" aria-hidden="true"></span>
@@ -301,13 +301,13 @@ onMounted(() => {
                   <span v-if="streamer.status.active" class="badge tone-success badge-xs">Aktiv</span>
                 </div>
               </td>
-              <td><span class="badge tone-neutral">{{ streamer.quality }}</span></td>
-              <td>
+              <td data-label="Qualität"><span class="badge tone-neutral">{{ streamer.quality }}</span></td>
+              <td data-label="YouTube-Key">
                 <span class="badge" :class="streamer.youtube_key_set ? 'tone-success' : 'tone-danger'">
                   {{ keyLabel(streamer) }}
                 </span>
               </td>
-              <td>
+              <td data-label="Aktionen">
                 <div class="row-actions">
                   <button
                     v-if="streamer.status.active"

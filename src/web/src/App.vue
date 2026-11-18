@@ -23,6 +23,10 @@ watch(
   },
 );
 
+watch(sidebarOpen, (open) => {
+  document.body.classList.toggle('nav-open', open);
+});
+
 onMounted(() => {
   document.addEventListener('keydown', onKeydown);
   if (store.authenticated) void bootstrap();
@@ -37,6 +41,7 @@ watch(
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown);
+  document.body.classList.remove('nav-open');
   stopEvents();
 });
 </script>

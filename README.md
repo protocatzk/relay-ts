@@ -38,6 +38,7 @@ eigenständig umgesetzt.
   YouTube-Titel-Vorschau per Template
 - **Einnahmen-Monitor** (TokTracker-kompatibel) für Dashboard und Overlay
 - **Web-Dashboard** (Vue 3) im TokTracker-Design mit Live-Updates per SSE
+  und mobiler Navigation (Drawer, Touch-Targets, responsive Karten/Tabellen)
 - **Auth**: Passwort-Session-Cookie, Basic Auth und API-Token
 - **Telegram-Login**: Freigabe per Bot-Chat, optional parallel zum Passwort
 - **Reverse-Proxy-ready**: nginx-proxy/Let's-Encrypt-Override für öffentliche Domains
