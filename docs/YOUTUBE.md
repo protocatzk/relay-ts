@@ -53,6 +53,36 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 - Grobe Kosten: `liveBroadcasts.insert`, `liveStreams.insert`, `update`,
   `transition`, Thumbnail-Upload je ca. 50 Units; Listen je 1 Unit.
 
+## Broadcasts anlegen und planen
+
+- **Anlegen** erzeugt Broadcast + Ingest und bindet beides. Wird ein Streamer
+  ausgewählt, sucht RELAY den passenden Ingest über den Stream-Key und bindet
+  ihn; der Key selbst wird nie übertragen oder angezeigt.
+- **Sichtbarkeit** ist standardmäßig `unlisted`. Ein späteres
+  **Veröffentlichen** setzt `privacyStatus=public` mit einem einzigen
+  `liveBroadcasts.update` – ca. 50 Quota-Einheiten, kein Polling.
+- **Auto-Transition:** Beim Stream-Start schaltet RELAY den nächstgelegenen
+  Broadcast des gebundenen Ingests auf `live`, beim vollständigen Stop auf
+  `complete`. Pausenscreen und Streamerwechsel mit gleichem Key beenden den
+  Broadcast nicht. Der Hook ist best-effort und beeinflusst den Stream nie.
+- **Titel** kommt beim Anlegen aus dem Formular (oder aus
+  `YOUTUBE_TITLE_TEMPLATE` im Dashboard); Änderungen laufen über
+  `PUT /api/youtube/broadcasts/:id`.
+
+### Quota-Kosten (ca.)
+
+| Aktion | Units |
+| --- | --- |
+| Broadcast anlegen (`insert`) | 50 |
+| Ingest anlegen (`liveStreams.insert`) | 50 |
+| Binden (`bind`) | 50 |
+| Statuswechsel (`transition`) | 50 |
+| Aktualisieren / Veröffentlichen | 50 |
+| Listen (`list`) | 1 |
+
+Bei 10.000 Units/Tag sind das ca. 60–70 vollständige Anlege-Vorgänge pro Tag.
+Die Broadcast-Liste wird 20 s gecacht.
+
 ## Tokenablage
 
 - Datei: `data/youtube-auth.json`, Modus `0600`
@@ -80,6 +110,12 @@ Zustimmungsbildschirm den neuen Status übernimmt.
 | --- | --- | --- |
 | `GET` | `/api/youtube/status` | Verbindungsstatus ohne Tokens |
 | `GET` | `/api/youtube/broadcasts` | Broadcasts inkl. Status und Ingest-Health |
+| `POST` | `/api/youtube/broadcasts` | Broadcast anlegen und binden |
+| `PUT` | `/api/youtube/broadcasts/:id` | Titel, Beschreibung, Zeit, Sichtbarkeit |
+| `POST` | `/api/youtube/broadcasts/:id/publish` | Sichtbarkeit auf `public` setzen |
+| `POST` | `/api/youtube/broadcasts/:id/transition` | `testing`, `live`, `complete` |
+| `POST` | `/api/youtube/broadcasts/:id/assign` | Ingest eines Streamers binden |
+| `DELETE` | `/api/youtube/broadcasts/:id` | Broadcast löschen |
 | `GET` | `/api/youtube/oauth/start` | `{ url }` für die Google-Zustimmung |
 | `GET` | `/api/youtube/oauth/callback` | Google-Redirect; State + PKCE, ohne Session |
 | `POST` | `/api/youtube/oauth/disconnect` | Token widerrufen und Verbindung löschen |

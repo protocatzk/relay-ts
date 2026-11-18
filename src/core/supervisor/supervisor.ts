@@ -64,6 +64,11 @@ export interface SupervisorDeps {
   registerSecret: (secret: string | undefined) => void;
   /** Injectable for tests; defaults to the real TikTok resolver. */
   resolver?: { resolve(streamer: StreamerConfig): Promise<ResolvedStream> };
+  /** Optional YouTube broadcast automation; failures must never affect the stream. */
+  youtube?: {
+    streamStarted?: (streamKey: string) => void | Promise<void>;
+    streamStopped?: (streamKey: string) => void | Promise<void>;
+  };
 }
 
 export interface PlaylistView {
@@ -591,6 +596,7 @@ export class Supervisor {
     this.transitionTo('live');
     this.emitAll();
     this.deps.logger.info({ file, playlist: options.playlist.playlist.id }, 'Lokales Video gestartet');
+    this.notifyYouTubeStarted(options.key);
     return this.buildStatus();
   }
 
@@ -658,6 +664,7 @@ export class Supervisor {
     if (!reusable) {
       this.buffer.reset();
       this.resetTimeline();
+      if (previousKey && previousKey !== key) this.notifyYouTubeStopped(previousKey);
       if (this.sink.running) await this.stopSinkLocked();
       this.chatEngine?.stop();
       this.chatEngine = candidateEngine;
@@ -720,6 +727,7 @@ export class Supervisor {
       { streamer: streamer.id, key: '***', reusedSink: reusable, introSeconds },
       introSeconds > 0 ? 'Startbildschirm aktiv' : 'Stream gestartet',
     );
+    this.notifyYouTubeStarted(key);
     return this.buildStatus();
   }
 
@@ -943,11 +951,32 @@ export class Supervisor {
     this.chat.start();
   }
 
+  private notifyYouTubeStarted(key: string): void {
+    const hook = this.deps.youtube?.streamStarted;
+    if (!hook || !key) return;
+    void Promise.resolve()
+      .then(() => hook(key))
+      .catch((error: unknown) => {
+        this.deps.logger.warn({ err: toErrorMessage(error) }, 'YouTube-Autostart fehlgeschlagen');
+      });
+  }
+
+  private notifyYouTubeStopped(key: string): void {
+    const hook = this.deps.youtube?.streamStopped;
+    if (!hook || !key) return;
+    void Promise.resolve()
+      .then(() => hook(key))
+      .catch((error: unknown) => {
+        this.deps.logger.warn({ err: toErrorMessage(error) }, 'YouTube-Autostop fehlgeschlagen');
+      });
+  }
+
   async stop(): Promise<StatusSnapshot> {
     return this.lock.run(() => this.stopInternalLocked());
   }
 
   private async stopInternalLocked(): Promise<StatusSnapshot> {
+    const stoppingKey = this.activeKey;
     this.transitionTo('stopping');
     this.pauseReason = null;
     this.manualScreen = null;
@@ -956,6 +985,7 @@ export class Supervisor {
     this.watchdog.reset();
     await this.stopSourceAndChatLocked();
     await this.stopSinkLocked();
+    this.notifyYouTubeStopped(stoppingKey);
     this.chatEngine?.stop();
     this.buffer.reset();
     this.overlays.clear();

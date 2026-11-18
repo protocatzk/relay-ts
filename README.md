@@ -665,6 +665,12 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET`    | `/api/preview.ts`           | Live-Vorschau als MPEG-TS          |
 | `GET`    | `/api/youtube/status`       | YouTube-Verbindung ohne Tokens      |
 | `GET`    | `/api/youtube/broadcasts`   | Broadcasts inkl. Ingest-Health      |
+| `POST`   | `/api/youtube/broadcasts`   | Broadcast anlegen und binden        |
+| `PUT`    | `/api/youtube/broadcasts/:id` | Metadaten und Zeitplan ändern     |
+| `POST`   | `/api/youtube/broadcasts/:id/publish` | Broadcast öffentlich stellen |
+| `POST`   | `/api/youtube/broadcasts/:id/transition` | `testing`, `live`, `complete` |
+| `POST`   | `/api/youtube/broadcasts/:id/assign` | Ingest eines Streamers binden |
+| `DELETE` | `/api/youtube/broadcasts/:id` | Broadcast löschen                 |
 | `GET`    | `/api/youtube/oauth/start`  | Google-Zustimmungs-URL             |
 | `POST`   | `/api/youtube/oauth/disconnect` | YouTube-Verbindung trennen     |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |

@@ -420,6 +420,7 @@ export interface YouTubeStatus {
 export interface YouTubeBroadcast {
   id: string;
   title: string;
+  description: string;
   status: string;
   privacy: string;
   scheduled_start: string | null;
@@ -436,6 +437,21 @@ export interface YouTubeBroadcastList {
   items: YouTubeBroadcast[];
   fetched_at: string;
 }
+
+export interface YouTubeBroadcastInput {
+  title: string;
+  description?: string;
+  scheduled_start: string;
+  privacy: 'public' | 'unlisted' | 'private';
+  enable_dvr?: boolean;
+  enable_auto_start?: boolean;
+  enable_auto_stop?: boolean;
+  streamer_id?: string;
+}
+
+export type YouTubeBroadcastUpdate = Partial<Omit<YouTubeBroadcastInput, 'streamer_id'>>;
+
+export type YouTubeBroadcastTransition = 'testing' | 'live' | 'complete';
 
 export interface EarningsSettings {
   enabled: boolean;

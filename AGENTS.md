@@ -158,6 +158,11 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Fehlermeldungen; `GOOGLE_CLIENT_SECRET` ist im Redactor registriert.
 - `invalid_grant` beim Refresh löscht die Verbindung und verlangt erneutes
   Verbinden (`youtube_reconnect_required`).
+- Auto-Transition läuft über `SupervisorDeps.youtube` als best-effort Hook:
+  Start setzt den nächstgelegenen gebundenen Broadcast auf `live`, ein
+  vollständiger Stop auf `complete`; Fehler dürfen den Stream nie beeinflussen.
+- Beim Anlegen mit Streamer wird der Ingest über den Stream-Key gesucht und
+  gebunden; der Key wird nie an die API-Antwort oder ins Log gegeben.
 - App muss für Dauerbetrieb in Google Cloud `In production` sein; `Testing`
   läuft nach 7 Tagen ab. Setup: `docs/YOUTUBE.md`.
 

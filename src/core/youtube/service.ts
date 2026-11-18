@@ -1,10 +1,18 @@
 import type { Logger } from 'pino';
-import { AppError, toErrorMessage } from '../../utils/errors.js';
+import { AppError, NotFoundError, ValidationError, toErrorMessage } from '../../utils/errors.js';
 import type { YouTubeAuthRecord, YouTubeAuthStore } from './auth-store.js';
 import {
+  bindBroadcast,
+  deleteBroadcast,
   fetchChannelInfo,
+  getBroadcast,
+  insertBroadcast,
+  insertLiveStream,
   listBroadcasts,
   listLiveStreams,
+  transitionBroadcast,
+  updateBroadcast,
+  type BroadcastUpdateBody,
   type LiveBroadcastResource,
   type LiveStreamResource,
 } from './client.js';
@@ -42,6 +50,7 @@ export type CallbackResult =
 export interface BroadcastSummary {
   id: string;
   title: string;
+  description: string;
   status: string;
   privacy: string;
   scheduled_start: string | null;
@@ -58,6 +67,25 @@ export interface BroadcastList {
   items: BroadcastSummary[];
   fetched_at: string;
 }
+
+export interface CreateBroadcastInput {
+  title: string;
+  description?: string;
+  scheduled_start: string;
+  privacy: 'public' | 'unlisted' | 'private';
+  enable_dvr?: boolean;
+  enable_auto_start?: boolean;
+  enable_auto_stop?: boolean;
+}
+
+export interface UpdateBroadcastInput {
+  title?: string;
+  description?: string;
+  scheduled_start?: string;
+  privacy?: 'public' | 'unlisted' | 'private';
+}
+
+export type BroadcastTransition = 'testing' | 'live' | 'complete';
 
 const BROADCAST_STATUS_ORDER: Record<string, number> = {
   live: 0,
@@ -264,6 +292,209 @@ export class YouTubeAuthService {
     return data;
   }
 
+  async createBroadcast(
+    input: CreateBroadcastInput,
+    streamerKey?: string,
+  ): Promise<BroadcastSummary> {
+    const token = await this.accessToken();
+    const scheduledStartTime = normalizeScheduled(input.scheduled_start);
+    const stream = streamerKey
+      ? await this.findStreamForKey(token, streamerKey)
+      : await insertLiveStream(token, `${input.title} (RELAY)`);
+    if (!stream) {
+      throw new ValidationError(
+        'Für den Stream-Key existiert kein YouTube-Ingest. Bitte zuerst in YouTube Studio einen Stream anlegen.',
+      );
+    }
+
+    const created = await insertBroadcast(token, {
+      snippet: {
+        title: input.title,
+        description: input.description ?? '',
+        scheduledStartTime,
+      },
+      status: {
+        privacyStatus: input.privacy,
+      },
+      contentDetails: {
+        enableDvr: input.enable_dvr ?? true,
+        enableAutoStart: input.enable_auto_start ?? false,
+        enableAutoStop: input.enable_auto_stop ?? false,
+        recordFromStart: true,
+      },
+    });
+
+    try {
+      await bindBroadcast(token, created.id, stream.id);
+    } catch (error) {
+      await deleteBroadcast(token, created.id).catch(() => undefined);
+      throw error;
+    }
+
+    this.broadcastsCache = null;
+    this.options.logger.info(
+      { broadcast: created.id, stream: stream.id, privacy: input.privacy },
+      'YouTube-Broadcast angelegt',
+    );
+    return mapBroadcast(
+      { ...created, contentDetails: { boundStreamId: stream.id } },
+      [stream],
+    );
+  }
+
+  async updateBroadcastById(
+    id: string,
+    patch: UpdateBroadcastInput,
+  ): Promise<BroadcastSummary> {
+    const token = await this.accessToken();
+    const current = await getBroadcast(token, id);
+    if (!current) throw new NotFoundError('Broadcast wurde nicht gefunden');
+
+    const body: BroadcastUpdateBody = {};
+    const snippet: NonNullable<BroadcastUpdateBody['snippet']> = {};
+    if (patch.title !== undefined) snippet.title = patch.title;
+    if (patch.description !== undefined) snippet.description = patch.description;
+    if (patch.scheduled_start !== undefined) {
+      snippet.scheduledStartTime = normalizeScheduled(patch.scheduled_start);
+    }
+    if (Object.keys(snippet).length > 0) body.snippet = snippet;
+    if (patch.privacy !== undefined) body.status = { privacyStatus: patch.privacy };
+
+    if (!body.snippet && !body.status) {
+      return mapBroadcast(current, []);
+    }
+
+    const updated = await updateBroadcast(token, id, body);
+    this.broadcastsCache = null;
+    this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast aktualisiert');
+    return mapBroadcast(
+      {
+        ...updated,
+        contentDetails: updated.contentDetails ?? current.contentDetails,
+      },
+      [],
+    );
+  }
+
+  /** Makes a previously unlisted broadcast public; one write costs ~50 quota units. */
+  async publishBroadcast(id: string): Promise<BroadcastSummary> {
+    return this.updateBroadcastById(id, { privacy: 'public' });
+  }
+
+  async transitionBroadcastById(
+    id: string,
+    status: BroadcastTransition,
+  ): Promise<{ ok: true; status: BroadcastTransition }> {
+    const token = await this.accessToken();
+    try {
+      await transitionBroadcast(token, id, status);
+    } catch (error) {
+      if (error instanceof AppError && /invalidTransition|not.*ready|state/i.test(error.message)) {
+        throw new ValidationError(
+          `Der Broadcast kann aktuell nicht auf "${status}" gesetzt werden. Prüfe Ingest und Status in YouTube Studio.`,
+        );
+      }
+      throw error;
+    }
+    this.broadcastsCache = null;
+    this.options.logger.info({ broadcast: id, status }, 'YouTube-Broadcast-Status gesetzt');
+    return { ok: true, status };
+  }
+
+  async deleteBroadcastById(id: string): Promise<void> {
+    const token = await this.accessToken();
+    await deleteBroadcast(token, id);
+    this.broadcastsCache = null;
+    this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast gelöscht');
+  }
+
+  async assignBroadcast(
+    id: string,
+    streamerKey: string,
+  ): Promise<{ ok: true; stream_status: string | null }> {
+    const token = await this.accessToken();
+    const stream = await this.findStreamForKey(token, streamerKey);
+    if (!stream) {
+      throw new ValidationError(
+        'Für den Stream-Key existiert kein YouTube-Ingest. Bitte zuerst in YouTube Studio einen Stream anlegen.',
+      );
+    }
+    await bindBroadcast(token, id, stream.id);
+    this.broadcastsCache = null;
+    this.options.logger.info({ broadcast: id, stream: stream.id }, 'YouTube-Broadcast zugeordnet');
+    return { ok: true, stream_status: stream.status?.streamStatus ?? null };
+  }
+
+  /** Best-effort: brings the broadcast bound to this key live. Never throws. */
+  async onStreamStarted(streamKey: string): Promise<void> {
+    if (!streamKey || !this.configured || !this.options.store.read()) return;
+    try {
+      const token = await this.accessToken();
+      const stream = await this.findStreamForKey(token, streamKey);
+      if (!stream) return;
+      const broadcasts = await listBroadcasts(token);
+      const candidate = broadcasts
+        .filter((item) => item.contentDetails?.boundStreamId === stream.id)
+        .filter((item) =>
+          ['created', 'ready', 'testing'].includes(item.status?.lifeCycleStatus ?? ''),
+        )
+        .sort((a, b) =>
+          (a.snippet?.scheduledStartTime ?? '').localeCompare(
+            b.snippet?.scheduledStartTime ?? '',
+          ),
+        )[0];
+      if (!candidate) return;
+      const status = candidate.status?.lifeCycleStatus;
+      if (status === 'created') {
+        await transitionBroadcast(token, candidate.id, 'testing').catch(() => undefined);
+      }
+      await transitionBroadcast(token, candidate.id, 'live');
+      this.broadcastsCache = null;
+      this.options.logger.info(
+        { broadcast: candidate.id },
+        'YouTube-Broadcast automatisch live geschaltet',
+      );
+    } catch (error) {
+      this.options.logger.warn(
+        { err: toErrorMessage(error) },
+        'YouTube-Broadcast konnte nicht automatisch gestartet werden',
+      );
+    }
+  }
+
+  /** Best-effort: completes live broadcasts bound to a key that is no longer used. */
+  async onStreamStopped(streamKey: string): Promise<void> {
+    if (!streamKey || !this.configured || !this.options.store.read()) return;
+    try {
+      const token = await this.accessToken();
+      const stream = await this.findStreamForKey(token, streamKey);
+      if (!stream) return;
+      const broadcasts = await listBroadcasts(token);
+      const live = broadcasts.filter(
+        (item) =>
+          item.contentDetails?.boundStreamId === stream.id &&
+          ['live', 'testing'].includes(item.status?.lifeCycleStatus ?? ''),
+      );
+      for (const item of live) {
+        await transitionBroadcast(token, item.id, 'complete').catch(() => undefined);
+      }
+      if (live.length > 0) this.broadcastsCache = null;
+    } catch (error) {
+      this.options.logger.warn(
+        { err: toErrorMessage(error) },
+        'YouTube-Broadcast konnte nicht automatisch beendet werden',
+      );
+    }
+  }
+
+  private async findStreamForKey(
+    accessToken: string,
+    streamKey: string,
+  ): Promise<LiveStreamResource | null> {
+    const streams = await listLiveStreams(accessToken);
+    return streams.find((item) => item.cdn?.ingestionInfo?.streamName === streamKey) ?? null;
+  }
+
   private async refresh(record: YouTubeAuthRecord): Promise<string> {
     if (!this.configured) {
       throw new AppError(
@@ -313,6 +544,14 @@ export class YouTubeAuthService {
   }
 }
 
+function normalizeScheduled(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ValidationError('Die Startzeit ist ungültig');
+  }
+  return date.toISOString();
+}
+
 function mapBroadcast(
   broadcast: LiveBroadcastResource,
   streams: LiveStreamResource[],
@@ -322,6 +561,7 @@ function mapBroadcast(
   return {
     id: broadcast.id,
     title: broadcast.snippet?.title ?? '',
+    description: broadcast.snippet?.description ?? '',
     status: broadcast.status?.lifeCycleStatus ?? 'created',
     privacy: broadcast.status?.privacyStatus ?? 'private',
     scheduled_start: broadcast.snippet?.scheduledStartTime ?? null,

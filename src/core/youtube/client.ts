@@ -51,25 +51,63 @@ export interface LiveStreamResource {
     streamStatus?: string;
     healthStatus?: { status?: string };
   };
+  cdn?: {
+    ingestionInfo?: { streamName?: string };
+  };
+}
+
+export interface BroadcastInsertBody {
+  snippet: {
+    title: string;
+    description?: string;
+    scheduledStartTime: string;
+  };
+  status: {
+    privacyStatus: 'public' | 'unlisted' | 'private';
+    selfDeclaredMadeForKids?: boolean;
+  };
+  contentDetails: {
+    enableDvr?: boolean;
+    enableAutoStart?: boolean;
+    enableAutoStop?: boolean;
+    recordFromStart?: boolean;
+  };
+}
+
+export interface BroadcastUpdateBody {
+  snippet?: {
+    title?: string;
+    description?: string;
+    scheduledStartTime?: string;
+  };
+  status?: {
+    privacyStatus?: 'public' | 'unlisted' | 'private';
+  };
 }
 
 async function request<T>(
   accessToken: string,
   path: string,
   params: Record<string, string | number | undefined> = {},
+  init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
   }
 
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${accessToken}`,
+    accept: 'application/json',
+  };
+  if (init.body !== undefined) headers['content-type'] = 'application/json';
+
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        accept: 'application/json',
-      },
+      method: init.method ?? 'GET',
+      headers,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch {
@@ -126,7 +164,7 @@ export async function listBroadcasts(
 /** Lists ingest streams; the RTMP key inside `cdn` is intentionally dropped. */
 export async function listLiveStreams(accessToken: string): Promise<LiveStreamResource[]> {
   const data = await request<{ items?: LiveStreamResource[] }>(accessToken, '/liveStreams', {
-    part: 'id,status',
+    part: 'id,status,cdn',
     mine: 'true',
     maxResults: 50,
   });
@@ -136,5 +174,91 @@ export async function listLiveStreams(accessToken: string): Promise<LiveStreamRe
       streamStatus: item.status?.streamStatus,
       healthStatus: { status: item.status?.healthStatus?.status },
     },
+    cdn: { ingestionInfo: { streamName: item.cdn?.ingestionInfo?.streamName } },
   }));
+}
+
+export async function getBroadcast(
+  accessToken: string,
+  id: string,
+): Promise<LiveBroadcastResource | null> {
+  const data = await request<{ items?: LiveBroadcastResource[] }>(accessToken, '/liveBroadcasts', {
+    part: 'snippet,status,contentDetails',
+    id,
+  });
+  return data.items?.[0] ?? null;
+}
+
+export async function insertBroadcast(
+  accessToken: string,
+  body: BroadcastInsertBody,
+): Promise<LiveBroadcastResource> {
+  return request<LiveBroadcastResource>(
+    accessToken,
+    '/liveBroadcasts',
+    { part: 'snippet,status,contentDetails' },
+    { method: 'POST', body },
+  );
+}
+
+export async function updateBroadcast(
+  accessToken: string,
+  id: string,
+  body: BroadcastUpdateBody,
+): Promise<LiveBroadcastResource> {
+  return request<LiveBroadcastResource>(
+    accessToken,
+    '/liveBroadcasts',
+    { part: 'snippet,status' },
+    { method: 'PUT', body: { id, ...body } },
+  );
+}
+
+export async function bindBroadcast(
+  accessToken: string,
+  id: string,
+  streamId: string,
+): Promise<LiveBroadcastResource> {
+  return request<LiveBroadcastResource>(
+    accessToken,
+    '/liveBroadcasts/bind',
+    { part: 'id,contentDetails', id, streamId },
+    { method: 'POST' },
+  );
+}
+
+export async function transitionBroadcast(
+  accessToken: string,
+  id: string,
+  status: 'testing' | 'live' | 'complete',
+): Promise<LiveBroadcastResource> {
+  return request<LiveBroadcastResource>(
+    accessToken,
+    '/liveBroadcasts/transition',
+    { part: 'status', broadcastStatus: status, id },
+    { method: 'POST' },
+  );
+}
+
+export async function deleteBroadcast(accessToken: string, id: string): Promise<void> {
+  await request<null>(accessToken, '/liveBroadcasts', { id }, { method: 'DELETE' });
+}
+
+export async function insertLiveStream(
+  accessToken: string,
+  title: string,
+): Promise<LiveStreamResource> {
+  return request<LiveStreamResource>(
+    accessToken,
+    '/liveStreams',
+    { part: 'snippet,status,cdn' },
+    {
+      method: 'POST',
+      body: {
+        snippet: { title: title.slice(0, 128) },
+        cdn: { ingestionType: 'rtmp', frameRate: 'variable', resolution: 'variable' },
+        status: { streamStatus: 'active' },
+      },
+    },
+  );
 }

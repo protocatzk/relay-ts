@@ -77,6 +77,10 @@ async function main(): Promise<void> {
     bus,
     redact: redactor.apply,
     registerSecret: (secret) => redactor.add(secret),
+    youtube: {
+      streamStarted: (key) => youtubeAuth.onStreamStarted(key),
+      streamStopped: (key) => youtubeAuth.onStreamStopped(key),
+    },
   });
   const telegramBot = config.server.telegramAuth
     ? new TelegramBot({

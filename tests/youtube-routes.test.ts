@@ -22,6 +22,7 @@ const auth = { authorization: 'Bearer api-token' };
 
 let app: FastifyInstance;
 let service: YouTubeAuthService;
+let store: StreamerStore;
 
 beforeAll(async () => {
   const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-routes-'));
@@ -35,6 +36,12 @@ beforeAll(async () => {
       LOG_LEVEL: 'silent',
     },
   });
+  store = new StreamerStore(
+    config.paths.streamersFile,
+    { streamers: [], playlists: [] },
+    logger,
+  );
+  store.create({ id: 'alpha', name: 'Alpha', tiktok: 'alpha', youtube_key: 'streamer-key' });
   service = new YouTubeAuthService({
     config: config.youtube,
     store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
@@ -43,11 +50,7 @@ beforeAll(async () => {
   app = await buildServer({
     config,
     logger,
-    store: new StreamerStore(
-      config.paths.streamersFile,
-      { streamers: [], playlists: [] },
-      logger,
-    ),
+    store,
     settingsService: new SettingsService(config.paths.settingsFile, DEFAULT_SETTINGS, logger),
     supervisor: {} as unknown as Supervisor,
     bus: new EventBus(),
@@ -99,7 +102,7 @@ describe('YouTube routes', () => {
   it('completes the OAuth round trip from start to callback', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: string | URL | Request) => {
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
         if (url.startsWith('https://oauth2.googleapis.com/token')) {
           return new Response(
@@ -118,7 +121,7 @@ describe('YouTube routes', () => {
             { status: 200, headers: { 'content-type': 'application/json' } },
           );
         }
-        if (url.includes('/youtube/v3/liveBroadcasts')) {
+        if (url.includes('/youtube/v3/liveBroadcasts') && (init?.method ?? 'GET') === 'GET') {
           return new Response(
             JSON.stringify({
               items: [
@@ -136,7 +139,35 @@ describe('YouTube routes', () => {
         if (url.includes('/youtube/v3/liveStreams')) {
           return new Response(
             JSON.stringify({
-              items: [{ id: 'stream-1', status: { streamStatus: 'active' } }],
+              items: [
+                {
+                  id: 'stream-1',
+                  status: { streamStatus: 'active' },
+                  cdn: { ingestionInfo: { streamName: 'streamer-key' } },
+                },
+              ],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        if (url.includes('/liveBroadcasts/bind')) {
+          return new Response(
+            JSON.stringify({ id: 'bc-1', contentDetails: { boundStreamId: 'stream-1' } }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        if (url.includes('/liveBroadcasts/transition')) {
+          return new Response(JSON.stringify({ id: 'bc-1' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        if (url.includes('/youtube/v3/liveBroadcasts') && init?.method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              id: 'bc-1',
+              snippet: { title: 'Neu', scheduledStartTime: '2026-01-02T11:00:00.000Z' },
+              status: { lifeCycleStatus: 'created', privacyStatus: 'unlisted' },
             }),
             { status: 200, headers: { 'content-type': 'application/json' } },
           );
@@ -187,6 +218,40 @@ describe('YouTube routes', () => {
       }),
     ]);
     expect(JSON.stringify(broadcasts.json())).not.toContain('streamName');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts',
+      headers: auth,
+      payload: {
+        title: 'Neu',
+        scheduled_start: '2026-01-02T11:00:00Z',
+        streamer_id: 'alpha',
+      },
+    });
+    expect(created.statusCode).toBe(200);
+    expect(created.json()).toMatchObject({
+      id: 'bc-1',
+      privacy: 'unlisted',
+      bound_stream_id: 'stream-1',
+    });
+
+    const transition = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts/bc-1/transition',
+      headers: auth,
+      payload: { status: 'live' },
+    });
+    expect(transition.statusCode).toBe(200);
+    expect(transition.json()).toEqual({ ok: true, status: 'live' });
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts/bc-1/transition',
+      headers: auth,
+      payload: { status: 'nope' },
+    });
+    expect(invalid.statusCode).toBe(400);
 
     const disconnect = await app.inject({
       method: 'POST',

@@ -28,7 +28,11 @@ import type {
   TelegramLoginRequest,
   TelegramLoginStatus,
   TitlePreview,
+  YouTubeBroadcast,
+  YouTubeBroadcastInput,
   YouTubeBroadcastList,
+  YouTubeBroadcastTransition,
+  YouTubeBroadcastUpdate,
   YouTubeStatus,
 } from './types';
 
@@ -418,6 +422,32 @@ export const api = {
     status: () => request<YouTubeStatus>('/api/youtube/status'),
     start: () => request<{ url: string }>('/api/youtube/oauth/start'),
     broadcasts: () => request<YouTubeBroadcastList>('/api/youtube/broadcasts'),
+    createBroadcast: (input: YouTubeBroadcastInput) =>
+      request<YouTubeBroadcast>('/api/youtube/broadcasts', { method: 'POST', body: input }),
+    updateBroadcast: (id: string, patch: YouTubeBroadcastUpdate) =>
+      request<YouTubeBroadcast>(`/api/youtube/broadcasts/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: patch,
+      }),
+    publishBroadcast: (id: string) =>
+      request<YouTubeBroadcast>(
+        `/api/youtube/broadcasts/${encodeURIComponent(id)}/publish`,
+        { method: 'POST' },
+      ),
+    transitionBroadcast: (id: string, status: YouTubeBroadcastTransition) =>
+      request<{ ok: true; status: YouTubeBroadcastTransition }>(
+        `/api/youtube/broadcasts/${encodeURIComponent(id)}/transition`,
+        { method: 'POST', body: { status } },
+      ),
+    assignBroadcast: (id: string, streamerId: string) =>
+      request<{ ok: true; stream_status: string | null }>(
+        `/api/youtube/broadcasts/${encodeURIComponent(id)}/assign`,
+        { method: 'POST', body: { streamer_id: streamerId } },
+      ),
+    deleteBroadcast: (id: string) =>
+      request<{ ok: true }>(`/api/youtube/broadcasts/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
     disconnect: () =>
       request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
   },

@@ -2,11 +2,18 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
-import type { YouTubeBroadcast, YouTubeStatus } from '@/src/api/types';
+import type {
+  YouTubeBroadcast,
+  YouTubeBroadcastInput,
+  YouTubeStatus,
+} from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
 import { useToast } from '@/src/composables/useToast';
+import { useStore } from '@/src/composables/useStore';
+import YouTubeBroadcastEditor from '@/src/components/YouTubeBroadcastEditor.vue';
 
 const { pushToast } = useToast();
+const { store } = useStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -19,6 +26,11 @@ const broadcasts = ref<YouTubeBroadcast[]>([]);
 const broadcastsLoading = ref(false);
 const broadcastsError = ref('');
 const broadcastsFetchedAt = ref<string | null>(null);
+const editorOpen = ref(false);
+const editing = ref<YouTubeBroadcast | null>(null);
+const saving = ref(false);
+const editorError = ref('');
+const actingId = ref<string | null>(null);
 
 const BROADCAST_STATUS: Record<string, { label: string; tone: string }> = {
   live: { label: 'Live', tone: 'tone-success' },
@@ -124,6 +136,95 @@ async function refresh(): Promise<void> {
   await loadBroadcasts();
 }
 
+function openCreate(): void {
+  editing.value = null;
+  editorError.value = '';
+  editorOpen.value = true;
+}
+
+function openEdit(broadcast: YouTubeBroadcast): void {
+  editing.value = broadcast;
+  editorError.value = '';
+  editorOpen.value = true;
+}
+
+async function saveBroadcast(payload: {
+  id: string | null;
+  body: YouTubeBroadcastInput;
+}): Promise<void> {
+  saving.value = true;
+  editorError.value = '';
+  try {
+    if (payload.id) {
+      await api.youtube.updateBroadcast(payload.id, payload.body);
+      pushToast('Broadcast aktualisiert.', 'success');
+    } else {
+      await api.youtube.createBroadcast(payload.body);
+      pushToast('Broadcast angelegt.', 'success');
+    }
+    editorOpen.value = false;
+    editing.value = null;
+    await loadBroadcasts();
+  } catch (err) {
+    editorError.value = errorMessage(err);
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function runAction(
+  broadcast: YouTubeBroadcast,
+  action: () => Promise<unknown>,
+  message: string,
+): Promise<void> {
+  actingId.value = broadcast.id;
+  try {
+    await action();
+    pushToast(message, 'success');
+    await loadBroadcasts();
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    actingId.value = null;
+  }
+}
+
+async function startBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
+  if (!window.confirm(`Broadcast „${broadcast.title}“ jetzt live schalten?`)) return;
+  await runAction(
+    broadcast,
+    () => api.youtube.transitionBroadcast(broadcast.id, 'live'),
+    'Broadcast ist live.',
+  );
+}
+
+async function completeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
+  if (!window.confirm(`Broadcast „${broadcast.title}“ beenden?`)) return;
+  await runAction(
+    broadcast,
+    () => api.youtube.transitionBroadcast(broadcast.id, 'complete'),
+    'Broadcast beendet.',
+  );
+}
+
+async function publishBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
+  if (!window.confirm(`Broadcast „${broadcast.title}“ öffentlich stellen?`)) return;
+  await runAction(
+    broadcast,
+    () => api.youtube.publishBroadcast(broadcast.id),
+    'Broadcast ist jetzt öffentlich.',
+  );
+}
+
+async function removeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
+  if (!window.confirm(`Broadcast „${broadcast.title}“ endgültig löschen?`)) return;
+  await runAction(
+    broadcast,
+    () => api.youtube.deleteBroadcast(broadcast.id),
+    'Broadcast gelöscht.',
+  );
+}
+
 async function connect(): Promise<void> {
   connecting.value = true;
   error.value = '';
@@ -175,6 +276,14 @@ onMounted(async () => {
         </p>
       </div>
       <div class="page-actions">
+        <button
+          v-if="status?.connected"
+          type="button"
+          class="btn btn-primary"
+          @click="openCreate"
+        >
+          Broadcast anlegen
+        </button>
         <button type="button" class="btn btn-ghost" :disabled="loading" @click="refresh()">
           Aktualisieren
         </button>
@@ -309,6 +418,7 @@ onMounted(async () => {
                 <th scope="col" role="columnheader">Sichtbarkeit</th>
                 <th scope="col" role="columnheader">Geplant</th>
                 <th scope="col" role="columnheader">Gebundener Ingest</th>
+                <th scope="col" role="columnheader">Aktionen</th>
               </tr>
             </thead>
             <tbody>
@@ -330,6 +440,58 @@ onMounted(async () => {
                   {{ formatDateTime(broadcast.scheduled_start) }}
                 </td>
                 <td data-label="Gebundener Ingest" role="cell">{{ streamLabel(broadcast) }}</td>
+                <td data-label="Aktionen" role="cell">
+                  <div class="row-actions">
+                    <button
+                      v-if="['created', 'ready', 'testing'].includes(broadcast.status)"
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      :disabled="actingId !== null"
+                      @click="startBroadcast(broadcast)"
+                    >
+                      <span
+                        v-if="actingId === broadcast.id"
+                        class="spinner"
+                        aria-hidden="true"
+                      ></span>
+                      Live
+                    </button>
+                    <button
+                      v-if="['live', 'testing'].includes(broadcast.status)"
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      :disabled="actingId !== null"
+                      @click="completeBroadcast(broadcast)"
+                    >
+                      Beenden
+                    </button>
+                    <button
+                      v-if="broadcast.privacy !== 'public' && broadcast.status !== 'complete'"
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      :disabled="actingId !== null"
+                      @click="publishBroadcast(broadcast)"
+                    >
+                      Veröffentlichen
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      :disabled="actingId !== null"
+                      @click="openEdit(broadcast)"
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      :disabled="actingId !== null"
+                      @click="removeBroadcast(broadcast)"
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -339,5 +501,15 @@ onMounted(async () => {
         </div>
       </section>
     </template>
+
+    <YouTubeBroadcastEditor
+      :open="editorOpen"
+      :broadcast="editing"
+      :streamers="store.streamers"
+      :saving="saving"
+      :error="editorError"
+      @close="editorOpen = false"
+      @save="saveBroadcast"
+    />
   </div>
 </template>

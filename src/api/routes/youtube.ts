@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
-import { AppError } from '../../utils/errors.js';
+import { AppError, ValidationError } from '../../utils/errors.js';
+import { resolveStreamKey } from '../../core/config/schema.js';
 
 const CallbackQuery = z.object({
   code: z.string().max(2048).optional(),
@@ -9,18 +10,104 @@ const CallbackQuery = z.object({
   error: z.string().max(120).optional(),
 });
 
+const IdParams = z.object({ id: z.string().min(1).max(64) });
+
+const CreateBroadcastBody = z.object({
+  title: z.string().trim().min(1).max(100),
+  description: z.string().max(5000).optional(),
+  scheduled_start: z.string().min(1).max(64),
+  privacy: z.enum(['public', 'unlisted', 'private']).default('unlisted'),
+  enable_dvr: z.boolean().optional(),
+  enable_auto_start: z.boolean().optional(),
+  enable_auto_stop: z.boolean().optional(),
+  streamer_id: z.string().min(1).max(64).optional(),
+});
+
+const UpdateBroadcastBody = z.object({
+  title: z.string().trim().min(1).max(100).optional(),
+  description: z.string().max(5000).optional(),
+  scheduled_start: z.string().min(1).max(64).optional(),
+  privacy: z.enum(['public', 'unlisted', 'private']).optional(),
+});
+
+const TransitionBody = z.object({
+  status: z.enum(['testing', 'live', 'complete']),
+});
+
+const AssignBody = z.object({
+  streamer_id: z.string().min(1).max(64),
+});
+
+function streamerKey(ctx: ApiContext, id: string): string {
+  const streamer = ctx.store.require(id);
+  const { key } = resolveStreamKey(streamer);
+  if (!key) {
+    throw new ValidationError(`Für Streamer "${id}" ist kein YouTube-Key hinterlegt`);
+  }
+  return key;
+}
+
 /**
- * YouTube OAuth foundation (#18). The callback is the only public endpoint:
- * Google redirects the browser there without a dashboard session, so it is
- * protected by the single-use OAuth state and PKCE instead of the cookie.
+ * YouTube OAuth and broadcast management (#18). The callback is the only
+ * public endpoint: Google redirects the browser there without a dashboard
+ * session, so it is protected by the single-use OAuth state and PKCE instead
+ * of the cookie.
  */
 export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
   const service = ctx.youtubeAuth;
   if (!service) return;
 
+  const writeLimit = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
+
   app.get('/api/youtube/status', async () => service.status());
 
   app.get('/api/youtube/broadcasts', async () => service.broadcasts());
+
+  app.post('/api/youtube/broadcasts', writeLimit, async (request) => {
+    const body = CreateBroadcastBody.parse(request.body);
+    const key = body.streamer_id ? streamerKey(ctx, body.streamer_id) : undefined;
+    return service.createBroadcast(
+      {
+        title: body.title,
+        description: body.description,
+        scheduled_start: body.scheduled_start,
+        privacy: body.privacy,
+        enable_dvr: body.enable_dvr,
+        enable_auto_start: body.enable_auto_start,
+        enable_auto_stop: body.enable_auto_stop,
+      },
+      key,
+    );
+  });
+
+  app.put('/api/youtube/broadcasts/:id', writeLimit, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    const patch = UpdateBroadcastBody.parse(request.body);
+    return service.updateBroadcastById(id, patch);
+  });
+
+  app.post('/api/youtube/broadcasts/:id/publish', writeLimit, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    return service.publishBroadcast(id);
+  });
+
+  app.post('/api/youtube/broadcasts/:id/transition', writeLimit, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    const { status } = TransitionBody.parse(request.body);
+    return service.transitionBroadcastById(id, status);
+  });
+
+  app.post('/api/youtube/broadcasts/:id/assign', writeLimit, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    const { streamer_id } = AssignBody.parse(request.body);
+    return service.assignBroadcast(id, streamerKey(ctx, streamer_id));
+  });
+
+  app.delete('/api/youtube/broadcasts/:id', writeLimit, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    await service.deleteBroadcastById(id);
+    return { ok: true };
+  });
 
   app.get(
     '/api/youtube/oauth/start',
