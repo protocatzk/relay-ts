@@ -33,6 +33,7 @@ wichtigsten Stabilitätsfälle automatisiert testen.
 | Supervisor aufteilen und Zustandsmaschine explizit machen | P1 | Reliability |
 | Integrationstests für Pause/Reconnect mit Fake-ffmpeg | P1 | Reliability |
 | Pause-Asset-Upload, Validierung und Vorschau | P2 | Pause |
+| Startbildschirm-Video vor dem Live-Stream | P2 | Pause |
 | Overlay-Studio: Drag/Resize, Live-Nachrichten, Presets | P2 | Overlay |
 | Observability: Metriken, Health-Details, Backup/Rotation | P2 | Ops |
 
