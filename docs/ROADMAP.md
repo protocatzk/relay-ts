@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-18** · Version **0.4.0**
+Stand: **2026-11-18** · Version **0.4.2**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
