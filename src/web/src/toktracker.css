@@ -225,6 +225,28 @@ samp,
   color: var(--text-strong);
 }
 
+.brand-logo,
+.header-logo {
+  display: block;
+  flex: none;
+  border-radius: 8px;
+}
+
+.brand-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.header-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.header-brand {
+  align-items: center;
+}
+
 .brand-text strong {
   font-family: var(--sans);
   font-size: 19px;
@@ -1846,6 +1868,10 @@ body {
     bottom: -10px;
     width: 38px;
     height: 38px;
+  }
+
+  .header-brand {
+    gap: 6px;
   }
 
   .studio-drag-label {

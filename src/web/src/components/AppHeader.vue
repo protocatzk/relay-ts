@@ -49,6 +49,7 @@ async function handleLogout(): Promise<void> {
     </button>
 
     <div class="header-brand">
+      <img class="header-logo" src="/logo.svg" alt="" width="26" height="26" aria-hidden="true" />
       <span class="header-title">RELAY</span>
       <span class="header-sub">Restreamer</span>
     </div>

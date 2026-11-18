@@ -25,18 +25,7 @@ function isActive(path: string): boolean {
 
   <aside id="sidebar" class="sidebar" :class="{ 'is-open': open }" aria-label="Hauptnavigation">
     <div class="sidebar-brand">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="26" height="26" fill="none">
-          <rect x="1" y="1" width="30" height="30" rx="9" stroke="currentColor" stroke-width="2" />
-          <path
-            d="M10 23V9h6.5a4.75 4.75 0 0 1 0 9.5H14l6.5 4.5"
-            stroke="currentColor"
-            stroke-width="2.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </span>
+      <img class="brand-logo" src="/logo.svg" alt="" width="32" height="32" aria-hidden="true" />
       <span class="brand-text">
         <strong>RELAY</strong>
         <small>Restreamer</small>
