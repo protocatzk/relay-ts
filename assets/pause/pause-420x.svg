@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280" role="img" aria-label="Pause 420X">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#0b2a16" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#040a06" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="1"/>
+    </radialGradient>
+    <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="55%" stop-color="#3fb950" stop-opacity="0"/>
+      <stop offset="82%" stop-color="#3fb950" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="textGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4f8fc"/>
+      <stop offset="100%" stop-color="#7ee787"/>
+    </linearGradient>
+    <pattern id="wire" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <path d="M0 0V72M0 0H72" fill="none" stroke="#20352a" stroke-width="1.1" opacity="0.8"/>
+      <path d="M0 0 72 72" fill="none" stroke="#15241c" stroke-width="0.7" opacity="0.55"/>
+      <circle cx="0" cy="0" r="2.2" fill="#3fb950" opacity="0.28"/>
+      <circle cx="72" cy="72" r="2.2" fill="#3fb950" opacity="0.28"/>
+    </pattern>
+    <pattern id="scanlines" width="4" height="4" patternUnits="userSpaceOnUse">
+      <path d="M0 0H4" stroke="#ffffff" stroke-width="0.5" opacity="0.035"/>
+    </pattern>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.73  0 0 0 0 0.31  0 0 0 0.9 0" result="greenBlur"/>
+      <feMerge>
+        <feMergeNode in="greenBlur"/>
+        <feMergeNode in="greenBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="720" height="1280" fill="#000000"/>
+  <rect width="720" height="1280" fill="url(#bgGlow)"/>
+
+  <!-- Drahtgeflecht im Hintergrund -->
+  <rect width="720" height="1280" fill="url(#wire)"/>
+  <g opacity="0.5" filter="url(#softGlow)">
+    <path d="M-60 1060 C 140 930, 220 1110, 410 980 S 690 930, 800 1040" fill="none" stroke="#2b4a36" stroke-width="2"/>
+    <path d="M-40 180 C 160 260, 260 80, 430 170 S 680 250, 780 140" fill="none" stroke="#263f30" stroke-width="1.6"/>
+    <g stroke="#3fb950" stroke-width="1.4" opacity="0.45">
+      <path d="M110 330 l-28 -18 M110 330 l-28 18"/>
+      <path d="M590 890 l28 -18 M590 890 l28 18"/>
+      <path d="M180 1010 l-26 -16 M180 1010 l-26 16"/>
+      <path d="M545 250 l26 -16 M545 250 l26 16"/>
+    </g>
+  </g>
+
+  <!-- Grüner, rotierender Kreis vor dem Draht -->
+  <g transform="translate(360 500)">
+    <circle r="250" fill="url(#ringGlow)">
+      <animate attributeName="opacity" values="0.55;1;0.55" dur="2.8s" repeatCount="indefinite"/>
+    </circle>
+    <g filter="url(#glow)">
+      <g>
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="9s" repeatCount="indefinite"/>
+        <circle r="196" fill="none" stroke="#3fb950" stroke-width="7" stroke-linecap="round" stroke-dasharray="78 26 12 26"/>
+        <circle r="196" fill="none" stroke="#7ee787" stroke-width="2" stroke-linecap="round" stroke-dasharray="8 44" opacity="0.85"/>
+        <circle cx="196" cy="0" r="9" fill="#e6ffed"/>
+      </g>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="14s" repeatCount="indefinite"/>
+        <circle r="132" fill="none" stroke="#3fb950" stroke-width="3" stroke-linecap="round" stroke-dasharray="40 22" opacity="0.65"/>
+      </g>
+      <circle r="66" fill="none" stroke="#3fb950" stroke-width="2" opacity="0.5" stroke-dasharray="4 10">
+        <animate attributeName="opacity" values="0.25;0.8;0.25" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle r="18" fill="#3fb950" opacity="0.9"/>
+      <circle r="7" fill="#ffffff"/>
+    </g>
+  </g>
+
+  <!-- Schriftzug -->
+  <g text-anchor="middle" font-family="'JetBrains Mono', 'DejaVu Sans Mono', monospace">
+    <text x="360" y="890" font-size="132" font-weight="800" letter-spacing="10" fill="url(#textGradient)" filter="url(#softGlow)">PAUSE</text>
+    <g filter="url(#softGlow)">
+      <rect x="244" y="938" width="232" height="88" fill="#000000" fill-opacity="0.35" stroke="#3fb950" stroke-width="2"/>
+      <text x="360" y="1002" font-size="58" font-weight="700" letter-spacing="8" fill="#7ee787">420X</text>
+    </g>
+    <text x="360" y="1096" font-size="22" font-weight="600" letter-spacing="8" fill="#8a97a8">RELAY · STANDBY</text>
+    <g opacity="0.7">
+      <line x1="240" y1="1150" x2="480" y2="1150" stroke="#3fb950" stroke-width="1"/>
+      <circle cx="360" cy="1150" r="3" fill="#3fb950">
+        <animate attributeName="opacity" values="1;0.15;1" dur="1.4s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+  </g>
+
+  <rect width="720" height="1280" fill="url(#scanlines)"/>
+  <rect x="18" y="18" width="684" height="1244" fill="none" stroke="#1c2a22" stroke-width="1"/>
+</svg>

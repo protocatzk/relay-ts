@@ -377,11 +377,13 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
     filters.push('setsar=1', `fps=${fps}`);
   }
 
-  if (options.fontFile) {
+  if (options.fontFile && options.text.trim()) {
     filters.push(
       `drawtext=fontfile='${options.fontFile}':text='${escapeDrawtext(options.text)}':` +
         `fontsize=${Math.round(width / 14)}:fontcolor=${escapeDrawtext(textColor)}:x=(w-tw)/2:y=(h-th)/2-40`,
     );
+  }
+  if (options.fontFile && options.subtext.trim()) {
     filters.push(
       `drawtext=fontfile='${options.fontFile}':text='${escapeDrawtext(options.subtext)}':` +
         `fontsize=${Math.round(width / 30)}:fontcolor=${escapeDrawtext(textColor)}:alpha=0.7:x=(w-tw)/2:y=(h-th)/2+60`,

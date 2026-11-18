@@ -336,6 +336,15 @@ ablegen. Animiertes SVG kann ffmpeg nicht nativ dekodieren; es wird als
 statisches Bild verwendet. Für echte Animation das SVG vorher zu WebM/GIF
 konvertieren.
 
+Beispielasset: `assets/pause/pause-420x.svg` (animiert) und
+`assets/pause/pause-420x.mp4` (8-s-Loop, 720×1280). Für die Live-Nutzung nach
+`data/pause/` kopieren und `pause.background` auf
+`/app/data/pause/pause-420x.mp4` setzen. Neu erzeugen:
+
+```bash
+npm run render:pause
+```
+
 ---
 
 ## REST-API
