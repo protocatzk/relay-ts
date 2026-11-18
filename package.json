@@ -1,6 +1,6 @@
 {
   "name": "restreamer-ts",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "TikTok to YouTube restreaming service with delay buffer, watchdog and web dashboard",
   "license": "MIT",
@@ -21,7 +21,9 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "check": "npm run typecheck && npm run typecheck:web && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run typecheck:web && npm run lint && npm run test",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
@@ -38,6 +40,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.10.1",
     "@typescript-eslint/eslint-plugin": "^8.48.1",

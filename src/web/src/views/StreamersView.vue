@@ -273,19 +273,25 @@ onMounted(() => {
       </div>
 
       <div v-else class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" role="table">
+          <caption class="sr-only">Streamer-Liste mit Status und Aktionen</caption>
           <thead>
-            <tr>
-              <th scope="col">Streamer</th>
-              <th scope="col">Status</th>
-              <th scope="col">Qualität</th>
-              <th scope="col">YouTube-Key</th>
-              <th scope="col" class="align-right">Aktionen</th>
+            <tr role="row">
+              <th scope="col" role="columnheader">Streamer</th>
+              <th scope="col" role="columnheader">Status</th>
+              <th scope="col" role="columnheader">Qualität</th>
+              <th scope="col" role="columnheader">YouTube-Key</th>
+              <th scope="col" role="columnheader" class="align-right">Aktionen</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="streamer in filtered" :key="streamer.id" :class="{ 'row-active': streamer.status.active }">
-              <td>
+            <tr
+              v-for="streamer in filtered"
+              :key="streamer.id"
+              role="row"
+              :class="{ 'row-active': streamer.status.active }"
+            >
+              <td data-label="Streamer" role="cell">
                 <div class="cell-title">
                   {{ streamer.name }}
                   <span v-if="streamer.preferred" class="badge tone-info badge-xs">Bevorzugt</span>
@@ -294,7 +300,7 @@ onMounted(() => {
                 </div>
                 <div class="cell-sub mono">{{ streamer.id }} · @{{ streamer.tiktok.replace(/^@/, '') }}</div>
               </td>
-              <td data-label="Status">
+              <td data-label="Status" role="cell">
                 <div class="cell-stack">
                   <span class="online-indicator" :class="onlineClass(streamer)">
                     <span class="dot" aria-hidden="true"></span>
@@ -303,13 +309,13 @@ onMounted(() => {
                   <span v-if="streamer.status.active" class="badge tone-success badge-xs">Aktiv</span>
                 </div>
               </td>
-              <td data-label="Qualität"><span class="badge tone-neutral">{{ streamer.quality }}</span></td>
-              <td data-label="YouTube-Key">
+              <td data-label="Qualität" role="cell"><span class="badge tone-neutral">{{ streamer.quality }}</span></td>
+              <td data-label="YouTube-Key" role="cell">
                 <span class="badge" :class="streamer.youtube_key_set ? 'tone-success' : 'tone-danger'">
                   {{ keyLabel(streamer) }}
                 </span>
               </td>
-              <td data-label="Aktionen">
+              <td data-label="Aktionen" role="cell">
                 <div class="row-actions">
                   <button
                     v-if="streamer.status.active"

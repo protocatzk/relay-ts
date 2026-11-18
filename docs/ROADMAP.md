@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-18** · Version **0.3.0**
+Stand: **2026-11-18** · Version **0.4.0**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -48,7 +48,7 @@ als Folge-Issue außerhalb von v0.3.0.
 |---|---|---|---|
 | Einnahmen-Verlauf, Charts und Zeitraum-Schnellwahl | P3 | Earnings | abgeschlossen |
 | Telegram-Steuerung, Benachrichtigungen und Session-Liste | P3 | Telegram | abgeschlossen |
-| Mobile Accessibility und E2E-Tests | P3 | Mobile | offen |
+| Mobile Accessibility und E2E-Tests | P3 | Mobile | abgeschlossen |
 
 ### v0.5.0 – Aufräumen & Developer Experience
 

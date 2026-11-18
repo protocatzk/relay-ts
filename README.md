@@ -737,10 +737,14 @@ npm run dev:web      # Vite auf :5173, Proxy /api -> :3000
 Produktionsbuild und Checks:
 
 ```bash
-npm run build        # tsc + vite
-npm run check        # Typecheck + Vue-Typecheck + ESLint + Tests
-npm test
+npm run build          # tsc + vite
+npm run check          # Typecheck + Vue-Typecheck + ESLint + Tests
+npm test               # Vitest
+npm run test:e2e:install  # Chromium für Playwright (einmalig)
+npm run test:e2e       # Mobile/A11y-E2E, startet den Dev-Server selbst
 ```
+
+Accessibility-Checkliste und Kontrastwerte: [`docs/ACCESSIBILITY.md`](./docs/ACCESSIBILITY.md).
 
 ---
 

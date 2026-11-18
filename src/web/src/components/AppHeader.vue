@@ -37,6 +37,7 @@ async function handleLogout(): Promise<void> {
 <template>
   <header class="app-header">
     <button
+      id="menu-toggle"
       class="btn-icon menu-toggle"
       aria-label="Navigation öffnen"
       aria-controls="sidebar"

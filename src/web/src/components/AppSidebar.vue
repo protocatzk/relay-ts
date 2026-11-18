@@ -37,7 +37,7 @@ function isActive(path: string): boolean {
       </button>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" aria-label="Hauptnavigation">
       <p class="nav-label">Steuerung</p>
 
       <RouterLink

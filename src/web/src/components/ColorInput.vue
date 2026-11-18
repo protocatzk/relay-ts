@@ -68,6 +68,7 @@ function onText(event: Event): void {
       class="color-text mono"
       type="text"
       :value="modelValue"
+      aria-label="Farbe als Hex- oder Farbwert"
       spellcheck="false"
       @input="onText"
     />
@@ -75,6 +76,7 @@ function onText(event: Event): void {
       v-if="alpha"
       class="color-alpha"
       type="range"
+      aria-label="Deckkraft"
       min="0"
       max="1"
       step="0.05"

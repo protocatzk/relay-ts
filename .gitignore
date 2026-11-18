@@ -11,3 +11,6 @@ config/cookies.txt
 coverage/
 .DS_Store
 backups/
+playwright-report/
+test-results/
+.playwright/

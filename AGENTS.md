@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.3.0**
+- Aktuelle Version: **0.4.0**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -168,6 +168,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   sie von dessen Desktop-Regeln überschrieben werden.
 - Mobile: Drawer-Navigation, Tabellen werden zu Karten, Touch-Ziele ≥ 38 px,
   Eingaben 16 px gegen iOS-Zoom, Safe-Area-Insets.
+- Drawer: Fokus-Falle, `Escape`, Fokus-Rückgabe an den Menü-Button; Skip-Link
+  fokussiert `<main>` ohne Hash-Routenwechsel. Details in
+  `docs/ACCESSIBILITY.md`.
 - TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
   Grün als Akzent, Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
 - Studio-Preview: `POST /api/overlays/studio.png` mit ungespeicherten Overlays,
@@ -178,6 +181,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 ## Qualitätsregeln
 
 - Vor jedem Commit: `npm run check` und bei UI/Serveränderungen `npm run build`.
+- Bei UI-Änderungen zusätzlich `npm run test:e2e` (320-px-Overflow, Drawer-Fokus,
+  Tabellen-Rollen, Formular-Labels, Theme-Wechsel).
 - Neue Backend-Felder immer in Schema, API-Typen, Frontend-Typen und Tests
   ergänzen.
 - `tests/supervisor-integration.test.ts` simuliert Quellenausfall → Pause →
