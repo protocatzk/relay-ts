@@ -1,0 +1,159 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import pino from 'pino';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { FastifyInstance } from 'fastify';
+import { loadConfig } from '../src/core/config/loader.js';
+import { EventBus } from '../src/core/events.js';
+import { StreamerStore } from '../src/core/store/streamer-store.js';
+import { SettingsService } from '../src/core/store/settings-service.js';
+import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
+import type { Supervisor } from '../src/core/supervisor/supervisor.js';
+import { buildServer } from '../src/api/server.js';
+import { AuthSessionStore } from '../src/api/session-store.js';
+import { YouTubeAuthStore } from '../src/core/youtube/auth-store.js';
+import { YouTubeAuthService } from '../src/core/youtube/service.js';
+import { LogRing } from '../src/utils/logger.js';
+import { VERSION } from '../src/version.js';
+
+const logger = pino({ level: 'silent' });
+const auth = { authorization: 'Bearer api-token' };
+
+let app: FastifyInstance;
+let service: YouTubeAuthService;
+
+beforeAll(async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-routes-'));
+  const config = loadConfig({
+    cwd: dir,
+    env: {
+      API_TOKEN: 'api-token',
+      GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'GOCSPX-secret',
+      GOOGLE_REDIRECT_URI: 'https://relay.example/api/youtube/oauth/callback',
+      LOG_LEVEL: 'silent',
+    },
+  });
+  service = new YouTubeAuthService({
+    config: config.youtube,
+    store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
+    logger,
+  });
+  app = await buildServer({
+    config,
+    logger,
+    store: new StreamerStore(
+      config.paths.streamersFile,
+      { streamers: [], playlists: [] },
+      logger,
+    ),
+    settingsService: new SettingsService(config.paths.settingsFile, DEFAULT_SETTINGS, logger),
+    supervisor: {} as unknown as Supervisor,
+    bus: new EventBus(),
+    ring: new LogRing(),
+    version: VERSION,
+    authSessions: new AuthSessionStore(),
+    youtubeAuth: service,
+  });
+  await app.ready();
+});
+
+afterAll(async () => {
+  await app.close();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('YouTube routes', () => {
+  it('protects the status endpoint', async () => {
+    const denied = await app.inject({ method: 'GET', url: '/api/youtube/status' });
+    expect(denied.statusCode).toBe(401);
+
+    const allowed = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/status',
+      headers: auth,
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toMatchObject({
+      configured: true,
+      connected: false,
+      scopes: [],
+    });
+    expect(JSON.stringify(allowed.json())).not.toContain('access_token');
+    expect(JSON.stringify(allowed.json())).not.toContain('refresh_token');
+  });
+
+  it('allows the Google callback without a dashboard session', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/oauth/callback?state=unknown&code=abc',
+    });
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe('/#/youtube?error=state_invalid');
+  });
+
+  it('completes the OAuth round trip from start to callback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.startsWith('https://oauth2.googleapis.com/token')) {
+          return new Response(
+            JSON.stringify({
+              access_token: 'access-1',
+              refresh_token: 'refresh-1',
+              expires_in: 3600,
+              scope: 'https://www.googleapis.com/auth/youtube.force-ssl',
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        if (url.startsWith('https://www.googleapis.com/youtube/v3/channels')) {
+          return new Response(
+            JSON.stringify({ items: [{ id: 'UC123', snippet: { title: 'Testkanal' } }] }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }),
+    );
+
+    const start = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/oauth/start',
+      headers: auth,
+    });
+    expect(start.statusCode).toBe(200);
+    const url = new URL(start.json().url);
+    const state = url.searchParams.get('state') ?? '';
+
+    const callback = await app.inject({
+      method: 'GET',
+      url: `/api/youtube/oauth/callback?state=${encodeURIComponent(state)}&code=auth-code`,
+    });
+    expect(callback.statusCode).toBe(302);
+    expect(callback.headers.location).toBe('/#/youtube?connected=1');
+
+    const status = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/status',
+      headers: auth,
+    });
+    expect(status.json()).toMatchObject({
+      connected: true,
+      account: { channel_id: 'UC123', channel_title: 'Testkanal' },
+    });
+
+    const disconnect = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/oauth/disconnect',
+      headers: auth,
+    });
+    expect(disconnect.statusCode).toBe(200);
+    expect(disconnect.json()).toMatchObject({ connected: false });
+  });
+});

@@ -405,6 +405,18 @@ export interface StreamingSettings {
   title_template: string;
 }
 
+export interface YouTubeStatus {
+  configured: boolean;
+  connected: boolean;
+  account: {
+    channel_id: string;
+    channel_title: string;
+  };
+  scopes: string[];
+  connected_at: string | null;
+  expires_at: string | null;
+}
+
 export interface EarningsSettings {
   enabled: boolean;
   source_url: string;

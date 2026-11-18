@@ -110,6 +110,20 @@ function isActive(path: string): boolean {
       </RouterLink>
 
       <RouterLink
+        to="/youtube"
+        class="nav-link"
+        :class="{ 'is-active': isActive('/youtube') }"
+        :aria-current="isActive('/youtube') ? 'page' : undefined"
+        @click="emit('close')"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+          <rect x="2.5" y="5" width="19" height="14" rx="4" stroke="currentColor" stroke-width="1.8" />
+          <path d="m10 9 6 3-6 3V9Z" fill="currentColor" />
+        </svg>
+        <span>YouTube</span>
+      </RouterLink>
+
+      <RouterLink
         to="/settings"
         class="nav-link"
         :class="{ 'is-active': isActive('/settings') }"

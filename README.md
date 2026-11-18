@@ -64,6 +64,7 @@ Navigation.
 | **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
 | **Einnahmen**       | TokTracker-kompatibel, Verlauf/Charts, Delta, Zeitraum-Schnellwahl, Sessions, Gifts/Gifter, Kurse, Detailansicht     |
 | **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, Live-Vorschau, responsive/mobile Ansicht, Drawer-Navigation                |
+| **YouTube**         | OAuth-Verbindung, automatische Token-Erneuerung, Kanalstatus; Broadcast-Verwaltung folgt                               |
 | **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Login, Session-Liste, Bot-Steuerung und Benachrichtigungen                  |
 | **Betrieb**         | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
 
@@ -241,6 +242,8 @@ jedem Start.
 | `ONLINE_SOURCE_URL` / `ONLINE_SOURCE_API_KEY` | Live-Status-Quelle                          |
 | `ONLINE_AUTO_SWITCH_PREFERRED`                | Bevorzugten Streamer automatisch übernehmen |
 | `CHAT_API_URL` / `CHAT_API_KEY`               | Chatquelle                                  |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`   | YouTube-OAuth-Client (#18)                  |
+| `GOOGLE_REDIRECT_URI`                         | Exakt im Google-Client hinterlegte Callback-URI |
 | `EARNINGS_PERIOD`                             | `today`, `24h`, `7d`, `30d`, `all`          |
 | `EARNINGS_VIEW`                               | `compact`, `standard`, `detailed`           |
 | `FFMPEG_BIN` / `YTDLP_BIN`                    | Binary-Pfade                                |
@@ -474,6 +477,18 @@ Latenz (typisch 1–3 s), aber ohne die im Sink gerenderten Overlays.
 - Kein Zugriff auf Stream-Keys oder YouTube-APIs
 - Benötigt einen Browser mit Media Source Extensions (Chrome/Firefox/Edge)
 
+### YouTube-Verbindung
+
+Unter **YouTube** im Dashboard lässt sich ein Google-Konto per OAuth verbinden.
+RELAY speichert den Refresh-Token serverseitig in `data/youtube-auth.json`
+(Modus `0600`), erneuert Access-Tokens automatisch und widerruft den Zugriff
+beim Trennen. Tokens erscheinen weder in API-Antworten noch in Logs.
+
+- Einrichtung: siehe [`docs/YOUTUBE.md`](docs/YOUTUBE.md)
+- Benötigt `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- Scope: `youtube.force-ssl`; App muss für Dauerbetrieb `In production` sein
+- Broadcast-Verwaltung folgt im weiteren Verlauf von #18
+
 ---
 
 ## Overlays und Studio
@@ -648,6 +663,9 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `GET`    | `/api/status`               | Vollständiger Systemstatus        |
 | `GET`    | `/api/media`                | Lokale Playlist-Videos listen      |
 | `GET`    | `/api/preview.ts`           | Live-Vorschau als MPEG-TS          |
+| `GET`    | `/api/youtube/status`       | YouTube-Verbindung ohne Tokens      |
+| `GET`    | `/api/youtube/oauth/start`  | Google-Zustimmungs-URL             |
+| `POST`   | `/api/youtube/oauth/disconnect` | YouTube-Verbindung trennen     |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |
 | `GET`    | `/api/earnings/history`     | Verlauf für einen Zeitraum        |
 | `POST`   | `/api/earnings/period`      | Zeitraum-Schnellwahl speichern    |

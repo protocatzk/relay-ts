@@ -23,6 +23,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Playlists' },
   },
   {
+    path: '/youtube',
+    name: 'youtube',
+    component: () => import('@/src/views/YouTubeView.vue'),
+    meta: { title: 'YouTube' },
+  },
+  {
     path: '/overlays',
     name: 'overlays',
     component: () => import('@/src/views/OverlaysView.vue'),

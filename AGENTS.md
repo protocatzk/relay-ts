@@ -60,6 +60,7 @@ Wichtige Pfade:
 - `src/core/overlays/` – Canvas-Chat, drawtext, PauseScreen, Studio-Preview
 - `src/core/earnings/` – TokTracker-kompatibler Einnahmen-Monitor
 - `src/core/telegram/` – Login-Bot und Token-Store
+- `src/core/youtube/` – Google-OAuth, Token-Store und YouTube-API-Client
 - `src/api/` – Fastify-Routen, Auth, SSE
 - `src/web/src/` – Vue-Dashboard
 - `assets/` – keine persönlichen Pause-/Stream-Assets im Repository
@@ -143,6 +144,20 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer
   liefern `status: "missing"`.
 - API: `GET /api/earnings`, `POST /api/earnings/refresh`.
+
+## YouTube-Verwaltung
+
+- Ein Google-Konto pro Instanz; Token-Datei `data/youtube-auth.json` (Modus
+  `0600`, Klartext), automatischer Refresh 60 s vor Ablauf.
+- OAuth nutzt State + PKCE (S256), State ist einmalig und 10 Minuten gültig.
+- `GET /api/youtube/oauth/callback` ist der einzige unauthentifizierte
+  API-Endpunkt; Schutz erfolgt über State/PKCE, nicht über das Cookie.
+- Tokens und Client-Secret erscheinen nie in API-Antworten, Logs oder
+  Fehlermeldungen; `GOOGLE_CLIENT_SECRET` ist im Redactor registriert.
+- `invalid_grant` beim Refresh löscht die Verbindung und verlangt erneutes
+  Verbinden (`youtube_reconnect_required`).
+- App muss für Dauerbetrieb in Google Cloud `In production` sein; `Testing`
+  läuft nach 7 Tagen ab. Setup: `docs/YOUTUBE.md`.
 
 ## Auth und Sicherheit
 

@@ -23,6 +23,7 @@ import { registerSystemRoutes } from './routes/system.js';
 import { registerPauseAssetRoutes } from './routes/pause-assets.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerPreviewRoutes } from './routes/preview.js';
+import { registerYouTubeRoutes } from './routes/youtube.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -64,7 +65,8 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       path === '/api/auth/me' ||
       path === '/api/auth/methods' ||
       path === '/api/auth/telegram/request' ||
-      path === '/api/auth/telegram/check'
+      path === '/api/auth/telegram/check' ||
+      path === '/api/youtube/oauth/callback'
     ) {
       return;
     }
@@ -105,6 +107,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerPauseAssetRoutes(app, ctx);
   await registerMediaRoutes(app, ctx);
   await registerPreviewRoutes(app, ctx);
+  await registerYouTubeRoutes(app, ctx);
 
   const webRoot = ctx.config.paths.webDir;
   const indexFile = join(webRoot, 'index.html');

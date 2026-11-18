@@ -53,6 +53,12 @@ export interface TelegramConfig {
   notifications: boolean;
 }
 
+export interface YouTubeConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
 export interface MediaConfig {
   ffmpegBin: string;
   ytdlpBin: string;
@@ -73,6 +79,7 @@ export interface LoadedConfig {
   paths: AppPaths;
   server: ServerConfig;
   telegram: TelegramConfig;
+  youtube: YouTubeConfig;
   media: MediaConfig;
   settings: Settings;
   streamers: StreamerConfig[];
@@ -311,6 +318,14 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
   };
   const telegramAuth = Boolean(telegram.botToken && telegram.allowedUserIds.length > 0);
 
+  const youtube: YouTubeConfig = {
+    clientId: env.GOOGLE_CLIENT_ID?.trim() ?? '',
+    clientSecret: env.GOOGLE_CLIENT_SECRET?.trim() ?? '',
+    redirectUri:
+      env.GOOGLE_REDIRECT_URI?.trim() ||
+      `http://localhost:${port}/api/youtube/oauth/callback`,
+  };
+
   const server: ServerConfig = {
     host: cli.host ?? env.SERVER_HOST ?? '0.0.0.0',
     port,
@@ -350,6 +365,7 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
     paths,
     server,
     telegram,
+    youtube,
     media,
     settings: settingsResult.data,
     streamers: file.streamers,

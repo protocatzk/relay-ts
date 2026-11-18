@@ -28,6 +28,7 @@ import type {
   TelegramLoginRequest,
   TelegramLoginStatus,
   TitlePreview,
+  YouTubeStatus,
 } from './types';
 
 export class ApiError extends Error {
@@ -361,8 +362,7 @@ export const api = {
   },
 
   pause: {
-    start: () => request<unknown>('/api/pause/start', { method: 'POST' }),
-    stop: () => request<unknown>('/api/pause/stop', { method: 'POST' }),
+    start: () => request<unknown>('/api/pause/start', { method: 'POST' }),    stop: () => request<unknown>('/api/pause/stop', { method: 'POST' }),
     assetUrl: (filename: string): string =>
       `/api/pause/assets/${encodeURIComponent(filename)}`,
     upload: async (file: File): Promise<PauseAsset> => {
@@ -412,6 +412,12 @@ export const api = {
       }
       return response.blob();
     },
+  },
+  youtube: {
+    status: () => request<YouTubeStatus>('/api/youtube/status'),
+    start: () => request<{ url: string }>('/api/youtube/oauth/start'),
+    disconnect: () =>
+      request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
   },
 };
 

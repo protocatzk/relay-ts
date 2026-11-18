@@ -11,6 +11,8 @@ import { AuthSessionStore } from './api/session-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
+import { YouTubeAuthStore } from './core/youtube/auth-store.js';
+import { YouTubeAuthService } from './core/youtube/service.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
 import { toErrorMessage } from './utils/errors.js';
 import { VERSION } from './version.js';
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
   redactor.add(config.server.password);
   redactor.add(config.server.apiToken);
   redactor.add(config.telegram.botToken);
+  redactor.add(config.youtube.clientSecret);
   redactor.add(config.media.tiktokSessionId);
   redactor.add(config.settings.online.api_key);
   redactor.add(config.settings.chat.api_key);
@@ -55,6 +58,17 @@ async function main(): Promise<void> {
   const settingsService = new SettingsService(config.paths.settingsFile, config.settings, logger);
   const authSessions = new AuthSessionStore(join(config.paths.dataDir, 'sessions.json'));
   const telegramAuth = new TelegramAuthStore();
+  const youtubeAuth = new YouTubeAuthService({
+    config: config.youtube,
+    store: new YouTubeAuthStore(join(config.paths.dataDir, 'youtube-auth.json'), logger),
+    logger,
+  });
+  if (config.youtube.clientId) {
+    logger.info(
+      { connected: youtubeAuth.status().connected },
+      'YouTube-Verwaltung konfiguriert',
+    );
+  }
   const supervisor = new Supervisor({
     config,
     settingsService,
@@ -120,6 +134,7 @@ async function main(): Promise<void> {
     authSessions,
     telegramAuth,
     telegramBot,
+    youtubeAuth,
   });
 
   telegramBot?.start();
