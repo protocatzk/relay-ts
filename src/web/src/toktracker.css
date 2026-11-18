@@ -1272,13 +1272,18 @@ body {
 }
 
 @media (max-width: 900px) {
+  .app-main {
+    margin-left: 0;
+  }
+
   .sidebar {
     padding: 0 10px 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .sidebar-brand {
-    min-height: var(--header-h);
+    height: auto;
+    min-height: calc(var(--header-h) + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
   }
 
