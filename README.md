@@ -46,9 +46,9 @@ Navigation.
 | **Overlays**        | Canvas-Chat (Bubbles/Panel/Minimal), Emoji, Tier-Badges, Chat-Statistik, Uhr, Text, Einnahmen, drawtext-Fallback     |
 | **Overlay-Studio**  | Bühnenvorschau aus Drafts, Drag/Resize, Live-Nachrichten, Presets, Hilfslinien, Undo/Redo, globale Persistenz        |
 | **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
-| **Einnahmen**       | TokTracker-kompatibel, Zeiträume, Sessions, Gifts/Gifter, Top-Gift/Gifter, Kurse, Detailansicht                      |
+| **Einnahmen**       | TokTracker-kompatibel, Verlauf/Charts, Delta, Zeitraum-Schnellwahl, Sessions, Gifts/Gifter, Kurse, Detailansicht     |
 | **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, responsive/mobile Ansicht, Drawer-Navigation                               |
-| **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Bot-Login mit Freigabe                                                      |
+| **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Login, Session-Liste, Bot-Steuerung und Benachrichtigungen                  |
 | **Betrieb**         | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
 
 ---
@@ -416,9 +416,26 @@ Ablauf:
 4. Der Browser erhält ein signiertes HttpOnly-Cookie (30 Tage).
 
 Sessions werden serverseitig in `data/sessions.json` (Modus `0600`) verwaltet.
-Sie überleben Neustarts, können aber jederzeit widerrufen werden. Die API bietet
-dafür `GET /api/auth/sessions`, `POST /api/auth/sessions/:id/revoke` und
-`POST /api/auth/sessions/revoke-all`.
+Sie überleben Neustarts, können aber jederzeit widerrufen werden. Unter
+**Einstellungen → Sessions** lassen sich alle Anmeldungen einsehen und einzeln
+oder komplett abmelden. Die API bietet dafür `GET /api/auth/sessions`,
+`POST /api/auth/sessions/:id/revoke` und `POST /api/auth/sessions/revoke-all`.
+
+### Bot-Steuerung
+
+Der Bot ist nach der Freigabe auch eine Fernsteuerung:
+
+- `/status` – Zustand, Streamer, Quelle, Sink und Uptime
+- `/menu` – Inline-Buttons für Status, Start/Stop, Playlist und Logs
+- `/streamers` – Streamer starten bzw. wechseln
+- `/stop`, `/next`, `/prev`, `/pause`
+- `/logs [n]` – letzte Logzeilen
+- `/notify` – Benachrichtigungen gesamt oder je Kategorie umschalten
+  (`live`, `reconnect`, `error`)
+
+Benachrichtigungen gehen an `TELEGRAM_NOTIFY_CHAT_ID`, sonst an die erste ID aus
+der Allow-List. Die Schalter werden in `data/telegram-notify.json` gespeichert;
+`TELEGRAM_NOTIFICATIONS=false` deaktiviert sie beim Start standardmäßig.
 
 Nur private Chats von IDs aus `TELEGRAM_ALLOWED_USER_IDS` werden akzeptiert.
 Ohne Token oder Allow-List bleibt Telegram-Login deaktiviert (fail-closed).
@@ -489,7 +506,8 @@ EARNINGS_PERIOD=today
 EARNINGS_VIEW=detailed
 ```
 
-**Zeiträume:** `today`, `24h`, `7d`, `30d`, `all`.
+**Zeiträume:** `today`, `24h`, `7d`, `30d`, `all` – direkt im Dashboard
+umschaltbar, ohne die Einstellungen zu öffnen.
 **Ansichten:** `compact`, `standard`, `detailed`.
 
 Die Detailansicht enthält Netto, Brutto, Coins, Gifts, Gifter, Session,
@@ -498,7 +516,14 @@ Monitor-Diagnose. Fehlende Geldwerte werden aus Coins und `rates` berechnet.
 Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer werden
 als „keine Daten“ markiert.
 
-**API:** `GET /api/earnings`, `POST /api/earnings/refresh`.
+Zusätzlich speichert der Monitor einen kompakten Verlauf in
+`data/earnings-history.json` (nur Aggregate, keine Nutzernamen; 90 Tage bzw.
+maximal 4000 Punkte). Das Dashboard zeigt daraus einen Netto-/Brutto-/Coins-Chart,
+das Delta seit dem ersten Punkt des Zeitraums sowie einen „Veraltet“-Hinweis,
+wenn die Daten älter als fünf Minuten sind.
+
+**API:** `GET /api/earnings`, `GET /api/earnings/history?period=7d`,
+`POST /api/earnings/period`, `POST /api/earnings/refresh`.
 
 **Overlay-Platzhalter:** `{period}`, `{net}`, `{gross}`, `{coins}`, `{gifts}`,
 `{gifters}`, `{session_net}`, `{session_gross}`, `{session_coins}`,
@@ -565,6 +590,8 @@ Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 | `POST`   | `/api/quickstart`           | Handle + Key anlegen und starten  |
 | `GET`    | `/api/status`               | Vollständiger Systemstatus        |
 | `GET`    | `/api/earnings`             | Ausführlicher Einnahmen-Status    |
+| `GET`    | `/api/earnings/history`     | Verlauf für einen Zeitraum        |
+| `POST`   | `/api/earnings/period`      | Zeitraum-Schnellwahl speichern    |
 | `POST`   | `/api/earnings/refresh`     | Einnahmen sofort aktualisieren    |
 | `GET`    | `/api/events`               | SSE: Status, Streamer, Logs       |
 

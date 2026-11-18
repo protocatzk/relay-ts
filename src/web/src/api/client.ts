@@ -1,8 +1,11 @@
 import type {
   AuthMe,
   AuthMethods,
+  AuthSessionInfo,
   BulkAddInput,
   BulkAddResult,
+  EarningsHistoryPoint,
+  EarningsPeriod,
   EarningsSnapshot,
   PauseAsset,
   PausePreviewInput,
@@ -142,6 +145,9 @@ export interface AuthApi {
   telegramRequest(): Promise<TelegramLoginRequest>;
   telegramCheck(token: string): Promise<TelegramLoginStatus>;
   logout(): Promise<{ ok: true }>;
+  sessions(): Promise<{ sessions: AuthSessionInfo[] }>;
+  revokeSession(id: string): Promise<{ ok: true }>;
+  revokeAllSessions(): Promise<{ ok: true; removed: number }>;
 }
 
 export interface StatusApi {
@@ -201,6 +207,15 @@ export const api = {
       }),
     logout: () =>
       request<{ ok: true }>('/api/auth/logout', { method: 'POST', authRedirect: false }),
+    sessions: () => request<{ sessions: AuthSessionInfo[] }>('/api/auth/sessions'),
+    revokeSession: (id: string) =>
+      request<{ ok: true }>(`/api/auth/sessions/${encodeURIComponent(id)}/revoke`, {
+        method: 'POST',
+      }),
+    revokeAllSessions: () =>
+      request<{ ok: true; removed: number }>('/api/auth/sessions/revoke-all', {
+        method: 'POST',
+      }),
   } satisfies AuthApi,
 
   status: {
@@ -209,6 +224,15 @@ export const api = {
 
   earnings: {
     get: () => request<EarningsSnapshot | null>('/api/earnings'),
+    history: (period: EarningsPeriod, limit = 240) =>
+      request<{ period: EarningsPeriod; points: EarningsHistoryPoint[] }>(
+        `/api/earnings/history?period=${encodeURIComponent(period)}&limit=${limit}`,
+      ),
+    setPeriod: (period: EarningsPeriod) =>
+      request<{ ok: true; earnings: EarningsSnapshot | null }>('/api/earnings/period', {
+        method: 'POST',
+        body: { period },
+      }),
     refresh: () =>
       request<{ ok: true; earnings: EarningsSnapshot | null }>('/api/earnings/refresh', {
         method: 'POST',

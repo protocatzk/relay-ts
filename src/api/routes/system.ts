@@ -24,6 +24,15 @@ const OverlaySaveBody = z.object({
   overlays: z.unknown(),
 });
 
+const EarningsPeriodBody = z.object({
+  period: z.enum(['today', '24h', '7d', '30d', 'all']),
+});
+
+const EarningsHistoryQuery = z.object({
+  period: z.enum(['today', '24h', '7d', '30d', 'all']).optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional(),
+});
+
 const PausePreviewBody = z.object({
   screen: z.enum(['pause', 'startup']).optional(),
   text: z.string().max(200).optional(),
@@ -158,6 +167,27 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
   });
 
   app.get('/api/earnings', async () => ctx.supervisor.earningsStatus());
+
+  app.get('/api/earnings/history', async (request) => {
+    const query = EarningsHistoryQuery.parse(request.query);
+    const period = query.period ?? ctx.settingsService.get().earnings.period;
+    return {
+      period,
+      points: ctx.supervisor.earningsHistory(period, query.limit ?? 240),
+    };
+  });
+
+  app.post('/api/earnings/period', async (request) => {
+    const parsed = EarningsPeriodBody.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError('Ungültiger Einnahmen-Zeitraum', parsed.error.issues);
+    }
+    const { previous, next } = ctx.settingsService.update({
+      earnings: { period: parsed.data.period },
+    });
+    await ctx.supervisor.applySettings(next, previous);
+    return { ok: true, earnings: ctx.supervisor.earningsStatus() };
+  });
 
   app.post('/api/earnings/refresh', async () => ({
     ok: true,

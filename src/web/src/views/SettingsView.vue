@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { PauseAsset, PausePreviewInput, Settings, SettingsUpdate, VideoPreset } from '@/src/api/types';
+import type {
+  AuthSessionInfo,
+  PauseAsset,
+  PausePreviewInput,
+  Settings,
+  SettingsUpdate,
+  VideoPreset,
+} from '@/src/api/types';
+import { formatDateTime } from '@/src/utils/format';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useToast } from '@/src/composables/useToast';
 
@@ -43,6 +51,9 @@ const startupPreviewKind = ref<'image' | 'video' | null>(null);
 const pauseComposedUrl = ref('');
 const startupComposedUrl = ref('');
 const composedPreviewError = ref('');
+const sessions = ref<AuthSessionInfo[]>([]);
+const sessionsError = ref('');
+const sessionsLoading = ref(false);
 let composedTimer: number | null = null;
 let composedAbort: AbortController | null = null;
 
@@ -252,6 +263,40 @@ async function removePauseAsset(
   }
 }
 
+async function loadSessions(): Promise<void> {
+  sessionsLoading.value = true;
+  try {
+    const response = await api.auth.sessions();
+    sessions.value = response.sessions;
+    sessionsError.value = '';
+  } catch (error) {
+    sessionsError.value = errorMessage(error);
+  } finally {
+    sessionsLoading.value = false;
+  }
+}
+
+async function revokeSession(session: AuthSessionInfo): Promise<void> {
+  if (!window.confirm(`Sitzung von ${session.user} abmelden?`)) return;
+  try {
+    await api.auth.revokeSession(session.id);
+    await loadSessions();
+    pushToast('Sitzung abgemeldet.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
+}
+
+async function revokeAllSessions(): Promise<void> {
+  if (!window.confirm('Alle Sessions abmelden? Du musst dich danach neu anmelden.')) return;
+  try {
+    await api.auth.revokeAllSessions();
+    window.location.assign('/login');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
+}
+
 async function loadSettings(silent = false): Promise<void> {
   if (!silent) loading.value = true;
   loadError.value = '';
@@ -373,6 +418,7 @@ async function save(): Promise<void> {
 
 onMounted(() => {
   void loadSettings();
+  void loadSessions();
 });
 
 onBeforeUnmount(() => {
@@ -1010,6 +1056,51 @@ onBeforeUnmount(() => {
               YouTube-API gesetzt.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section class="card settings-section">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Sessions</h2>
+            <p class="card-sub">Angemeldete Browser und Telegram-Sitzungen.</p>
+          </div>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="sessionsLoading || sessions.length === 0"
+            @click="revokeAllSessions"
+          >
+            Alle abmelden
+          </button>
+        </div>
+        <div class="settings-body">
+          <p v-if="sessionsError" class="alert alert-error" role="alert">{{ sessionsError }}</p>
+          <p v-else-if="sessionsLoading" class="muted small">Sessions werden geladen…</p>
+          <p v-else-if="sessions.length === 0" class="muted small">Keine aktiven Sessions.</p>
+          <ul v-else class="session-list">
+            <li v-for="session in sessions" :key="session.id" class="session-item">
+              <div class="session-main">
+                <strong>{{ session.user }}</strong>
+                <span class="badge tone-info">
+                  {{ session.provider === 'telegram' ? 'Telegram' : 'Passwort' }}
+                </span>
+                <span v-if="session.current" class="badge tone-success">Diese Sitzung</span>
+              </div>
+              <p class="session-meta">
+                Erstellt {{ formatDateTime(session.created_at) }} · Zuletzt
+                {{ formatDateTime(session.last_seen_at) }}
+              </p>
+              <button
+                v-if="!session.current"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                @click="revokeSession(session)"
+              >
+                Abmelden
+              </button>
+            </li>
+          </ul>
         </div>
       </section>
 

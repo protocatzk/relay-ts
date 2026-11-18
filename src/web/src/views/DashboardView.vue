@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { Streamer, TitlePreview } from '@/src/api/types';
+import type { EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import { useStore } from '@/src/composables/useStore';
@@ -109,6 +109,19 @@ async function refreshEarnings(): Promise<void> {
     await api.earnings.refresh();
     await refreshStatus();
     pushToast('Einnahmen aktualisiert.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    refreshingEarnings.value = false;
+  }
+}
+
+async function changeEarningsPeriod(period: EarningsPeriod): Promise<void> {
+  refreshingEarnings.value = true;
+  try {
+    await api.earnings.setPeriod(period);
+    await refreshStatus();
+    pushToast('Einnahmen-Zeitraum geändert.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
   } finally {
@@ -505,6 +518,7 @@ onBeforeUnmount(() => {
       :earnings="status.earnings"
       :refreshing="refreshingEarnings"
       @refresh="refreshEarnings"
+      @period="changeEarningsPeriod"
     />
 
     <section class="card dashboard-live">

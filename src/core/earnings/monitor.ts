@@ -2,6 +2,12 @@ import type { Logger } from 'pino';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import { normalizeHandle } from '../../utils/format.js';
 import { incMetric } from '../metrics.js';
+import {
+  EarningsHistoryStore,
+  type EarningsDelta,
+  type EarningsHistoryPoint,
+  type EarningsPeriod,
+} from './history.js';
 
 export const EARNINGS_PERIOD_LABELS: Record<string, string> = {
   today: 'Heute',
@@ -81,6 +87,7 @@ export interface EarningsSnapshot {
   period: string;
   period_label: string;
   view: 'compact' | 'standard' | 'detailed';
+  interval_seconds: number;
   net: number | null;
   gross: number | null;
   coins: number | null;
@@ -95,6 +102,7 @@ export interface EarningsSnapshot {
   top_gifter: EarningsTopGifter | null;
   rates: EarningsRates | null;
   diagnostics: EarningsDiagnostics | null;
+  delta: EarningsDelta | null;
   last_seen_at: string | null;
   source: string | null;
   updated_at: string | null;
@@ -108,6 +116,7 @@ export interface EarningsMonitorOptions {
   logger: Logger;
   getActive: () => StreamerConfig | null;
   onUpdate: (snapshot: EarningsSnapshot, overlayText: string) => void;
+  history?: EarningsHistoryStore;
 }
 
 type ParsedEarnings = Pick<
@@ -150,6 +159,7 @@ function emptySnapshot(settings: Settings): EarningsSnapshot {
     period: settings.earnings.period,
     period_label: EARNINGS_PERIOD_LABELS[settings.earnings.period] ?? settings.earnings.period,
     view: settings.earnings.view,
+    interval_seconds: settings.earnings.interval,
     net: null,
     gross: null,
     coins: null,
@@ -164,6 +174,7 @@ function emptySnapshot(settings: Settings): EarningsSnapshot {
     top_gifter: null,
     rates: null,
     diagnostics: null,
+    delta: null,
     last_seen_at: null,
     source: safeSource(settings.earnings.source_url),
     updated_at: null,
@@ -664,6 +675,7 @@ export class EarningsMonitor {
       period: settings.earnings.period,
       period_label: EARNINGS_PERIOD_LABELS[settings.earnings.period] ?? settings.earnings.period,
       view: settings.earnings.view,
+      interval_seconds: settings.earnings.interval,
       source: safeSource(settings.earnings.source_url),
     };
     if (
@@ -726,6 +738,13 @@ export class EarningsMonitor {
     return this.get();
   }
 
+  history(period?: EarningsPeriod, limit = 240): EarningsHistoryPoint[] {
+    const active = this.options.getActive();
+    if (!active) return [];
+    const selected = period ?? (this.options.settings.earnings.period as EarningsPeriod);
+    return this.options.history?.query(active.id, selected, limit) ?? [];
+  }
+
   private emit(): void {
     const snapshot = this.get();
     this.options.onUpdate(
@@ -765,6 +784,7 @@ export class EarningsMonitor {
       period: settings.period,
       period_label: EARNINGS_PERIOD_LABELS[settings.period] ?? settings.period,
       view: settings.view,
+      interval_seconds: settings.interval,
       source: safeSource(settings.source_url),
       streamer_id: streamer?.id ?? null,
       streamer_name: streamer?.name ?? null,
@@ -805,6 +825,17 @@ export class EarningsMonitor {
         this.emit();
         return;
       }
+      if (this.options.history) {
+        this.options.history.append({
+          at: base.last_run_at ?? new Date().toISOString(),
+          streamer_id: streamer.id,
+          period: settings.period as EarningsPeriod,
+          net: parsed.net,
+          gross: parsed.gross,
+          coins: parsed.coins,
+          currency: parsed.currency,
+        });
+      }
       this.snapshot = {
         ...base,
         ...parsed,
@@ -812,6 +843,7 @@ export class EarningsMonitor {
         missing: false,
         error: null,
         updated_at: base.last_run_at,
+        delta: this.options.history?.delta(streamer.id, settings.period as EarningsPeriod) ?? null,
       };
       this.emit();
     } catch (error) {
@@ -822,6 +854,7 @@ export class EarningsMonitor {
         status: 'error',
         missing: false,
         error: message,
+        delta: null,
       };
       const now = Date.now();
       if (now - this.lastErrorLog > 300_000) {
@@ -852,6 +885,7 @@ function emptyValues(): Pick<
   | 'top_gifter'
   | 'rates'
   | 'diagnostics'
+  | 'delta'
   | 'last_seen_at'
   | 'currency'
 > {
@@ -873,6 +907,7 @@ function emptyValues(): Pick<
     top_gifter: null,
     rates: null,
     diagnostics: null,
+    delta: null,
     last_seen_at: null,
     currency: 'EUR',
   };

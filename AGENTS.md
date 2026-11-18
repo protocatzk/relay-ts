@@ -119,6 +119,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Quelle ist TokTracker-kompatibles JSON (Übersicht, Detail oder Liste).
 - Unterstützt Zeiträume `today`, `24h`, `7d`, `30d`, `all`.
 - Ansichten: `compact`, `standard`, `detailed`.
+- Verlauf liegt in `data/earnings-history.json` (nur Aggregate, 90 Tage,
+  max. 4000 Punkte); Dashboard zeigt Chart, Delta und Veraltet-Hinweis.
+- Zeitraum-Schnellwahl im Dashboard nutzt `POST /api/earnings/period`.
 - Fehlende Geldwerte werden aus `total_coins` und `rates` berechnet.
 - Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer
   liefern `status: "missing"`.
@@ -139,6 +142,8 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   nicht als Query-Parameter akzeptiert.
 - `TRUST_PROXY=true` nur hinter einem vertrauenswürdigen Reverse-Proxy setzen.
 - Bot-Token niemals loggen oder committen.
+- Der Bot steuert Status, Start/Stop, Senderwechsel, Playlist und Logs; die
+  Benachrichtigungsschalter liegen in `data/telegram-notify.json`.
 - Derselbe Bot-Token darf nicht parallel in alter Python-App und RELAY laufen
   (`getUpdates`-Konflikt).
 
@@ -201,7 +206,7 @@ npm version 0.2.0 --no-git-tag-version
 
 ## Bekannte offene Punkte
 
-- Telegram-Bot-Steuerung und Benachrichtigungen (aktuell nur Login-Freigabe)
+- Telegram-Bot: weitere Komfortbefehle (z. B. Titel/Einnahmen)
 - ASR/Vosk-Wort-Tracker
 - Per-Streamer-Log-Ansicht mit Seitenblättern
 - Bevorzugter Streamer: Rückkehr zur vorherigen Playlist/Quelle

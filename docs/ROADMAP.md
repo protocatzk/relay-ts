@@ -44,11 +44,11 @@ als Folge-Issue außerhalb von v0.3.0.
 
 ### v0.4.0 – Einnahmen & Telegram
 
-| Issue | Priorität | Bereich |
-|---|---|---|
-| Einnahmen-Verlauf, Charts und Zeitraum-Schnellwahl | P3 | Earnings |
-| Telegram-Steuerung, Benachrichtigungen und Session-Liste | P3 | Telegram |
-| Mobile Accessibility und E2E-Tests | P3 | Mobile |
+| Issue | Priorität | Bereich | Status |
+|---|---|---|---|
+| Einnahmen-Verlauf, Charts und Zeitraum-Schnellwahl | P3 | Earnings | abgeschlossen |
+| Telegram-Steuerung, Benachrichtigungen und Session-Liste | P3 | Telegram | abgeschlossen |
+| Mobile Accessibility und E2E-Tests | P3 | Mobile | offen |
 
 ### v0.5.0 – Aufräumen & Developer Experience
 

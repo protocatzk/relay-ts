@@ -10,6 +10,7 @@ import { buildServer } from './api/server.js';
 import { AuthSessionStore } from './api/session-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
+import { TelegramNotifyStore } from './core/telegram/notify-store.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
 import { toErrorMessage } from './utils/errors.js';
 import { VERSION } from './version.js';
@@ -55,14 +56,6 @@ async function main(): Promise<void> {
   const settingsService = new SettingsService(config.paths.settingsFile, config.settings, logger);
   const authSessions = new AuthSessionStore(join(config.paths.dataDir, 'sessions.json'));
   const telegramAuth = new TelegramAuthStore();
-  const telegramBot = config.server.telegramAuth
-    ? new TelegramBot({
-        token: config.telegram.botToken,
-        allowedUserIds: config.telegram.allowedUserIds,
-        auth: telegramAuth,
-        logger,
-      })
-    : null;
   const supervisor = new Supervisor({
     config,
     settingsService,
@@ -72,6 +65,40 @@ async function main(): Promise<void> {
     redact: redactor.apply,
     registerSecret: (secret) => redactor.add(secret),
   });
+  const telegramBot = config.server.telegramAuth
+    ? new TelegramBot({
+        token: config.telegram.botToken,
+        allowedUserIds: config.telegram.allowedUserIds,
+        auth: telegramAuth,
+        logger,
+        bus,
+        control: {
+          status: () => supervisor.buildStatus(),
+          streamers: () => supervisor.streamersView(),
+          playlists: () => supervisor.playlistsView(),
+          start: (streamerId) => supervisor.start(streamerId),
+          stop: () => supervisor.stop(),
+          playlistNext: () => supervisor.playlistNext(),
+          playlistPrevious: () => supervisor.playlistPrevious(),
+          pause: () => supervisor.pause(),
+          resume: () => supervisor.hideScreen(),
+          logs: (limit) => ring.list({ limit }),
+        },
+        notify: {
+          chatId: config.telegram.notifyChatId,
+          store: new TelegramNotifyStore(
+            join(config.paths.dataDir, 'telegram-notify.json'),
+            {
+              enabled: config.telegram.notifications,
+              live: true,
+              reconnect: true,
+              error: true,
+            },
+            logger,
+          ),
+        },
+      })
+    : null;
 
   try {
     await supervisor.init();

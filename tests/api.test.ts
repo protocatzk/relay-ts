@@ -117,6 +117,8 @@ beforeAll(async () => {
     restartSink: async () => status(),
     refreshNow: async () => status(),
     applySettings: async () => status(),
+    earningsStatus: () => null,
+    earningsHistory: () => [],
   } as unknown as Supervisor;
   app = await buildServer({
     config,
@@ -401,6 +403,30 @@ describe('API', () => {
       headers: { cookie: cookieHeader, origin: 'http://localhost' },
     });
     expect(invalid.statusCode).toBe(400);
+  });
+
+  it('returns earnings history and updates the quick period', async () => {
+    const history = await app.inject({
+      method: 'GET',
+      url: '/api/earnings/history?period=7d',
+      headers: { authorization: 'Bearer api-secret' },
+    });
+    expect(history.statusCode).toBe(200);
+    expect(history.json()).toMatchObject({ period: '7d', points: [] });
+
+    const changed = await app.inject({
+      method: 'POST',
+      url: '/api/earnings/period',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+      payload: { period: '30d' },
+    });
+    expect(changed.statusCode).toBe(200);
+    const settings = await app.inject({
+      method: 'GET',
+      url: '/api/settings',
+      headers: { cookie: cookieHeader },
+    });
+    expect((settings.json() as { earnings: { period: string } }).earnings.period).toBe('30d');
   });
 
   it('returns structured JSON 404 for unknown API routes', async () => {

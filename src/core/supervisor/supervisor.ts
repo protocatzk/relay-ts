@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { Logger } from 'pino';
 import type { LoadedConfig } from '../config/loader.js';
 import {
@@ -32,6 +33,7 @@ import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
 import { EarningsMonitor, formatEarningsOverlay } from '../earnings/monitor.js';
+import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
 import { renderStudioPreview } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
@@ -299,6 +301,10 @@ export class Supervisor {
       },
     });
     this.online.start();
+    const earningsHistory = new EarningsHistoryStore(
+      join(config.paths.dataDir, 'earnings-history.json'),
+      logger,
+    );
     this.earnings = new EarningsMonitor({
       settings: this.settings,
       logger,
@@ -306,6 +312,7 @@ export class Supervisor {
       onUpdate: (_snapshot, overlayText) => {
         this.overlays.updateEarnings(overlayText);
       },
+      history: earningsHistory,
     });
     this.earnings.start();
     this.watchdog.start();
@@ -1583,6 +1590,10 @@ export class Supervisor {
 
   earningsStatus(): ReturnType<EarningsMonitor['get']> | null {
     return this.earnings?.get() ?? null;
+  }
+
+  earningsHistory(period?: EarningsPeriod, limit = 240) {
+    return this.earnings?.history(period, limit) ?? [];
   }
 
   async refreshEarnings(): Promise<ReturnType<EarningsMonitor['get']> | null> {

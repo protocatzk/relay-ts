@@ -225,6 +225,25 @@ export type EarningsStatus =
   | 'error'
   | 'ok';
 
+export interface EarningsDelta {
+  net: number | null;
+  gross: number | null;
+  coins: number | null;
+  since: string | null;
+}
+
+export type EarningsPeriod = 'today' | '24h' | '7d' | '30d' | 'all';
+
+export interface EarningsHistoryPoint {
+  at: string;
+  streamer_id: string;
+  period: EarningsPeriod;
+  net: number | null;
+  gross: number | null;
+  coins: number | null;
+  currency: 'EUR' | 'USD';
+}
+
 export interface EarningsSnapshot {
   enabled: boolean;
   configured: boolean;
@@ -239,6 +258,7 @@ export interface EarningsSnapshot {
   period: string;
   period_label: string;
   view: 'compact' | 'standard' | 'detailed';
+  interval_seconds: number;
   net: number | null;
   gross: number | null;
   coins: number | null;
@@ -253,6 +273,7 @@ export interface EarningsSnapshot {
   top_gifter: EarningsTopGifter | null;
   rates: EarningsRates | null;
   diagnostics: EarningsDiagnostics | null;
+  delta: EarningsDelta | null;
   last_seen_at: string | null;
   source: string | null;
   updated_at: string | null;
@@ -468,6 +489,16 @@ export interface PlaylistInput {
 export interface AuthMe {
   authenticated: boolean;
   auth_required: boolean;
+}
+
+export interface AuthSessionInfo {
+  id: string;
+  user: string;
+  provider: 'password' | 'telegram';
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  current: boolean;
 }
 
 export interface AuthMethods {
