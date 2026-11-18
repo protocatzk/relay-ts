@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
-import type { Settings, StreamerConfig } from '../config/schema.js';
+import type { Settings } from '../config/schema.js';
 import { ensureDir, writeFileAtomic } from '../../utils/fs.js';
 import { chatFilter, clockFilter, earningsFilter, resolveFont, textFilter, wrapChatLine } from './drawtext.js';
 
@@ -31,7 +31,6 @@ export class OverlayManager {
   private lastEarningsText = '';
   private warnedFont = false;
   private settings: Settings;
-  private streamer: StreamerConfig | null = null;
 
   constructor(options: OverlayManagerOptions, settings: Settings) {
     this.options = options;
@@ -50,9 +49,7 @@ export class OverlayManager {
     this.settings = settings;
   }
 
-  prepare(streamer: StreamerConfig): PreparedOverlays {
-    const effective: StreamerConfig = { ...streamer, overlays: this.settings.overlays };
-    this.streamer = effective;
+  prepare(): PreparedOverlays {
     if (!this.fontFile) return { filters: [], fontFile: null };
     this.directory = join(this.options.overlaysDir, 'active');
     ensureDir(this.directory);
@@ -60,18 +57,18 @@ export class OverlayManager {
     this.textFile = join(this.directory, 'text.txt');
     this.earningsFile = join(this.directory, 'earnings.txt');
     writeFileAtomic(this.chatFile, '', 0o600);
-    writeFileAtomic(this.textFile, effective.overlays.text.text || '', 0o600);
+    writeFileAtomic(this.textFile, this.settings.overlays.text.text || '', 0o600);
     writeFileAtomic(this.earningsFile, this.lastEarningsText, 0o600);
 
     const filters: string[] = [];
-    const clock = clockFilter(this.settings, effective, this.fontFile);
+    const clock = clockFilter(this.settings, this.fontFile);
     if (clock) filters.push(clock);
-    const text = textFilter(this.settings, effective, this.fontFile, this.textFile);
+    const text = textFilter(this.settings, this.fontFile, this.textFile);
     if (text) filters.push(text);
     const earnings = earningsFilter(this.settings, this.fontFile, this.earningsFile);
     if (earnings) filters.push(earnings);
-    if (effective.overlays.chat.engine === 'drawtext') {
-      const chat = chatFilter(this.settings, effective, this.fontFile, this.chatFile);
+    if (this.settings.overlays.chat.engine === 'drawtext') {
+      const chat = chatFilter(this.settings, this.fontFile, this.chatFile);
       if (chat) filters.push(chat);
     }
     return { filters, fontFile: this.fontFile };
@@ -83,8 +80,8 @@ export class OverlayManager {
   }
 
   updateChat(messages: string[]): void {
-    if (!this.chatFile || !this.streamer) return;
-    const config = this.streamer.overlays.chat;
+    if (!this.chatFile) return;
+    const config = this.settings.overlays.chat;
     if (!config.enabled) return;
     const [width] = this.settings.video.resolution.split('x').map(Number) as [number, number];
     const maxChars = Math.max(12, Math.floor((width * 0.9) / (config.font_size * 0.56)));
@@ -110,6 +107,5 @@ export class OverlayManager {
 
   clear(): void {
     if (this.chatFile) writeFileAtomic(this.chatFile, '', 0o600);
-    this.streamer = null;
   }
 }

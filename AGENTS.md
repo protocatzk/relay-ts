@@ -115,9 +115,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - `config/settings.yml` wird atomar mit Modus `0600` geschrieben.
 - Secrets werden in API-Antworten durch `api_key_set` ersetzt.
 - Overlays (`chat`, `clock`, `text`) sind **global** in `settings.yml`.
-  Per-Streamer-Overlays bleiben nur zur YAML-Kompatibilität erhalten.
 - Fehlt `settings.overlays`, werden beim ersten Start die Overlays des ersten
   Streamers mit aktivem Overlay übernommen und persistiert.
+- Per-Streamer-Overlays aus Alt-YAMLs werden beim Laden ignoriert und aus der
+  Streamer-Datei entfernt; es gilt ausschließlich `settings.overlays`.
 - Overlay-Studio speichert über `PUT /api/overlays`; Einnahmen und restliche
   Einstellungen über `PUT /api/settings`.
 

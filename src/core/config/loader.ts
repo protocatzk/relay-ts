@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { z } from 'zod';
 import {
   DEFAULT_SETTINGS,
+  OverlaysSettingsSchema,
   PlaylistSchema,
   SettingsSchema,
   StreamerSchema,
@@ -165,10 +166,11 @@ export function readStreamersFile(path: string): {
   streamers: StreamerConfig[];
   playlists: PlaylistConfig[];
   settings?: Record<string, unknown>;
+  legacyOverlays: Array<{ streamerId: string; overlays: Settings['overlays'] }>;
 } {
   const raw = readYamlFile(path);
   if (raw === undefined) {
-    return { streamers: [], playlists: [] };
+    return { streamers: [], playlists: [], legacyOverlays: [] };
   }
   const parsed = StreamersFileSchema.safeParse(raw);
   if (!parsed.success) {
@@ -188,10 +190,27 @@ export function readStreamersFile(path: string): {
     }
     playlistIds.add(playlist.id);
   }
+  const legacyOverlays: Array<{ streamerId: string; overlays: Settings['overlays'] }> = [];
+  const rawStreamers = (raw as Record<string, unknown>).streamers;
+  if (Array.isArray(rawStreamers)) {
+    for (const item of rawStreamers) {
+      if (!item || typeof item !== 'object') continue;
+      const record = item as Record<string, unknown>;
+      if (!Object.hasOwn(record, 'overlays')) continue;
+      const overlays = OverlaysSettingsSchema.safeParse(record.overlays);
+      if (overlays.success) {
+        legacyOverlays.push({
+          streamerId: typeof record.id === 'string' ? record.id : 'unknown',
+          overlays: overlays.data,
+        });
+      }
+    }
+  }
   return {
     streamers: parsed.data.streamers,
     playlists: parsed.data.playlists,
     settings: parsed.data.settings,
+    legacyOverlays,
   };
 }
 
@@ -243,14 +262,11 @@ export function loadConfig(options: LoadOptions = {}): LoadedConfig {
   }
   if (settingsFileRaw) Object.assign(settingsRaw, settingsFileRaw as Record<string, unknown>);
   let migratedOverlays = false;
-  if (!Object.hasOwn(settingsRaw, 'overlays') && file.streamers.length > 0) {
+  if (!Object.hasOwn(settingsRaw, 'overlays') && file.legacyOverlays.length > 0) {
     const source =
-      file.streamers.find(
-        (streamer) =>
-          streamer.overlays.chat.enabled ||
-          streamer.overlays.clock.enabled ||
-          streamer.overlays.text.enabled,
-      ) ?? file.streamers[0]!;
+      file.legacyOverlays.find(
+        ({ overlays }) => overlays.chat.enabled || overlays.clock.enabled || overlays.text.enabled,
+      ) ?? file.legacyOverlays[0]!;
     settingsRaw.overlays = structuredClone(source.overlays);
     migratedOverlays = true;
   }

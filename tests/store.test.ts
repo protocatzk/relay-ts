@@ -5,7 +5,7 @@ import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { StreamerStore } from '../src/core/store/streamer-store.js';
 import { SettingsService } from '../src/core/store/settings-service.js';
-import { DEFAULT_SETTINGS, SettingsSchema } from '../src/core/config/schema.js';
+import { DEFAULT_SETTINGS, SettingsSchema, type StreamerConfig } from '../src/core/config/schema.js';
 import { readYamlFile } from '../src/utils/fs.js';
 
 const logger = pino({ level: 'silent' });
@@ -28,20 +28,32 @@ describe('StreamerStore', () => {
     expect(created.id).toBe('alpha');
     expect(store.get('alpha')?.quality).toBe('720p');
 
-    const updated = store.update('alpha', { name: 'Alpha 2', overlays: { chat: { enabled: true } } });
+    const updated = store.update('alpha', { name: 'Alpha 2' });
     expect(updated.name).toBe('Alpha 2');
     expect(updated.quality).toBe('720p');
-    expect(updated.overlays.chat.enabled).toBe(true);
-    expect(updated.overlays.clock.enabled).toBe(false);
 
     const view = store.view(updated, 'alpha', true);
     expect(view.youtube_key_set).toBe(true);
-    expect(view.overlays.chat.api_key_set).toBe(false);
     expect((view as unknown as { youtube_key?: string }).youtube_key).toBeUndefined();
     expect(view.status.active).toBe(true);
 
     store.remove('alpha');
     expect(store.get('alpha')).toBeUndefined();
+  });
+
+  it('strips legacy per-streamer overlays on load', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-store-'));
+    const path = join(dir, 'streamers.yml');
+    const legacy = {
+      id: 'legacy',
+      name: 'Legacy',
+      tiktok: 'legacy',
+      overlays: { chat: { enabled: true } },
+    } as unknown as StreamerConfig;
+    new StreamerStore(path, { streamers: [legacy], playlists: [] }, logger);
+    const raw = readYamlFile(path) as { streamers: Array<Record<string, unknown>> };
+    expect(raw.streamers[0]?.overlays).toBeUndefined();
+    expect(raw.streamers[0]?.id).toBe('legacy');
   });
 
   it('rejects duplicate ids and id changes', () => {

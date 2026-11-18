@@ -8,7 +8,6 @@ const streamer = StreamerSchema.parse({
   id: 'chat-test',
   name: 'Chat Test',
   tiktok: 'chat_test',
-  overlays: { chat: { enabled: true, engine: 'canvas' } },
 });
 
 describe('ChatService', () => {
@@ -16,6 +15,7 @@ describe('ChatService', () => {
     const updates: ChatMessage[][] = [];
     const service = new ChatService({
       streamer,
+      chat: DEFAULT_SETTINGS.overlays.chat,
       settings: DEFAULT_SETTINGS,
       logger,
       onMessages: (messages) => updates.push(messages),

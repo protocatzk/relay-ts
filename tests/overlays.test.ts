@@ -8,7 +8,7 @@ import {
   textFilter,
   wrapChatLine,
 } from '../src/core/overlays/drawtext.js';
-import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
+import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
 import { extractMessages } from '../src/core/overlays/chat-service.js';
 import {
   isTokTrackerUrl,
@@ -17,16 +17,14 @@ import {
 } from '../src/core/online/monitor.js';
 import { FfmpegProgress } from '../src/utils/ffmpeg-progress.js';
 
-const streamer = StreamerSchema.parse({
-  id: 'alpha',
-  name: 'Alpha',
-  tiktok: 'alpha',
+const settings = {
+  ...DEFAULT_SETTINGS,
   overlays: {
-    chat: { enabled: true, max_lines: 5 },
-    clock: { enabled: true, format: '%H:%M:%S' },
-    text: { enabled: true, text: 'Hallo', marquee: true },
+    chat: { ...DEFAULT_SETTINGS.overlays.chat, enabled: true, max_lines: 5 },
+    clock: { ...DEFAULT_SETTINGS.overlays.clock, enabled: true, format: '%H:%M:%S' },
+    text: { ...DEFAULT_SETTINGS.overlays.text, enabled: true, text: 'Hallo', marquee: true },
   },
-});
+};
 const font = '/usr/share/fonts/dejavu/DejaVuSans.ttf';
 
 describe('drawtext overlays', () => {
@@ -45,26 +43,31 @@ describe('drawtext overlays', () => {
       x: '32+100',
       y: '32-40',
     });
-    const moved = StreamerSchema.parse({
-      id: 'moved',
-      name: 'Moved',
-      tiktok: 'moved',
+    const movedSettings = {
+      ...DEFAULT_SETTINGS,
       overlays: {
-        clock: { enabled: true, position: 'top-right', offset_x: 50, offset_y: 20 },
+        ...DEFAULT_SETTINGS.overlays,
+        clock: {
+          ...DEFAULT_SETTINGS.overlays.clock,
+          enabled: true,
+          position: 'top-right' as const,
+          offset_x: 50,
+          offset_y: 20,
+        },
       },
-    });
-    expect(clockFilter(DEFAULT_SETTINGS, moved, font)).toContain('x=w-tw-32+50:y=32+20');
+    };
+    expect(clockFilter(movedSettings, font)).toContain('x=w-tw-32+50:y=32+20');
   });
 
   it('builds clock, text and chat filters', () => {
-    const clock = clockFilter(DEFAULT_SETTINGS, streamer, font);
+    const clock = clockFilter(settings, font);
     expect(clock).toContain('localtime');
     expect(clock).toMatch(/%H\\{3}:%M\\{3}:%S/);
-    const text = textFilter(DEFAULT_SETTINGS, streamer, font, '/tmp/text.txt');
+    const text = textFilter(settings, font, '/tmp/text.txt');
     expect(text).toContain("textfile='/tmp/text.txt'");
     expect(text).toContain('reload=1');
     expect(text).toContain('w-mod(t*120\\,w+tw)');
-    const chat = chatFilter(DEFAULT_SETTINGS, streamer, font, '/tmp/chat.txt');
+    const chat = chatFilter(settings, font, '/tmp/chat.txt');
     expect(chat).toContain('line_spacing=6');
     expect(chat).toContain("textfile='/tmp/chat.txt'");
   });

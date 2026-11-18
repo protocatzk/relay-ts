@@ -392,6 +392,11 @@ data/pause/pausenscreen.mp4
 `pause.background` bzw. `startup.background` verweisen dann auf
 `/app/data/pause/<datei>`.
 
+Per-Streamer-Overlays aus älteren YAML-Dateien werden beim Laden ignoriert und
+beim nächsten Speichern entfernt. Maßgeblich ist immer `settings.overlays` im
+Dashboard; vorhandene Overlay-Werte des ersten aktiven Streamers werden beim
+ersten Start einmalig nach `settings.yml` migriert.
+
 ### Manuelle Screens
 
 Auf dem Dashboard lassen sich **Startbildschirm** und **Pausenscreen** jederzeit

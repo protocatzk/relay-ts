@@ -3,9 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ApiContext } from '../context.js';
 import {
   EarningsSettingsSchema,
-  StreamerSchema,
+  OverlaysSettingsSchema,
   formatZodError,
-  type StreamerConfig,
 } from '../../core/config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
 import { join } from 'node:path';
@@ -129,26 +128,16 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         parsed.error.issues,
       );
     }
-    const base =
-      (parsed.data.streamer_id ? ctx.store.get(parsed.data.streamer_id) : undefined) ??
-      ctx.store.list().find((streamer) => streamer.enabled) ??
-      ctx.store.list()[0] ??
-      StreamerSchema.parse({
-        id: 'preview',
-        name: 'Preview',
-        tiktok: 'preview',
-      });
-    let streamer: StreamerConfig;
-    try {
-      streamer = StreamerSchema.parse({ ...base, overlays: parsed.data.overlays });
-    } catch (error) {
+    const overlays = OverlaysSettingsSchema.safeParse(parsed.data.overlays);
+    if (!overlays.success) {
       throw new ValidationError(
-        `Ungültige Overlay-Einstellungen: ${error instanceof Error ? error.message : String(error)}`,
+        `Ungültige Overlay-Einstellungen: ${formatZodError(overlays.error)}`,
+        overlays.error.issues,
       );
     }
     const sample = parsed.data.sample ?? true;
     const png = ctx.supervisor.studioPreviewPng(
-      streamer,
+      overlays.data,
       sample,
       parsed.data.max_dimension ?? 720,
       sample ? undefined : ctx.supervisor.recentChatMessages(),

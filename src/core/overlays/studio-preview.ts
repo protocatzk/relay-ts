@@ -1,13 +1,13 @@
 import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
-import type { Settings, StreamerConfig } from '../config/schema.js';
+import type { Settings } from '../config/schema.js';
 import { ChatOverlayEngine, parseColor } from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
 import type { OverlayPosition } from './drawtext.js';
 
 export interface StudioPreviewOptions {
   settings: Settings;
-  streamer: StreamerConfig;
+  overlays: Settings['overlays'];
   logger: Logger;
   sample?: boolean;
   earningsText?: string;
@@ -102,13 +102,13 @@ function drawBackground(
 }
 
 export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
-  const { settings, streamer, logger, sample = true } = options;
+  const { settings, overlays, logger, sample = true } = options;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
   drawBackground(ctx, width, height);
 
-  const clock = streamer.overlays.clock;
+  const clock = overlays.clock;
   if (clock.enabled) {
     drawBoxedText(ctx, clockText(clock.format), clock.position, {
       width,
@@ -124,7 +124,7 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     });
   }
 
-  const text = streamer.overlays.text;
+  const text = overlays.text;
   if (text.enabled && text.text.trim()) {
     drawBoxedText(ctx, text.marquee ? `${text.text}     ${text.text}` : text.text, text.position, {
       width,
@@ -140,9 +140,9 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     });
   }
 
-  const chat = streamer.overlays.chat;
+  const chat = overlays.chat;
   if (chat.enabled) {
-    const engine = new ChatOverlayEngine({ settings, streamer, logger });
+    const engine = new ChatOverlayEngine({ settings, overlays, logger });
     if (options.chatMessages && options.chatMessages.length > 0) {
       engine.setMessages(options.chatMessages);
     }

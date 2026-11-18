@@ -47,7 +47,6 @@ async function main(): Promise<void> {
   );
   for (const streamer of store.list()) {
     redactor.add(resolveStreamKey(streamer).key);
-    redactor.add(streamer.overlays.chat.api_key);
   }
   for (const playlist of store.playlists()) {
     redactor.add(resolveStreamKey(playlist).key);

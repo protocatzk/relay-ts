@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import type {
-  ChatOverlay,
-  OverlayPosition,
-  StreamQuality,
-  Streamer,
-  StreamerInput,
-  StreamerOverlays,
-  StreamerOverlaysInput,
-} from '@/src/api/types';
+import type { StreamQuality, Streamer, StreamerInput } from '@/src/api/types';
 import ModalDialog from './ModalDialog.vue';
-import ToggleField from './ToggleField.vue';
 
 const props = defineProps<{
   open: boolean;
@@ -32,13 +23,6 @@ const QUALITY_OPTIONS: { value: StreamQuality; label: string }[] = [
   { value: '360p', label: '360p' },
 ];
 
-const POSITIONS: { value: OverlayPosition; label: string }[] = [
-  { value: 'top-left', label: 'Oben links' },
-  { value: 'top-right', label: 'Oben rechts' },
-  { value: 'bottom-left', label: 'Unten links' },
-  { value: 'bottom-right', label: 'Unten rechts' },
-];
-
 interface StreamerForm {
   id: string;
   name: string;
@@ -49,69 +33,6 @@ interface StreamerForm {
   preferred: boolean;
   enabled: boolean;
   own_stream: boolean;
-  overlays: StreamerOverlays;
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function defaultOverlays(): StreamerOverlays {
-  return {
-    chat: {
-      enabled: false,
-      engine: 'canvas',
-      position: 'bottom-left',
-      style: 'bubbles',
-      max_lines: 8,
-      max_messages: 30,
-      max_age_seconds: 0,
-      panel_height: 0,
-      font_size: 24,
-      font_color: '#ffffff',
-      box_color: '#000000@0.45',
-      bubble_opacity: 1,
-      panel_width: 0,
-      render_fps: 10,
-      show_timestamps: false,
-      show_badges: true,
-      show_tiers: true,
-      show_stats: false,
-      name_colors: true,
-      offset_x: 0,
-      offset_y: 0,
-      api_url: '',
-      api_key_set: false,
-      poll_interval: 3,
-      delay: 0,
-    },
-    clock: {
-      enabled: false,
-      position: 'top-right',
-      format: '%H:%M',
-      font_size: 28,
-      font_color: '#ffffff',
-      box_color: '#000000@0.45',
-      show_box: true,
-      margin: 32,
-      offset_x: 0,
-      offset_y: 0,
-    },
-    text: {
-      enabled: false,
-      position: 'bottom-right',
-      text: '',
-      font_size: 24,
-      font_color: '#ffffff',
-      box_color: '#000000@0.45',
-      marquee: false,
-      speed: 60,
-      show_box: true,
-      margin: 32,
-      offset_x: 0,
-      offset_y: 0,
-    },
-  };
 }
 
 const source = props.streamer;
@@ -126,10 +47,8 @@ const form = reactive<StreamerForm>({
   preferred: source?.preferred ?? false,
   enabled: source?.enabled ?? true,
   own_stream: source?.own_stream ?? false,
-  overlays: source ? clone(source.overlays) : defaultOverlays(),
 });
 
-const chatApiKey = ref('');
 const idTouched = ref(source !== null);
 const validationError = ref('');
 
@@ -169,19 +88,6 @@ function markIdTouched(): void {
 }
 
 function buildBody(): StreamerInput {
-  const chatClone = clone(form.overlays.chat);
-  delete (chatClone as Partial<ChatOverlay>).api_key_set;
-
-  const chatInput: StreamerOverlaysInput['chat'] = { ...chatClone };
-  const key = chatApiKey.value.trim();
-  if (key) chatInput.api_key = key;
-
-  const overlays: StreamerOverlaysInput = {
-    chat: chatInput,
-    clock: clone(form.overlays.clock),
-    text: clone(form.overlays.text),
-  };
-
   const body: StreamerInput = {
     name: form.name.trim(),
     tiktok: form.tiktok.trim(),
@@ -190,7 +96,6 @@ function buildBody(): StreamerInput {
     preferred: form.preferred,
     enabled: form.enabled,
     own_stream: form.own_stream,
-    overlays,
   };
 
   const youtubeKey = form.youtube_key.trim();

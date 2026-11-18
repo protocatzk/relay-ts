@@ -1,34 +1,42 @@
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
+import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
 import { renderStudioPreview } from '../src/core/overlays/studio-preview.js';
 
 const logger = pino({ level: 'silent' });
 
+function settingsWith(overlays: Partial<(typeof DEFAULT_SETTINGS)['overlays']>) {
+  return {
+    ...DEFAULT_SETTINGS,
+    overlays: { ...DEFAULT_SETTINGS.overlays, ...overlays },
+  };
+}
+
 describe('studio preview', () => {
   it('renders a PNG with chat, clock and text overlays', () => {
-    const settings = DEFAULT_SETTINGS;
-    const streamer = StreamerSchema.parse({
-      id: 'preview',
-      name: 'Preview',
-      tiktok: 'preview',
-      overlays: {
-        chat: {
-          enabled: true,
-          style: 'panel',
-          show_stats: true,
-          show_tiers: true,
-          name_colors: true,
-          max_messages: 40,
-          panel_height: 320,
-        },
-        clock: { enabled: true, show_box: true, margin: 20 },
-        text: { enabled: true, text: 'Studio Test', show_box: true, margin: 24 },
+    const settings = settingsWith({
+      chat: {
+        ...DEFAULT_SETTINGS.overlays.chat,
+        enabled: true,
+        style: 'panel',
+        show_stats: true,
+        show_tiers: true,
+        name_colors: true,
+        max_messages: 40,
+        panel_height: 320,
+      },
+      clock: { ...DEFAULT_SETTINGS.overlays.clock, enabled: true, show_box: true, margin: 20 },
+      text: {
+        ...DEFAULT_SETTINGS.overlays.text,
+        enabled: true,
+        text: 'Studio Test',
+        show_box: true,
+        margin: 24,
       },
     });
     const png = renderStudioPreview({
       settings,
-      streamer,
+      overlays: settings.overlays,
       logger,
       sample: true,
       earningsText: '12,50 € · 1200 Coins',
@@ -40,18 +48,25 @@ describe('studio preview', () => {
   });
 
   it('renders live messages and studio offsets', () => {
-    const streamer = StreamerSchema.parse({
-      id: 'live',
-      name: 'Live',
-      tiktok: 'live',
-      overlays: {
-        chat: { enabled: true, style: 'bubbles', offset_x: 40, offset_y: -30 },
-        clock: { enabled: true, position: 'bottom-right', offset_x: -20, offset_y: 10 },
+    const settings = settingsWith({
+      chat: {
+        ...DEFAULT_SETTINGS.overlays.chat,
+        enabled: true,
+        style: 'bubbles',
+        offset_x: 40,
+        offset_y: -30,
+      },
+      clock: {
+        ...DEFAULT_SETTINGS.overlays.clock,
+        enabled: true,
+        position: 'bottom-right',
+        offset_x: -20,
+        offset_y: 10,
       },
     });
     const png = renderStudioPreview({
-      settings: DEFAULT_SETTINGS,
-      streamer,
+      settings,
+      overlays: settings.overlays,
       logger,
       sample: false,
       chatMessages: [
@@ -79,14 +94,9 @@ describe('studio preview', () => {
         overlay_show_box: false,
       },
     };
-    const streamer = StreamerSchema.parse({
-      id: 'earnings',
-      name: 'Earnings',
-      tiktok: 'earnings',
-    });
     const png = renderStudioPreview({
       settings,
-      streamer,
+      overlays: settings.overlays,
       logger,
       sample: true,
       earningsText: '205,28 € · 42.505 Coins',
@@ -97,14 +107,9 @@ describe('studio preview', () => {
   });
 
   it('renders an empty stage when all overlays are disabled', () => {
-    const streamer = StreamerSchema.parse({
-      id: 'empty',
-      name: 'Empty',
-      tiktok: 'empty',
-    });
     const png = renderStudioPreview({
       settings: DEFAULT_SETTINGS,
-      streamer,
+      overlays: DEFAULT_SETTINGS.overlays,
       logger,
       sample: true,
     });

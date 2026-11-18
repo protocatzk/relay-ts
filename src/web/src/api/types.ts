@@ -88,7 +88,6 @@ export interface Streamer {
   preferred: boolean;
   enabled: boolean;
   own_stream: boolean;
-  overlays: StreamerOverlays;
   status: {
     online: boolean | null;
     active: boolean;
@@ -565,7 +564,6 @@ export interface StreamerInput {
   preferred: boolean;
   enabled: boolean;
   own_stream: boolean;
-  overlays: StreamerOverlaysInput;
 }
 
 export interface StudioPreviewInput {

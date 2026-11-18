@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import type { Settings, StreamerConfig } from '../config/schema.js';
+import type { Settings } from '../config/schema.js';
 
 export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -58,12 +58,8 @@ export function positionExpressions(
   }
 }
 
-export function clockFilter(
-  settings: Settings,
-  streamer: StreamerConfig,
-  fontFile: string,
-): string | null {
-  const config = streamer.overlays.clock;
+export function clockFilter(settings: Settings, fontFile: string): string | null {
+  const config = settings.overlays.clock;
   if (!config.enabled) return null;
   const { x, y } = positionExpressions(
     config.position,
@@ -85,11 +81,10 @@ export function clockFilter(
 
 export function textFilter(
   settings: Settings,
-  streamer: StreamerConfig,
   fontFile: string,
   textFile: string,
 ): string | null {
-  const config = streamer.overlays.text;
+  const config = settings.overlays.text;
   if (!config.enabled || !config.text.trim()) return null;
   const { x, y } = positionExpressions(
     config.position,
@@ -111,11 +106,10 @@ export function textFilter(
 
 export function chatFilter(
   settings: Settings,
-  streamer: StreamerConfig,
   fontFile: string,
   chatFile: string,
 ): string | null {
-  const config = streamer.overlays.chat;
+  const config = settings.overlays.chat;
   if (!config.enabled) return null;
   const { x, y } = positionExpressions(
     config.position,

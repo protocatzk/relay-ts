@@ -490,27 +490,18 @@ export class Supervisor {
     return this.start(id);
   }
 
-  private effectiveStreamer(streamer: StreamerConfig): StreamerConfig {
-    return { ...streamer, overlays: this.settings.overlays };
-  }
-
-  private createChatEngine(streamer: StreamerConfig): ChatOverlayEngine | undefined {
-    const effective = this.effectiveStreamer(streamer);
-    const chat = effective.overlays.chat;
+  private createChatEngine(): ChatOverlayEngine | undefined {
+    const chat = this.settings.overlays.chat;
     if (!chat.enabled || chat.engine !== 'canvas') return undefined;
     return new ChatOverlayEngine({
       settings: this.settings,
-      streamer: effective,
+      overlays: this.settings.overlays,
       logger: this.deps.logger,
     });
   }
 
-  private overlaySignature(
-    filters: string[],
-    streamer: StreamerConfig,
-    engine: ChatOverlayEngine | undefined,
-  ): string {
-    const chat = this.effectiveStreamer(streamer).overlays.chat;
+  private overlaySignature(filters: string[], engine: ChatOverlayEngine | undefined): string {
+    const chat = this.settings.overlays.chat;
     const engineSpec = engine ? JSON.stringify(engine.panel) : 'off';
     return `${filters.join('|')}|chat:${chat.enabled ? chat.engine : 'off'}:${engineSpec}|style:${chat.style}`;
   }
@@ -518,11 +509,10 @@ export class Supervisor {
   private rebuildChatEngineLocked(): void {
     if (!this.activeStreamer) return;
     this.chatEngine?.detach();
-    this.chatEngine = this.createChatEngine(this.activeStreamer);
+    this.chatEngine = this.createChatEngine();
     this.activeOverlayInput = this.chatEngine?.panel;
     this.activeOverlaySignature = this.overlaySignature(
       this.activeOverlayFilters,
-      this.activeStreamer,
       this.chatEngine,
     );
     if (this.chatEngine) this.chatEngine.setMessages(this.currentChatMessages);
@@ -579,10 +569,10 @@ export class Supervisor {
     this.resolving = false;
 
     const previousKey = this.activeKey;
-    const prepared = this.overlays.prepare(streamer);
-    const candidateEngine = this.createChatEngine(streamer);
+    const prepared = this.overlays.prepare();
+    const candidateEngine = this.createChatEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlaySignature(prepared.filters, streamer, candidateEngine);
+    const signature = this.overlaySignature(prepared.filters, candidateEngine);
     const reusable =
       this.sink.running && previousKey === key && this.activeOverlaySignature === signature;
     const timestampOffset = reusable ? this.nextProducerOffset() : 0;
@@ -701,10 +691,10 @@ export class Supervisor {
   ): Promise<void> {
     this.clearReconnectTimer();
     this.clearOfflinePauseTimer();
-    const prepared = this.overlays.prepare(streamer);
-    const candidateEngine = this.createChatEngine(streamer);
+    const prepared = this.overlays.prepare();
+    const candidateEngine = this.createChatEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlaySignature(prepared.filters, streamer, candidateEngine);
+    const signature = this.overlaySignature(prepared.filters, candidateEngine);
     const reusable =
       this.sink.running && this.activeKey === key && this.activeOverlaySignature === signature;
 
@@ -859,9 +849,9 @@ export class Supervisor {
       this.chatEngine?.setMessages([]);
       this.overlays.updateChat([]);
     }
-    const effective = this.effectiveStreamer(streamer);
     this.chat = new ChatService({
-      streamer: effective,
+      streamer,
+      chat: this.settings.overlays.chat,
       settings: this.settings,
       logger: this.deps.logger,
       onMessages: (messages) => {
@@ -1004,12 +994,11 @@ export class Supervisor {
           this.currentChatMessages = [];
           this.buffer.reset();
           this.resetTimeline();
-          const carrier = target.streamer ?? this.screenFallbackStreamer();
-          const prepared = this.overlays.prepare(carrier);
+          const prepared = this.overlays.prepare();
           pendingSink = {
             key: target.key,
             filters: prepared.filters,
-            signature: this.overlaySignature(prepared.filters, carrier, undefined),
+            signature: this.overlaySignature(prepared.filters, undefined),
           };
         }
       }
@@ -1524,18 +1513,17 @@ export class Supervisor {
       const overlayCarrier =
         this.activeStreamer ?? (this.manualScreen ? this.screenFallbackStreamer() : null);
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
-        const prepared = this.overlays.prepare(overlayCarrier);
+        const prepared = this.overlays.prepare();
         this.activeOverlayFilters = prepared.filters;
         this.activeOverlaySignature = this.overlaySignature(
           prepared.filters,
-          overlayCarrier,
           this.activeStreamer ? this.chatEngine : undefined,
         );
         if (this.sink.running) await this.restartSinkLocked();
       }
 
       if (overlaysChanged && overlayCarrier) {
-        const prepared = this.overlays.prepare(overlayCarrier);
+        const prepared = this.overlays.prepare();
         this.activeOverlayFilters = prepared.filters;
         this.rebuildChatEngineLocked();
         if (this.state === 'live' && this.activeStreamer) {
@@ -1643,25 +1631,14 @@ export class Supervisor {
   }
 
   private getPreviewEngine(): ChatOverlayEngine {
-    const streamer =
-      this.activeStreamer ??
-      this.deps.store.list().find((item) => item.enabled && item.overlays.chat.enabled) ??
-      this.deps.store.list()[0] ??
-      StreamerSchema.parse({
-        id: 'preview',
-        name: 'Preview',
-        tiktok: 'preview',
-        overlays: { chat: { enabled: true } },
-      });
     const signature = JSON.stringify({
-      id: streamer.id,
-      chat: streamer.overlays.chat,
+      chat: this.settings.overlays.chat,
       resolution: this.settings.video.resolution,
     });
     if (!this.previewEngine || this.previewSignature !== signature) {
       this.previewEngine = new ChatOverlayEngine({
         settings: this.settings,
-        streamer,
+        overlays: this.settings.overlays,
         logger: this.deps.logger,
       });
       this.previewSignature = signature;
@@ -1674,7 +1651,7 @@ export class Supervisor {
   }
 
   studioPreviewPng(
-    streamer: StreamerConfig,
+    overlays: Settings['overlays'],
     sample = true,
     maxDimension = 720,
     chatMessages?: ChatMessage[],
@@ -1685,7 +1662,7 @@ export class Supervisor {
       : this.settings;
     return renderStudioPreview({
       settings,
-      streamer,
+      overlays,
       logger: this.deps.logger,
       sample,
       chatMessages,

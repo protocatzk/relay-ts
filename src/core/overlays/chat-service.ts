@@ -16,6 +16,7 @@ export interface ChatMessage {
 
 export interface ChatServiceOptions {
   streamer: StreamerConfig;
+  chat: Settings['overlays']['chat'];
   settings: Settings;
   logger: Logger;
   onMessages: (messages: ChatMessage[]) => void;
@@ -48,7 +49,7 @@ export class ChatService {
 
   constructor(options: ChatServiceOptions) {
     this.options = options;
-    this.config = options.streamer.overlays.chat;
+    this.config = options.chat;
   }
 
   private get apiUrl(): string {

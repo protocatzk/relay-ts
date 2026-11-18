@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createCanvas, GlobalFonts, type Canvas, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
-import type { Settings, StreamerConfig } from '../config/schema.js';
+import type { Settings } from '../config/schema.js';
 import type { ChatMessage } from './chat-service.js';
 
 const REGULAR_FONTS = [
@@ -229,7 +229,7 @@ export interface ChatPanelSpec {
 
 export interface ChatOverlayEngineOptions {
   settings: Settings;
-  streamer: StreamerConfig;
+  overlays: Settings['overlays'];
   logger: Logger;
 }
 
@@ -254,7 +254,7 @@ export class ChatOverlayEngine {
   constructor(options: ChatOverlayEngineOptions) {
     this.options = options;
     registerFonts();
-    const cfg = options.streamer.overlays.chat;
+    const cfg = options.overlays.chat;
     const [outputWidth, outputHeight] = options.settings.video.resolution.split('x').map(Number) as [
       number,
       number,
@@ -300,7 +300,7 @@ export class ChatOverlayEngine {
   }
 
   setMessages(messages: ChatMessage[]): void {
-    const cfg = this.options.streamer.overlays.chat;
+    const cfg = this.options.overlays.chat;
     const cutoff =
       cfg.max_age_seconds > 0 ? Date.now() - cfg.max_age_seconds * 1000 : 0;
     const recent = cutoff
@@ -322,7 +322,7 @@ export class ChatOverlayEngine {
       timestamp: new Date(),
     };
     this.messages.push(message);
-    const cfg = this.options.streamer.overlays.chat;
+    const cfg = this.options.overlays.chat;
     const limit = Math.max(1, cfg.max_messages);
     if (this.messages.length > limit) this.messages = this.messages.slice(-limit);
     this.dirty = true;
@@ -441,7 +441,7 @@ export class ChatOverlayEngine {
     height: number,
     messages: ChatMessage[],
   ): void {
-    const cfg = this.options.streamer.overlays.chat;
+    const cfg = this.options.overlays.chat;
     ctx.clearRect(0, 0, width, height);
     if (messages.length === 0) return;
 

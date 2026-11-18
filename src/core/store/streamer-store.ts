@@ -33,16 +33,17 @@ export interface StreamerView {
   video_mode: StreamerConfig['video_mode'];
   youtube_key_set: boolean;
   youtube_key_source: 'streamer' | 'env' | 'none';
-  overlays: {
-    chat: Omit<StreamerConfig['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
-    clock: StreamerConfig['overlays']['clock'];
-    text: StreamerConfig['overlays']['text'];
-  };
   status: { online: boolean | null; active: boolean };
 }
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+function stripLegacyOverlays<T extends object>(value: T): T {
+  const copy = { ...value } as Record<string, unknown>;
+  delete copy.overlays;
+  return copy as T;
 }
 
 export class StreamerStore {
@@ -54,8 +55,18 @@ export class StreamerStore {
   constructor(path: string, initial: { streamers: StreamerConfig[]; playlists: PlaylistConfig[] }, logger: Logger) {
     this.path = path;
     this.logger = logger;
-    this.doc = { streamers: clone(initial.streamers), playlists: clone(initial.playlists) };
+    const legacy = initial.streamers.some((streamer) => 'overlays' in streamer);
+    this.doc = {
+      streamers: initial.streamers.map((streamer) => stripLegacyOverlays(streamer)),
+      playlists: clone(initial.playlists),
+    };
     this.rememberMtime();
+    if (legacy) {
+      this.logger.warn(
+        'Per-Streamer-Overlays sind veraltet und werden ignoriert; die globale Overlay-Konfiguration gilt.',
+      );
+      this.persist();
+    }
   }
 
   private rememberMtime(): void {
@@ -73,7 +84,7 @@ export class StreamerStore {
       if (mtime === this.mtimeMs) return false;
       const raw = (readYamlFile(this.path) ?? {}) as Record<string, unknown>;
       const streamers = Array.isArray(raw.streamers)
-        ? raw.streamers.map((item) => StreamerSchema.parse(item))
+        ? raw.streamers.map((item) => stripLegacyOverlays(StreamerSchema.parse(item)))
         : [];
       const playlists = Array.isArray(raw.playlists)
         ? raw.playlists.map((item) => PlaylistSchema.parse(item))
@@ -256,9 +267,6 @@ export class StreamerStore {
 
   view(streamer: StreamerConfig, activeId: string | null = null, online: boolean | null = null): StreamerView {
     const key = resolveStreamKey(streamer);
-    const overlays = clone(streamer.overlays);
-    const chat = { ...overlays.chat, api_key: undefined, api_key_set: Boolean(overlays.chat.api_key) };
-    delete (chat as { api_key?: string }).api_key;
     return {
       id: streamer.id,
       name: streamer.name,
@@ -271,11 +279,6 @@ export class StreamerStore {
       video_mode: streamer.video_mode,
       youtube_key_set: key.source !== 'none',
       youtube_key_source: key.source,
-      overlays: {
-        chat,
-        clock: overlays.clock,
-        text: overlays.text,
-      },
       status: {
         online,
         active: activeId === streamer.id,
@@ -286,7 +289,7 @@ export class StreamerStore {
   private persist(): void {
     const document: Record<string, unknown> = {
       ...(this.doc.extra ?? {}),
-      streamers: this.doc.streamers,
+      streamers: this.doc.streamers.map((streamer) => stripLegacyOverlays(streamer)),
       playlists: this.doc.playlists,
     };
     if (this.doc.settings && Object.keys(this.doc.settings).length > 0) {

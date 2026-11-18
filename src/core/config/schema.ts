@@ -102,74 +102,10 @@ export const StreamerFieldsSchema = z
     own_stream: z.boolean().default(false),
     // Kept for compatibility with the Python restreamer configuration.
     video_mode: z.enum(['copy', 'reencode']).default('copy'),
-    overlays: OverlaysSchema.optional(),
   })
   .passthrough();
 
-export const StreamerSchema = StreamerFieldsSchema.transform((value) => ({
-  ...value,
-  overlays: {
-    chat: ChatOverlaySchema.parse(value.overlays?.chat ?? {}),
-    clock: ClockOverlaySchema.parse(value.overlays?.clock ?? {}),
-    text: TextOverlaySchema.parse(value.overlays?.text ?? {}),
-  },
-}));
-
-const ChatOverlayPatchSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    engine: z.enum(['canvas', 'drawtext']).optional(),
-    position: PositionSchema.optional(),
-    style: z.enum(['bubbles', 'panel', 'minimal']).optional(),
-    max_lines: z.number().int().min(1).max(30).optional(),
-    max_messages: z.number().int().min(1).max(100).optional(),
-    max_age_seconds: z.number().int().min(0).max(3600).optional(),
-    panel_height: z.number().int().min(0).max(1920).optional(),
-    font_size: z.number().int().min(8).max(96).optional(),
-    font_color: ColorSchema.optional(),
-    box_color: ColorSchema.optional(),
-    bubble_opacity: z.number().min(0).max(1).optional(),
-    panel_width: z.number().int().min(0).max(1920).optional(),
-    render_fps: z.number().int().min(1).max(30).optional(),
-    show_timestamps: z.boolean().optional(),
-    show_badges: z.boolean().optional(),
-    show_tiers: z.boolean().optional(),
-    show_stats: z.boolean().optional(),
-    name_colors: z.boolean().optional(),
-    api_url: z.string().optional(),
-    api_key: z.string().optional(),
-    poll_interval: z.number().min(1).max(60).optional(),
-    delay: z.number().min(0).max(300).optional(),
-  })
-  .passthrough();
-
-const ClockOverlayPatchSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    position: PositionSchema.optional(),
-    format: z.string().min(1).max(64).optional(),
-    font_size: z.number().int().min(8).max(96).optional(),
-    font_color: ColorSchema.optional(),
-    box_color: ColorSchema.optional(),
-    show_box: z.boolean().optional(),
-    margin: z.number().int().min(0).max(200).optional(),
-  })
-  .passthrough();
-
-const TextOverlayPatchSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-    position: PositionSchema.optional(),
-    text: z.string().max(500).optional(),
-    font_size: z.number().int().min(8).max(96).optional(),
-    font_color: ColorSchema.optional(),
-    box_color: ColorSchema.optional(),
-    marquee: z.boolean().optional(),
-    speed: z.number().min(10).max(1000).optional(),
-    show_box: z.boolean().optional(),
-    margin: z.number().int().min(0).max(200).optional(),
-  })
-  .passthrough();
+export const StreamerSchema = StreamerFieldsSchema;
 
 export const StreamerUpdateSchema = z
   .object({
@@ -183,13 +119,6 @@ export const StreamerUpdateSchema = z
     enabled: z.boolean().optional(),
     own_stream: z.boolean().optional(),
     video_mode: z.enum(['copy', 'reencode']).optional(),
-    overlays: z
-      .object({
-        chat: ChatOverlayPatchSchema.optional(),
-        clock: ClockOverlayPatchSchema.optional(),
-        text: TextOverlayPatchSchema.optional(),
-      })
-      .optional(),
   })
   .passthrough();
 

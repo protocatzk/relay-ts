@@ -2,30 +2,30 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import pino from 'pino';
 import { ChatOverlayEngine, parseColor } from '../src/core/overlays/chat-engine.js';
-import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
+import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
 
-const streamer = StreamerSchema.parse({
-  id: 'canvas-test',
-  name: 'Canvas Test',
-  tiktok: 'canvas_test',
+const settings = {
+  ...DEFAULT_SETTINGS,
   overlays: {
+    ...DEFAULT_SETTINGS.overlays,
     chat: {
+      ...DEFAULT_SETTINGS.overlays.chat,
       enabled: true,
-      engine: 'canvas',
-      position: 'bottom-left',
+      engine: 'canvas' as const,
+      position: 'bottom-left' as const,
       max_lines: 5,
       font_size: 22,
       render_fps: 10,
       show_timestamps: true,
     },
   },
-});
+};
 
 describe('Canvas chat overlay', () => {
   it('renders a PNG preview with sample messages', () => {
     const engine = new ChatOverlayEngine({
-      settings: DEFAULT_SETTINGS,
-      streamer,
+      settings,
+      overlays: settings.overlays,
       logger: pino({ level: 'silent' }),
     });
     const png = engine.previewPng(true);
@@ -35,8 +35,8 @@ describe('Canvas chat overlay', () => {
 
   it('calculates a panel inside the output frame', () => {
     const engine = new ChatOverlayEngine({
-      settings: DEFAULT_SETTINGS,
-      streamer,
+      settings,
+      overlays: settings.overlays,
       logger: pino({ level: 'silent' }),
     });
     const panel = engine.panel;
@@ -56,8 +56,8 @@ describe('Canvas chat overlay', () => {
 
   it('survives a closed overlay pipe', () => {
     const engine = new ChatOverlayEngine({
-      settings: DEFAULT_SETTINGS,
-      streamer,
+      settings,
+      overlays: settings.overlays,
       logger: pino({ level: 'silent' }),
     });
     const stream = new PassThrough();
