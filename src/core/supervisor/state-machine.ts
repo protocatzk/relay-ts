@@ -7,7 +7,8 @@ import type { StreamState } from '../events.js';
  * assignments across the coordinator.
  */
 export const ALLOWED_TRANSITIONS: Record<StreamState, readonly StreamState[]> = {
-  idle: ['starting', 'stopping', 'error'],
+  // `paused` covers manual screens that run without an active streamer.
+  idle: ['starting', 'paused', 'stopping', 'error'],
   starting: ['live', 'paused', 'reconnecting', 'error', 'stopping', 'idle'],
   live: ['starting', 'reconnecting', 'paused', 'stopping', 'error'],
   reconnecting: ['starting', 'live', 'paused', 'error', 'stopping', 'idle'],

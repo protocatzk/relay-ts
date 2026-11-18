@@ -37,10 +37,20 @@ const canStart = computed(
 );
 const canStop = computed(() => {
   if (state.value === 'stopping') return false;
-  return Boolean(status.value?.active_streamer_id) || state.value === 'starting' || state.value === 'reconnecting';
+  return (
+    Boolean(status.value?.active_streamer_id) ||
+    manualScreen.value !== null ||
+    state.value === 'starting' ||
+    state.value === 'reconnecting'
+  );
 });
 const canPause = computed(
-  () => state.value === 'live' || state.value === 'paused' || state.value === 'reconnecting',
+  () =>
+    state.value === 'live' ||
+    state.value === 'paused' ||
+    state.value === 'reconnecting' ||
+    state.value === 'idle' ||
+    state.value === 'error',
 );
 
 const startCandidate = computed<Streamer | null>(() => {
@@ -146,11 +156,12 @@ function onlineClass(streamer: Streamer): string {
   return 'is-unknown';
 }
 
-type RunMessage =
-  | string
-  | ((result: unknown) => { message: string; kind: 'success' | 'info' });
+type RunMessage = string | ((result: unknown) => { message: string; kind: 'success' | 'info' });
 
-function startResultMessage(result: unknown, name: string): { message: string; kind: 'success' | 'info' } {
+function startResultMessage(
+  result: unknown,
+  name: string,
+): { message: string; kind: 'success' | 'info' } {
   const state = (result as { status?: { state?: string } } | undefined)?.status?.state;
   if (state === 'paused') {
     return {
@@ -204,10 +215,18 @@ async function startGlobal(): Promise<void> {
 async function stopGlobal(): Promise<void> {
   const id = status.value?.active_streamer_id;
   if (!id) {
+    if (manualScreen.value) {
+      await run('stop', () => api.screens.stop(), 'Screen beendet.');
+      return;
+    }
     pushToast('Es läuft aktuell kein Stream.', 'error');
     return;
   }
   await run('stop', () => api.streamers.stop(id), 'Stream wird gestoppt.');
+}
+
+function screenStopMessage(): string {
+  return status.value?.active_streamer_id ? 'Zurück zum Stream.' : 'Screen beendet.';
 }
 
 async function togglePause(): Promise<void> {
@@ -215,7 +234,7 @@ async function togglePause(): Promise<void> {
   await run(
     shouldStop ? 'screen-stop' : 'pause',
     () => (shouldStop ? api.screens.stop() : api.screens.show('pause')),
-    shouldStop ? 'Zurück zum Stream.' : 'Pausenscreen aktiviert.',
+    shouldStop ? screenStopMessage() : 'Pausenscreen aktiviert.',
   );
 }
 
@@ -224,7 +243,7 @@ async function toggleStartup(): Promise<void> {
   await run(
     shouldStop ? 'screen-stop' : 'startup',
     () => (shouldStop ? api.screens.stop() : api.screens.show('startup')),
-    shouldStop ? 'Zurück zum Stream.' : 'Startbildschirm aktiviert.',
+    shouldStop ? screenStopMessage() : 'Startbildschirm aktiviert.',
   );
 }
 
@@ -245,7 +264,11 @@ async function switchStreamer(streamer: Streamer): Promise<void> {
 }
 
 async function stopStreamer(streamer: Streamer): Promise<void> {
-  await run(`stop:${streamer.id}`, () => api.streamers.stop(streamer.id), `${streamer.name} wird gestoppt.`);
+  await run(
+    `stop:${streamer.id}`,
+    () => api.streamers.stop(streamer.id),
+    `${streamer.name} wird gestoppt.`,
+  );
 }
 
 async function playSelectedPlaylist(): Promise<void> {
@@ -327,21 +350,37 @@ onBeforeUnmount(() => {
           </span>
         </div>
         <h2 class="hero-title">
-          {{ status?.active_streamer_name ?? 'Kein aktiver Stream' }}
+          {{
+            status?.active_streamer_name ??
+            (manualScreen === 'startup'
+              ? 'Startbildschirm'
+              : manualScreen === 'pause'
+                ? 'Pausenscreen'
+                : 'Kein aktiver Stream')
+          }}
         </h2>
         <p class="hero-sub">
           <template v-if="status?.active_playlist">
-            Playlist „{{ status.active_playlist.name }}“ · Kanal {{ status.active_playlist.index + 1 }} von
+            Playlist „{{ status.active_playlist.name }}“ · Kanal
+            {{ status.active_playlist.index + 1 }} von
             {{ status.active_playlist.total }}
           </template>
           <template v-else-if="status?.state === 'paused'">
-            {{ manualScreen === 'startup' ? 'Der Startbildschirm wird gesendet.' : 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.' }}
+            {{
+              manualScreen === 'startup'
+                ? 'Der Startbildschirm wird gesendet.'
+                : status.active_streamer_id
+                  ? 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.'
+                  : 'Der Pausenscreen wird gesendet.'
+            }}
           </template>
           <template v-else-if="status?.state === 'error'">
             {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
           </template>
           <template v-else-if="status">
-            {{ status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.' }}
+            {{
+              status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.'
+            }}
           </template>
           <template v-else>Keine Statusdaten empfangen.</template>
         </p>
@@ -377,10 +416,27 @@ onBeforeUnmount(() => {
             :disabled="!canPause || busy !== null"
             @click="toggleStartup"
           >
-            <span v-if="busy === 'startup' || busy === 'screen-stop'" class="spinner" aria-hidden="true"></span>
+            <span
+              v-if="busy === 'startup' || busy === 'screen-stop'"
+              class="spinner"
+              aria-hidden="true"
+            ></span>
             <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
-              <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <rect
+                x="3"
+                y="4"
+                width="18"
+                height="13"
+                rx="2"
+                stroke="currentColor"
+                stroke-width="1.8"
+              />
+              <path
+                d="M8 21h8M12 17v4"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
             </svg>
             {{ manualScreen === 'startup' ? 'Startbildschirm beenden' : 'Startbildschirm' }}
           </button>
@@ -390,16 +446,30 @@ onBeforeUnmount(() => {
             :disabled="!canPause || busy !== null"
             @click="togglePause"
           >
-            <span v-if="busy === 'pause' || busy === 'screen-stop'" class="spinner" aria-hidden="true"></span>
+            <span
+              v-if="busy === 'pause' || busy === 'screen-stop'"
+              class="spinner"
+              aria-hidden="true"
+            ></span>
             <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
               <path
                 v-if="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')"
                 d="m8 5 11 7-11 7V5Z"
                 fill="currentColor"
               />
-              <path v-else d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+              <path
+                v-else
+                d="M8 5v14M16 5v14"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+              />
             </svg>
-            {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Pause beenden' : 'Pause' }}
+            {{
+              manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')
+                ? 'Pause beenden'
+                : 'Pause'
+            }}
           </button>
         </div>
       </div>
@@ -455,9 +525,18 @@ onBeforeUnmount(() => {
         </div>
         <div class="stack">
           <dl class="settings-summary">
-            <div><dt>Chat-Engine</dt><dd>{{ status?.chat.engine ?? '–' }}</dd></div>
-            <div><dt>Nachrichten</dt><dd>{{ status?.chat.messages ?? 0 }}</dd></div>
-            <div><dt>Chat-API</dt><dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd></div>
+            <div>
+              <dt>Chat-Engine</dt>
+              <dd>{{ status?.chat.engine ?? '–' }}</dd>
+            </div>
+            <div>
+              <dt>Nachrichten</dt>
+              <dd>{{ status?.chat.messages ?? 0 }}</dd>
+            </div>
+            <div>
+              <dt>Chat-API</dt>
+              <dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd>
+            </div>
           </dl>
           <form class="stack compact" @submit.prevent="sendChatTest">
             <div class="field">
@@ -470,7 +549,11 @@ onBeforeUnmount(() => {
                   maxlength="300"
                   placeholder="Nachricht ins Overlay senden …"
                 />
-                <button type="submit" class="btn btn-primary btn-sm" :disabled="sendingChat || !chatTest.text.trim()">
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-sm"
+                  :disabled="sendingChat || !chatTest.text.trim()"
+                >
                   <span v-if="sendingChat" class="spinner" aria-hidden="true"></span>
                   Senden
                 </button>
@@ -481,7 +564,9 @@ onBeforeUnmount(() => {
             <label for="dash-title">YouTube-Titel</label>
             <div class="input-with-button">
               <input id="dash-title" :value="titlePreview.title" type="text" readonly />
-              <button type="button" class="btn btn-ghost btn-sm" @click="copyTitle">Kopieren</button>
+              <button type="button" class="btn btn-ghost btn-sm" @click="copyTitle">
+                Kopieren
+              </button>
             </div>
           </div>
           <div class="quick-actions">
@@ -501,7 +586,12 @@ onBeforeUnmount(() => {
             >
               Quelle aktualisieren
             </button>
-            <button type="button" class="btn btn-ghost btn-sm" :disabled="busy !== null" @click="reloadYaml">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy !== null"
+              @click="reloadYaml"
+            >
               YAML neu laden
             </button>
           </div>
@@ -513,7 +603,9 @@ onBeforeUnmount(() => {
       <div class="card metric">
         <span class="metric-label">Relay-Puffer</span>
         <span class="metric-value mono">{{ formatSeconds(status?.relay.buffer_seconds) }}</span>
-        <span class="metric-sub">Verzögerung {{ formatNumber(status?.relay.delay_seconds) }} s</span>
+        <span class="metric-sub"
+          >Verzögerung {{ formatNumber(status?.relay.delay_seconds) }} s</span
+        >
       </div>
       <div class="card metric">
         <span class="metric-label">Quelle</span>
@@ -578,8 +670,20 @@ onBeforeUnmount(() => {
             <h2 class="card-title">Schnellstart</h2>
             <p class="card-sub">Neuen TikTok-Stream direkt starten.</p>
           </div>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true" class="card-icon">
-            <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            aria-hidden="true"
+            class="card-icon"
+          >
+            <path
+              d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
         <form class="stack" @submit.prevent="submitQuickStart">
@@ -606,7 +710,13 @@ onBeforeUnmount(() => {
           </div>
           <div class="field">
             <label for="quick-name">Name <span class="muted">(optional)</span></label>
-            <input id="quick-name" v-model="quick.name" type="text" placeholder="Anzeigename" autocomplete="off" />
+            <input
+              id="quick-name"
+              v-model="quick.name"
+              type="text"
+              placeholder="Anzeigename"
+              autocomplete="off"
+            />
           </div>
           <button type="submit" class="btn btn-primary" :disabled="busy === 'quickstart'">
             <span v-if="busy === 'quickstart'" class="spinner" aria-hidden="true"></span>
@@ -647,7 +757,9 @@ onBeforeUnmount(() => {
           <div v-if="activePlaylist" class="info-row">
             <span class="badge tone-info">Aktiv</span>
             <span>{{ activePlaylist.name }}</span>
-            <span class="mono muted">{{ activePlaylist.index + 1 }}/{{ activePlaylist.total }}</span>
+            <span class="mono muted"
+              >{{ activePlaylist.index + 1 }}/{{ activePlaylist.total }}</span
+            >
           </div>
         </div>
         <div v-else class="empty compact">
@@ -668,7 +780,9 @@ onBeforeUnmount(() => {
 
       <div v-if="store.streamers.length === 0" class="empty">
         <p>Noch keine Streamer angelegt.</p>
-        <RouterLink to="/streamers" class="btn btn-primary btn-sm">Ersten Streamer anlegen</RouterLink>
+        <RouterLink to="/streamers" class="btn btn-primary btn-sm"
+          >Ersten Streamer anlegen</RouterLink
+        >
       </div>
 
       <ul v-else class="streamer-list">
@@ -679,7 +793,9 @@ onBeforeUnmount(() => {
           </span>
           <div class="streamer-identity">
             <strong>{{ streamer.name }}</strong>
-            <span class="streamer-meta">@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span>
+            <span class="streamer-meta"
+              >@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span
+            >
           </div>
           <span class="badge tone-neutral">{{ streamer.quality }}</span>
           <span v-if="streamer.status.active" class="badge tone-success">Aktiv</span>

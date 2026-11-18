@@ -363,7 +363,10 @@ export class Supervisor {
         if (result.code === 0) {
           this.deps.logger.info({ binary: name }, 'Externe Abhängigkeit gefunden');
         } else {
-          this.deps.logger.warn({ binary: name, code: result.code }, 'Externe Abhängigkeit antwortet unerwartet');
+          this.deps.logger.warn(
+            { binary: name, code: result.code },
+            'Externe Abhängigkeit antwortet unerwartet',
+          );
         }
       } catch (error) {
         this.deps.logger.warn(
@@ -404,7 +407,8 @@ export class Supervisor {
     if (!candidate) return;
 
     await this.lock.run(async () => {
-      if (this.shuttingDown || this.activePlaylist || this.activeStreamer?.id === candidate.id) return;
+      if (this.shuttingDown || this.activePlaylist || this.activeStreamer?.id === candidate.id)
+        return;
       const key = resolveStreamKey(candidate).key;
       if (!key) return;
       this.deps.logger.info(
@@ -494,7 +498,10 @@ export class Supervisor {
     if (this.chatEngine) this.chatEngine.setMessages(this.currentChatMessages);
   }
 
-  private async startStreamerLocked(streamer: StreamerConfig, options: StartOptions): Promise<StatusSnapshot> {
+  private async startStreamerLocked(
+    streamer: StreamerConfig,
+    options: StartOptions,
+  ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
     const key = options.key ?? resolveStreamKey(streamer).key;
     if (!key) throw new MissingStreamKeyError();
@@ -595,11 +602,7 @@ export class Supervisor {
       this.watchdog.reset();
       this.watchdog.clearError();
       this.transitionTo('starting', 'startup screen');
-      this.scheduleStartupFinishLocked(
-        streamer,
-        stream,
-        introSeconds,
-      );
+      this.scheduleStartupFinishLocked(streamer, stream, introSeconds);
     } else {
       this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
       this.markProducerStarted(timestampOffset);
@@ -842,10 +845,44 @@ export class Supervisor {
     return this.showScreen('pause');
   }
 
+  /**
+   * Streamer config used to prepare overlays when a screen runs without an
+   * active source. Overlays are global, so any streamer works as a carrier.
+   */
+  private screenFallbackStreamer(): StreamerConfig {
+    return (
+      this.activeStreamer ??
+      this.deps.store.list()[0] ??
+      StreamerSchema.parse({ id: 'screen', name: 'Screen', tiktok: 'screen' })
+    );
+  }
+
+  /**
+   * RTMP target for a manual screen. An active stream keeps its running key;
+   * otherwise the preferred/enabled streamer key is used and the global
+   * YOUTUBE_STREAM_KEY acts as the last fallback.
+   */
+  private resolveScreenTarget(): { streamer: StreamerConfig | null; key: string } {
+    if (this.activeStreamer && this.activeKey) {
+      return { streamer: this.activeStreamer, key: this.activeKey };
+    }
+    const streamers = this.deps.store.list();
+    const ordered = [
+      ...streamers.filter((item) => item.enabled && item.preferred),
+      ...streamers.filter((item) => item.enabled && !item.preferred),
+      ...streamers.filter((item) => !item.enabled),
+    ];
+    for (const streamer of ordered) {
+      const { key } = resolveStreamKey(streamer);
+      if (key) return { streamer, key };
+    }
+    return { streamer: null, key: resolveStreamKey({}).key };
+  }
+
   async showScreen(type: 'startup' | 'pause'): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
-      if (!this.activeStreamer || !this.activeKey) {
-        throw new ValidationError('Es läuft kein Stream, für den ein Screen aktiviert werden kann');
+      if (this.shuttingDown) {
+        throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
       }
       if (type === 'startup' && !this.settings.startup.enabled) {
         throw new ValidationError('Der Startbildschirm ist in den Einstellungen deaktiviert');
@@ -856,16 +893,44 @@ export class Supervisor {
       this.clearStartupTimer();
       this.clearOfflinePauseTimer();
       this.clearPauseLimit();
+      this.clearReconnectTimer();
       await this.stopSourceAndChatLocked();
-      if (!this.sink.running) {
-        this.buffer.reset();
-        this.resetTimeline();
-        this.startSinkLocked(
-          this.activeKey,
-          this.activeOverlayFilters,
-          this.activeOverlaySignature,
-          this.activeOverlayInput,
-        );
+
+      if (this.activeStreamer && this.activeKey) {
+        // Keep the existing sink so the RTMP connection survives the swap.
+        if (!this.sink.running) {
+          this.buffer.reset();
+          this.resetTimeline();
+          this.startSinkLocked(
+            this.activeKey,
+            this.activeOverlayFilters,
+            this.activeOverlaySignature,
+            this.activeOverlayInput,
+          );
+        }
+      } else {
+        const target = this.resolveScreenTarget();
+        if (!target.key) {
+          throw new ValidationError(
+            'Kein YouTube-Stream-Key gefunden – der Screen kann nicht gesendet werden',
+          );
+        }
+        this.deps.registerSecret(target.key);
+        if (!this.sink.running || this.activeKey !== target.key) {
+          if (this.sink.running) await this.stopSinkLocked();
+          this.chatEngine?.stop();
+          this.chatEngine = undefined;
+          this.currentChatMessages = [];
+          this.buffer.reset();
+          this.resetTimeline();
+          const carrier = target.streamer ?? this.screenFallbackStreamer();
+          const prepared = this.overlays.prepare(carrier);
+          this.startSinkLocked(
+            target.key,
+            prepared.filters,
+            this.overlaySignature(prepared.filters, carrier, undefined),
+          );
+        }
       }
       this.applyConfiguredDelay();
       const offset = this.nextProducerOffset();
@@ -878,7 +943,10 @@ export class Supervisor {
       this.transitionTo('paused', `manual ${type} screen`);
       this.autoRefresh.stop();
       this.emitAll();
-      this.deps.logger.info({ screen: type }, 'Manueller Screen aktiviert');
+      this.deps.logger.info(
+        { screen: type, streamer: this.activeStreamer?.id ?? null },
+        'Manueller Screen aktiviert',
+      );
       return this.buildStatus();
     });
   }
@@ -886,7 +954,11 @@ export class Supervisor {
   async hideScreen(): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       const streamer = this.activeStreamer;
-      if (!streamer) throw new ValidationError('Es ist kein Streamer aktiv');
+      if (!streamer) {
+        if (!this.manualScreen) return this.buildStatus();
+        this.deps.logger.info({ screen: this.manualScreen }, 'Manueller Screen beendet');
+        return this.stopInternalLocked();
+      }
       if (this.state !== 'paused') return this.buildStatus();
       this.manualScreen = null;
       this.pauseReason = null;
@@ -1021,7 +1093,9 @@ export class Supervisor {
     });
   }
 
-  private async advancePlaylistLocked(reason: 'manual' | 'offline' | 'end_after'): Promise<StatusSnapshot> {
+  private async advancePlaylistLocked(
+    reason: 'manual' | 'offline' | 'end_after',
+  ): Promise<StatusSnapshot> {
     const state = this.activePlaylist;
     if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
     const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
@@ -1036,7 +1110,10 @@ export class Supervisor {
       this.deps.logger.info({ playlist: playlist.id }, 'Playlist beendet');
       return this.stopInternalLocked();
     }
-    return this.startPlaylistEntryLocked(playlist, nextIndex >= playlist.channels.length ? 0 : nextIndex);
+    return this.startPlaylistEntryLocked(
+      playlist,
+      nextIndex >= playlist.channels.length ? 0 : nextIndex,
+    );
   }
 
   private schedulePlaylistAdvanceLocked(): void {
@@ -1086,7 +1163,8 @@ export class Supervisor {
     return null;
   }
 
-  private schedulePlaylistEndLocked(): void {    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
+  private schedulePlaylistEndLocked(): void {
+    if (this.playlistEndTimer) clearTimeout(this.playlistEndTimer);
     this.playlistEndTimer = undefined;
     if (!this.playlistEndAt) return;
     const delay = Math.max(0, this.playlistEndAt - Date.now());
@@ -1147,7 +1225,10 @@ export class Supervisor {
     }
     this.transitionTo('reconnecting');
     this.emitStatus();
-    this.deps.logger.warn({ streamer: this.activeStreamer.id }, 'Quelle unerwartet beendet – Neuverbindung');
+    this.deps.logger.warn(
+      { streamer: this.activeStreamer.id },
+      'Quelle unerwartet beendet – Neuverbindung',
+    );
     this.scheduleReconnect();
   }
 
@@ -1212,9 +1293,7 @@ export class Supervisor {
             await this.startPauseLocked();
           }
           this.emitStatus();
-          this.scheduleReconnect(
-            Math.max(30, this.settings.watchdog.max_reconnect_delay) * 1000,
-          );
+          this.scheduleReconnect(Math.max(30, this.settings.watchdog.max_reconnect_delay) * 1000);
           return;
         }
         if (
@@ -1227,9 +1306,7 @@ export class Supervisor {
           await this.startPauseLocked();
         }
         this.emitStatus();
-        this.scheduleReconnect(
-          error instanceof StreamerOfflineError ? 30_000 : undefined,
-        );
+        this.scheduleReconnect(error instanceof StreamerOfflineError ? 30_000 : undefined);
       }
     });
   }
@@ -1398,7 +1475,8 @@ export class Supervisor {
     this.sinkRestartTimer = setTimeout(() => {
       this.sinkRestartTimer = undefined;
       void this.lock.run(async () => {
-        if (this.shuttingDown || !this.activeKey || ['idle', 'stopping'].includes(this.state)) return;
+        if (this.shuttingDown || !this.activeKey || ['idle', 'stopping'].includes(this.state))
+          return;
         await this.restartSinkLocked();
       });
     }, delayMs);
@@ -1452,7 +1530,10 @@ export class Supervisor {
     await this.handleSourceProblem(`Quellrate zu niedrig (${percent} %)`, { percent });
   }
 
-  private async handleSourceProblem(reason: string, context: Record<string, unknown>): Promise<void> {
+  private async handleSourceProblem(
+    reason: string,
+    context: Record<string, unknown>,
+  ): Promise<void> {
     await this.lock.run(async () => {
       if (!this.activeStreamer || this.shuttingDown) return;
       if (this.state !== 'live' || this.playlistAdvancePending) return;
@@ -1496,29 +1577,30 @@ export class Supervisor {
       this.startupScreen.updateSettings(next);
       this.earnings.updateSettings(next);
 
-      const overlaysChanged =
-        JSON.stringify(previous.overlays) !== JSON.stringify(next.overlays);
+      const overlaysChanged = JSON.stringify(previous.overlays) !== JSON.stringify(next.overlays);
       const earningsOverlayChanged =
         previous.earnings.overlay_enabled !== next.earnings.overlay_enabled ||
         previous.earnings.overlay_position !== next.earnings.overlay_position ||
         previous.earnings.overlay_template !== next.earnings.overlay_template ||
         previous.earnings.overlay_font_size !== next.earnings.overlay_font_size;
-      if (earningsOverlayChanged && this.activeStreamer && !overlaysChanged) {
-        const prepared = this.overlays.prepare(this.activeStreamer);
+      const overlayCarrier =
+        this.activeStreamer ?? (this.manualScreen ? this.screenFallbackStreamer() : null);
+      if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
+        const prepared = this.overlays.prepare(overlayCarrier);
         this.activeOverlayFilters = prepared.filters;
         this.activeOverlaySignature = this.overlaySignature(
           prepared.filters,
-          this.activeStreamer,
-          this.chatEngine,
+          overlayCarrier,
+          this.activeStreamer ? this.chatEngine : undefined,
         );
         if (this.sink.running) await this.restartSinkLocked();
       }
 
-      if (overlaysChanged && this.activeStreamer) {
-        const prepared = this.overlays.prepare(this.activeStreamer);
+      if (overlaysChanged && overlayCarrier) {
+        const prepared = this.overlays.prepare(overlayCarrier);
         this.activeOverlayFilters = prepared.filters;
         this.rebuildChatEngineLocked();
-        if (this.state === 'live') {
+        if (this.state === 'live' && this.activeStreamer) {
           this.chat?.stop();
           this.startChatLocked(this.activeStreamer);
         }
@@ -1539,8 +1621,7 @@ export class Supervisor {
         }
       }
 
-      const videoChanged =
-        JSON.stringify(previous.video) !== JSON.stringify(next.video);
+      const videoChanged = JSON.stringify(previous.video) !== JSON.stringify(next.video);
       if (videoChanged) {
         this.rebuildChatEngineLocked();
       }
@@ -1565,11 +1646,18 @@ export class Supervisor {
           this.applyConfiguredDelay();
         }
       }
-      if (this.state === 'paused' && this.pauseScreen.running) {
-        await this.pauseScreen.stop();
-        const timestampOffset = this.nextProducerOffset();
-        await this.pauseScreen.start(undefined, undefined, timestampOffset);
-        this.markProducerStarted(timestampOffset);
+      if (this.state === 'paused') {
+        const screen = this.startupScreen.running
+          ? this.startupScreen
+          : this.pauseScreen.running
+            ? this.pauseScreen
+            : null;
+        if (screen) {
+          await screen.stop();
+          const timestampOffset = this.nextProducerOffset();
+          await screen.start(undefined, undefined, timestampOffset);
+          this.markProducerStarted(timestampOffset);
+        }
       }
       if (!next.auto_refresh.enabled) {
         this.autoRefresh.stop();
@@ -1743,7 +1831,9 @@ export class Supervisor {
       const playlistKey = resolveStreamKey(playlist).key;
       const channelsHaveKey =
         Boolean(playlistKey) ||
-        playlist.channels.some((channel) => Boolean(resolveStreamKey(this.resolvePlaylistChannel(channel)).key));
+        playlist.channels.some((channel) =>
+          Boolean(resolveStreamKey(this.resolvePlaylistChannel(channel)).key),
+        );
       return {
         id: playlist.id,
         name: playlist.name,
@@ -1773,7 +1863,10 @@ export class Supervisor {
     try {
       this.deps.bus.emit({ type: 'streamers', data: this.streamersView() });
     } catch (error) {
-      this.deps.logger.warn({ err: toErrorMessage(error) }, 'Streamer-Ansicht konnte nicht erzeugt werden');
+      this.deps.logger.warn(
+        { err: toErrorMessage(error) },
+        'Streamer-Ansicht konnte nicht erzeugt werden',
+      );
     }
   }
 
@@ -1786,7 +1879,9 @@ export class Supervisor {
     const refresh = this.autoRefresh?.stats();
     const now = Date.now();
     const activeId = this.activeStreamer?.id ?? null;
-    const monitorOnline = this.activeStreamer ? this.online?.isOnline(this.activeStreamer) ?? null : null;
+    const monitorOnline = this.activeStreamer
+      ? (this.online?.isOnline(this.activeStreamer) ?? null)
+      : null;
     return {
       state: this.state,
       active_streamer_id: activeId,

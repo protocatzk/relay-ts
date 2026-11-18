@@ -379,16 +379,18 @@ data/pause/pausenscreen.mp4
 ### Manuelle Screens
 
 Auf dem Dashboard lassen sich **Startbildschirm** und **Pausenscreen** jederzeit
-per Knopfdruck einspielen – unabhängig davon, ob die TikTok-Quelle gerade läuft
-oder pausiert:
+per Knopfdruck einspielen – unabhängig davon, ob die TikTok-Quelle gerade läuft,
+pausiert oder gar kein Streamer aktiv ist:
 
 - **Startbildschirm** → eigenes Startvideo
 - **Pause** → Pausenscreen
-- **Beenden** → zurück zur aktiven Quelle
+- **Beenden** → zurück zur aktiven Quelle bzw. in den Idle-Zustand
 
-Die manuellen Screens bleiben aktiv, bis du sie beendest; die automatische
-`pause.max_minutes`-Grenze gilt nur für Offline-Pausen. Die YouTube-/RTMP-
-Verbindung bleibt währenddessen bestehen.
+Ohne aktiven Streamer wird der Screen über den YouTube-Key des bevorzugten
+(sonst ersten aktivierten) Streamers gesendet; fehlt dort ein Key, greift
+`YOUTUBE_STREAM_KEY` aus der `.env`. Die manuellen Screens bleiben aktiv, bis du
+sie beendest; die automatische `pause.max_minutes`-Grenze gilt nur für
+Offline-Pausen. Die YouTube-/RTMP-Verbindung bleibt währenddessen bestehen.
 
 ---
 
