@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.8.0**
+- Aktuelle Version: **0.8.1**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
