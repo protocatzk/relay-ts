@@ -3528,6 +3528,44 @@ select {
   grid-column: 1 / -1;
 }
 
+.quickstart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quickstart-card .card-head {
+  margin-bottom: 0;
+}
+
+.quickstart-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quickstart-block + .quickstart-block {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.quickstart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quickstart-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .cockpit-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);

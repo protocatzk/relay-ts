@@ -654,16 +654,17 @@ onBeforeUnmount(() => {
 
       <EarningsPanel
         v-if="store.earnings"
+        class="span-2"
         :earnings="store.earnings"
         :refreshing="refreshingEarnings"
         @refresh="refreshEarnings"
         @period="changeEarningsPeriod"
       />
-      <section class="card">
+      <section class="card quickstart-card">
         <div class="card-head">
           <div>
             <h2 class="card-title">Schnellstart</h2>
-            <p class="card-sub">Neuen TikTok-Stream direkt starten.</p>
+            <p class="card-sub">TikTok-Stream oder Playlist direkt starten.</p>
           </div>
           <svg
             viewBox="0 0 24 24"
@@ -681,85 +682,86 @@ onBeforeUnmount(() => {
             />
           </svg>
         </div>
-        <form class="stack" @submit.prevent="submitQuickStart">
-          <div class="field">
-            <label for="quick-tiktok">TikTok-Handle <span class="req">*</span></label>
-            <input
-              id="quick-tiktok"
-              v-model="quick.tiktok"
-              type="text"
-              placeholder="@username"
-              spellcheck="false"
-              autocomplete="off"
-            />
-          </div>
-          <div class="field">
-            <label for="quick-key">YouTube-Stream-Key <span class="req">*</span></label>
-            <input
-              id="quick-key"
-              v-model="quick.youtube_key"
-              type="password"
-              placeholder="Stream-Key"
-              autocomplete="new-password"
-            />
-          </div>
-          <div class="field">
-            <label for="quick-name">Name <span class="muted">(optional)</span></label>
-            <input
-              id="quick-name"
-              v-model="quick.name"
-              type="text"
-              placeholder="Anzeigename"
-              autocomplete="off"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary" :disabled="busy === 'quickstart'">
-            <span v-if="busy === 'quickstart'" class="spinner" aria-hidden="true"></span>
-            Jetzt starten
-          </button>
-        </form>
-      </section>
 
-      <section class="card">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Playlist-Schnellstart</h2>
-            <p class="card-sub">Playlist direkt abspielen.</p>
-          </div>
-          <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Alle Playlists</RouterLink>
+        <div class="quickstart-block">
+          <h3 class="quickstart-title">TikTok-Stream</h3>
+          <form class="stack compact" @submit.prevent="submitQuickStart">
+            <div class="field">
+              <label for="quick-tiktok">TikTok-Handle <span class="req">*</span></label>
+              <input
+                id="quick-tiktok"
+                v-model="quick.tiktok"
+                type="text"
+                placeholder="@username"
+                spellcheck="false"
+                autocomplete="off"
+              />
+            </div>
+            <div class="field">
+              <label for="quick-key">YouTube-Stream-Key <span class="req">*</span></label>
+              <input
+                id="quick-key"
+                v-model="quick.youtube_key"
+                type="password"
+                placeholder="Stream-Key"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="field">
+              <label for="quick-name">Name <span class="muted">(optional)</span></label>
+              <input
+                id="quick-name"
+                v-model="quick.name"
+                type="text"
+                placeholder="Anzeigename"
+                autocomplete="off"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary" :disabled="busy === 'quickstart'">
+              <span v-if="busy === 'quickstart'" class="spinner" aria-hidden="true"></span>
+              Jetzt starten
+            </button>
+          </form>
         </div>
-        <div v-if="store.playlists.length > 0" class="stack">
-          <div class="field">
-            <label for="quick-playlist">Playlist</label>
-            <select id="quick-playlist" v-model="selectedPlaylist">
-              <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
-                {{ playlist.name }} ({{ playlist.channels.length }} Kanäle)
-              </option>
-            </select>
+
+        <div class="quickstart-block">
+          <div class="quickstart-head">
+            <h3 class="quickstart-title">Playlist</h3>
+            <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Alle</RouterLink>
           </div>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            :disabled="busy === 'playlist' || !selectedPlaylist"
-            @click="playSelectedPlaylist"
-          >
-            <span v-if="busy === 'playlist'" class="spinner" aria-hidden="true"></span>
-            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
-            </svg>
-            Playlist abspielen
-          </button>
-          <div v-if="activePlaylist" class="info-row">
-            <span class="badge tone-info">Aktiv</span>
-            <span>{{ activePlaylist.name }}</span>
-            <span class="mono muted"
-              >{{ activePlaylist.index + 1 }}/{{ activePlaylist.total }}</span
+          <div v-if="store.playlists.length > 0" class="stack compact">
+            <div class="field">
+              <label for="quick-playlist">Playlist</label>
+              <select id="quick-playlist" v-model="selectedPlaylist">
+                <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
+                  {{ playlist.name }} ({{ playlist.channels.length }} Kanäle)
+                </option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              :disabled="busy === 'playlist' || !selectedPlaylist"
+              @click="playSelectedPlaylist"
             >
+              <span v-if="busy === 'playlist'" class="spinner" aria-hidden="true"></span>
+              <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+                <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
+              </svg>
+              Playlist abspielen
+            </button>
+            <div v-if="activePlaylist" class="info-row">
+              <span class="badge tone-info">Aktiv</span>
+              <span>{{ activePlaylist.name }}</span>
+              <span class="mono muted"
+                >{{ activePlaylist.index + 1 }}/{{ activePlaylist.total }}</span
+              >
+            </div>
           </div>
-        </div>
-        <div v-else class="empty compact">
-          <p>Noch keine Playlists vorhanden.</p>
-          <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
+          <div v-else class="empty compact">
+            <p>Noch keine Playlists vorhanden.</p>
+            <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
+          </div>
         </div>
       </section>
       </div>
