@@ -3524,6 +3524,13 @@ select {
   grid-column: span 2;
 }
 
+.dash-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .span-3 {
   grid-column: 1 / -1;
 }
@@ -3713,5 +3720,10 @@ select {
 @media (max-width: 640px) {
   .dash-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-grid .span-2,
+  .dash-grid .span-3 {
+    grid-column: 1 / -1;
   }
 }

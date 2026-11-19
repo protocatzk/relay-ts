@@ -559,7 +559,10 @@ onBeforeUnmount(() => {
         <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
       </div>
 
-      <LivePreview :state="state" class="span-2" />
+      <div class="dash-stack span-2">
+        <LivePreview :state="state" />
+        <RegieQueue />
+      </div>
 
       <section class="card dashboard-live">
       <div class="card-head">
@@ -765,8 +768,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
-
-      <RegieQueue class="span-3" />
       </div>
 
       <aside class="card streamer-panel">
