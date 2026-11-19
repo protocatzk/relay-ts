@@ -132,6 +132,27 @@ describe('studio preview', () => {
     expect(png.length).toBeGreaterThan(500);
   });
 
+  it('renders a schematic video area for scaled and positioned layouts', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      video: {
+        ...DEFAULT_SETTINGS.video,
+        layout: { enabled: true, scale: 200, position_x: 25, position_y: 75 },
+      },
+    };
+    const png = renderStudioPreview({
+      settings,
+      overlays: settings.overlays,
+      logger,
+      sample: true,
+      videoAspect: '9:16',
+      earningsText: '205,28 € · 42.505 Coins',
+      maxDimension: 480,
+    });
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.length).toBeGreaterThan(500);
+  });
+
   it('renders an empty stage when all overlays are disabled', () => {
     const png = renderStudioPreview({
       settings: DEFAULT_SETTINGS,

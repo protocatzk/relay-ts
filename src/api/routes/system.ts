@@ -4,6 +4,7 @@ import type { ApiContext } from '../context.js';
 import {
   EarningsSettingsSchema,
   OverlaysSettingsSchema,
+  VideoLayoutSchema,
   formatZodError,
 } from '../../core/config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
@@ -21,6 +22,8 @@ const StudioPreviewBody = z.object({
   streamer_id: z.string().optional(),
   overlays: z.unknown(),
   earnings: EarningsSettingsSchema.partial().optional(),
+  video_layout: VideoLayoutSchema.partial().optional(),
+  video_aspect: z.enum(['9:16', '16:9', '1:1']).optional(),
   sample: z.boolean().optional(),
   max_dimension: z.coerce.number().int().min(120).max(1200).optional(),
 });
@@ -142,6 +145,8 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       parsed.data.max_dimension ?? 720,
       sample ? undefined : ctx.supervisor.recentChatMessages(),
       parsed.data.earnings,
+      parsed.data.video_layout,
+      parsed.data.video_aspect,
     );
     return reply
       .header('cache-control', 'no-store')

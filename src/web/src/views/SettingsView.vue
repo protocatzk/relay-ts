@@ -341,6 +341,7 @@ async function save(): Promise<void> {
       video_bitrate: toNumber(current.video.video_bitrate, 4000),
       audio_bitrate: toNumber(current.video.audio_bitrate, 128),
       preset: current.video.preset,
+      layout: clone(current.video.layout),
     },
     watchdog: {
       stall_timeout: toNumber(current.watchdog.stall_timeout, 30),

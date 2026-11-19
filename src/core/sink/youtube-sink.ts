@@ -40,6 +40,11 @@ export class YouTubeSink {
     this.options = options;
   }
 
+  /** Keeps the next start on the current settings after a settings update. */
+  updateSettings(settings: Settings): void {
+    this.options.settings = settings;
+  }
+
   get running(): boolean {
     return this.process?.running ?? false;
   }

@@ -531,6 +531,12 @@ eigene Studio-Sektion mit mehrzeiligem Template, Position, Offsets,
 Schriftgröße, Farben und Box-Toggle; Quelle, Zeitraum und Dashboard-Ansicht
 bleiben unter Einstellungen. Zeilenumbrüche aus dem Template werden in Vorschau
 und Stream übernommen.
+
+Die Sektion **Video** skaliert und verschiebt das TikTok-Live-Bild global:
+100 % entspricht dem eingepassten Bild, über 100 % wird gezoomt und an den
+Rändern beschnitten. Die Vorschau zeigt ein schematisches Quellformat
+(9:16/16:9/1:1). Das Layout gilt auch für Pause-/Startbildschirm und lokale
+Videos.
 Speichern schreibt global nach `config/settings.yml` und baut bei einem laufenden
 Stream Chat-Engine/Sink kontrolliert neu auf.
 

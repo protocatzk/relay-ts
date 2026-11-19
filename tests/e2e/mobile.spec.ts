@@ -104,10 +104,37 @@ test.describe('mobile layout and drawer', () => {
     const templateValue = `{net} € · Studio-${Date.now()}`;
     await page.getByLabel('Template').fill(templateValue);
     await page.getByRole('button', { name: 'Speichern' }).click();
-    await expect(page.getByText('Globale Overlay-Einstellungen gespeichert.')).toBeVisible();
+    await expect(
+      page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
+    ).toBeVisible();
     await page.reload();
     await page.getByRole('tab', { name: 'Einnahmen' }).click();
     await expect(page.getByLabel('Template')).toHaveValue(templateValue);
+
+    await page.getByRole('tab', { name: 'Video' }).click();
+    const videoToggle = page.getByRole('switch', { name: /Video-Layout/ });
+    await videoToggle.check();
+    await page.locator('#studio-video-scale').fill('160');
+    await page.locator('#studio-video-position-x').fill('25');
+    await page.locator('#studio-video-position-y').fill('75');
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(
+      page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByRole('tab', { name: 'Video' }).click();
+    await expect(page.locator('#studio-video-scale')).toHaveValue('160');
+    await expect(page.locator('#studio-video-position-x')).toHaveValue('25');
+    await expect(page.locator('#studio-video-position-y')).toHaveValue('75');
+
+    await page.getByRole('switch', { name: /Video-Layout/ }).uncheck();
+    await page.locator('#studio-video-scale').fill('100');
+    await page.locator('#studio-video-position-x').fill('50');
+    await page.locator('#studio-video-position-y').fill('50');
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(
+      page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
+    ).toBeVisible();
     await expectNoHorizontalOverflow(page, '/#/overlays');
   });
 });

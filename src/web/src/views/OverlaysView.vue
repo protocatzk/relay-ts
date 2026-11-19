@@ -10,19 +10,28 @@ import type {
   StreamerOverlays,
   StreamerOverlaysInput,
   TextOverlay,
+  VideoLayout,
 } from '@/src/api/types';
 import ColorInput from '@/src/components/ColorInput.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 
-type Section = 'chat' | 'clock' | 'text' | 'earnings';
+type Section = 'video' | 'chat' | 'clock' | 'text' | 'earnings';
+type PreviewAspect = '9:16' | '16:9' | '1:1';
 
 const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'video', label: 'Video' },
   { id: 'chat', label: 'Chat' },
   { id: 'clock', label: 'Uhrzeit' },
   { id: 'text', label: 'Text' },
   { id: 'earnings', label: 'Einnahmen' },
+];
+
+const PREVIEW_ASPECTS: { value: PreviewAspect; label: string }[] = [
+  { value: '9:16', label: '9:16 (TikTok)' },
+  { value: '16:9', label: '16:9' },
+  { value: '1:1', label: '1:1' },
 ];
 
 const POSITIONS: { value: OverlayPosition; label: string }[] = [
@@ -42,6 +51,7 @@ const draft = ref<StreamerOverlays | null>(null);
 const settings = ref<Settings | null>(null);
 const settingsBaseline = ref<Settings | null>(null);
 const activeSection = ref<Section>('chat');
+const previewAspect = ref<PreviewAspect>('9:16');
 const sample = ref(true);
 const previewUrl = ref('');
 const previewError = ref('');
@@ -56,6 +66,7 @@ const canUndo = computed(() => historyIndex.value > 0);
 const canRedo = computed(() => historyIndex.value < history.value.length - 1);
 let historyTimer: number | null = null;
 let drag: {
+  target: 'overlay' | 'video';
   mode: 'move' | 'resize';
   startX: number;
   startY: number;
@@ -66,6 +77,7 @@ let drag: {
 const chatTest = reactive({ username: 'Testuser', text: 'Das Overlay sieht gut aus! 🔥' });
 let initialSnapshot = '';
 let initialEarningsSnapshot = '';
+let initialLayoutSnapshot = '';
 let previewTimer: number | null = null;
 let previewController: AbortController | null = null;
 let previewObjectUrl = '';
@@ -75,12 +87,14 @@ const chat = computed(() => draft.value?.chat ?? null);
 const clock = computed(() => draft.value?.clock ?? null);
 const text = computed(() => draft.value?.text ?? null);
 const earnings = computed(() => settings.value?.earnings ?? null);
+const videoLayout = computed<VideoLayout | null>(() => settings.value?.video.layout ?? null);
 const resolution = computed(() => settings.value?.video.resolution ?? '720x1280');
 const dirty = computed(
   () =>
     Boolean(draft.value) &&
     (JSON.stringify(draft.value) !== initialSnapshot ||
-      JSON.stringify(settings.value?.earnings) !== initialEarningsSnapshot),
+      JSON.stringify(settings.value?.earnings) !== initialEarningsSnapshot ||
+      JSON.stringify(settings.value?.video.layout) !== initialLayoutSnapshot),
 );
 
 const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
@@ -168,6 +182,59 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
   };
 });
 
+interface VideoRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const videoRect = computed<VideoRect | null>(() => {
+  const layout = videoLayout.value;
+  if (!layout) return null;
+  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
+  const [aspectWidth, aspectHeight] = previewAspect.value.split(':').map(Number) as [
+    number,
+    number,
+  ];
+  const ratio = aspectWidth / aspectHeight;
+  const baseWidth = width / height > ratio ? height * ratio : width;
+  const baseHeight = width / height > ratio ? height : width / ratio;
+  const scale = (layout.enabled ? layout.scale : 100) / 100;
+  const positionX = layout.enabled ? layout.position_x : 50;
+  const positionY = layout.enabled ? layout.position_y : 50;
+  const videoWidth = baseWidth * scale;
+  const videoHeight = baseHeight * scale;
+  return {
+    x: ((width - videoWidth) * positionX) / 100,
+    y: ((height - videoHeight) * positionY) / 100,
+    width: videoWidth,
+    height: videoHeight,
+  };
+});
+
+const videoBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
+  const rect = videoRect.value;
+  if (!rect) return {};
+  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
+  return {
+    left: `${(Math.max(0, rect.x) / width) * 100}%`,
+    top: `${(Math.max(0, rect.y) / height) * 100}%`,
+    right: `${(Math.max(0, width - (rect.x + rect.width)) / width) * 100}%`,
+    bottom: `${(Math.max(0, height - (rect.y + rect.height)) / height) * 100}%`,
+  };
+});
+
+function setVideoLayout(patch: Partial<VideoLayout>): void {
+  const layout = videoLayout.value;
+  if (!layout) return;
+  Object.assign(layout, patch);
+}
+
+function resetVideoLayout(): void {
+  setVideoLayout({ enabled: true, scale: 100, position_x: 50, position_y: 50 });
+}
+
 function setGeometry(patch: Partial<OverlayGeometry>): void {
   if (activeSection.value === 'earnings') {
     const config = earnings.value;
@@ -235,12 +302,36 @@ function nudge(dx: number, dy: number): void {
 
 function onDragMove(event: PointerEvent): void {
   const stage = stageRef.value;
-  if (!activeGeometry.value || !drag || !stage) return;
+  if (!drag || !stage) return;
   const rect = stage.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
   const [width, height] = resolution.value.split('x').map(Number) as [number, number];
   const dx = ((event.clientX - drag.startX) / rect.width) * width;
   const dy = ((event.clientY - drag.startY) / rect.height) * height;
+
+  if (drag.target === 'video') {
+    if (drag.mode === 'resize') {
+      setVideoLayout({ scale: Math.round(clamp(drag.baseSize + dy * 0.25, 50, 400)) });
+      return;
+    }
+    const video = videoRect.value;
+    if (!video) return;
+    const rangeX = width - video.width;
+    const rangeY = height - video.height;
+    setVideoLayout({
+      position_x:
+        Math.abs(rangeX) < 1
+          ? drag.baseX
+          : Math.round(clamp(drag.baseX + (dx * 100) / rangeX, 0, 100)),
+      position_y:
+        Math.abs(rangeY) < 1
+          ? drag.baseY
+          : Math.round(clamp(drag.baseY + (dy * 100) / rangeY, 0, 100)),
+    });
+    return;
+  }
+
+  if (!activeGeometry.value) return;
   if (drag.mode === 'move') {
     setGeometry({
       offset_x: Math.round(clamp(drag.baseX + dx, -1920, 1920)),
@@ -253,26 +344,56 @@ function onDragMove(event: PointerEvent): void {
 
 function endDrag(): void {
   if (!drag) return;
+  const wasVideo = drag.target === 'video';
   drag = null;
   window.removeEventListener('pointermove', onDragMove);
-  pushHistory();
+  if (!wasVideo) pushHistory();
 }
 
-function startDrag(event: PointerEvent, mode: 'move' | 'resize'): void {
-  const geometry = activeGeometry.value;
-  if (!geometry) return;
-  event.preventDefault();
-  drag = {
-    mode,
-    startX: event.clientX,
-    startY: event.clientY,
-    baseX: geometry.offset_x,
-    baseY: geometry.offset_y,
-    baseSize: geometry.font_size,
-  };
+function startDrag(
+  event: PointerEvent,
+  mode: 'move' | 'resize',
+  target: 'overlay' | 'video' = 'overlay',
+): void {
+  if (target === 'video') {
+    const layout = videoLayout.value;
+    if (!layout || !layout.enabled) return;
+    event.preventDefault();
+    drag = {
+      target: 'video',
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: layout.position_x,
+      baseY: layout.position_y,
+      baseSize: layout.scale,
+    };
+  } else {
+    const geometry = activeGeometry.value;
+    if (!geometry) return;
+    event.preventDefault();
+    drag = {
+      target: 'overlay',
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: geometry.offset_x,
+      baseY: geometry.offset_y,
+      baseSize: geometry.font_size,
+    };
+  }
   window.addEventListener('pointermove', onDragMove);
   window.addEventListener('pointerup', endDrag, { once: true });
   window.addEventListener('pointercancel', endDrag, { once: true });
+}
+
+function nudgeVideo(dx: number, dy: number): void {
+  const layout = videoLayout.value;
+  if (!layout || !layout.enabled) return;
+  setVideoLayout({
+    position_x: Math.round(clamp(layout.position_x + dx, 0, 100)),
+    position_y: Math.round(clamp(layout.position_y + dy, 0, 100)),
+  });
 }
 
 function exportPreset(): void {
@@ -335,6 +456,10 @@ function earningsInput(): SettingsUpdate['earnings'] {
   return current as SettingsUpdate['earnings'];
 }
 
+function videoInput(): SettingsUpdate['video'] {
+  return clone(settings.value!.video);
+}
+
 async function renderPreview(): Promise<void> {
   if (!draft.value) return;
   previewController?.abort();
@@ -346,6 +471,8 @@ async function renderPreview(): Promise<void> {
       {
         overlays: overlaysInput(),
         earnings: earningsInput(),
+        video_layout: videoLayout.value ?? undefined,
+        video_aspect: previewAspect.value,
         sample: sample.value,
         max_dimension: 720,
       },
@@ -378,6 +505,7 @@ function resetDraft(): void {
   draft.value = normalizeOverlays(baseline.overlays);
   initialSnapshot = JSON.stringify(draft.value);
   initialEarningsSnapshot = JSON.stringify(baseline.earnings);
+  initialLayoutSnapshot = JSON.stringify(baseline.video.layout);
   resetHistory();
   pushToast('Änderungen verworfen.', 'info');
   schedulePreview(true);
@@ -395,15 +523,17 @@ async function save(): Promise<void> {
     const saved = await api.settings.update({
       overlays: overlaysInput(),
       earnings: earningsInput(),
+      video: videoInput(),
     });
     settings.value = saved;
     settingsBaseline.value = clone(saved);
     draft.value = normalizeOverlays(saved.overlays);
     initialSnapshot = JSON.stringify(draft.value);
     initialEarningsSnapshot = JSON.stringify(saved.earnings);
+    initialLayoutSnapshot = JSON.stringify(saved.video.layout);
     resetHistory();
     await refreshStatus();
-    pushToast('Globale Overlay-Einstellungen gespeichert.', 'success');
+    pushToast('Globale Overlay- und Video-Einstellungen gespeichert.', 'success');
     schedulePreview(true);
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -440,6 +570,12 @@ watch(
   () => schedulePreview(),
   { deep: true },
 );
+watch(
+  () => settings.value?.video.layout,
+  () => schedulePreview(),
+  { deep: true },
+);
+watch(previewAspect, () => schedulePreview(true));
 watch(sample, () => schedulePreview(true));
 
 onMounted(async () => {
@@ -451,6 +587,7 @@ onMounted(async () => {
     draft.value = normalizeOverlays(settings.value.overlays);
     initialSnapshot = JSON.stringify(draft.value);
     initialEarningsSnapshot = JSON.stringify(settings.value.earnings);
+    initialLayoutSnapshot = JSON.stringify(settings.value.video.layout);
     resetHistory();
     schedulePreview(true);
   } catch (error) {
@@ -585,6 +722,31 @@ onBeforeUnmount(() => {
             <span class="studio-guide-h2"></span>
           </div>
           <div
+            v-if="activeSection === 'video' && videoLayout"
+            class="studio-drag-box studio-video-box"
+            :class="{ 'is-disabled': !videoLayout.enabled }"
+            :style="videoBoxStyle"
+            role="group"
+            tabindex="0"
+            aria-label="Video positionieren"
+            @pointerdown="startDrag($event, 'move', 'video')"
+            @keydown.left.prevent="nudgeVideo(-2, 0)"
+            @keydown.right.prevent="nudgeVideo(2, 0)"
+            @keydown.up.prevent="nudgeVideo(0, -2)"
+            @keydown.down.prevent="nudgeVideo(0, 2)"
+          >
+            <span class="studio-drag-label">
+              Video · {{ videoLayout.enabled ? `${videoLayout.scale} %` : 'Vollbild' }}
+            </span>
+            <button
+              v-if="videoLayout.enabled"
+              type="button"
+              class="studio-resize-handle"
+              aria-label="Video skalieren"
+              @pointerdown.stop="startDrag($event, 'resize', 'video')"
+            ></button>
+          </div>
+          <div
             v-if="activeGeometry"
             class="studio-drag-box"
             :style="stageBoxStyle"
@@ -638,6 +800,7 @@ onBeforeUnmount(() => {
             {{ section.label }}
             <span
               v-if="
+                (section.id === 'video' && videoLayout?.enabled) ||
                 (section.id === 'chat' && chat?.enabled) ||
                 (section.id === 'clock' && clock?.enabled) ||
                 (section.id === 'text' && text?.enabled) ||
@@ -649,7 +812,78 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div v-if="activeSection === 'chat' && chat" class="studio-body">
+        <div v-if="activeSection === 'video' && videoLayout" class="studio-body">
+          <ToggleField
+            v-model="videoLayout.enabled"
+            label="Video-Layout"
+            description="TikTok-Live-Bild verkleinern, vergrößern oder verschieben."
+          />
+          <p class="field-hint">
+            Gilt global für Live-Quelle, Pause-/Startbildschirm und lokale Videos. Speichern
+            startet den Sink kurz neu.
+          </p>
+          <div class="studio-grid">
+            <div class="field">
+              <label for="studio-video-scale">Größe (%)</label>
+              <input
+                id="studio-video-scale"
+                v-model.number="videoLayout.scale"
+                type="range"
+                min="50"
+                max="400"
+                step="1"
+              />
+              <p class="field-hint mono">{{ videoLayout.scale }} %</p>
+            </div>
+            <div class="field">
+              <label for="studio-video-position-x">Position X (%)</label>
+              <input
+                id="studio-video-position-x"
+                v-model.number="videoLayout.position_x"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+              />
+              <p class="field-hint mono">{{ videoLayout.position_x }} %</p>
+            </div>
+            <div class="field">
+              <label for="studio-video-position-y">Position Y (%)</label>
+              <input
+                id="studio-video-position-y"
+                v-model.number="videoLayout.position_y"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+              />
+              <p class="field-hint mono">{{ videoLayout.position_y }} %</p>
+            </div>
+            <div class="field">
+              <label for="studio-video-aspect">Quellformat (Vorschau)</label>
+              <select id="studio-video-aspect" v-model="previewAspect">
+                <option v-for="aspect in PREVIEW_ASPECTS" :key="aspect.value" :value="aspect.value">
+                  {{ aspect.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <p class="field-hint">
+            100 % entspricht dem eingepassten Bild; über 100 % wird gezoomt und an den
+            Rändern beschnitten.
+          </p>
+          <div class="quick-actions">
+            <button type="button" class="btn btn-ghost btn-sm" @click="resetVideoLayout">
+              Vollbild / Mitte
+            </button>
+          </div>
+          <p class="field-hint">
+            Rahmen ziehen verschiebt das Video, der Griff unten rechts skaliert. Pfeiltasten
+            verschieben in 2-%-Schritten.
+          </p>
+        </div>
+
+        <div v-else-if="activeSection === 'chat' && chat" class="studio-body">
           <ToggleField
             v-model="chat.enabled"
             label="Chat-Overlay"

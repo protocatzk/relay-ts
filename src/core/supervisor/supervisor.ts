@@ -39,7 +39,7 @@ import {
   type EarningsSnapshot,
 } from '../earnings/monitor.js';
 import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
-import { renderStudioPreview } from '../overlays/studio-preview.js';
+import { renderStudioPreview, type PreviewAspect } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
@@ -1635,6 +1635,7 @@ export class Supervisor {
   async applySettings(next: Settings, previous: Settings): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       this.settings = next;
+      this.sink.updateSettings(next);
       this.applyConfiguredDelay();
       this.buffer.setMaxBytes(this.bufferMaxBytes(next));
       this.watchdog.updateSettings(next);
@@ -1660,6 +1661,7 @@ export class Supervisor {
       const overlayCarrier =
         this.activeStreamer ??
         (this.manualScreen || this.activeMediaFile ? this.screenFallbackStreamer() : null);
+      let needsSinkRestart = false;
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
         const prepared = this.overlays.prepare();
         this.activeOverlayFilters = prepared.filters;
@@ -1667,7 +1669,7 @@ export class Supervisor {
           prepared.filters,
           this.activeStreamer ? this.chatEngine : undefined,
         );
-        if (this.sink.running) await this.restartSinkLocked();
+        needsSinkRestart = true;
       }
 
       if (overlaysChanged && overlayCarrier) {
@@ -1677,8 +1679,13 @@ export class Supervisor {
         if (this.state === 'live' && this.activeStreamer) {
           this.startChatLocked(this.activeStreamer, { preserveMessages: true });
         }
-        if (this.sink.running) await this.restartSinkLocked();
+        needsSinkRestart = true;
       }
+
+      const videoLayoutChanged =
+        JSON.stringify(previous.video.layout) !== JSON.stringify(next.video.layout);
+      if (videoLayoutChanged) needsSinkRestart = true;
+      if (needsSinkRestart && this.sink.running) await this.restartSinkLocked();
 
       const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
       if (chatChanged && this.activeStreamer) {
@@ -1808,10 +1815,18 @@ export class Supervisor {
     maxDimension = 720,
     chatMessages?: ChatMessage[],
     earningsDraft?: Partial<Settings['earnings']>,
+    videoLayoutDraft?: Partial<Settings['video']['layout']>,
+    videoAspect?: PreviewAspect,
   ): Buffer {
-    const settings = earningsDraft
-      ? { ...this.settings, earnings: { ...this.settings.earnings, ...earningsDraft } }
-      : this.settings;
+    const settings = {
+      ...this.settings,
+      video: videoLayoutDraft
+        ? { ...this.settings.video, layout: { ...this.settings.video.layout, ...videoLayoutDraft } }
+        : this.settings.video,
+      earnings: earningsDraft
+        ? { ...this.settings.earnings, ...earningsDraft }
+        : this.settings.earnings,
+    };
     return renderStudioPreview({
       settings,
       overlays,
@@ -1820,6 +1835,7 @@ export class Supervisor {
       chatMessages,
       earningsText: this.studioEarningsText(settings, sample),
       maxDimension,
+      videoAspect,
     });
   }
 

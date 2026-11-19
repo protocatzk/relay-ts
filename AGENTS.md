@@ -108,6 +108,11 @@ Wichtige Pfade:
   sofort Medien statt Stille erhält.
 - Overlay-Änderungen am aktiven Stream bauen Sink/Chat-Engine bewusst neu auf.
   Das ist ein kurzer, kontrollierter Reconnect.
+- Das globale Video-Layout (`video.layout`) skaliert und positioniert das
+  Relay-Bild im Sink per `scale`/`crop`/`pad`. 100 % ist das eingepasste Bild,
+  über 100 % wird gezoomt und beschnitten. Es gilt global für Live-Quelle,
+  Pause-/Startbildschirm und lokale Videos; Änderungen starten den Sink neu.
+  Das Overlay-Studio zeigt dafür ein schematisches Quellformat (9:16/16:9/1:1).
 
 ## Konfiguration und Persistenz
 

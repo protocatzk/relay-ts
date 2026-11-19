@@ -1225,6 +1225,27 @@ a.btn.is-disabled {
   touch-action: none;
 }
 
+.studio-video-box {
+  border-style: solid;
+  background: rgba(63, 185, 80, 0.08);
+}
+
+.studio-video-box.is-disabled {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: default;
+}
+
+.studio-video-box .studio-drag-label {
+  top: 4px;
+  left: 4px;
+}
+
+.studio-video-box .studio-resize-handle {
+  right: 4px;
+  bottom: 4px;
+}
+
 .btn.is-active {
   border-color: var(--accent-border);
   background: var(--accent-soft);

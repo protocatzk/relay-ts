@@ -151,20 +151,62 @@ export interface SinkCommandOptions {
   overlayInput?: SinkOverlayInput;
 }
 
+function evenDimension(value: number): number {
+  return Math.max(2, Math.round(value / 2) * 2);
+}
+
+/** Builds the video filter chain; a disabled layout keeps the legacy framing. */
+export function buildVideoFilters(
+  settings: Settings,
+  width: number,
+  height: number,
+  overlayFilters: string[] = [],
+): string[] {
+  const layout = settings.video.layout;
+  const enabled = layout.enabled;
+  const scalePercent = enabled ? layout.scale : 100;
+  const positionX = enabled ? layout.position_x : 50;
+  const positionY = enabled ? layout.position_y : 50;
+  const targetWidth = evenDimension((width * scalePercent) / 100);
+  const targetHeight = evenDimension((height * scalePercent) / 100);
+
+  const filters = [
+    `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+  ];
+
+  // Zoom above 100%: crop the scaled image to the output size, then pad the
+  // remaining dimension if the source aspect does not fill the canvas.
+  if (scalePercent > 100) {
+    const cropX =
+      positionX === 50 ? `(iw-${width})/2` : `(iw-${width})*${positionX}/100`;
+    const cropY =
+      positionY === 50 ? `(ih-${height})/2` : `(ih-${height})*${positionY}/100`;
+    filters.push(
+      `crop=w='min(iw\\,${width})':h='min(ih\\,${height})':` +
+        `x='max(0\\,min(iw-${width}\\,${cropX}))':` +
+        `y='max(0\\,min(ih-${height}\\,${cropY}))'`,
+    );
+  }
+
+  const padX = positionX === 50 ? '(ow-iw)/2' : `(ow-iw)*${positionX}/100`;
+  const padY = positionY === 50 ? '(oh-ih)/2' : `(oh-ih)*${positionY}/100`;
+  filters.push(
+    `pad=${width}:${height}:${padX}:${padY}:color=black`,
+    'setsar=1',
+    `fps=${settings.video.fps}`,
+    'format=yuv420p',
+    ...overlayFilters,
+  );
+  return filters;
+}
+
 export function buildSinkCommand(options: SinkCommandOptions): string[] {
   const { media, settings, relay } = options;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const fps = settings.video.fps;
   const bitrate = settings.video.video_bitrate;
   const gop = Math.max(1, fps * 2);
-  const filters = [
-    `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-    `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    'setsar=1',
-    `fps=${fps}`,
-    'format=yuv420p',
-    ...(options.overlayFilters ?? []),
-  ];
+  const filters = buildVideoFilters(settings, width, height, options.overlayFilters);
 
   const inputArgs = [
     '-hide_banner',

@@ -130,6 +130,52 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('rtmp://a.rtmp.youtube.com/live2/abc-def');
   });
 
+  it('applies the video layout scale and position to the sink', () => {
+    const base = {
+      media,
+      key: 'abc-def',
+      relay,
+    };
+    const legacy = buildSinkCommand({
+      ...base,
+      settings: { ...DEFAULT_SETTINGS, video: { ...DEFAULT_SETTINGS.video, resolution: '1280x720' } },
+    }).join(' ');
+    expect(legacy).toContain('scale=1280:720:force_original_aspect_ratio=decrease');
+    expect(legacy).toContain('pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black');
+    expect(legacy).not.toContain('crop=');
+
+    const shrink = buildSinkCommand({
+      ...base,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        video: {
+          ...DEFAULT_SETTINGS.video,
+          resolution: '1280x720',
+          layout: { enabled: true, scale: 60, position_x: 25, position_y: 75 },
+        },
+      },
+    }).join(' ');
+    expect(shrink).toContain('scale=768:432:force_original_aspect_ratio=decrease');
+    expect(shrink).toContain('pad=1280:720:(ow-iw)*25/100:(oh-ih)*75/100:color=black');
+    expect(shrink).not.toContain('crop=');
+
+    const zoom = buildSinkCommand({
+      ...base,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        video: {
+          ...DEFAULT_SETTINGS.video,
+          resolution: '1280x720',
+          layout: { enabled: true, scale: 200, position_x: 50, position_y: 50 },
+        },
+      },
+    }).join(' ');
+    expect(zoom).toContain('scale=2560:1440:force_original_aspect_ratio=decrease');
+    expect(zoom).toContain("crop=w='min(iw\\,1280)':h='min(ih\\,720)'");
+    expect(zoom).toContain("x='max(0\\,min(iw-1280\\,(iw-1280)/2))'");
+    expect(zoom).toContain('pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black');
+  });
+
   it('adds a canvas overlay input without using -vf', () => {
     const args = buildSinkCommand({
       media,

@@ -5,6 +5,8 @@ import { ChatOverlayEngine, parseColor } from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
 import type { OverlayPosition } from './drawtext.js';
 
+export type PreviewAspect = '9:16' | '16:9' | '1:1';
+
 export interface StudioPreviewOptions {
   settings: Settings;
   overlays: Settings['overlays'];
@@ -13,6 +15,7 @@ export interface StudioPreviewOptions {
   earningsText?: string;
   chatMessages?: ChatMessage[];
   maxDimension?: number;
+  videoAspect?: PreviewAspect;
 }
 
 function clockText(format: string): string {
@@ -115,12 +118,60 @@ function drawBackground(
   ctx.textAlign = 'left';
 }
 
+function drawVideoArea(
+  ctx: SKRSContext2D,
+  width: number,
+  height: number,
+  layout: Settings['video']['layout'],
+  aspect: PreviewAspect,
+): void {
+  const [aspectWidth, aspectHeight] = aspect.split(':').map(Number) as [number, number];
+  const ratio = aspectWidth / aspectHeight;
+  const frameRatio = width / height;
+  const baseWidth = frameRatio > ratio ? height * ratio : width;
+  const baseHeight = frameRatio > ratio ? height : width / ratio;
+  const scale = (layout.enabled ? layout.scale : 100) / 100;
+  const positionX = layout.enabled ? layout.position_x : 50;
+  const positionY = layout.enabled ? layout.position_y : 50;
+  const videoWidth = baseWidth * scale;
+  const videoHeight = baseHeight * scale;
+  const x = ((width - videoWidth) * positionX) / 100;
+  const y = ((height - videoHeight) * positionY) / 100;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  ctx.fillStyle = '#080d13';
+  ctx.fillRect(x, y, videoWidth, videoHeight);
+  ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+  ctx.lineWidth = Math.max(1, Math.round(width / 640));
+  ctx.strokeRect(x + 0.5, y + 0.5, videoWidth - 1, videoHeight - 1);
+
+  const labelSize = Math.max(12, Math.round(width * 0.016));
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.52)';
+  ctx.font = `700 ${labelSize}px "DejaVu Sans", sans-serif`;
+  const labelX = Math.min(width - 16, Math.max(16, x + videoWidth / 2));
+  const labelY = Math.min(height - 16, Math.max(16, y + videoHeight / 2));
+  ctx.fillText('TIKTOK LIVE', labelX, labelY);
+  ctx.font = `${Math.max(10, Math.round(labelSize * 0.7))}px "DejaVu Sans", sans-serif`;
+  ctx.fillText(
+    `${aspect}${layout.enabled ? ` · ${layout.scale} %` : ''}`,
+    labelX,
+    labelY + labelSize,
+  );
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+
 export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
   const { settings, overlays, logger, sample = true } = options;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
   drawBackground(ctx, width, height);
+  drawVideoArea(ctx, width, height, settings.video.layout, options.videoAspect ?? '9:16');
 
   const clock = overlays.clock;
   if (clock.enabled) {

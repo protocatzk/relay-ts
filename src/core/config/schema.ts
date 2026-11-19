@@ -169,12 +169,20 @@ export const DelayBufferSettingsSchema = z.object({
   max_bytes: z.number().int().min(1).max(512).default(32),
 });
 
+export const VideoLayoutSchema = z.object({
+  enabled: z.boolean().default(false),
+  scale: z.number().int().min(50).max(400).default(100),
+  position_x: z.number().int().min(0).max(100).default(50),
+  position_y: z.number().int().min(0).max(100).default(50),
+});
+
 export const VideoSettingsSchema = z.object({
   resolution: z.enum(RESOLUTIONS).default('720x1280'),
   fps: z.number().int().min(1).max(60).default(25),
   video_bitrate: z.number().int().min(500).max(50_000).default(4000),
   audio_bitrate: z.number().int().min(32).max(320).default(128),
   preset: z.enum(PRESETS).default('veryfast'),
+  layout: VideoLayoutSchema.default(VideoLayoutSchema.parse({})),
 });
 
 export const WatchdogSettingsSchema = z.object({

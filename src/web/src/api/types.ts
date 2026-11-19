@@ -308,12 +308,20 @@ export interface DelayBufferSettings {
   size: number;
 }
 
+export interface VideoLayout {
+  enabled: boolean;
+  scale: number;
+  position_x: number;
+  position_y: number;
+}
+
 export interface VideoSettings {
   resolution: string;
   fps: number;
   video_bitrate: number;
   audio_bitrate: number;
   preset: VideoPreset;
+  layout: VideoLayout;
 }
 
 export interface WatchdogSettings {
@@ -634,6 +642,8 @@ export interface StudioPreviewInput {
   streamer_id?: string;
   overlays: StreamerOverlaysInput;
   earnings?: Partial<EarningsSettings>;
+  video_layout?: Partial<VideoLayout>;
+  video_aspect?: '9:16' | '16:9' | '1:1';
   sample?: boolean;
   max_dimension?: number;
 }

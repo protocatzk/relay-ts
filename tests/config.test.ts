@@ -19,6 +19,12 @@ describe('config loader', () => {
     expect(config.server.port).toBe(3300);
     expect(config.server.logLevel).toBe('debug');
     expect(config.settings.delay_buffer.size).toBe(DEFAULT_SETTINGS.delay_buffer.size);
+    expect(config.settings.video.layout).toEqual({
+      enabled: false,
+      scale: 100,
+      position_x: 50,
+      position_y: 50,
+    });
     expect(config.streamers).toEqual([]);
     expect(config.paths.streamersFile).toBe(join(dir, 'config/streamers.yml'));
   });
