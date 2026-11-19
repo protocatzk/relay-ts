@@ -40,8 +40,8 @@ import { SupervisorStateMachine } from './state-machine.js';
 import { buildStatusSnapshot } from './status-builder.js';
 import { OverlayRuntime } from './overlay-runtime.js';
 import { SinkController } from './sink-controller.js';
+import { PauseController } from './pause-controller.js';
 import { incMetric } from '../metrics.js';
-import { pauseLimitDelayMs } from './pause-limit.js';
 import {
   PlaylistController,
   type PlaylistRunState,
@@ -107,8 +107,7 @@ export class Supervisor {
   private source!: TikTokSource;
   private sinkController!: SinkController;
   private overlays!: OverlayManager;
-  private pauseScreen!: PauseScreen;
-  private startupScreen!: PauseScreen;
+  private pauseController!: PauseController;
   private watchdog!: Watchdog;
   private autoRefresh!: AutoRefresh;
   private online!: OnlineMonitor;
@@ -125,16 +124,10 @@ export class Supervisor {
   private reconnects = 0;
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
-  private pauseRestartTimer?: NodeJS.Timeout;
-  private pauseLimitTimer?: NodeJS.Timeout;
-  private startupTimer?: NodeJS.Timeout;
-  private offlinePauseTimer?: NodeJS.Timeout;
   private statusTimer?: NodeJS.Timeout;
   private autoStartTimer?: NodeJS.Timeout;
   private stoppingSource = 0;
   private shuttingDown = false;
-  private pauseReason: 'user' | 'offline' | null = null;
-  private manualScreen: 'startup' | 'pause' | null = null;
   private forceReencodeNext = false;
   private resolving = false;
   private producerStartedAt: number | null = null;
@@ -245,7 +238,9 @@ export class Supervisor {
       lock: this.lock,
       isShuttingDown: () => this.shuttingDown,
       canStartDelayed: () =>
-        this.source.running || this.pauseScreen.running || this.startupScreen.running,
+        this.source.running ||
+        this.pauseController.pauseRunning ||
+        this.pauseController.startupRunning,
       onStarted: () => this.overlayRuntime.attachToSink(this.sinkController.overlayStream()),
       onStopping: () => this.overlayRuntime.detachEngine(),
       onPrefillDone: () => this.emitAll(),
@@ -255,7 +250,7 @@ export class Supervisor {
       { media: config.media, overlaysDir: config.paths.overlaysDir, logger },
       this.settings,
     );
-    this.pauseScreen = new PauseScreen({
+    const pauseScreen = new PauseScreen({
       media: config.media,
       settings: this.settings,
       relay: relayEndpoint,
@@ -266,11 +261,11 @@ export class Supervisor {
       onExit: () => {
         if (!this.shuttingDown && this.state === 'paused') {
           this.deps.logger.warn('Pausenscreen unerwartet beendet – Neustart wird geplant');
-          this.schedulePauseRestart();
+          this.pauseController.handlePauseScreenExit();
         }
       },
     });
-    this.startupScreen = new PauseScreen({
+    const startupScreen = new PauseScreen({
       media: config.media,
       settings: this.settings,
       relay: relayEndpoint,
@@ -279,6 +274,28 @@ export class Supervisor {
       fontFile: this.overlays.font,
       screen: 'startup',
       redact: this.deps.redact,
+    });
+    this.pauseController = new PauseController({
+      pauseScreen,
+      startupScreen,
+      settings: this.settings,
+      logger,
+      lock: this.lock,
+      hooks: {
+        isShuttingDown: () => this.shuttingDown,
+        isPaused: () => this.state === 'paused',
+        nextOffset: () => this.nextProducerOffset(),
+        markProducerStarted: (offset) => this.markProducerStarted(offset),
+        emitStatus: () => this.emitStatus(),
+        emitAll: () => this.emitAll(),
+        canScheduleOfflinePause: () => this.sinkController.running,
+        canStartOfflinePause: () => this.canStartOfflinePauseLocked(),
+        startOfflinePause: () => this.startPauseLocked(),
+        onPauseLimit: async () => {
+          incMetric('pause_limit_hits_total');
+          await this.stopInternalLocked();
+        },
+      },
     });
     this.watchdog = new Watchdog({
       settings: this.settings,
@@ -431,7 +448,7 @@ export class Supervisor {
     ) {
       return;
     }
-    if (this.state === 'paused' && this.pauseReason === 'user') return;
+    if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
     if (this.activeStreamer?.preferred && this.state === 'live') return;
 
     const candidate = this.deps.store
@@ -543,9 +560,9 @@ export class Supervisor {
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = file;
-    this.pauseReason = null;
-    this.manualScreen = null;
-    this.clearPauseLimit();
+    this.pauseController.pauseReason = null;
+    this.pauseController.manualScreen = null;
+    this.pauseController.clearPauseLimit();
     this.reconnectAttempts = 0;
     this.forceReencodeNext = false;
 
@@ -659,9 +676,9 @@ export class Supervisor {
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = stream.title;
-    this.pauseReason = null;
-    this.manualScreen = null;
-    this.clearPauseLimit();
+    this.pauseController.pauseReason = null;
+    this.pauseController.manualScreen = null;
+    this.pauseController.clearPauseLimit();
     this.reconnectAttempts = 0;
     this.forceReencodeNext = options.forceReencode ?? false;
 
@@ -675,10 +692,10 @@ export class Supervisor {
 
     if (introSeconds > 0) {
       incMetric('startup_screens_total');
-      await this.startupScreen.start(undefined, undefined, timestampOffset);
+      await this.pauseController.startStartup(timestampOffset);
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
-      this.clearOfflinePauseTimer();
+      this.pauseController.clearOfflinePauseTimer();
       this.earnings.setActive();
       this.watchdog.reset();
       this.watchdog.clearError();
@@ -688,7 +705,7 @@ export class Supervisor {
       this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
-      this.clearOfflinePauseTimer();
+      this.pauseController.clearOfflinePauseTimer();
       this.overlayRuntime.startChat(streamer);
       this.earnings.setActive();
       this.autoRefresh.start();
@@ -713,9 +730,7 @@ export class Supervisor {
     stream: ResolvedStream,
     introSeconds: number,
   ): void {
-    if (this.startupTimer) clearTimeout(this.startupTimer);
-    this.startupTimer = setTimeout(() => {
-      this.startupTimer = undefined;
+    this.pauseController.scheduleStartupFinish(introSeconds, () => {
       void this.lock.run(async () => {
         if (
           this.shuttingDown ||
@@ -724,19 +739,19 @@ export class Supervisor {
         ) {
           return;
         }
-        await this.startupScreen.stop();
+        await this.pauseController.stopStartup();
         if (this.source.running) return;
         const offset = this.nextProducerOffset();
         this.source.start(streamer, stream, this.forceReencodeNext, offset);
         this.markProducerStarted(offset);
         this.markSinkGrace();
-        this.clearOfflinePauseTimer();
+        this.pauseController.clearOfflinePauseTimer();
         this.overlayRuntime.startChat(streamer);
         this.autoRefresh.start();
         this.transitionTo('live', 'startup finished');
         this.emitAll();
       });
-    }, introSeconds * 1000);
+    });
   }
 
   /**
@@ -751,7 +766,7 @@ export class Supervisor {
     message: string,
   ): Promise<void> {
     this.clearReconnectTimer();
-    this.clearOfflinePauseTimer();
+    this.pauseController.clearOfflinePauseTimer();
     const prepared = this.overlays.prepare();
     const candidateEngine = this.overlayRuntime.createEngine();
     const overlayInput = candidateEngine?.panel;
@@ -836,8 +851,7 @@ export class Supervisor {
         this.stoppingSource -= 1;
       }
     }
-    if (this.pauseScreen.running) await this.pauseScreen.stop();
-    if (this.startupScreen?.running) await this.startupScreen.stop();
+    await this.pauseController.stopScreens();
   }
 
   async stop(): Promise<StatusSnapshot> {
@@ -848,8 +862,7 @@ export class Supervisor {
     this.sinkController.clearTimers();
     const stoppingKey = this.sinkController.key;
     this.transitionTo('stopping');
-    this.pauseReason = null;
-    this.manualScreen = null;
+    this.pauseController.clearState();
     this.clearAllTimers();
     this.autoRefresh.stop();
     this.watchdog.reset();
@@ -931,9 +944,9 @@ export class Supervisor {
       if (type === 'pause' && !this.settings.pause.enabled) {
         throw new ValidationError('Der Pausenscreen ist in den Einstellungen deaktiviert');
       }
-      this.clearStartupTimer();
-      this.clearOfflinePauseTimer();
-      this.clearPauseLimit();
+      this.pauseController.clearStartupTimer();
+      this.pauseController.clearOfflinePauseTimer();
+      this.pauseController.clearPauseLimit();
       this.clearReconnectTimer();
       this.sinkController.clearStartTimer();
       await this.stopSourceAndChatLocked();
@@ -981,8 +994,12 @@ export class Supervisor {
       }
       this.applyConfiguredDelay();
       const offset = this.nextProducerOffset();
-      const screen = type === 'startup' ? this.startupScreen : this.pauseScreen;
-      await screen.start(undefined, undefined, offset);
+      const screen = this.pauseController.screen(type);
+      if (screen === this.pauseController.screen('startup')) {
+        await this.pauseController.startStartup(offset);
+      } else {
+        await this.pauseController.startPause(offset);
+      }
       if (pendingSink) {
         this.startSinkOrPrefillLocked(
           pendingSink.key,
@@ -993,8 +1010,8 @@ export class Supervisor {
       }
       this.markProducerStarted(offset);
       this.markSinkGrace();
-      this.manualScreen = type;
-      this.pauseReason = 'user';
+      this.pauseController.manualScreen = type;
+      this.pauseController.pauseReason = 'user';
       incMetric('manual_screens_total');
       this.transitionTo('paused', `manual ${type} screen`);
       this.autoRefresh.stop();
@@ -1011,15 +1028,15 @@ export class Supervisor {
     return this.lock.run(async () => {
       const streamer = this.activeStreamer;
       if (!streamer) {
-        if (!this.manualScreen) return this.buildStatus();
-        this.deps.logger.info({ screen: this.manualScreen }, 'Manueller Screen beendet');
+        if (!this.pauseController.manualScreen) return this.buildStatus();
+        this.deps.logger.info({ screen: this.pauseController.manualScreen }, 'Manueller Screen beendet');
         return this.stopInternalLocked();
       }
       if (this.state !== 'paused') return this.buildStatus();
-      this.manualScreen = null;
-      this.pauseReason = null;
-      this.clearPauseLimit();
-      this.clearStartupTimer();
+      this.pauseController.manualScreen = null;
+      this.pauseController.pauseReason = null;
+      this.pauseController.clearPauseLimit();
+      this.pauseController.clearStartupTimer();
       return this.startStreamerLocked(streamer, {
         key: this.sinkController.key,
         playlist: this.playlistController.current ?? undefined,
@@ -1060,13 +1077,7 @@ export class Supervisor {
     this.playlistController.clearTimers();
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
     this.autoStartTimer = undefined;
-    if (this.pauseRestartTimer) clearTimeout(this.pauseRestartTimer);
-    this.pauseRestartTimer = undefined;
-    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
-    this.pauseLimitTimer = undefined;
-    this.clearStartupTimer();
-    if (this.offlinePauseTimer) clearTimeout(this.offlinePauseTimer);
-    this.offlinePauseTimer = undefined;
+    this.pauseController.clearTimers();
   }
 
   private handleSourceExit(
@@ -1090,7 +1101,7 @@ export class Supervisor {
     incMetric('source_exits_total');
     this.reconnects += 1;
     this.lastError = 'Stream-Quelle beendet';
-    this.scheduleOfflinePauseLocked();
+    this.pauseController.scheduleOfflinePause();
     if (!this.settings.watchdog.auto_reconnect) {
       this.transitionTo('error');
       this.emitAll();
@@ -1125,13 +1136,13 @@ export class Supervisor {
   private async reconnect(): Promise<void> {
     await this.lock.run(async () => {
       if (this.shuttingDown || !this.activeStreamer) return;
-      if (this.state === 'paused' && this.pauseReason === 'user') return;
+      if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
       if (this.source.running) return;
       this.transitionTo('reconnecting');
       this.emitStatus();
       try {
         const stream = await this.resolver.resolve(this.activeStreamer);
-        if (this.pauseScreen.running) await this.pauseScreen.stop();
+        await this.pauseController.stopPause();
         this.applyConfiguredDelay();
         const timestampOffset = this.nextProducerOffset();
         this.source.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
@@ -1146,11 +1157,11 @@ export class Supervisor {
         this.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();
-        this.clearOfflinePauseTimer();
+        this.pauseController.clearOfflinePauseTimer();
         this.activeTitle = stream.title;
-        this.clearPauseLimit();
-        this.pauseReason = null;
-        this.manualScreen = null;
+        this.pauseController.clearPauseLimit();
+        this.pauseController.pauseReason = null;
+        this.pauseController.manualScreen = null;
         this.lastError = null;
         this.reconnectAttempts = 0;
         this.watchdog.clearError();
@@ -1174,7 +1185,7 @@ export class Supervisor {
             this.emitStatus();
             return;
           }
-          if (this.settings.pause.enabled && this.sinkController.running && !this.pauseScreen.running) {
+          if (this.settings.pause.enabled && this.sinkController.running && !this.pauseController.pauseRunning) {
             await this.startPauseLocked();
           }
           this.emitStatus();
@@ -1185,7 +1196,7 @@ export class Supervisor {
           error instanceof StreamerOfflineError &&
           this.settings.pause.enabled &&
           this.sinkController.running &&
-          !this.pauseScreen.running &&
+          !this.pauseController.pauseRunning &&
           this.reconnectAttempts >= 2
         ) {
           await this.startPauseLocked();
@@ -1197,12 +1208,12 @@ export class Supervisor {
   }
 
   private async startPauseLocked(): Promise<void> {
-    this.clearStartupTimer();
-    if (this.startupScreen?.running) await this.startupScreen.stop();
+    this.pauseController.clearStartupTimer();
+    await this.pauseController.stopStartup();
     this.overlayRuntime.stopChat();
     this.applyConfiguredDelay();
     const timestampOffset = this.nextProducerOffset();
-    await this.pauseScreen.start(undefined, undefined, timestampOffset);
+    await this.pauseController.startPause(timestampOffset);
     if (!this.sinkController.running && this.sinkController.key) {
       this.startSinkOrPrefillLocked(
         this.sinkController.key,
@@ -1213,79 +1224,22 @@ export class Supervisor {
     }
     this.markProducerStarted(timestampOffset);
     this.markSinkGrace();
-    this.pauseReason = 'offline';
-    this.manualScreen = null;
+    this.pauseController.pauseReason = 'offline';
+    this.pauseController.manualScreen = null;
     this.transitionTo('paused');
     incMetric('pause_starts_total');
-    this.schedulePauseLimitLocked();
+    this.pauseController.schedulePauseLimit();
     this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
   }
 
-  private schedulePauseLimitLocked(): void {
-    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
-    this.pauseLimitTimer = undefined;
-    const minutes = this.settings.pause.max_minutes;
-    const delayMs = pauseLimitDelayMs(minutes);
-    if (delayMs === null) return;
-    this.pauseLimitTimer = setTimeout(() => {
-      this.pauseLimitTimer = undefined;
-      void this.lock.run(async () => {
-        if (this.shuttingDown || this.state !== 'paused') return;
-        incMetric('pause_limit_hits_total');
-        this.deps.logger.warn({ minutes }, 'Maximale Pausendauer erreicht – Stream wird gestoppt');
-        await this.stopInternalLocked();
-      });
-    }, delayMs);
-  }
-
-  private clearPauseLimit(): void {
-    if (this.pauseLimitTimer) clearTimeout(this.pauseLimitTimer);
-    this.pauseLimitTimer = undefined;
-  }
-
-  private clearOfflinePauseTimer(): void {
-    if (this.offlinePauseTimer) clearTimeout(this.offlinePauseTimer);
-    this.offlinePauseTimer = undefined;
-  }
-
-  private clearStartupTimer(): void {
-    if (this.startupTimer) clearTimeout(this.startupTimer);
-    this.startupTimer = undefined;
-  }
-
-  /**
-   * If a reconnection takes longer than a few seconds, keep YouTube alive with
-   * the pause screen instead of letting the encoder starve.
-   */
-  private scheduleOfflinePauseLocked(): void {
-    if (this.offlinePauseTimer || !this.settings.pause.enabled || !this.sinkController.running) return;
-    const delayMs = Math.max(0, this.settings.pause.grace_seconds) * 1000;
-    this.offlinePauseTimer = setTimeout(() => {
-      this.offlinePauseTimer = undefined;
-      void this.lock.run(async () => {
-        if (this.shuttingDown) return;
-        if (this.source.running || this.pauseScreen.running || !this.sinkController.running) return;
-        if (this.playlistController.isAdvancePending) return;
-        if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return;
-        if (this.state === 'paused' && this.pauseReason === 'user') return;
-        await this.startPauseLocked();
-        this.emitAll();
-      });
-    }, delayMs);
-  }
-
-  private schedulePauseRestart(): void {
-    if (this.pauseRestartTimer || this.shuttingDown) return;
-    this.pauseRestartTimer = setTimeout(() => {
-      this.pauseRestartTimer = undefined;
-      void this.lock.run(async () => {
-        if (this.shuttingDown || this.state !== 'paused' || this.pauseScreen.running) return;
-        const timestampOffset = this.nextProducerOffset();
-        await this.pauseScreen.start(undefined, undefined, timestampOffset);
-        this.markProducerStarted(timestampOffset);
-        this.emitStatus();
-      });
-    }, 2000);
+  private canStartOfflinePauseLocked(): boolean {
+    if (this.source.running || this.pauseController.pauseRunning || !this.sinkController.running) {
+      return false;
+    }
+    if (this.playlistController.isAdvancePending) return false;
+    if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return false;
+    if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return false;
+    return true;
   }
 
   private async refreshSource(reason: string): Promise<void> {
@@ -1296,7 +1250,7 @@ export class Supervisor {
       this.deps.logger.info({ reason }, 'Quell-URL wird aktualisiert');
       try {
         const stream = await this.resolver.resolve(streamer);
-        if (this.pauseScreen.running) await this.pauseScreen.stop();
+        await this.pauseController.stopPause();
         this.stoppingSource += 1;
         try {
           await this.source.stop();
@@ -1308,11 +1262,11 @@ export class Supervisor {
         this.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();
-        this.clearOfflinePauseTimer();
+        this.pauseController.clearOfflinePauseTimer();
         this.activeTitle = stream.title;
-        this.clearPauseLimit();
-        this.pauseReason = null;
-        this.manualScreen = null;
+        this.pauseController.clearPauseLimit();
+        this.pauseController.pauseReason = null;
+        this.pauseController.manualScreen = null;
         this.transitionTo('live');
         this.lastError = null;
         this.autoRefresh.markRefreshed();
@@ -1350,7 +1304,7 @@ export class Supervisor {
       } finally {
         this.stoppingSource -= 1;
       }
-      this.scheduleOfflinePauseLocked();
+      this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(1000);
     })();
   }
@@ -1397,7 +1351,7 @@ export class Supervisor {
       } finally {
         this.stoppingSource -= 1;
       }
-      this.scheduleOfflinePauseLocked();
+      this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(1000);
     });
   }
@@ -1436,7 +1390,7 @@ export class Supervisor {
       } finally {
         this.stoppingSource -= 1;
       }
-      this.scheduleOfflinePauseLocked();
+      this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(2000);
     });
   }
@@ -1467,8 +1421,7 @@ export class Supervisor {
       this.online.updateSettings(next);
       this.overlays.updateSettings(next);
       this.overlayRuntime.updateSettings(next);
-      this.pauseScreen.updateSettings(next);
-      this.startupScreen.updateSettings(next);
+      this.pauseController.updateSettings(next);
       this.earnings.updateSettings(next);
 
       const overlaysChanged = JSON.stringify(previous.overlays) !== JSON.stringify(next.overlays);
@@ -1485,7 +1438,7 @@ export class Supervisor {
         previous.earnings.overlay_show_box !== next.earnings.overlay_show_box;
       const overlayCarrier =
         this.activeStreamer ??
-        (this.manualScreen || this.activeMediaFile ? this.screenFallbackStreamer() : null);
+        (this.pauseController.manualScreen || this.activeMediaFile ? this.screenFallbackStreamer() : null);
       let needsSinkRestart = false;
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
         const prepared = this.overlays.prepare();
@@ -1551,10 +1504,10 @@ export class Supervisor {
         }
       }
       if (this.state === 'paused') {
-        const screen = this.startupScreen.running
-          ? this.startupScreen
-          : this.pauseScreen.running
-            ? this.pauseScreen
+        const screen = this.pauseController.startupRunning
+          ? this.pauseController.screen('startup')
+          : this.pauseController.pauseRunning
+            ? this.pauseController.screen('pause')
             : null;
         if (screen) {
           await screen.stop();
@@ -1748,7 +1701,7 @@ export class Supervisor {
       settings: this.settings,
       activeStreamer: this.activeStreamer,
       activePlaylist: this.playlistController.current,
-      manualScreen: this.manualScreen,
+      manualScreen: this.pauseController.manualScreen,
       startedAt: this.startedAt,
       resolving: this.resolving,
       reconnects: this.reconnects,
