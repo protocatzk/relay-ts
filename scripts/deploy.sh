@@ -8,10 +8,12 @@
 # Version zurückgerollt.
 #
 # Nutzung:
-#   sudo scripts/deploy.sh [VERSION]      # z. B. 0.8.0 oder v0.8.0 (Default: Version aus package.json)
-#   sudo scripts/deploy.sh --rollback     # auf die vorherige Version zurück
+#   sudo scripts/deploy.sh [VERSION]            # z. B. 0.8.0 oder v0.8.0 (Default: Version aus package.json)
+#   sudo scripts/deploy.sh [VERSION] --force    # denselben Tag erneut bauen (überschreibt das Release-Verzeichnis)
+#   sudo scripts/deploy.sh --rollback           # auf die vorherige Version zurück
 #
-# Voraussetzungen: Root, Git-Tag vorhanden (ggf. vorher "git fetch --tags").
+# Voraussetzungen: Root, Git-Tag vorhanden. Nach einem Force-Push des Tags
+# vorher "git fetch --tags --force" ausführen, damit der lokale Tag aktuell ist.
 set -euo pipefail
 
 export PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin
@@ -59,8 +61,23 @@ current_version() {
   [ -n "$t" ] && basename "$t"
 }
 
+# --- Argumente -----------------------------------------------------------------
+FORCE=0
+ROLLBACK=0
+VERSION=""
+EXPLICIT=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) FORCE=1 ;;
+    --rollback) ROLLBACK=1 ;;
+    --*) fail "Unbekannte Option: $1" ;;
+    *) VERSION="$1"; EXPLICIT=1 ;;
+  esac
+  shift
+done
+
 # --- Rollback -----------------------------------------------------------------
-if [ "${1:-}" = "--rollback" ]; then
+if [ "$ROLLBACK" = 1 ]; then
   cur="$(current_version)"
   prev="$(list_versions | awk -v c="$cur" '$0 != c { print; exit }')"
   [ -n "$prev" ] || fail "Keine frühere Version zum Zurückrollen gefunden."
@@ -76,7 +93,6 @@ if [ "${1:-}" = "--rollback" ]; then
 fi
 
 # --- Version bestimmen --------------------------------------------------------
-VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
   VERSION="$(node -p "require('$REPO_DIR/package.json').version")"
   log "Keine Version angegeben – verwende package.json: $VERSION"
@@ -88,16 +104,23 @@ if ! git -C "$REPO_DIR" rev-parse --verify --quiet "$REF^{commit}" >/dev/null 2>
   # Fallback: VERSION ohne v-Präfix als Ref, sonst HEAD
   if git -C "$REPO_DIR" rev-parse --verify --quiet "$VERSION^{commit}" >/dev/null 2>&1; then
     REF="$VERSION"
-  elif [ -z "${1:-}" ]; then
+  elif [ "$EXPLICIT" = 0 ]; then
     REF="HEAD"
     warn "Tag v$VERSION nicht gefunden – deploye HEAD (ohne Tag)."
   else
-    fail "Ref für '$1' nicht gefunden. Vorher: git fetch --tags"
+    fail "Ref für '$VERSION' nicht gefunden. Vorher: git fetch --tags"
   fi
 fi
 
 REL="$RELEASES/$VERSION"
-[ -e "$REL" ] && fail "Release-Verzeichnis existiert bereits: $REL (kein Überschreiben)."
+if [ -e "$REL" ]; then
+  if [ "$FORCE" = 1 ]; then
+    warn "Release-Verzeichnis existiert bereits – überschreibe: $REL"
+    rm -rf "$REL"
+  else
+    fail "Release-Verzeichnis existiert bereits: $REL (nutze --force zum Überschreiben)."
+  fi
+fi
 prev="$(current_version)"
 
 # --- Build in frischem Release-Verzeichnis ------------------------------------
