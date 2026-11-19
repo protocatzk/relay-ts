@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
-import type { StreamState } from '@/src/api/types';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { api } from '@/src/api/client';
+import type { StreamState, YouTubeBroadcast } from '@/src/api/types';
 
 type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'unsupported';
 
@@ -15,6 +16,30 @@ const player = shallowRef<Player | null>(null);
 const status = ref<PlayerStatus>('idle');
 const muted = ref(true);
 const error = ref('');
+const broadcasts = ref<YouTubeBroadcast[]>([]);
+
+const liveBroadcast = computed<YouTubeBroadcast | null>(
+  () =>
+    broadcasts.value.find((broadcast) => broadcast.status === 'live') ??
+    broadcasts.value.find((broadcast) => broadcast.stream_status === 'active') ??
+    null,
+);
+
+const chatUrl = computed(() => {
+  const broadcast = liveBroadcast.value;
+  return broadcast
+    ? `https://www.youtube.com/live_chat?v=${encodeURIComponent(broadcast.id)}`
+    : '';
+});
+
+async function loadChat(): Promise<void> {
+  try {
+    const youtube = await api.youtube.status();
+    broadcasts.value = youtube.connected ? (await api.youtube.broadcasts()).items : [];
+  } catch {
+    broadcasts.value = [];
+  }
+}
 
 const canPlay = computed(() =>
   ['live', 'paused', 'starting'].includes(props.state ?? ''),
@@ -109,6 +134,10 @@ watch(
   },
 );
 
+onMounted(() => {
+  void loadChat();
+});
+
 onBeforeUnmount(() => {
   stop();
 });
@@ -128,6 +157,24 @@ onBeforeUnmount(() => {
         >
           {{ status === 'playing' ? 'Live' : status === 'connecting' ? 'Verbinde…' : status === 'error' ? 'Fehler' : 'Bereit' }}
         </span>
+        <a
+          v-if="chatUrl"
+          :href="chatUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-ghost btn-sm"
+          aria-label="YouTube-Live-Chat öffnen"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+            <path
+              d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.4-4.1-1L3 20l1-5.2a8.4 8.4 0 0 1-1-4.3A8.5 8.5 0 0 1 11.5 2 8.5 8.5 0 0 1 21 11.5Z"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linejoin="round"
+            />
+          </svg>
+          Chat
+        </a>
       </div>
     </div>
 
