@@ -10,3 +10,4 @@
 {"title":"Mobile: Accessibility und E2E-Tests","file":"10-mobile-accessibility.md","labels":["mobile","accessibility","testing","P3","v0.4.0"],"milestone":"v0.4.0"}
 {"title":"Tech Debt: Per-Streamer-Overlays entfernen und Migration abschließen","file":"11-remove-per-streamer-overlays.md","labels":["tech-debt","P4","v0.5.0"],"milestone":"v0.5.0"}
 {"title":"API: OpenAPI generieren und typisierten Client ableiten","file":"12-openapi-typed-client.md","labels":["tech-debt","api","P4","v0.5.0"],"milestone":"v0.5.0"}
+{"title":"YouTube: Live-Chat per Data API im Dashboard anzeigen","file":"13-youtube-live-chat.md","labels":["youtube","enhancement","P3"]}
