@@ -892,6 +892,36 @@ textarea {
   margin-top: 10px;
 }
 
+.youtube-chat-stage {
+  position: relative;
+  height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg);
+}
+
+.youtube-chat-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--surface-1);
+}
+
+.youtube-chat-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+
 .settings-summary > div {
   border-bottom: 1px solid var(--border-subtle);
 }

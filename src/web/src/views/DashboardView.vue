@@ -4,6 +4,7 @@ import { api, errorMessage } from '@/src/api/client';
 import type { EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
+import YoutubeChatPanel from '@/src/components/YoutubeChatPanel.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
@@ -511,6 +512,8 @@ onBeforeUnmount(() => {
     </section>
 
     <LivePreview :state="state" />
+
+    <YoutubeChatPanel />
 
     <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
       <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
