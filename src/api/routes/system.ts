@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
+import type { ServerResponse } from 'node:http';
 import type { ApiContext } from '../context.js';
 import {
   EarningsSettingsSchema,
@@ -213,6 +214,42 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     return { ok: true };
   });
 
+  // --- SSE fan-out hub ---------------------------------------------------------
+  // A single subscription to the event bus serializes each event once and fans
+  // it out to all connected dashboards. Events arriving within the same tick
+  // are coalesced into a single write to reduce syscalls.
+  const sseClients = new Set<ServerResponse>();
+  let sseSub: { unsubscribe(): void } | null = null;
+  let ssePending: string[] = [];
+  let sseFlushQueued = false;
+
+  function flushSse(): void {
+    sseFlushQueued = false;
+    if (ssePending.length === 0) return;
+    const frames = ssePending;
+    ssePending = [];
+    const chunk = frames.join('');
+    for (const res of sseClients) res.write(chunk);
+  }
+
+  function ensureSseSubscription(): void {
+    if (sseSub) return;
+    sseSub = ctx.bus.observe().subscribe((event) => {
+      if (sseClients.size === 0) return;
+      ssePending.push(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+      if (!sseFlushQueued) {
+        sseFlushQueued = true;
+        setImmediate(flushSse);
+      }
+    });
+  }
+
+  function stopSseSubscriptionIfIdle(): void {
+    if (sseClients.size > 0 || !sseSub) return;
+    sseSub.unsubscribe();
+    sseSub = null;
+  }
+
   app.get('/api/events', async (request, reply) => {
     reply.hijack();
     const response = reply.raw;
@@ -225,21 +262,25 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     request.socket.setNoDelay(true);
     response.setTimeout(0);
 
+    // Initial snapshot is per-connection; ongoing events are fanned out from a
+    // single shared subscription (see ensureSseSubscription below).
     const send = (event: string, data: unknown) => {
       response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
     send('status', ctx.supervisor.buildStatus());
     send('streamers', ctx.supervisor.streamersView());
+    send('earnings', ctx.supervisor.earningsStatus());
 
-    const subscription = ctx.bus.observe().subscribe((event) => {
-      send(event.type, event.data);
-    });
+    sseClients.add(response);
+    ensureSseSubscription();
+
     const heartbeat = setInterval(() => {
       response.write(': ping\n\n');
     }, 15_000);
     request.raw.on('close', () => {
       clearInterval(heartbeat);
-      subscription.unsubscribe();
+      sseClients.delete(response);
+      stopSseSubscriptionIfIdle();
       response.end();
     });
   });
