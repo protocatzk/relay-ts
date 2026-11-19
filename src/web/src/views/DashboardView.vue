@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page page-dashboard">
     <div class="page-head">
       <div>
         <h1>Dashboard</h1>
@@ -530,23 +530,62 @@ onBeforeUnmount(() => {
       </dl>
     </section>
 
-    <LivePreview :state="state" />
+    <section class="vitals-rail" aria-label="System-Vitals">
+      <ModuleVital
+        label="Quelle"
+        :value="formatBitrate(status?.source.bitrate_kbps)"
+        :sub="`${status?.source.connected ? 'Verbunden' : 'Nicht verbunden'} · ${formatNumber(status?.source.reconnects)} Reconnects`"
+        module="source"
+        :series="series('source_kbps')"
+        :tone="sourceTone"
+      />
+      <ModuleVital
+        label="Relay"
+        :value="formatSeconds(status?.relay.buffer_seconds)"
+        :sub="`Verzögerung ${formatNumber(status?.relay.delay_seconds)} s · ${formatNumber(status?.relay.ingest_clients)} Ingest`"
+        module="relay"
+        :series="series('relay_buffer_s')"
+      />
+      <ModuleVital
+        label="Sink"
+        :value="formatBitrate(status?.sink.bitrate_kbps)"
+        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}`"
+        module="sink"
+        :series="series('sink_kbps')"
+        :tone="sinkTone"
+      />
+      <ModuleVital
+        label="Watchdog"
+        :value="formatNumber(status?.watchdog.stall_count)"
+        :sub="status?.watchdog.last_error ?? `Timeout ${formatNumber(status?.watchdog.stall_timeout)} s`"
+        module="watchdog"
+        :series="series('watchdog_stalls')"
+        :tone="watchdogTone"
+      />
+    </section>
 
-    <YoutubeChatPanel />
+    <div class="dash-2col">
+      <LivePreview :state="state" />
 
-    <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
-      <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
+      <div class="stack">
+        <YoutubeChatPanel />
+
+        <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
+          <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
+        </div>
+      </div>
     </div>
 
-    <EarningsPanel
-      v-if="status?.earnings"
-      :earnings="status.earnings"
-      :refreshing="refreshingEarnings"
-      @refresh="refreshEarnings"
-      @period="changeEarningsPeriod"
-    />
+    <div class="dash-2col">
+      <EarningsPanel
+        v-if="status?.earnings"
+        :earnings="status.earnings"
+        :refreshing="refreshingEarnings"
+        @refresh="refreshEarnings"
+        @period="changeEarningsPeriod"
+      />
 
-    <section class="card dashboard-live">
+      <section class="card dashboard-live" :class="{ 'dash-span-full': !status?.earnings }">
       <div class="card-head">
         <div>
           <h2 class="card-title">Overlay & Technik</h2>
@@ -638,39 +677,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="vitals-rail" aria-label="System-Vitals">
-      <ModuleVital
-        label="Quelle"
-        :value="formatBitrate(status?.source.bitrate_kbps)"
-        :sub="`${status?.source.connected ? 'Verbunden' : 'Nicht verbunden'} · ${formatNumber(status?.source.reconnects)} Reconnects`"
-        module="source"
-        :series="series('source_kbps')"
-        :tone="sourceTone"
-      />
-      <ModuleVital
-        label="Relay"
-        :value="formatSeconds(status?.relay.buffer_seconds)"
-        :sub="`Verzögerung ${formatNumber(status?.relay.delay_seconds)} s · ${formatNumber(status?.relay.ingest_clients)} Ingest`"
-        module="relay"
-        :series="series('relay_buffer_s')"
-      />
-      <ModuleVital
-        label="Sink"
-        :value="formatBitrate(status?.sink.bitrate_kbps)"
-        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}`"
-        module="sink"
-        :series="series('sink_kbps')"
-        :tone="sinkTone"
-      />
-      <ModuleVital
-        label="Watchdog"
-        :value="formatNumber(status?.watchdog.stall_count)"
-        :sub="status?.watchdog.last_error ?? `Timeout ${formatNumber(status?.watchdog.stall_timeout)} s`"
-        module="watchdog"
-        :series="series('watchdog_stalls')"
-        :tone="watchdogTone"
-      />
-    </section>
+    </div>
 
     <div class="dashboard-grid">
       <section class="card">

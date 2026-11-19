@@ -948,8 +948,8 @@ select {
 
 .hero-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(230px, 300px);
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 280px);
+  gap: 20px;
   background:
     radial-gradient(620px 220px at 0% 0%, var(--accent-soft), transparent 65%),
     linear-gradient(180deg, var(--glass-bg-strong), var(--glass-bg));
@@ -963,45 +963,45 @@ select {
 .hero-top {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .hero-uptime {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 .hero-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .hero-sub {
-  margin-top: 6px;
+  margin-top: 4px;
   color: var(--text-muted);
-  font-size: 13.5px;
-  min-height: 20px;
+  font-size: 12.5px;
+  min-height: 18px;
   overflow-wrap: anywhere;
 }
 
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
-  margin-top: 20px;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .hero-facts {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 16px;
-  padding-left: 28px;
+  gap: 12px;
+  padding-left: 20px;
   border-left: 1px solid var(--border);
   min-width: 0;
 }
@@ -1016,8 +1016,8 @@ select {
 }
 
 .hero-facts dd {
-  margin-top: 3px;
-  font-size: 15px;
+  margin-top: 2px;
+  font-size: 14px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -1961,13 +1961,13 @@ select {
 /* ------------------------------------------------------------------ Dashboard technical card */
 
 .dashboard-live {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .dashboard-live-grid {
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr);
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
 }
 
@@ -1990,7 +1990,7 @@ select {
 }
 
 .dashboard-preview-stage {
-  min-height: 220px;
+  min-height: 160px;
 }
 
 .dashboard-preview-stage img {
@@ -3124,8 +3124,8 @@ select {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 15px 17px;
+  gap: 4px;
+  padding: 13px 15px;
   overflow: hidden;
 }
 
@@ -3161,7 +3161,7 @@ select {
 }
 
 .vital-value {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -3468,5 +3468,40 @@ select {
 
   .deck-streamer {
     font-size: 14px;
+  }
+}
+
+/* ------------------------------------------------------------------ Dashboard compact */
+
+.page-dashboard {
+  gap: 12px;
+}
+
+.page-dashboard .card {
+  padding: 15px 16px;
+}
+
+.page-dashboard .card-head {
+  margin-bottom: 12px;
+}
+
+.dash-2col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dash-2col > .stack {
+  gap: 12px;
+}
+
+.dash-span-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .dash-2col {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
