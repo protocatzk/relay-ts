@@ -63,7 +63,7 @@ Navigation.
 | **Overlay-Studio**  | Bühnenvorschau aus Drafts, Drag/Resize, Live-Nachrichten, Presets, Hilfslinien, Undo/Redo, globale Persistenz        |
 | **Playlists**       | Auto-Advance, Wrap, Dauer- oder tägliche Endzeit, Vor/Zurück, Kanäle direkt ansteuern                                |
 | **Einnahmen**       | TokTracker-kompatibel, Verlauf/Charts, Delta, Zeitraum-Schnellwahl, Sessions, Gifts/Gifter, Kurse, Detailansicht     |
-| **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, Live-Vorschau, responsive/mobile Ansicht, Drawer-Navigation                |
+| **Dashboard**       | TokTracker-Design, SSE, Theme-Umschalter, Live-Menü, Live-Vorschau, responsive/mobile Ansicht, Drawer-Navigation     |
 | **YouTube**         | OAuth-Verbindung, automatische Token-Erneuerung, Kanalstatus; Broadcast-Verwaltung folgt                               |
 | **Auth**            | Passwort/Basic Auth, API-Token, Telegram-Login, Session-Liste, Bot-Steuerung und Benachrichtigungen                  |
 | **Betrieb**         | Docker-Image mit ffmpeg, yt-dlp und Fonts, nginx-proxy/Let's-Encrypt-Override                                        |
@@ -166,7 +166,9 @@ docker/                   Entrypoint
 ## Dashboard
 
 - **Dashboard:** Live-Status, Metriken, Schnellstart, Einnahmen-Detailkarte,
-  Overlay-Vorschau und Wartungsaktionen.
+  Overlay-Vorschau und Wartungsaktionen. Das Live-Menü oben rechts zeigt den
+  aktiven Stream und alle gerade live befindlichen Streamer; von dort lassen
+  sie sich starten, wechseln und manuell beenden.
 - **Streamer:** CRUD, Start/Stop/Wechsel, Online-Status, Sammel-Anlage per
   Handle/URL.
 - **Overlays:** Globales Studio für Chat, Uhr, Text und Einnahmen.

@@ -23,6 +23,18 @@ test.describe('mobile layout and drawer', () => {
     }
   });
 
+  test('live menu fits the viewport and closes with Escape', async ({ page }) => {
+    await page.goto('/#/');
+    const trigger = page.getByRole('button', { name: /Live-Steuerung öffnen/ });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Live-Steuerung' });
+    await expect(dialog).toBeVisible();
+    await expectNoHorizontalOverflow(page, 'live menu');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test('drawer traps focus, closes with Escape and restores focus', async ({ page }) => {
     await page.goto('/#/');
     const toggle = page.getByRole('button', { name: 'Navigation öffnen' });

@@ -45,6 +45,26 @@ test.describe('accessibility smoke checks', () => {
     expect(unlabeled).toEqual([]);
   });
 
+  test('live menu shows stream control and closes with Escape', async ({ page, request }) => {
+    await ensureStreamer(request);
+    await page.goto('/#/');
+    const trigger = page.getByRole('button', { name: /Live-Steuerung öffnen/ });
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const dialog = page.getByRole('dialog', { name: 'Live-Steuerung' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Aktiver Stream' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Live-Streamer' })).toBeVisible();
+    await expect(dialog.getByRole('link', { name: 'Streamer verwalten' })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test('theme toggle switches between dark and light', async ({ page }) => {
     await page.goto('/#/');
     const toggle = page.getByRole('button', { name: /Theme:/ });

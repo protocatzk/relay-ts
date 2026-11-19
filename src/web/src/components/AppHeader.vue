@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import LiveMenu from '@/src/components/LiveMenu.vue';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
-import { stateLabel, stateTone } from '@/src/utils/format';
 
 const props = defineProps<{ sidebarOpen: boolean }>();
 const emit = defineEmits<{ 'toggle-sidebar': [] }>();
@@ -11,8 +11,6 @@ const emit = defineEmits<{ 'toggle-sidebar': [] }>();
 const router = useRouter();
 const { store } = useStore();
 
-const state = computed(() => store.status?.state ?? null);
-const tone = computed(() => stateTone(state.value));
 const theme = ref(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 
 function toggleTheme(): void {
@@ -20,12 +18,6 @@ function toggleTheme(): void {
   document.documentElement.dataset.theme = theme.value;
   localStorage.setItem('relay-theme', theme.value);
 }
-
-const connectionLabel = computed(() => {
-  if (store.connectionMode === 'live') return 'Live';
-  if (store.connectionMode === 'connecting') return 'Verbinde…';
-  return 'Offline';
-});
 
 async function handleLogout(): Promise<void> {
   await logout();
@@ -56,23 +48,7 @@ async function handleLogout(): Promise<void> {
     </div>
 
     <div class="header-status" aria-label="Systemstatus">
-      <span
-        class="status-inline"
-        :class="`tone-${tone}`"
-        role="status"
-        :aria-label="`Status: ${stateLabel(state)}`"
-      >
-        <span class="dot" aria-hidden="true"></span>
-        <span class="status-text">{{ stateLabel(state) }}</span>
-      </span>
-      <span
-        class="conn"
-        :class="`conn-${store.connectionMode}`"
-        :title="store.sseConnected ? 'Echtzeit-Verbindung aktiv' : 'Keine Echtzeit-Verbindung – Status wird per Polling geladen'"
-      >
-        <span class="conn-dot" aria-hidden="true"></span>
-        {{ connectionLabel }}
-      </span>
+      <LiveMenu />
     </div>
 
     <div class="header-actions">
