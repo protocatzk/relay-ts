@@ -6,9 +6,6 @@ import { pushToast } from '@/src/composables/useToast';
 import { useTheme } from '@/src/composables/useTheme';
 import { usePwa } from '@/src/composables/usePwa';
 
-const props = defineProps<{ sidebarOpen: boolean }>();
-const emit = defineEmits<{ 'toggle-sidebar': [] }>();
-
 const router = useRouter();
 const { store } = useStore();
 const { theme, themeLabel, toggleTheme } = useTheme();
@@ -32,19 +29,6 @@ async function handleLogout(): Promise<void> {
 
 <template>
   <header class="app-header">
-    <button
-      id="menu-toggle"
-      class="btn-icon menu-toggle"
-      aria-label="Navigation öffnen"
-      aria-controls="sidebar"
-      :aria-expanded="props.sidebarOpen"
-      @click="emit('toggle-sidebar')"
-    >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-        <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      </svg>
-    </button>
-
     <div class="header-brand">
       <img class="header-logo" src="/logo.svg" alt="" width="26" height="26" aria-hidden="true" />
       <span class="header-title">RELAY</span>

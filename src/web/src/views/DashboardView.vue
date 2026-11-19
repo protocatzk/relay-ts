@@ -376,77 +376,70 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="card hero-card">
-      <div class="hero-main">
-        <div class="hero-top">
-          <StatusBadge :state="state" large />
-          <span v-if="status?.state === 'live'" class="hero-uptime mono">
-            {{ formatUptime(status.uptime_seconds) }}
-          </span>
+      <div class="hero-bar">
+        <StatusBadge :state="state" large />
+        <div class="hero-titleblock">
+          <h2 class="hero-title">
+            {{
+              status?.active_streamer_name ??
+              (manualScreen === 'startup'
+                ? 'Startbildschirm'
+                : manualScreen === 'pause'
+                  ? 'Pausenscreen'
+                  : 'Kein aktiver Stream')
+            }}
+          </h2>
+          <p class="hero-sub">
+            <template v-if="status?.active_playlist">
+              Playlist „{{ status.active_playlist.name }}“ · Kanal
+              {{ status.active_playlist.index + 1 }} von {{ status.active_playlist.total }}
+            </template>
+            <template v-else-if="status?.state === 'paused'">
+              {{
+                manualScreen === 'startup'
+                  ? 'Der Startbildschirm wird gesendet.'
+                  : status.active_streamer_id
+                    ? 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.'
+                    : 'Der Pausenscreen wird gesendet.'
+              }}
+            </template>
+            <template v-else-if="status?.state === 'error'">
+              {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
+            </template>
+            <template v-else-if="status">
+              {{ status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.' }}
+            </template>
+            <template v-else>Keine Statusdaten empfangen.</template>
+          </p>
         </div>
-        <h2 class="hero-title">
-          {{
-            status?.active_streamer_name ??
-            (manualScreen === 'startup'
-              ? 'Startbildschirm'
-              : manualScreen === 'pause'
-                ? 'Pausenscreen'
-                : 'Kein aktiver Stream')
-          }}
-        </h2>
-        <p class="hero-sub">
-          <template v-if="status?.active_playlist">
-            Playlist „{{ status.active_playlist.name }}“ · Kanal
-            {{ status.active_playlist.index + 1 }} von
-            {{ status.active_playlist.total }}
-          </template>
-          <template v-else-if="status?.state === 'paused'">
-            {{
-              manualScreen === 'startup'
-                ? 'Der Startbildschirm wird gesendet.'
-                : status.active_streamer_id
-                  ? 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.'
-                  : 'Der Pausenscreen wird gesendet.'
-            }}
-          </template>
-          <template v-else-if="status?.state === 'error'">
-            {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
-          </template>
-          <template v-else-if="status">
-            {{
-              status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.'
-            }}
-          </template>
-          <template v-else>Keine Statusdaten empfangen.</template>
-        </p>
-
         <div class="quick-actions">
           <button
             type="button"
-            class="btn btn-primary"
+            class="btn btn-primary btn-sm"
             :disabled="!canStart || busy !== null"
             @click="startGlobal"
           >
             <span v-if="busy === 'start'" class="spinner" aria-hidden="true"></span>
-            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
               <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
             </svg>
-            Stream starten
+            Start
           </button>
           <button
             type="button"
-            class="btn btn-secondary"
+            class="btn btn-secondary btn-sm"
             :disabled="!canStop || busy !== null"
             @click="stopGlobal"
           >
             <span v-if="busy === 'stop'" class="spinner" aria-hidden="true"></span>
-            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
               <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
             </svg>
-            Stream stoppen
+            Stop
           </button>
           <button
             type="button"
-            class="btn btn-ghost"
+            class="btn btn-ghost btn-sm"
             :disabled="!canPause || busy !== null"
             @click="toggleStartup"
           >
@@ -455,7 +448,7 @@ onBeforeUnmount(() => {
               class="spinner"
               aria-hidden="true"
             ></span>
-            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
               <rect
                 x="3"
                 y="4"
@@ -472,11 +465,11 @@ onBeforeUnmount(() => {
                 stroke-linecap="round"
               />
             </svg>
-            {{ manualScreen === 'startup' ? 'Startbildschirm beenden' : 'Startbildschirm' }}
+            Startbild
           </button>
           <button
             type="button"
-            class="btn btn-ghost"
+            class="btn btn-ghost btn-sm"
             :disabled="!canPause || busy !== null"
             @click="togglePause"
           >
@@ -485,7 +478,7 @@ onBeforeUnmount(() => {
               class="spinner"
               aria-hidden="true"
             ></span>
-            <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
               <path
                 v-if="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')"
                 d="m8 5 11 7-11 7V5Z"
@@ -499,11 +492,7 @@ onBeforeUnmount(() => {
                 stroke-linecap="round"
               />
             </svg>
-            {{
-              manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')
-                ? 'Pause beenden'
-                : 'Pause'
-            }}
+            {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Resume' : 'Pause' }}
           </button>
         </div>
       </div>
@@ -514,11 +503,11 @@ onBeforeUnmount(() => {
           <dd class="mono">{{ formatUptime(status?.uptime_seconds) }}</dd>
         </div>
         <div>
-          <dt>Aktive Playlist</dt>
+          <dt>Playlist</dt>
           <dd>{{ activePlaylist?.name ?? '–' }}</dd>
         </div>
         <div>
-          <dt>Nächster Auto-Refresh</dt>
+          <dt>Auto-Refresh</dt>
           <dd class="mono">
             {{
               status?.auto_refresh.enabled && status.auto_refresh.next_refresh_in_seconds != null
