@@ -1,7 +1,7 @@
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
-import { renderStudioPreview } from '../src/core/overlays/studio-preview.js';
+import { renderStudioPreview, splitTextLines } from '../src/core/overlays/studio-preview.js';
 
 const logger = pino({ level: 'silent' });
 
@@ -100,6 +100,32 @@ describe('studio preview', () => {
       logger,
       sample: true,
       earningsText: '205,28 € · 42.505 Coins',
+      maxDimension: 480,
+    });
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.length).toBeGreaterThan(500);
+  });
+
+  it('splits multi-line overlay text and renders it', () => {
+    expect(splitTextLines('Heute\n205,28 €\r\n42.505 Coins\n')).toEqual([
+      'Heute',
+      '205,28 €',
+      '42.505 Coins',
+    ]);
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      earnings: {
+        ...DEFAULT_SETTINGS.earnings,
+        overlay_enabled: true,
+        overlay_template: '{period}\n{net} €\n{coins} Coins',
+      },
+    };
+    const png = renderStudioPreview({
+      settings,
+      overlays: settings.overlays,
+      logger,
+      sample: true,
+      earningsText: 'Heute\n205,28 €\n42.505 Coins',
       maxDimension: 480,
     });
     expect(png.subarray(1, 4).toString()).toBe('PNG');

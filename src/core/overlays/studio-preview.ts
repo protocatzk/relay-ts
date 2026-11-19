@@ -26,6 +26,13 @@ function clockText(format: string): string {
   return format.replace(/%(H|M|S|%)/g, (token) => values[`%${token.slice(1)}`] ?? token);
 }
 
+/** Splits overlay text into rendered lines, ignoring trailing blank lines. */
+export function splitTextLines(text: string): string[] {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  while (lines.length > 1 && lines[lines.length - 1]?.trim() === '') lines.pop();
+  return lines.length > 0 ? lines : [''];
+}
+
 function drawBoxedText(
   ctx: SKRSContext2D,
   text: string,
@@ -45,25 +52,32 @@ function drawBoxedText(
 ): void {
   ctx.font = `700 ${opts.fontSize}px "DejaVu Sans", sans-serif`;
   ctx.textBaseline = 'top';
-  const width = Math.min(opts.width - opts.margin * 2, ctx.measureText(text).width);
-  const boxHeight = Math.round(opts.fontSize * 1.45);
+  const lines = splitTextLines(text);
+  const availableWidth = Math.max(1, opts.width - opts.margin * 2);
+  const lineHeight = Math.round(opts.fontSize * 1.3);
+  const lineWidths = lines.map((line) => Math.min(availableWidth, ctx.measureText(line).width));
+  const blockWidth = Math.max(0, ...lineWidths);
+  const blockHeight = lineHeight * lines.length;
   const x =
     (target.endsWith('left')
       ? opts.margin
-      : Math.max(opts.margin, opts.width - width - opts.margin)) + (opts.offsetX ?? 0);
+      : Math.max(opts.margin, opts.width - blockWidth - opts.margin)) + (opts.offsetX ?? 0);
   const y =
     (opts.alignTop
       ? opts.margin
-      : Math.max(opts.margin, opts.height - boxHeight - opts.margin)) + (opts.offsetY ?? 0);
+      : Math.max(opts.margin, opts.height - blockHeight - opts.margin)) + (opts.offsetY ?? 0);
   if (opts.showBox) {
     const box = parseColor(opts.boxColor, { r: 0, g: 0, b: 0, a: 0.45 });
     ctx.fillStyle = `rgba(${box.r},${box.g},${box.b},${box.a})`;
-    ctx.fillRect(x - 8, y - 6, width + 16, boxHeight + 8);
+    ctx.fillRect(x - 8, y - 6, blockWidth + 16, blockHeight + 8);
   }
   ctx.fillStyle = opts.fontColor.startsWith('#') || opts.fontColor.startsWith('0x')
     ? opts.fontColor.replace(/^0x/, '#')
     : opts.fontColor;
-  ctx.fillText(text, x, y, opts.width - opts.margin * 2);
+  lines.forEach((line, index) => {
+    const lineX = target.endsWith('left') ? x : x + (blockWidth - (lineWidths[index] ?? 0));
+    ctx.fillText(line, lineX, y + index * lineHeight, availableWidth);
+  });
 }
 
 function drawBackground(

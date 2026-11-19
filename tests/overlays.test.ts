@@ -93,6 +93,7 @@ describe('drawtext overlays', () => {
     expect(filter).toContain('fontcolor=#ff0000');
     expect(filter).toContain('box=0');
     expect(filter).toContain('boxcolor=black@0.5');
+    expect(filter).toContain('line_spacing=6');
     expect(filter).toContain('x=w-tw-40+10:y=h-th-40-5');
     expect(earningsFilter({ ...settings, earnings: { ...settings.earnings, overlay_enabled: false } }, font, '/tmp/e.txt')).toBeNull();
   });

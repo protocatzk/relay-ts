@@ -188,6 +188,14 @@ describe('earnings parser', () => {
     );
   });
 
+  it('keeps line breaks from multi-line earnings templates', () => {
+    const text = formatEarningsOverlay(
+      '{period}\n{net} {currency}\n{coins} Coins',
+      snapshot({ net: 205.28, coins: 42505 }),
+    );
+    expect(text).toBe('Heute\n205.28 EUR\n42505 Coins');
+  });
+
   it('returns no data without an active streamer', () => {
     expect(parseEarningsPayload({ usd_net: 5 }, null)).toBeNull();
   });

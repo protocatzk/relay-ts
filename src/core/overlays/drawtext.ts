@@ -144,7 +144,7 @@ export function earningsFilter(
     `textfile='${escapePath(earningsFile)}':reload=1:expansion=none:` +
     `fontsize=${config.overlay_font_size}:fontcolor=${config.overlay_font_color}:` +
     `box=${config.overlay_show_box ? 1 : 0}:boxcolor=${config.overlay_box_color}:boxborderw=10:` +
-    `x=${x}:y=${y}`
+    `line_spacing=6:x=${x}:y=${y}`
   );
 }
 

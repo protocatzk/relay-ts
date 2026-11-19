@@ -144,11 +144,14 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
     : earningsConfig
       ? Math.round(width * 0.45)
       : Math.round(width * 0.5);
+  const earningsLines = earningsConfig
+    ? Math.max(1, earningsConfig.overlay_template.replace(/\r\n?/g, '\n').split('\n').length)
+    : 1;
   const boxHeight = chatConfig
     ? chatConfig.panel_height > 0
       ? chatConfig.panel_height
       : Math.round(height * 0.34)
-    : Math.round(geometry.font_size * 1.8);
+    : Math.round(geometry.font_size * 1.8 * earningsLines);
   const baseX = geometry.position.endsWith('left')
     ? geometry.margin
     : width - boxWidth - geometry.margin;
@@ -876,12 +879,16 @@ onBeforeUnmount(() => {
           />
           <div class="field">
             <label for="studio-earnings-template">Template</label>
-            <input
+            <textarea
               id="studio-earnings-template"
               v-model="earnings.overlay_template"
-              type="text"
-              maxlength="200"
-            />
+              rows="4"
+              maxlength="2000"
+              spellcheck="false"
+            ></textarea>
+            <p class="field-hint">
+              Mehrzeilig möglich – Zeilenumbrüche werden im Overlay übernommen.
+            </p>
             <p class="field-hint">
               Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
               {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
