@@ -1,6 +1,14 @@
 import { markRaw, reactive } from 'vue';
 import { api } from '@/src/api/client';
-import type { AuthMe, EarningsSnapshot, LogEntry, Playlist, StatusPayload, Streamer } from '@/src/api/types';
+import type {
+  AuthMe,
+  EarningsSnapshot,
+  LogEntry,
+  Playlist,
+  QueueSnapshot,
+  StatusPayload,
+  Streamer,
+} from '@/src/api/types';
 import { recordStatus, resetTelemetry } from '@/src/composables/useTelemetry';
 
 export type ConnectionMode = 'connecting' | 'live' | 'offline';
@@ -13,6 +21,7 @@ export interface StoreState {
   streamers: Streamer[];
   playlists: Playlist[];
   earnings: EarningsSnapshot | null;
+  queue: QueueSnapshot | null;
   logs: LogEntry[];
   sseConnected: boolean;
   connectionMode: ConnectionMode;
@@ -34,6 +43,7 @@ export const store = reactive<StoreState>({
   streamers: [],
   playlists: [],
   earnings: null,
+  queue: null,
   logs: [],
   sseConnected: false,
   connectionMode: 'connecting',
@@ -130,6 +140,15 @@ export async function refreshEarnings(): Promise<void> {
   store.earnings = earnings ? markRaw(earnings) : null;
 }
 
+export async function refreshQueue(): Promise<void> {
+  store.queue = markRaw(await api.queue.get());
+}
+
+/** Applies a queue snapshot returned by a mutation without an extra round-trip. */
+export function applyQueue(snapshot: QueueSnapshot): void {
+  store.queue = markRaw(snapshot);
+}
+
 export async function refreshLogs(limit = 300): Promise<void> {
   store.loading.logs = true;
   try {
@@ -143,6 +162,7 @@ function startPolling(): void {
   if (pollTimer !== null) return;
   void refreshStatus().catch(() => undefined);
   void refreshEarnings().catch(() => undefined);
+  void refreshQueue().catch(() => undefined);
   pollTimer = window.setInterval(() => {
     void refreshStatus().catch(() => undefined);
     void refreshStreamers().catch(() => undefined);
@@ -220,6 +240,17 @@ function connectEvents(): void {
     }
   });
 
+  source.addEventListener('queue', (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as QueueSnapshot;
+      if (payload && Array.isArray(payload.entries)) {
+        store.queue = markRaw(payload);
+      }
+    } catch {
+      /* ignore malformed events */
+    }
+  });
+
   source.addEventListener('error', () => {
     store.sseConnected = false;
     store.connectionMode = 'offline';
@@ -245,6 +276,7 @@ export async function bootstrap(): Promise<void> {
     refreshStreamers(),
     refreshPlaylists(),
     refreshEarnings(),
+    refreshQueue(),
   ]);
   connectEvents();
 }
@@ -260,6 +292,7 @@ export function resetSession(): void {
   store.streamers = [];
   store.playlists = [];
   store.earnings = null;
+  store.queue = null;
   store.logs = [];
   store.loading.status = false;
   store.loading.streamers = false;
@@ -309,6 +342,8 @@ export function useStore() {
     refreshStreamers,
     refreshPlaylists,
     refreshEarnings,
+    refreshQueue,
+    applyQueue,
     refreshLogs,
     connectEvents,
     stopEvents,

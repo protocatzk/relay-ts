@@ -16,6 +16,7 @@ import type {
   Playlist,
   PlaylistInput,
   PlaylistsResponse,
+  QueueSnapshot,
   Settings,
   SettingsUpdate,
   StatusPayload,
@@ -193,6 +194,18 @@ export interface PlaylistsApi {
   stop(): Promise<unknown>;
 }
 
+export interface QueueApi {
+  get(): Promise<QueueSnapshot>;
+  add(channel: string): Promise<{ queue: QueueSnapshot }>;
+  remove(id: string): Promise<{ queue: QueueSnapshot }>;
+  move(id: string, to: number): Promise<{ queue: QueueSnapshot }>;
+  clear(): Promise<{ queue: QueueSnapshot }>;
+  play(index?: number): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+  next(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+  stop(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+  now(channel: string): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+}
+
 export const api = {
   auth: {
     me: () => request<AuthMe>('/api/auth/me', { authRedirect: false }),
@@ -354,6 +367,40 @@ export const api = {
       ),
     stop: () => request<unknown>('/api/playlists/stop', { method: 'POST' }),
   } satisfies PlaylistsApi,
+
+  queue: {
+    get: () => request<QueueSnapshot>('/api/queue'),
+    add: (channel: string) =>
+      request<{ queue: QueueSnapshot }>('/api/queue/entries', {
+        method: 'POST',
+        body: { channel },
+      }),
+    remove: (id: string) =>
+      request<{ queue: QueueSnapshot }>(`/api/queue/entries/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+    move: (id: string, to: number) =>
+      request<{ queue: QueueSnapshot }>('/api/queue/move', { method: 'POST', body: { id, to } }),
+    clear: () => request<{ queue: QueueSnapshot }>('/api/queue', { method: 'DELETE' }),
+    play: (index = 0) =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/play', {
+        method: 'POST',
+        body: { index },
+      }),
+    next: () =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/next', {
+        method: 'POST',
+      }),
+    stop: () =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/stop', {
+        method: 'POST',
+      }),
+    now: (channel: string) =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/now', {
+        method: 'POST',
+        body: { channel },
+      }),
+  } satisfies QueueApi,
 
   logs: {
     list: async (limit = 300) => normalizeLogs(await request<LogsResponse>(`/api/logs?limit=${limit}`)),

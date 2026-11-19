@@ -168,6 +168,21 @@ export interface StatusPayload {
   version: string;
 }
 
+export type QueueEntryKind = 'file' | 'streamer' | 'screen';
+
+export interface QueueViewEntry {
+  id: string;
+  channel: string;
+  kind: QueueEntryKind;
+  label: string;
+}
+
+export interface QueueSnapshot {
+  entries: QueueViewEntry[];
+  playing: boolean;
+  index: number | null;
+}
+
 export interface EarningsRates {
   usd_per_diamond: number | null;
   gross_usd_per_coin: number | null;

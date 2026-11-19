@@ -66,6 +66,9 @@ function setup(options: {
     logger,
     lock: new AsyncLock(),
     isShuttingDown: () => false,
+    resolvePlaylist: (id) => store.playlist(id) ?? null,
+    startScreen: async () => status,
+    resolveQueueKey: () => 'queue-key',
     startStreamer: async (streamer, startOptions) => {
       if (options.failOffline?.includes(streamer.id)) {
         throw new StreamerOfflineError(`@${streamer.id} ist offline`);

@@ -4,6 +4,7 @@ import { api, errorMessage } from '@/src/api/client';
 import type { EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
+import RegieQueue from '@/src/components/RegieQueue.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import ModuleVital from '@/src/components/ModuleVital.vue';
 import { useStore } from '@/src/composables/useStore';
@@ -764,6 +765,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
+
+      <RegieQueue class="span-3" />
       </div>
 
       <aside class="card streamer-panel">

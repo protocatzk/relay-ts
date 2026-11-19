@@ -1549,6 +1549,410 @@
         }
       }
     },
+    "/api/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Regie-Queue abrufen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Regie-Queue leeren",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/entries": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Eintrag zur Regie-Queue hinzufügen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "example": "file:clip.mp4"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/entries/:id": {
+      "delete": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Eintrag aus der Regie-Queue entfernen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/move": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Eintrag in der Regie-Queue verschieben",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "to"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/play": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Regie-Queue abspielen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/next": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Nächsten Queue-Eintrag starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/stop": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Regie-Queue stoppen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/queue/now": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Eintrag sofort abspielen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "channel"
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "example": "file:clip.mp4"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "tags": [
@@ -3577,6 +3981,85 @@
           },
           "status": {
             "$ref": "#/components/schemas/Status"
+          }
+        }
+      },
+      "Queue": {
+        "type": "object",
+        "required": [
+          "entries",
+          "playing"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "channel",
+                "kind",
+                "label"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "channel": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "file",
+                    "streamer",
+                    "screen"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "playing": {
+            "type": "boolean"
+          },
+          "index": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "QueueResponse": {
+        "type": "object",
+        "required": [
+          "queue"
+        ],
+        "properties": {
+          "queue": {
+            "$ref": "#/components/schemas/Queue"
+          }
+        }
+      },
+      "QueueEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "status",
+          "queue"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/Queue"
           }
         }
       },

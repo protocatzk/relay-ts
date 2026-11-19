@@ -11,6 +11,7 @@ import {
   toErrorMessage,
 } from '../../utils/errors.js';
 import { incMetric } from '../metrics.js';
+import { QUEUE_PLAYLIST_ID } from './queue-controller.js';
 
 export interface PlaylistRunState {
   playlist: PlaylistConfig;
@@ -27,8 +28,13 @@ export interface PlaylistControllerDeps {
   logger: Logger;
   lock: AsyncLock;
   isShuttingDown(): boolean;
+  /** Resolves a store playlist or the synthetic regie queue. */
+  resolvePlaylist(id: string): PlaylistConfig | null;
   startStreamer(streamer: StreamerConfig, options: PlaylistStartOptions): Promise<StatusSnapshot>;
   startFile(file: string, options: PlaylistStartOptions): Promise<StatusSnapshot>;
+  startScreen(type: 'startup' | 'pause'): Promise<StatusSnapshot>;
+  /** Key used for local videos inside the regie queue (current sink or target). */
+  resolveQueueKey(): string;
   stopAll(): Promise<StatusSnapshot>;
   transition(state: StreamState, reason?: string): void;
   emitStatus(): void;
@@ -60,13 +66,13 @@ export class PlaylistController {
     return this.advancePending;
   }
 
-  async play(id: string): Promise<StatusSnapshot> {
+  async play(id: string, startIndex = 0): Promise<StatusSnapshot> {
     return this.deps.lock.run(async () => {
-      const playlist = this.deps.store.playlist(id);
+      const playlist = this.deps.resolvePlaylist(id);
       if (!playlist) throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
       this.clearTimers();
       this.endAt = this.endTimestamp(playlist);
-      return this.startEntryLocked(playlist, 0);
+      return this.startEntryLocked(playlist, Math.max(0, Math.trunc(startIndex)));
     });
   }
 
@@ -81,7 +87,7 @@ export class PlaylistController {
     return this.deps.lock.run(async () => {
       const state = this.state;
       if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
+      const playlist = this.deps.resolvePlaylist(state.playlist.id) ?? state.playlist;
       let index = state.index - 1;
       if (index < 0) index = playlist.wrap ? playlist.channels.length - 1 : 0;
       return this.startEntryLocked(playlist, index);
@@ -92,9 +98,10 @@ export class PlaylistController {
     return this.deps.lock.run(async () => {
       const state = this.state;
       if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-      const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
+      const playlist = this.deps.resolvePlaylist(state.playlist.id) ?? state.playlist;
       const wanted = streamerId.replace(/^@+/, '').toLowerCase();
       const index = playlist.channels.findIndex((channel) => {
+        if (channel.startsWith('screen:')) return false;
         if (channel.startsWith('file:')) {
           const file = channel.slice('file:'.length).replace(/^@+/, '').toLowerCase();
           return file === wanted || channel.replace(/^@+/, '').toLowerCase() === wanted;
@@ -175,6 +182,12 @@ export class PlaylistController {
     this.endAt = null;
   }
 
+  /** Keeps the run index pointing at the same entry after a live queue edit. */
+  setIndex(index: number): void {
+    if (!this.state) return;
+    this.state = { ...this.state, index: Math.max(0, Math.trunc(index)) };
+  }
+
   resolveChannel(channel: string): StreamerConfig {
     const existing = this.deps.store.findForChannel(channel);
     if (existing) return existing;
@@ -211,9 +224,28 @@ export class PlaylistController {
         }
       }
       const channel = channels[index]!;
+      if (channel === 'screen:pause' || channel === 'screen:startup') {
+        const type = channel === 'screen:pause' ? 'pause' : 'startup';
+        tried += 1;
+        try {
+          const status = await this.deps.startScreen(type);
+          this.activate({ playlist, index });
+          this.deps.emitAll();
+          return status;
+        } catch (error) {
+          lastError = toErrorMessage(error);
+          this.deps.logger.warn(
+            { playlist: playlist.id, screen: type, err: lastError },
+            'Screen-Eintrag konnte nicht gestartet werden',
+          );
+          index += 1;
+          continue;
+        }
+      }
       if (channel.startsWith('file:')) {
         const file = channel.slice('file:'.length).trim();
-        const key = resolveStreamKey(playlist).key || resolveStreamKey({}).key;
+        const queueKey = playlist.id === QUEUE_PLAYLIST_ID ? this.deps.resolveQueueKey() : '';
+        const key = resolveStreamKey(playlist).key || queueKey || resolveStreamKey({}).key;
         tried += 1;
         if (!file || !key) {
           index += 1;
@@ -270,7 +302,7 @@ export class PlaylistController {
   private async advanceLocked(reason: 'manual' | 'offline' | 'end_after'): Promise<StatusSnapshot> {
     const state = this.state;
     if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
-    const playlist = this.deps.store.playlist(state.playlist.id) ?? state.playlist;
+    const playlist = this.deps.resolvePlaylist(state.playlist.id) ?? state.playlist;
     if (reason === 'end_after') return this.deps.stopAll();
     if (this.advanceTimer) clearTimeout(this.advanceTimer);
     this.advanceTimer = undefined;

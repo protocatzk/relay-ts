@@ -52,6 +52,8 @@ Wichtige Pfade:
 - `src/core/supervisor/state-machine.ts` – explizite Zustandsübergänge
 - `src/core/supervisor/playlist-controller.ts` – Playlist-Zustand, Timer,
   Kanalwahl und Auto-Advance
+- `src/core/supervisor/queue-controller.ts` – persistente Regie-Queue
+  (`data/queue.json`), synthetische Playlist `__regie__`
 - `src/core/supervisor/reconnect-policy.ts` – Backoff-Berechnung
 - `src/core/supervisor/pause-limit.ts` – Begrenzung automatischer Offline-Pausen
 - `src/core/source/` – TikTok-Auflösung und Quell-ffmpeg
@@ -102,6 +104,13 @@ Wichtige Pfade:
 - Playlist-Einträge mit `file:` verweisen auf `data/media/`; lokale Videos werden
   einmalig mit `-re` abgespielt und schalten am Dateiende weiter. Der Sink bleibt
   bestehen; echte Streamer-Einträge funktionieren unverändert.
+- Die Regie-Queue (`data/queue.json`, 0600) ist eine persistente, live
+  editierbare Warteschlange aus `file:`-Videos, Streamer-IDs und
+  `screen:pause`/`screen:startup`. Sie nutzt denselben `PlaylistController`
+  über die synthetische Playlist `__regie__`; Videos verwenden den aktuellen
+  Sink-Key. Live-Änderungen halten den laufenden Eintrag fest; wird er
+  entfernt, stoppt die Wiedergabe. Nach einem Neustart bleibt nur der Inhalt
+  erhalten, nicht die Wiedergabe.
 - Die Live-Vorschau (`GET /api/preview.ts`) ist ein Read-only-Tap am Relay und
   darf den Sink nicht beeinflussen; pro Client wird bei Rückstau getrennt.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
@@ -152,6 +161,23 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer
   liefern `status: "missing"`.
 - API: `GET /api/earnings`, `POST /api/earnings/refresh`.
+
+## Regie-Queue
+
+- Persistenz: `data/queue.json` (0600, atomar); der Inhalt überlebt Neustarts,
+  die Wiedergabe wird nicht automatisch fortgesetzt.
+- Einträge: `file:<datei>` (muss in `data/media/` existieren), Streamer-ID
+  (muss existieren) oder `screen:pause` / `screen:startup`.
+- Live bearbeitbar: Hinzufügen/Entfernen/Verschieben während der Wiedergabe;
+  der laufende Eintrag bleibt per ID gepinnt. Wird der laufende Eintrag
+  entfernt, stoppt die Wiedergabe.
+- `POST /api/queue/now` schiebt einen Eintrag direkt hinter den laufenden und
+  springt dorthin („Sofort abspielen"); ohne aktive Queue wird er vorne
+  eingefügt und abgespielt.
+- API: `GET /api/queue`, `POST /api/queue/entries`,
+  `DELETE /api/queue/entries/:id`, `POST /api/queue/move`,
+  `DELETE /api/queue`, `POST /api/queue/play|next|stop|now`.
+- Dashboard-Karte `RegieQueue.vue`; das SSE-Event `queue` hält den Stand aktuell.
 
 ## YouTube-Verwaltung
 

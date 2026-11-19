@@ -68,11 +68,28 @@ export interface StatusSnapshot {
   version: string;
 }
 
+export type QueueEntryKind = 'file' | 'streamer' | 'screen';
+
+export interface QueueViewEntry {
+  id: string;
+  channel: string;
+  kind: QueueEntryKind;
+  label: string;
+}
+
+/** Ephemeral-by-content, persisted "regie" queue of videos, streamers and screens. */
+export interface QueueSnapshot {
+  entries: QueueViewEntry[];
+  playing: boolean;
+  index: number | null;
+}
+
 export type SystemEvent =
   | { type: 'status'; data: StatusSnapshot }
   | { type: 'streamers'; data: StreamerView[] }
   | { type: 'log'; data: LogEntry }
-  | { type: 'earnings'; data: EarningsSnapshot };
+  | { type: 'earnings'; data: EarningsSnapshot }
+  | { type: 'queue'; data: QueueSnapshot };
 
 export class EventBus {
   private readonly subject = new Subject<SystemEvent>();

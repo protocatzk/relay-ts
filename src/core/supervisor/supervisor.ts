@@ -5,6 +5,7 @@ import type { LoadedConfig } from '../config/loader.js';
 import {
   StreamerSchema,
   resolveStreamKey,
+  type PlaylistConfig,
   type Settings,
   type StreamerConfig,
 } from '../config/schema.js';
@@ -50,6 +51,8 @@ import {
 } from './playlist-controller.js';
 import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
+import { QueueController, QUEUE_PLAYLIST_ID } from './queue-controller.js';
+import type { QueueSnapshot } from '../events.js';
 
 export interface SupervisorDeps {
   config: LoadedConfig;
@@ -117,6 +120,7 @@ export class Supervisor {
   private activeStreamer: StreamerConfig | null = null;
   private activeMediaFile: string | null = null;
   private readonly playlistController: PlaylistController;
+  private readonly queue: QueueController;
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
@@ -129,13 +133,22 @@ export class Supervisor {
     this.deps = deps;
     this.settings = deps.settingsService.get();
     this.stateMachine = new SupervisorStateMachine('idle', deps.logger);
+    this.queue = new QueueController({
+      path: join(deps.config.paths.dataDir, 'queue.json'),
+      dataDir: deps.config.paths.dataDir,
+      store: deps.store,
+      logger: deps.logger,
+    });
     this.playlistController = new PlaylistController({
       store: deps.store,
       logger: deps.logger,
       lock: this.lock,
       isShuttingDown: () => this.shuttingDown,
+      resolvePlaylist: (id) => this.resolvePlaylist(id),
       startStreamer: (streamer, options) => this.startStreamerLocked(streamer, options),
       startFile: (file, options) => this.startFileLocked(file, options),
+      startScreen: (type) => this.showScreenLocked(type),
+      resolveQueueKey: () => this.resolveQueueKey(),
       stopAll: () => this.stopInternalLocked(),
       transition: (state, reason) => this.transitionTo(state, reason),
       emitStatus: () => this.emitStatus(),
@@ -902,8 +915,21 @@ export class Supervisor {
     return { streamer: null, key: resolveStreamKey({}).key };
   }
 
+  private resolvePlaylist(id: string): PlaylistConfig | null {
+    if (id === QUEUE_PLAYLIST_ID) return this.queue.playlist();
+    return this.deps.store.playlist(id) ?? null;
+  }
+
+  private resolveQueueKey(): string {
+    if (this.sinkController.key) return this.sinkController.key;
+    return this.resolveScreenTarget().key;
+  }
+
   async showScreen(type: 'startup' | 'pause'): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
+    return this.lock.run(() => this.showScreenLocked(type));
+  }
+
+  private async showScreenLocked(type: 'startup' | 'pause'): Promise<StatusSnapshot> {
       if (this.shuttingDown) {
         throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
       }
@@ -990,7 +1016,6 @@ export class Supervisor {
         'Manueller Screen aktiviert',
       );
       return this.buildStatus();
-    });
   }
 
   async hideScreen(): Promise<StatusSnapshot> {
@@ -1033,6 +1058,106 @@ export class Supervisor {
 
   async stopPlaylist(): Promise<StatusSnapshot> {
     return this.stop();
+  }
+
+  // --- Regie-Queue -----------------------------------------------------------
+
+  buildQueueSnapshot(): QueueSnapshot {
+    const active = this.playlistController.current;
+    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
+    return this.queue.snapshot(Boolean(isQueue), isQueue ? (active?.index ?? null) : null);
+  }
+
+  async queueAdd(channel: string): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      const { isQueue, currentId } = this.queueEditState();
+      this.queue.add(channel);
+      await this.reindexQueueLocked(currentId, isQueue);
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queueRemove(id: string): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      const { isQueue, currentId } = this.queueEditState();
+      if (!this.queue.remove(id)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
+      await this.reindexQueueLocked(currentId, isQueue);
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queueMove(id: string, to: number): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      const { isQueue, currentId } = this.queueEditState();
+      if (!this.queue.move(id, to)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
+      await this.reindexQueueLocked(currentId, isQueue);
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queueClear(): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      const { isQueue } = this.queueEditState();
+      this.queue.clear();
+      if (isQueue) await this.stopInternalLocked();
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queuePlay(index = 0): Promise<StatusSnapshot> {
+    if (this.queue.get().length === 0) {
+      throw new ValidationError('Die Regie-Queue ist leer');
+    }
+    return this.playlistController.play(QUEUE_PLAYLIST_ID, index);
+  }
+
+  async queueNext(): Promise<StatusSnapshot> {
+    if (this.playlistController.current?.playlist.id !== QUEUE_PLAYLIST_ID) {
+      throw new ValidationError('Die Regie-Queue ist nicht aktiv');
+    }
+    return this.playlistController.next();
+  }
+
+  async queueStop(): Promise<StatusSnapshot> {
+    return this.stop();
+  }
+
+  /** "Sofort abspielen": queued after the current entry and skipped to. */
+  async queuePlayNow(channel: string): Promise<StatusSnapshot> {
+    const active = this.playlistController.current;
+    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
+    if (isQueue && active) {
+      this.queue.insertAt(channel, active.index + 1);
+      this.emitQueue();
+      return this.playlistController.next();
+    }
+    this.queue.insertAt(channel, 0);
+    this.emitQueue();
+    return this.playlistController.play(QUEUE_PLAYLIST_ID, 0);
+  }
+
+  private queueEditState(): { isQueue: boolean; currentId: string | null } {
+    const active = this.playlistController.current;
+    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
+    return {
+      isQueue: Boolean(isQueue),
+      currentId: isQueue && active ? this.queue.entryIdAt(active.index) : null,
+    };
+  }
+
+  /** Keeps playback on the same entry after a live queue edit; stops if it was removed. */
+  private async reindexQueueLocked(currentId: string | null, wasActive: boolean): Promise<void> {
+    if (!wasActive || !currentId) return;
+    const nextIndex = this.queue.indexOfId(currentId);
+    if (nextIndex >= 0) {
+      this.playlistController.setIndex(nextIndex);
+      return;
+    }
+    await this.stopInternalLocked();
   }
 
   private clearAllTimers(): void {
@@ -1614,10 +1739,22 @@ export class Supervisor {
   emitAll(): void {
     this.emitStatus();
     this.emitStreamers();
+    this.emitQueue();
   }
 
   emitStatus(): void {
     this.deps.bus.emit({ type: 'status', data: this.buildStatus() });
+  }
+
+  emitQueue(): void {
+    try {
+      this.deps.bus.emit({ type: 'queue', data: this.buildQueueSnapshot() });
+    } catch (error) {
+      this.deps.logger.warn(
+        { err: toErrorMessage(error) },
+        'Queue-Ansicht konnte nicht erzeugt werden',
+      );
+    }
   }
 
   emitStreamers(): void {

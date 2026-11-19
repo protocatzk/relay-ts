@@ -421,6 +421,79 @@ const routes: RouteDoc[] = [
     response: ref('StatusEnvelope'),
   },
 
+  // Regie-Queue
+  { method: 'get', path: '/api/queue', tag: 'queue', summary: 'Regie-Queue abrufen', response: ref('Queue') },
+  {
+    method: 'post',
+    path: '/api/queue/entries',
+    tag: 'queue',
+    summary: 'Eintrag zur Regie-Queue hinzufügen',
+    body: {
+      type: 'object',
+      required: ['channel'],
+      properties: { channel: { type: 'string', example: 'file:clip.mp4' } },
+    },
+    status: 201,
+    response: ref('QueueResponse'),
+  },
+  {
+    method: 'delete',
+    path: '/api/queue/entries/:id',
+    tag: 'queue',
+    summary: 'Eintrag aus der Regie-Queue entfernen',
+    response: ref('QueueResponse'),
+  },
+  {
+    method: 'post',
+    path: '/api/queue/move',
+    tag: 'queue',
+    summary: 'Eintrag in der Regie-Queue verschieben',
+    body: {
+      type: 'object',
+      required: ['id', 'to'],
+      properties: { id: { type: 'string' }, to: { type: 'integer', minimum: 0 } },
+    },
+    response: ref('QueueResponse'),
+  },
+  { method: 'delete', path: '/api/queue', tag: 'queue', summary: 'Regie-Queue leeren', response: ref('QueueResponse') },
+  {
+    method: 'post',
+    path: '/api/queue/play',
+    tag: 'queue',
+    summary: 'Regie-Queue abspielen',
+    body: {
+      type: 'object',
+      properties: { index: { type: 'integer', minimum: 0, example: 0 } },
+    },
+    response: ref('QueueEnvelope'),
+  },
+  {
+    method: 'post',
+    path: '/api/queue/next',
+    tag: 'queue',
+    summary: 'Nächsten Queue-Eintrag starten',
+    response: ref('QueueEnvelope'),
+  },
+  {
+    method: 'post',
+    path: '/api/queue/stop',
+    tag: 'queue',
+    summary: 'Regie-Queue stoppen',
+    response: ref('QueueEnvelope'),
+  },
+  {
+    method: 'post',
+    path: '/api/queue/now',
+    tag: 'queue',
+    summary: 'Eintrag sofort abspielen',
+    body: {
+      type: 'object',
+      required: ['channel'],
+      properties: { channel: { type: 'string', example: 'file:clip.mp4' } },
+    },
+    response: ref('QueueEnvelope'),
+  },
+
   // Settings & overlays
   { method: 'get', path: '/api/settings', tag: 'settings', summary: 'Einstellungen lesen', response: 'Settings' },
   {
@@ -758,6 +831,37 @@ const components = {
       type: 'object',
       required: ['ok', 'status'],
       properties: { ok: { type: 'boolean' }, status: ref('Status') },
+    },
+    Queue: {
+      type: 'object',
+      required: ['entries', 'playing'],
+      properties: {
+        entries: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['id', 'channel', 'kind', 'label'],
+            properties: {
+              id: { type: 'string' },
+              channel: { type: 'string' },
+              kind: { type: 'string', enum: ['file', 'streamer', 'screen'] },
+              label: { type: 'string' },
+            },
+          },
+        },
+        playing: { type: 'boolean' },
+        index: { type: ['integer', 'null'] },
+      },
+    },
+    QueueResponse: {
+      type: 'object',
+      required: ['queue'],
+      properties: { queue: ref('Queue') },
+    },
+    QueueEnvelope: {
+      type: 'object',
+      required: ['ok', 'status', 'queue'],
+      properties: { ok: { type: 'boolean' }, status: ref('Status'), queue: ref('Queue') },
     },
     Health: {
       type: 'object',

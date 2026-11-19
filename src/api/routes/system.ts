@@ -270,6 +270,7 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     send('status', ctx.supervisor.buildStatus());
     send('streamers', ctx.supervisor.streamersView());
     send('earnings', ctx.supervisor.earningsStatus());
+    send('queue', ctx.supervisor.buildQueueSnapshot());
 
     sseClients.add(response);
     ensureSseSubscription();
