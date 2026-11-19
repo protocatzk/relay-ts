@@ -24,6 +24,7 @@ import { registerPauseAssetRoutes } from './routes/pause-assets.js';
 import { registerMediaRoutes } from './routes/media.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerYouTubeRoutes } from './routes/youtube.js';
+import { registerOpenApiRoutes } from './routes/openapi.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -108,6 +109,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerMediaRoutes(app, ctx);
   await registerPreviewRoutes(app, ctx);
   await registerYouTubeRoutes(app, ctx);
+  await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;
   const indexFile = join(webRoot, 'index.html');

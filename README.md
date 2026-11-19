@@ -654,6 +654,16 @@ Alle `/api`-Routen sind geschützt, sobald Passwort oder API-Token gesetzt sind.
 Login per `POST /api/auth/login` setzt ein signiertes HttpOnly-Cookie; für
 Skripte eignet sich `Authorization: Bearer <API_TOKEN>` oder Basic Auth.
 
+Die vollständige OpenAPI-3.1-Spezifikation liegt unter `docs/openapi.json` und
+wird von `GET /api/openapi.json` ausgeliefert. Erzeugen und prüfen:
+
+```bash
+npm run openapi:generate
+npm run openapi:check
+```
+
+Details: [`docs/OPENAPI.md`](docs/OPENAPI.md).
+
 <details>
 <summary>Auth</summary>
 

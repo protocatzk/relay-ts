@@ -244,6 +244,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Tabellen-Rollen, Formular-Labels, Theme-Wechsel).
 - Neue Backend-Felder immer in Schema, API-Typen, Frontend-Typen und Tests
   ergänzen.
+- Neue API-Routen zusätzlich in `src/api/openapi.ts` dokumentieren und
+  `npm run openapi:generate` ausführen; `npm run openapi:check` prüft die
+  eingecheckte `docs/openapi.json` und die Route-Coverage.
 - `tests/supervisor-integration.test.ts` simuliert Quellenausfall → Pause →
   Reconnect, deaktivierten Auto-Reconnect und Playlist-Wechsel bei Offline mit
   Fake-ffmpeg/yt-dlp bzw. injiziertem Resolver.

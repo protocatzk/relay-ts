@@ -88,6 +88,7 @@ export interface Streamer {
   preferred: boolean;
   enabled: boolean;
   own_stream: boolean;
+  video_mode: 'copy' | 'reencode';
   status: {
     online: boolean | null;
     active: boolean;

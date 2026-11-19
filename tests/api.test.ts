@@ -174,6 +174,26 @@ describe('API', () => {
     });
   });
 
+  it('serves the OpenAPI document to authenticated users', async () => {
+    const denied = await app.inject({ method: 'GET', url: '/api/openapi.json' });
+    expect(denied.statusCode).toBe(401);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/openapi.json',
+      headers: { authorization: 'Bearer api-secret' },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      openapi: string;
+      info: { version: string };
+      paths: Record<string, unknown>;
+    };
+    expect(body.openapi).toBe('3.1.0');
+    expect(body.info.version).toBe(VERSION);
+    expect(body.paths['/api/status']).toBeTruthy();
+  });
+
   it('protects API routes and accepts a valid login session', async () => {
     const denied = await app.inject({ method: 'GET', url: '/api/streamers' });
     expect(denied.statusCode).toBe(401);

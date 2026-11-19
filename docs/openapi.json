@@ -1,0 +1,5877 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RELAY Restreamer API",
+    "version": "0.6.1",
+    "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Aktuelle Instanz"
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Anmeldung und Sitzungen"
+    },
+    {
+      "name": "system",
+      "description": "Status, Logs, Metriken und Systemaktionen"
+    },
+    {
+      "name": "streamers",
+      "description": "Streamer-Verwaltung und Steuerung"
+    },
+    {
+      "name": "playlists",
+      "description": "Playlist-Verwaltung und Steuerung"
+    },
+    {
+      "name": "settings",
+      "description": "Globale Einstellungen"
+    },
+    {
+      "name": "overlays",
+      "description": "Overlays, Vorschauen und Chat-Test"
+    },
+    {
+      "name": "screens",
+      "description": "Pause-/Startbildschirme und Assets"
+    },
+    {
+      "name": "earnings",
+      "description": "Einnahmen und Verlauf"
+    },
+    {
+      "name": "media",
+      "description": "Lokale Videos"
+    },
+    {
+      "name": "preview",
+      "description": "Live-Vorschau"
+    },
+    {
+      "name": "youtube",
+      "description": "YouTube-Verbindung und Broadcasts"
+    }
+  ],
+  "security": [
+    {
+      "cookieAuth": []
+    },
+    {
+      "bearerAuth": []
+    },
+    {
+      "basicAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth/methods": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Verfügbare Anmeldemethoden",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMethods"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mit Passwort oder API-Token anmelden",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/telegram/request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Telegram-Login anfordern",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramLoginRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/telegram/check": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Status einer Telegram-Anmeldung prüfen",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sitzung abmelden",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Aktive Sitzungen auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/:id/revoke": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Einzelne Sitzung widerrufen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/revoke-all": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Alle Sitzungen widerrufen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Aktuellen Auth-Status abfragen",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMe"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health-Check mit Stream-Status",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Vollständiger Stream-Status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "JSON-Metriken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Server-Sent Events (status, streamers, log)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Logzeilen lesen und filtern",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "debug",
+                "info",
+                "warn",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Lokalen Logring leeren",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reload": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Streamer-YAML neu laden",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/online/check": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Online-Status sofort prüfen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/restart-sink": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "YouTube-Sink neu starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/refresh": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Quelle sofort neu auflösen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "OpenAPI-Spezifikation dieser API",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers": {
+      "get": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer inklusive Live-Status auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Streamer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/:id": {
+      "get": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Einzelnen Streamer lesen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer bearbeiten",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamerUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamerEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/:id/title": {
+      "get": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Aufgelösten YouTube-Titel anzeigen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/:id/start": {
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer starten",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/:id/stop": {
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Stream stoppen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/:id/switch": {
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Zu einem Streamer wechseln",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/streamers/bulk": {
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer aus Handles/URLs anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channels": {
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "playlist_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "channels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quickstart": {
+      "post": {
+        "tags": [
+          "streamers"
+        ],
+        "summary": "Streamer anlegen und direkt starten",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tiktok": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "youtube_key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": [
+                      "best",
+                      "1080p",
+                      "720p",
+                      "480p",
+                      "360p"
+                    ]
+                  }
+                },
+                "required": [
+                  "tiktok",
+                  "youtube_key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlists auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Playlist"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/:id": {
+      "put": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist bearbeiten",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/next": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Nächsten Playlist-Kanal starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/previous": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Vorherigen Playlist-Kanal starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/stop": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist stoppen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/:id/play": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist abspielen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playlists/:id/tune/:streamerId": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Playlist auf einen Kanal stimmen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "streamerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Einstellungen lesen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Einstellungen aktualisieren",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/overlays": {
+      "put": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Globale Overlays speichern",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "overlays": {
+                    "type": "object",
+                    "properties": {
+                      "chat": {
+                        "default": {
+                          "enabled": false,
+                          "engine": "canvas",
+                          "position": "bottom-left",
+                          "style": "bubbles",
+                          "max_lines": 8,
+                          "max_messages": 30,
+                          "max_age_seconds": 0,
+                          "panel_height": 0,
+                          "font_size": 22,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "bubble_opacity": 1,
+                          "panel_width": 0,
+                          "render_fps": 10,
+                          "show_timestamps": false,
+                          "show_badges": true,
+                          "show_tiers": true,
+                          "show_stats": false,
+                          "name_colors": true,
+                          "offset_x": 0,
+                          "offset_y": 0,
+                          "api_url": "",
+                          "api_key": "",
+                          "poll_interval": 3,
+                          "delay": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "engine": {
+                            "default": "canvas",
+                            "type": "string",
+                            "enum": [
+                              "canvas",
+                              "drawtext"
+                            ]
+                          },
+                          "position": {
+                            "default": "bottom-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "style": {
+                            "default": "bubbles",
+                            "type": "string",
+                            "enum": [
+                              "bubbles",
+                              "panel",
+                              "minimal"
+                            ]
+                          },
+                          "max_lines": {
+                            "default": 8,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "max_messages": {
+                            "default": 30,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                          },
+                          "max_age_seconds": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3600
+                          },
+                          "panel_height": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "font_size": {
+                            "default": 22,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "bubble_opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "panel_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "render_fps": {
+                            "default": 10,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "show_timestamps": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "show_badges": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_tiers": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_stats": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "name_colors": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "api_url": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "api_key": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "poll_interval": {
+                            "default": 3,
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 60
+                          },
+                          "delay": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 300
+                          }
+                        }
+                      },
+                      "clock": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-right",
+                          "format": "%H:%M:%S",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "format": {
+                            "default": "%H:%M:%S",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "text": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "text": "",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "marquee": false,
+                          "speed": 120,
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "text": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "marquee": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "speed": {
+                            "default": 120,
+                            "type": "number",
+                            "minimum": 10,
+                            "maximum": 1000
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "overlays"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/overlays/preview.png": {
+      "get": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Overlay-Vorschau als PNG",
+        "parameters": [
+          {
+            "name": "sample",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/overlays/studio.png": {
+      "post": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Studio-Vorschau aus ungespeicherten Drafts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "overlays": {},
+                  "earnings": {},
+                  "video_layout": {},
+                  "video_aspect": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "16:9",
+                      "1:1"
+                    ]
+                  },
+                  "sample": {
+                    "type": "boolean"
+                  },
+                  "max_dimension": {
+                    "type": "integer",
+                    "minimum": 120,
+                    "maximum": 1200
+                  }
+                },
+                "required": [
+                  "overlays"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pause/preview.png": {
+      "post": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Pause-/Startbildschirm-Vorschau",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "screen": {
+                    "type": "string",
+                    "enum": [
+                      "pause",
+                      "startup"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "subtext": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "background": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "font": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "text_color": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "fit": {
+                    "type": "string",
+                    "enum": [
+                      "cover",
+                      "contain",
+                      "stretch"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pause/start": {
+      "post": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pausenscreen einspielen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pause/stop": {
+      "post": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pausenscreen beenden",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screens/:type/start": {
+      "post": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Start- oder Pausenscreen einspielen",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "startup",
+                "pause"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screens/stop": {
+      "post": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Manuellen Screen beenden",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pause/assets": {
+      "get": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pause-/Start-Assets auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pause-/Start-Asset hochladen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Asset-Metadaten"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pause/assets/:filename": {
+      "get": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pause-/Start-Asset herunterladen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "screens"
+        ],
+        "summary": "Pause-/Start-Asset löschen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/earnings": {
+      "get": {
+        "tags": [
+          "earnings"
+        ],
+        "summary": "Aktuelle Einnahmen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Earnings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/earnings/history": {
+      "get": {
+        "tags": [
+          "earnings"
+        ],
+        "summary": "Einnahmen-Verlauf",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/earnings/period": {
+      "post": {
+        "tags": [
+          "earnings"
+        ],
+        "summary": "Einnahmen-Zeitraum ändern",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "period": {
+                    "type": "string",
+                    "enum": [
+                      "today",
+                      "24h",
+                      "7d",
+                      "30d",
+                      "all"
+                    ]
+                  }
+                },
+                "required": [
+                  "period"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/earnings/refresh": {
+      "post": {
+        "tags": [
+          "earnings"
+        ],
+        "summary": "Einnahmen sofort aktualisieren",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/test": {
+      "post": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Testnachricht an das Chat-Overlay senden",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Lokale Videos in data/media auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/:filename": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Lokales Video streamen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/preview.ts": {
+      "get": {
+        "tags": [
+          "preview"
+        ],
+        "summary": "MPEG-TS-Tap der Live-Vorschau",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "video/mp2t": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/status": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "YouTube-Verbindungsstatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/automation": {
+      "put": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "YouTube-Automatik konfigurieren",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "relay_only",
+                      "all"
+                    ]
+                  },
+                  "auto_start": {
+                    "type": "boolean"
+                  },
+                  "auto_stop": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/broadcasts": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcasts auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "scheduled_start": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "privacy": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "unlisted",
+                      "private"
+                    ]
+                  },
+                  "enable_dvr": {
+                    "type": "boolean"
+                  },
+                  "enable_auto_start": {
+                    "type": "boolean"
+                  },
+                  "enable_auto_stop": {
+                    "type": "boolean"
+                  },
+                  "streamer_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "scheduled_start"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/broadcasts/:id": {
+      "put": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast bearbeiten",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "scheduled_start": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "privacy": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "unlisted",
+                      "private"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/broadcasts/:id/publish": {
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast veröffentlichen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/broadcasts/:id/transition": {
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast-Status wechseln",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "testing",
+                      "live",
+                      "complete"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/broadcasts/:id/assign": {
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Broadcast einem Streamer zuweisen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "streamer_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "streamer_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/oauth/start": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Google-OAuth starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/youtube/oauth/callback": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Google-OAuth-Callback (öffentlich, State + PKCE)",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "Weiterleitung zum Dashboard"
+          }
+        }
+      }
+    },
+    "/api/youtube/oauth/disconnect": {
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "YouTube-Verbindung trennen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          }
+        }
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "required": [
+          "state",
+          "version"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "starting",
+              "live",
+              "reconnecting",
+              "paused",
+              "stopping",
+              "error"
+            ]
+          },
+          "active_streamer_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active_streamer_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "manual_screen": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "startup",
+              "pause",
+              null
+            ]
+          },
+          "uptime_seconds": {
+            "type": "number"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "object"
+          },
+          "relay": {
+            "type": "object"
+          },
+          "sink": {
+            "type": "object"
+          },
+          "watchdog": {
+            "type": "object"
+          },
+          "auto_refresh": {
+            "type": "object"
+          },
+          "chat": {
+            "type": "object"
+          },
+          "earnings": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "0.6.1"
+          }
+        }
+      },
+      "StatusEnvelope": {
+        "type": "object",
+        "required": [
+          "ok",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "state"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "version": {
+            "type": "string",
+            "example": "0.6.1"
+          },
+          "uptime_seconds": {
+            "type": "number"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "starting",
+              "live",
+              "reconnecting",
+              "paused",
+              "stopping",
+              "error"
+            ]
+          },
+          "source": {
+            "type": "object"
+          },
+          "relay": {
+            "type": "object"
+          },
+          "sink": {
+            "type": "object"
+          },
+          "pause": {
+            "type": "object"
+          }
+        }
+      },
+      "AuthMethods": {
+        "type": "object",
+        "properties": {
+          "auth_required": {
+            "type": "boolean"
+          },
+          "password_auth": {
+            "type": "boolean"
+          },
+          "telegram_auth": {
+            "type": "boolean"
+          },
+          "telegram_bot_username": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthMe": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "auth_required": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TelegramLoginRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "bot_username": {
+            "type": "string"
+          },
+          "deep_link": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "number",
+            "example": 600
+          }
+        }
+      },
+      "Streamer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "tiktok": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "youtube_key": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "youtube_key_env": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "quality": {
+            "default": "best",
+            "type": "string",
+            "enum": [
+              "best",
+              "1080p",
+              "720p",
+              "480p",
+              "360p"
+            ]
+          },
+          "auto_start": {
+            "default": false,
+            "type": "boolean"
+          },
+          "preferred": {
+            "default": false,
+            "type": "boolean"
+          },
+          "enabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "own_stream": {
+            "default": false,
+            "type": "boolean"
+          },
+          "video_mode": {
+            "default": "copy",
+            "type": "string",
+            "enum": [
+              "copy",
+              "reencode"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tiktok"
+        ],
+        "additionalProperties": {}
+      },
+      "StreamerUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "tiktok": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "youtube_key": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "youtube_key_env": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "best",
+              "1080p",
+              "720p",
+              "480p",
+              "360p"
+            ]
+          },
+          "auto_start": {
+            "type": "boolean"
+          },
+          "preferred": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "own_stream": {
+            "type": "boolean"
+          },
+          "video_mode": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "reencode"
+            ]
+          }
+        },
+        "additionalProperties": {}
+      },
+      "StreamerList": {
+        "type": "object",
+        "required": [
+          "streamers"
+        ],
+        "properties": {
+          "streamers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Streamer"
+            }
+          }
+        }
+      },
+      "StreamerEnvelope": {
+        "type": "object",
+        "required": [
+          "streamer"
+        ],
+        "properties": {
+          "streamer": {
+            "$ref": "#/components/schemas/Streamer"
+          }
+        }
+      },
+      "Playlist": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "channels": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "auto_advance": {
+            "default": true,
+            "type": "boolean"
+          },
+          "wrap": {
+            "default": false,
+            "type": "boolean"
+          },
+          "advance_delay_seconds": {
+            "default": 5,
+            "type": "number",
+            "minimum": 0,
+            "maximum": 600
+          },
+          "end_after_minutes": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1440
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "youtube_key": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "youtube_key_env": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "channels"
+        ],
+        "additionalProperties": {}
+      },
+      "PlaylistUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "channels": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "auto_advance": {
+            "type": "boolean"
+          },
+          "wrap": {
+            "type": "boolean"
+          },
+          "advance_delay_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 600
+          },
+          "end_after_minutes": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1440
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "youtube_key": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "youtube_key_env": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "additionalProperties": {}
+      },
+      "PlaylistList": {
+        "type": "object",
+        "required": [
+          "playlists"
+        ],
+        "properties": {
+          "playlists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Playlist"
+            }
+          }
+        }
+      },
+      "PlaylistEnvelope": {
+        "type": "object",
+        "required": [
+          "playlist"
+        ],
+        "properties": {
+          "playlist": {
+            "$ref": "#/components/schemas/Playlist"
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "delay_buffer": {
+            "default": {
+              "enabled": true,
+              "size": 30,
+              "max_bytes": 32
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "size": {
+                "default": 30,
+                "type": "number",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "max_bytes": {
+                "default": 32,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              }
+            }
+          },
+          "video": {
+            "default": {
+              "resolution": "720x1280",
+              "fps": 25,
+              "video_bitrate": 4000,
+              "audio_bitrate": 128,
+              "preset": "veryfast",
+              "layout": {
+                "enabled": false,
+                "scale": 100,
+                "position_x": 50,
+                "position_y": 50
+              }
+            },
+            "type": "object",
+            "properties": {
+              "resolution": {
+                "default": "720x1280",
+                "type": "string",
+                "enum": [
+                  "720x1280",
+                  "1280x720",
+                  "1080x1920",
+                  "1920x1080",
+                  "1600x900"
+                ]
+              },
+              "fps": {
+                "default": 25,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              },
+              "video_bitrate": {
+                "default": 4000,
+                "type": "integer",
+                "minimum": 500,
+                "maximum": 50000
+              },
+              "audio_bitrate": {
+                "default": 128,
+                "type": "integer",
+                "minimum": 32,
+                "maximum": 320
+              },
+              "preset": {
+                "default": "veryfast",
+                "type": "string",
+                "enum": [
+                  "ultrafast",
+                  "veryfast",
+                  "faster",
+                  "fast",
+                  "medium"
+                ]
+              },
+              "layout": {
+                "default": {
+                  "enabled": false,
+                  "scale": 100,
+                  "position_x": 50,
+                  "position_y": 50
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "scale": {
+                    "default": 100,
+                    "type": "integer",
+                    "minimum": 50,
+                    "maximum": 400
+                  },
+                  "position_x": {
+                    "default": 50,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "position_y": {
+                    "default": 50,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          },
+          "watchdog": {
+            "default": {
+              "stall_timeout": 30,
+              "min_bitrate": 500,
+              "min_source_rate_percent": 85,
+              "interval": 5,
+              "auto_reconnect": true,
+              "max_reconnect_delay": 60
+            },
+            "type": "object",
+            "properties": {
+              "stall_timeout": {
+                "default": 30,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 600
+              },
+              "min_bitrate": {
+                "default": 500,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "min_source_rate_percent": {
+                "default": 85,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "interval": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              },
+              "auto_reconnect": {
+                "default": true,
+                "type": "boolean"
+              },
+              "max_reconnect_delay": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 300
+              }
+            }
+          },
+          "auto_refresh": {
+            "default": {
+              "enabled": true,
+              "interval": 20
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "interval": {
+                "default": 20,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              }
+            }
+          },
+          "pause": {
+            "default": {
+              "enabled": true,
+              "text": "Stream pausiert",
+              "subtext": "Gleich geht es weiter",
+              "color": "0x101820",
+              "max_minutes": 15,
+              "grace_seconds": 2,
+              "background": "",
+              "font": "",
+              "text_color": "white",
+              "fit": "cover"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "text": {
+                "default": "Stream pausiert",
+                "type": "string",
+                "maxLength": 200
+              },
+              "subtext": {
+                "default": "Gleich geht es weiter",
+                "type": "string",
+                "maxLength": 200
+              },
+              "color": {
+                "default": "0x101820",
+                "type": "string",
+                "pattern": "^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$"
+              },
+              "max_minutes": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1440
+              },
+              "grace_seconds": {
+                "default": 2,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60
+              },
+              "background": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "font": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "text_color": {
+                "default": "white",
+                "type": "string",
+                "maxLength": 64
+              },
+              "fit": {
+                "default": "cover",
+                "type": "string",
+                "enum": [
+                  "cover",
+                  "contain",
+                  "stretch"
+                ]
+              }
+            }
+          },
+          "startup": {
+            "default": {
+              "enabled": false,
+              "duration_seconds": 10,
+              "text": "Gleich geht’s los.",
+              "subtext": "Der Stream startet in wenigen Minuten.",
+              "color": "0x101820",
+              "background": "",
+              "font": "",
+              "text_color": "white",
+              "fit": "cover"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "duration_seconds": {
+                "default": 10,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "text": {
+                "default": "Gleich geht’s los.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "subtext": {
+                "default": "Der Stream startet in wenigen Minuten.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "color": {
+                "default": "0x101820",
+                "type": "string",
+                "pattern": "^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$"
+              },
+              "background": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "font": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "text_color": {
+                "default": "white",
+                "type": "string",
+                "maxLength": 64
+              },
+              "fit": {
+                "default": "cover",
+                "type": "string",
+                "enum": [
+                  "cover",
+                  "contain",
+                  "stretch"
+                ]
+              }
+            }
+          },
+          "online": {
+            "default": {
+              "enabled": false,
+              "source_url": "",
+              "api_key": "",
+              "interval": 60,
+              "auto_switch_preferred": false
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "source_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              },
+              "interval": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 3600
+              },
+              "auto_switch_preferred": {
+                "default": false,
+                "type": "boolean"
+              }
+            }
+          },
+          "chat": {
+            "default": {
+              "api_url": "",
+              "api_key": ""
+            },
+            "type": "object",
+            "properties": {
+              "api_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              }
+            }
+          },
+          "streaming": {
+            "default": {
+              "title_template": "{name} – LIVE"
+            },
+            "type": "object",
+            "properties": {
+              "title_template": {
+                "default": "{name} – LIVE",
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          },
+          "earnings": {
+            "default": {
+              "enabled": false,
+              "source_url": "",
+              "api_key": "",
+              "interval": 300,
+              "period": "today",
+              "view": "standard",
+              "overlay_enabled": false,
+              "overlay_position": "top-left",
+              "overlay_template": "{net} € · {coins} Coins",
+              "overlay_font_size": 22,
+              "overlay_margin": 32,
+              "overlay_offset_x": 0,
+              "overlay_offset_y": 0,
+              "overlay_font_color": "white",
+              "overlay_box_color": "black@0.45",
+              "overlay_show_box": true
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "source_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              },
+              "interval": {
+                "default": 300,
+                "type": "integer",
+                "minimum": 30,
+                "maximum": 3600
+              },
+              "period": {
+                "default": "today",
+                "type": "string",
+                "enum": [
+                  "today",
+                  "24h",
+                  "7d",
+                  "30d",
+                  "all"
+                ]
+              },
+              "view": {
+                "default": "standard",
+                "type": "string",
+                "enum": [
+                  "compact",
+                  "standard",
+                  "detailed"
+                ]
+              },
+              "overlay_enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "overlay_position": {
+                "default": "top-left",
+                "type": "string",
+                "enum": [
+                  "top-left",
+                  "top-right",
+                  "bottom-left",
+                  "bottom-right"
+                ]
+              },
+              "overlay_template": {
+                "default": "{net} € · {coins} Coins",
+                "type": "string",
+                "maxLength": 2000
+              },
+              "overlay_font_size": {
+                "default": 22,
+                "type": "integer",
+                "minimum": 8,
+                "maximum": 96
+              },
+              "overlay_margin": {
+                "default": 32,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "overlay_offset_x": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -1920,
+                "maximum": 1920
+              },
+              "overlay_offset_y": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -1080,
+                "maximum": 1080
+              },
+              "overlay_font_color": {
+                "default": "white",
+                "type": "string",
+                "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+              },
+              "overlay_box_color": {
+                "default": "black@0.45",
+                "type": "string",
+                "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+              },
+              "overlay_show_box": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          },
+          "overlays": {
+            "default": {
+              "chat": {
+                "enabled": false,
+                "engine": "canvas",
+                "position": "bottom-left",
+                "style": "bubbles",
+                "max_lines": 8,
+                "max_messages": 30,
+                "max_age_seconds": 0,
+                "panel_height": 0,
+                "font_size": 22,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "bubble_opacity": 1,
+                "panel_width": 0,
+                "render_fps": 10,
+                "show_timestamps": false,
+                "show_badges": true,
+                "show_tiers": true,
+                "show_stats": false,
+                "name_colors": true,
+                "offset_x": 0,
+                "offset_y": 0,
+                "api_url": "",
+                "api_key": "",
+                "poll_interval": 3,
+                "delay": 0
+              },
+              "clock": {
+                "enabled": false,
+                "position": "top-right",
+                "format": "%H:%M:%S",
+                "font_size": 28,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "show_box": true,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
+              },
+              "text": {
+                "enabled": false,
+                "position": "top-left",
+                "text": "",
+                "font_size": 28,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "marquee": false,
+                "speed": 120,
+                "show_box": true,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
+              }
+            },
+            "type": "object",
+            "properties": {
+              "chat": {
+                "default": {
+                  "enabled": false,
+                  "engine": "canvas",
+                  "position": "bottom-left",
+                  "style": "bubbles",
+                  "max_lines": 8,
+                  "max_messages": 30,
+                  "max_age_seconds": 0,
+                  "panel_height": 0,
+                  "font_size": 22,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "bubble_opacity": 1,
+                  "panel_width": 0,
+                  "render_fps": 10,
+                  "show_timestamps": false,
+                  "show_badges": true,
+                  "show_tiers": true,
+                  "show_stats": false,
+                  "name_colors": true,
+                  "offset_x": 0,
+                  "offset_y": 0,
+                  "api_url": "",
+                  "api_key": "",
+                  "poll_interval": 3,
+                  "delay": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "engine": {
+                    "default": "canvas",
+                    "type": "string",
+                    "enum": [
+                      "canvas",
+                      "drawtext"
+                    ]
+                  },
+                  "position": {
+                    "default": "bottom-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "style": {
+                    "default": "bubbles",
+                    "type": "string",
+                    "enum": [
+                      "bubbles",
+                      "panel",
+                      "minimal"
+                    ]
+                  },
+                  "max_lines": {
+                    "default": 8,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "max_messages": {
+                    "default": 30,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "max_age_seconds": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3600
+                  },
+                  "panel_height": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
+                  },
+                  "font_size": {
+                    "default": 22,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "bubble_opacity": {
+                    "default": 1,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "panel_width": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
+                  },
+                  "render_fps": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "show_timestamps": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "show_badges": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "show_tiers": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "show_stats": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "name_colors": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "api_url": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "api_key": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "poll_interval": {
+                    "default": 3,
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 60
+                  },
+                  "delay": {
+                    "default": 0,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 300
+                  }
+                }
+              },
+              "clock": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-right",
+                  "format": "%H:%M:%S",
+                  "font_size": 28,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "show_box": true,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "format": {
+                    "default": "%H:%M:%S",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "font_size": {
+                    "default": 28,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "text": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-left",
+                  "text": "",
+                  "font_size": 28,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "marquee": false,
+                  "speed": 120,
+                  "show_box": true,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "text": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "font_size": {
+                    "default": 28,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "marquee": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "speed": {
+                    "default": 120,
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 1000
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              }
+            }
+          },
+          "youtube": {
+            "default": {
+              "auto_transition": true,
+              "auto_mode": "relay_only",
+              "auto_start": true,
+              "auto_stop": true,
+              "default_privacy": "unlisted",
+              "default_dvr": true
+            },
+            "type": "object",
+            "properties": {
+              "auto_transition": {
+                "default": true,
+                "type": "boolean"
+              },
+              "auto_mode": {
+                "default": "relay_only",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "relay_only",
+                  "all"
+                ]
+              },
+              "auto_start": {
+                "default": true,
+                "type": "boolean"
+              },
+              "auto_stop": {
+                "default": true,
+                "type": "boolean"
+              },
+              "default_privacy": {
+                "default": "unlisted",
+                "type": "string",
+                "enum": [
+                  "public",
+                  "unlisted",
+                  "private"
+                ]
+              },
+              "default_dvr": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "SettingsUpdate": {
+        "type": "object",
+        "properties": {
+          "delay_buffer": {
+            "default": {
+              "enabled": true,
+              "size": 30,
+              "max_bytes": 32
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "size": {
+                "default": 30,
+                "type": "number",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "max_bytes": {
+                "default": 32,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              }
+            }
+          },
+          "video": {
+            "default": {
+              "resolution": "720x1280",
+              "fps": 25,
+              "video_bitrate": 4000,
+              "audio_bitrate": 128,
+              "preset": "veryfast",
+              "layout": {
+                "enabled": false,
+                "scale": 100,
+                "position_x": 50,
+                "position_y": 50
+              }
+            },
+            "type": "object",
+            "properties": {
+              "resolution": {
+                "default": "720x1280",
+                "type": "string",
+                "enum": [
+                  "720x1280",
+                  "1280x720",
+                  "1080x1920",
+                  "1920x1080",
+                  "1600x900"
+                ]
+              },
+              "fps": {
+                "default": 25,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              },
+              "video_bitrate": {
+                "default": 4000,
+                "type": "integer",
+                "minimum": 500,
+                "maximum": 50000
+              },
+              "audio_bitrate": {
+                "default": 128,
+                "type": "integer",
+                "minimum": 32,
+                "maximum": 320
+              },
+              "preset": {
+                "default": "veryfast",
+                "type": "string",
+                "enum": [
+                  "ultrafast",
+                  "veryfast",
+                  "faster",
+                  "fast",
+                  "medium"
+                ]
+              },
+              "layout": {
+                "default": {
+                  "enabled": false,
+                  "scale": 100,
+                  "position_x": 50,
+                  "position_y": 50
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "scale": {
+                    "default": 100,
+                    "type": "integer",
+                    "minimum": 50,
+                    "maximum": 400
+                  },
+                  "position_x": {
+                    "default": 50,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "position_y": {
+                    "default": 50,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          },
+          "watchdog": {
+            "default": {
+              "stall_timeout": 30,
+              "min_bitrate": 500,
+              "min_source_rate_percent": 85,
+              "interval": 5,
+              "auto_reconnect": true,
+              "max_reconnect_delay": 60
+            },
+            "type": "object",
+            "properties": {
+              "stall_timeout": {
+                "default": 30,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 600
+              },
+              "min_bitrate": {
+                "default": 500,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "min_source_rate_percent": {
+                "default": 85,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "interval": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              },
+              "auto_reconnect": {
+                "default": true,
+                "type": "boolean"
+              },
+              "max_reconnect_delay": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 300
+              }
+            }
+          },
+          "auto_refresh": {
+            "default": {
+              "enabled": true,
+              "interval": 20
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "interval": {
+                "default": 20,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              }
+            }
+          },
+          "pause": {
+            "default": {
+              "enabled": true,
+              "text": "Stream pausiert",
+              "subtext": "Gleich geht es weiter",
+              "color": "0x101820",
+              "max_minutes": 15,
+              "grace_seconds": 2,
+              "background": "",
+              "font": "",
+              "text_color": "white",
+              "fit": "cover"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "text": {
+                "default": "Stream pausiert",
+                "type": "string",
+                "maxLength": 200
+              },
+              "subtext": {
+                "default": "Gleich geht es weiter",
+                "type": "string",
+                "maxLength": 200
+              },
+              "color": {
+                "default": "0x101820",
+                "type": "string",
+                "pattern": "^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$"
+              },
+              "max_minutes": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1440
+              },
+              "grace_seconds": {
+                "default": 2,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60
+              },
+              "background": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "font": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "text_color": {
+                "default": "white",
+                "type": "string",
+                "maxLength": 64
+              },
+              "fit": {
+                "default": "cover",
+                "type": "string",
+                "enum": [
+                  "cover",
+                  "contain",
+                  "stretch"
+                ]
+              }
+            }
+          },
+          "startup": {
+            "default": {
+              "enabled": false,
+              "duration_seconds": 10,
+              "text": "Gleich geht’s los.",
+              "subtext": "Der Stream startet in wenigen Minuten.",
+              "color": "0x101820",
+              "background": "",
+              "font": "",
+              "text_color": "white",
+              "fit": "cover"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "duration_seconds": {
+                "default": 10,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "text": {
+                "default": "Gleich geht’s los.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "subtext": {
+                "default": "Der Stream startet in wenigen Minuten.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "color": {
+                "default": "0x101820",
+                "type": "string",
+                "pattern": "^(0x[0-9a-fA-F]{6}|#[0-9a-fA-F]{6})$"
+              },
+              "background": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "font": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "text_color": {
+                "default": "white",
+                "type": "string",
+                "maxLength": 64
+              },
+              "fit": {
+                "default": "cover",
+                "type": "string",
+                "enum": [
+                  "cover",
+                  "contain",
+                  "stretch"
+                ]
+              }
+            }
+          },
+          "online": {
+            "default": {
+              "enabled": false,
+              "source_url": "",
+              "api_key": "",
+              "interval": 60,
+              "auto_switch_preferred": false
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "source_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              },
+              "interval": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 3600
+              },
+              "auto_switch_preferred": {
+                "default": false,
+                "type": "boolean"
+              }
+            }
+          },
+          "chat": {
+            "default": {
+              "api_url": "",
+              "api_key": ""
+            },
+            "type": "object",
+            "properties": {
+              "api_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              }
+            }
+          },
+          "streaming": {
+            "default": {
+              "title_template": "{name} – LIVE"
+            },
+            "type": "object",
+            "properties": {
+              "title_template": {
+                "default": "{name} – LIVE",
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          },
+          "earnings": {
+            "default": {
+              "enabled": false,
+              "source_url": "",
+              "api_key": "",
+              "interval": 300,
+              "period": "today",
+              "view": "standard",
+              "overlay_enabled": false,
+              "overlay_position": "top-left",
+              "overlay_template": "{net} € · {coins} Coins",
+              "overlay_font_size": 22,
+              "overlay_margin": 32,
+              "overlay_offset_x": 0,
+              "overlay_offset_y": 0,
+              "overlay_font_color": "white",
+              "overlay_box_color": "black@0.45",
+              "overlay_show_box": true
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "source_url": {
+                "default": "",
+                "type": "string"
+              },
+              "api_key": {
+                "default": "",
+                "type": "string"
+              },
+              "interval": {
+                "default": 300,
+                "type": "integer",
+                "minimum": 30,
+                "maximum": 3600
+              },
+              "period": {
+                "default": "today",
+                "type": "string",
+                "enum": [
+                  "today",
+                  "24h",
+                  "7d",
+                  "30d",
+                  "all"
+                ]
+              },
+              "view": {
+                "default": "standard",
+                "type": "string",
+                "enum": [
+                  "compact",
+                  "standard",
+                  "detailed"
+                ]
+              },
+              "overlay_enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "overlay_position": {
+                "default": "top-left",
+                "type": "string",
+                "enum": [
+                  "top-left",
+                  "top-right",
+                  "bottom-left",
+                  "bottom-right"
+                ]
+              },
+              "overlay_template": {
+                "default": "{net} € · {coins} Coins",
+                "type": "string",
+                "maxLength": 2000
+              },
+              "overlay_font_size": {
+                "default": 22,
+                "type": "integer",
+                "minimum": 8,
+                "maximum": 96
+              },
+              "overlay_margin": {
+                "default": 32,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "overlay_offset_x": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -1920,
+                "maximum": 1920
+              },
+              "overlay_offset_y": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -1080,
+                "maximum": 1080
+              },
+              "overlay_font_color": {
+                "default": "white",
+                "type": "string",
+                "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+              },
+              "overlay_box_color": {
+                "default": "black@0.45",
+                "type": "string",
+                "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+              },
+              "overlay_show_box": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          },
+          "overlays": {
+            "default": {
+              "chat": {
+                "enabled": false,
+                "engine": "canvas",
+                "position": "bottom-left",
+                "style": "bubbles",
+                "max_lines": 8,
+                "max_messages": 30,
+                "max_age_seconds": 0,
+                "panel_height": 0,
+                "font_size": 22,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "bubble_opacity": 1,
+                "panel_width": 0,
+                "render_fps": 10,
+                "show_timestamps": false,
+                "show_badges": true,
+                "show_tiers": true,
+                "show_stats": false,
+                "name_colors": true,
+                "offset_x": 0,
+                "offset_y": 0,
+                "api_url": "",
+                "api_key": "",
+                "poll_interval": 3,
+                "delay": 0
+              },
+              "clock": {
+                "enabled": false,
+                "position": "top-right",
+                "format": "%H:%M:%S",
+                "font_size": 28,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "show_box": true,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
+              },
+              "text": {
+                "enabled": false,
+                "position": "top-left",
+                "text": "",
+                "font_size": 28,
+                "font_color": "white",
+                "box_color": "black@0.45",
+                "marquee": false,
+                "speed": 120,
+                "show_box": true,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
+              }
+            },
+            "type": "object",
+            "properties": {
+              "chat": {
+                "default": {
+                  "enabled": false,
+                  "engine": "canvas",
+                  "position": "bottom-left",
+                  "style": "bubbles",
+                  "max_lines": 8,
+                  "max_messages": 30,
+                  "max_age_seconds": 0,
+                  "panel_height": 0,
+                  "font_size": 22,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "bubble_opacity": 1,
+                  "panel_width": 0,
+                  "render_fps": 10,
+                  "show_timestamps": false,
+                  "show_badges": true,
+                  "show_tiers": true,
+                  "show_stats": false,
+                  "name_colors": true,
+                  "offset_x": 0,
+                  "offset_y": 0,
+                  "api_url": "",
+                  "api_key": "",
+                  "poll_interval": 3,
+                  "delay": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "engine": {
+                    "default": "canvas",
+                    "type": "string",
+                    "enum": [
+                      "canvas",
+                      "drawtext"
+                    ]
+                  },
+                  "position": {
+                    "default": "bottom-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "style": {
+                    "default": "bubbles",
+                    "type": "string",
+                    "enum": [
+                      "bubbles",
+                      "panel",
+                      "minimal"
+                    ]
+                  },
+                  "max_lines": {
+                    "default": 8,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "max_messages": {
+                    "default": 30,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "max_age_seconds": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3600
+                  },
+                  "panel_height": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
+                  },
+                  "font_size": {
+                    "default": 22,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "bubble_opacity": {
+                    "default": 1,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "panel_width": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
+                  },
+                  "render_fps": {
+                    "default": 10,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "show_timestamps": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "show_badges": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "show_tiers": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "show_stats": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "name_colors": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "api_url": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "api_key": {
+                    "default": "",
+                    "type": "string"
+                  },
+                  "poll_interval": {
+                    "default": 3,
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 60
+                  },
+                  "delay": {
+                    "default": 0,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 300
+                  }
+                }
+              },
+              "clock": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-right",
+                  "format": "%H:%M:%S",
+                  "font_size": 28,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "show_box": true,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "format": {
+                    "default": "%H:%M:%S",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "font_size": {
+                    "default": 28,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "text": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-left",
+                  "text": "",
+                  "font_size": 28,
+                  "font_color": "white",
+                  "box_color": "black@0.45",
+                  "marquee": false,
+                  "speed": 120,
+                  "show_box": true,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "text": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "font_size": {
+                    "default": 28,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 96
+                  },
+                  "font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "marquee": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "speed": {
+                    "default": 120,
+                    "type": "number",
+                    "minimum": 10,
+                    "maximum": 1000
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              }
+            }
+          },
+          "youtube": {
+            "default": {
+              "auto_transition": true,
+              "auto_mode": "relay_only",
+              "auto_start": true,
+              "auto_stop": true,
+              "default_privacy": "unlisted",
+              "default_dvr": true
+            },
+            "type": "object",
+            "properties": {
+              "auto_transition": {
+                "default": true,
+                "type": "boolean"
+              },
+              "auto_mode": {
+                "default": "relay_only",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "relay_only",
+                  "all"
+                ]
+              },
+              "auto_start": {
+                "default": true,
+                "type": "boolean"
+              },
+              "auto_stop": {
+                "default": true,
+                "type": "boolean"
+              },
+              "default_privacy": {
+                "default": "unlisted",
+                "type": "string",
+                "enum": [
+                  "public",
+                  "unlisted",
+                  "private"
+                ]
+              },
+              "default_dvr": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Earnings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "net": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "gross": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "coins": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "relay_session"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API-Token"
+      },
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Nicht authentifiziert",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Ungültige Anfrage",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
