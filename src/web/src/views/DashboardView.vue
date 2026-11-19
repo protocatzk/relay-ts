@@ -552,71 +552,8 @@ onBeforeUnmount(() => {
       />
     </section>
 
-    <section class="card streamer-card">
-      <div class="card-head">
-        <div>
-          <h2 class="card-title">Streamer</h2>
-          <p class="card-sub">Online-Status und schneller Wechsel.</p>
-        </div>
-        <RouterLink to="/streamers" class="btn btn-ghost btn-sm">Verwalten</RouterLink>
-      </div>
-
-      <div v-if="store.streamers.length === 0" class="empty">
-        <p>Noch keine Streamer angelegt.</p>
-        <RouterLink to="/streamers" class="btn btn-primary btn-sm"
-          >Ersten Streamer anlegen</RouterLink
-        >
-      </div>
-
-      <ul v-else class="streamer-list">
-        <li v-for="streamer in streamers" :key="streamer.id" class="streamer-row">
-          <span class="online-indicator" :class="onlineClass(streamer)">
-            <span class="dot" aria-hidden="true"></span>
-            {{ onlineLabel(streamer) }}
-          </span>
-          <div class="streamer-identity">
-            <strong>{{ streamer.name }}</strong>
-            <span class="streamer-meta"
-              >@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span
-            >
-          </div>
-          <span class="badge tone-neutral">{{ streamer.quality }}</span>
-          <span v-if="streamer.status.active" class="badge tone-success">Aktiv</span>
-          <span v-else-if="!streamer.enabled" class="badge tone-muted">Deaktiviert</span>
-          <div class="streamer-actions">
-            <button
-              v-if="streamer.status.active"
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null"
-              @click="stopStreamer(streamer)"
-            >
-              Stoppen
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null || !streamer.enabled"
-              @click="startStreamer(streamer)"
-            >
-              Starten
-            </button>
-            <button
-              v-if="!streamer.status.active && status?.active_streamer_id"
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null || !streamer.enabled"
-              @click="switchStreamer(streamer)"
-            >
-              Wechseln
-            </button>
-          </div>
-        </li>
-      </ul>
-    </section>
-
-    <div class="dash-grid">
+    <div class="cockpit-layout">
+      <div class="dash-grid">
       <div v-if="status?.watchdog.last_error" class="alert alert-warn span-3" role="status">
         <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
       </div>
@@ -825,6 +762,71 @@ onBeforeUnmount(() => {
           <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
         </div>
       </section>
+      </div>
+
+      <aside class="card streamer-panel">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Streamer</h2>
+            <p class="card-sub">Online-Status und schneller Wechsel.</p>
+          </div>
+          <RouterLink to="/streamers" class="btn btn-ghost btn-sm">Verwalten</RouterLink>
+        </div>
+
+        <div v-if="store.streamers.length === 0" class="empty">
+          <p>Noch keine Streamer angelegt.</p>
+          <RouterLink to="/streamers" class="btn btn-primary btn-sm"
+            >Ersten Streamer anlegen</RouterLink
+          >
+        </div>
+
+        <ul v-else class="streamer-list">
+          <li v-for="streamer in streamers" :key="streamer.id" class="streamer-row">
+            <span class="online-indicator" :class="onlineClass(streamer)">
+              <span class="dot" aria-hidden="true"></span>
+              {{ onlineLabel(streamer) }}
+            </span>
+            <div class="streamer-identity">
+              <strong>{{ streamer.name }}</strong>
+              <span class="streamer-meta"
+                >@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span
+              >
+            </div>
+            <span class="badge tone-neutral">{{ streamer.quality }}</span>
+            <span v-if="streamer.status.active" class="badge tone-success">Aktiv</span>
+            <span v-else-if="!streamer.enabled" class="badge tone-muted">Deaktiviert</span>
+            <div class="streamer-actions">
+              <button
+                v-if="streamer.status.active"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="busy !== null"
+                @click="stopStreamer(streamer)"
+              >
+                Stoppen
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="busy !== null || !streamer.enabled"
+                @click="startStreamer(streamer)"
+              >
+                Starten
+              </button>
+              <button
+                v-if="!streamer.status.active && status?.active_streamer_id"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="busy !== null || !streamer.enabled"
+                @click="switchStreamer(streamer)"
+              >
+                Wechseln
+              </button>
+            </div>
+          </li>
+        </ul>
+      </aside>
     </div>
   </div>
 </template>
