@@ -1,6 +1,6 @@
-import { reactive } from 'vue';
+import { markRaw, reactive } from 'vue';
 import { api } from '@/src/api/client';
-import type { AuthMe, LogEntry, Playlist, StatusPayload, Streamer } from '@/src/api/types';
+import type { AuthMe, EarningsSnapshot, LogEntry, Playlist, StatusPayload, Streamer } from '@/src/api/types';
 import { recordStatus, resetTelemetry } from '@/src/composables/useTelemetry';
 
 export type ConnectionMode = 'connecting' | 'live' | 'offline';
@@ -12,6 +12,7 @@ export interface StoreState {
   status: StatusPayload | null;
   streamers: Streamer[];
   playlists: Playlist[];
+  earnings: EarningsSnapshot | null;
   logs: LogEntry[];
   sseConnected: boolean;
   connectionMode: ConnectionMode;
@@ -32,6 +33,7 @@ export const store = reactive<StoreState>({
   status: null,
   streamers: [],
   playlists: [],
+  earnings: null,
   logs: [],
   sseConnected: false,
   connectionMode: 'connecting',
@@ -98,7 +100,7 @@ export function clearLogs(): void {
 export async function refreshStatus(): Promise<void> {
   store.loading.status = true;
   try {
-    store.status = await api.status.get();
+    store.status = markRaw(await api.status.get());
     recordStatus(store.status);
   } finally {
     store.loading.status = false;
@@ -108,7 +110,7 @@ export async function refreshStatus(): Promise<void> {
 export async function refreshStreamers(): Promise<void> {
   store.loading.streamers = true;
   try {
-    store.streamers = await api.streamers.list();
+    store.streamers = markRaw(await api.streamers.list());
   } finally {
     store.loading.streamers = false;
   }
@@ -117,10 +119,15 @@ export async function refreshStreamers(): Promise<void> {
 export async function refreshPlaylists(): Promise<void> {
   store.loading.playlists = true;
   try {
-    store.playlists = await api.playlists.list();
+    store.playlists = markRaw(await api.playlists.list());
   } finally {
     store.loading.playlists = false;
   }
+}
+
+export async function refreshEarnings(): Promise<void> {
+  const earnings = await api.earnings.get();
+  store.earnings = earnings ? markRaw(earnings) : null;
 }
 
 export async function refreshLogs(limit = 300): Promise<void> {
@@ -135,6 +142,7 @@ export async function refreshLogs(limit = 300): Promise<void> {
 function startPolling(): void {
   if (pollTimer !== null) return;
   void refreshStatus().catch(() => undefined);
+  void refreshEarnings().catch(() => undefined);
   pollTimer = window.setInterval(() => {
     void refreshStatus().catch(() => undefined);
     void refreshStreamers().catch(() => undefined);
@@ -171,7 +179,7 @@ function connectEvents(): void {
     try {
       const payload = JSON.parse((event as MessageEvent<string>).data) as StatusPayload;
       if (payload && typeof payload === 'object' && 'state' in payload) {
-        store.status = payload;
+        store.status = markRaw(payload);
         recordStatus(payload);
       }
     } catch {
@@ -185,9 +193,9 @@ function connectEvents(): void {
         | Streamer[]
         | { streamers?: Streamer[] };
       if (Array.isArray(payload)) {
-        store.streamers = payload;
+        store.streamers = markRaw(payload);
       } else if (Array.isArray(payload?.streamers)) {
-        store.streamers = payload.streamers;
+        store.streamers = markRaw(payload.streamers);
       }
     } catch {
       /* ignore malformed events */
@@ -198,6 +206,15 @@ function connectEvents(): void {
     try {
       const entry = JSON.parse((event as MessageEvent<string>).data) as LogEntry;
       appendLog(entry);
+    } catch {
+      /* ignore malformed events */
+    }
+  });
+
+  source.addEventListener('earnings', (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as EarningsSnapshot | null;
+      store.earnings = payload ? markRaw(payload) : null;
     } catch {
       /* ignore malformed events */
     }
@@ -223,7 +240,12 @@ export function stopEvents(): void {
 export async function bootstrap(): Promise<void> {
   if (initialized) return;
   initialized = true;
-  await Promise.allSettled([refreshStatus(), refreshStreamers(), refreshPlaylists()]);
+  await Promise.allSettled([
+    refreshStatus(),
+    refreshStreamers(),
+    refreshPlaylists(),
+    refreshEarnings(),
+  ]);
   connectEvents();
 }
 
@@ -237,6 +259,7 @@ export function resetSession(): void {
   store.status = null;
   store.streamers = [];
   store.playlists = [];
+  store.earnings = null;
   store.logs = [];
   store.loading.status = false;
   store.loading.streamers = false;
@@ -285,6 +308,7 @@ export function useStore() {
     refreshStatus,
     refreshStreamers,
     refreshPlaylists,
+    refreshEarnings,
     refreshLogs,
     connectEvents,
     stopEvents,

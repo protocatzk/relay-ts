@@ -82,6 +82,16 @@ export default defineConfig({
   build: {
     outDir: fileURLToPath(new URL('./web/dist', import.meta.url)),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Stable, separately-cacheable vendor chunk: framework code changes far
+        // less often than application code, so this keeps the app chunk small
+        // and lets browsers reuse the cached vendor bundle across updates.
+        manualChunks: {
+          vue: ['vue', 'vue-router'],
+        },
+      },
+    },
   },
   server: {
     host: '127.0.0.1',

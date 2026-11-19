@@ -12,24 +12,56 @@ export type TelemetryMetric =
 /** Rolling window size in samples (~5 minutes at the 2 s status interval). */
 export const TELEMETRY_WINDOW = 150;
 
-const buffers = reactive<Record<TelemetryMetric, number[]>>({
-  source_kbps: [],
-  sink_kbps: [],
-  sink_fps: [],
-  relay_buffer_s: [],
-  relay_delay_s: [],
-  watchdog_stalls: [],
-});
+interface Ring {
+  buf: number[];
+  head: number;
+  size: number;
+}
+
+const METRICS: TelemetryMetric[] = [
+  'source_kbps',
+  'sink_kbps',
+  'sink_fps',
+  'relay_buffer_s',
+  'relay_delay_s',
+  'watchdog_stalls',
+];
+
+function newRing(): Ring {
+  return { buf: new Array<number>(TELEMETRY_WINDOW), head: 0, size: 0 };
+}
+
+/** O(1) ring buffers; not reactive, only written to on each sample. */
+const rings = {} as Record<TelemetryMetric, Ring>;
+for (const metric of METRICS) rings[metric] = newRing();
+
+/** Reactive, chronologically ordered snapshots (rebuilt once per sample). */
+const series = reactive({} as Record<TelemetryMetric, number[]>);
+for (const metric of METRICS) series[metric] = [];
 
 let lastRecordedAt = 0;
 
+function ordered(ring: Ring): number[] {
+  const { buf, head, size } = ring;
+  if (size < TELEMETRY_WINDOW) return buf.slice(0, size);
+  const out = new Array<number>(TELEMETRY_WINDOW);
+  for (let i = 0; i < TELEMETRY_WINDOW; i += 1) {
+    out[i] = buf[(head + i) % TELEMETRY_WINDOW];
+  }
+  return out;
+}
+
 function push(metric: TelemetryMetric, value: number | null | undefined): void {
   if (value == null || !Number.isFinite(value)) return;
-  const buffer = buffers[metric];
-  buffer.push(value);
-  if (buffer.length > TELEMETRY_WINDOW) {
-    buffer.splice(0, buffer.length - TELEMETRY_WINDOW);
+  const ring = rings[metric];
+  if (ring.size < TELEMETRY_WINDOW) {
+    ring.buf[ring.size] = value;
+    ring.size += 1;
+  } else {
+    ring.buf[ring.head] = value;
+    ring.head = (ring.head + 1) % TELEMETRY_WINDOW;
   }
+  series[metric] = ordered(ring);
 }
 
 /**
@@ -52,14 +84,15 @@ export function recordStatus(status: StatusPayload | null): void {
 }
 
 export function resetTelemetry(): void {
-  (Object.keys(buffers) as TelemetryMetric[]).forEach((metric) => {
-    buffers[metric].length = 0;
-  });
+  for (const metric of METRICS) {
+    rings[metric] = newRing();
+    series[metric] = [];
+  }
   lastRecordedAt = 0;
 }
 
 export function useTelemetry() {
   return {
-    series: (metric: TelemetryMetric) => buffers[metric],
+    series: (metric: TelemetryMetric) => series[metric],
   };
 }
