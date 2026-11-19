@@ -32,6 +32,27 @@ export function mediaFilePath(dataDir: string, filename: string): string | null 
   return join(mediaDirectory(dataDir), filename);
 }
 
+/**
+ * Normalizes an uploaded filename into a safe `data/media` name: lowercased,
+ * accents stripped, non-alphanumerics collapsed to dashes, extension preserved.
+ * Returns null when the extension is not an allowed media format.
+ */
+export function safeMediaNameFromOriginal(originalName: string): string | null {
+  const name = basename(originalName).trim();
+  const dot = name.lastIndexOf('.');
+  const extension = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+  if (!(MEDIA_EXTENSIONS as readonly string[]).includes(extension)) return null;
+  const base = (dot >= 0 ? name.slice(0, dot) : name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  if (!base) return null;
+  return `${base}${extension}`;
+}
+
 export function listMediaFiles(dataDir: string): MediaFileInfo[] {
   const directory = mediaDirectory(dataDir);
   if (!existsSync(directory)) return [];

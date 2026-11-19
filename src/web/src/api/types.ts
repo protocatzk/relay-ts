@@ -544,6 +544,16 @@ export interface MediaFile {
   modified_at: string;
 }
 
+export interface MediaUploadResult {
+  file: {
+    filename: string;
+    size: number;
+    modified_at: string;
+    is_h264: boolean;
+    height: number | null;
+  };
+}
+
 export interface Playlist {
   id: string;
   name: string;

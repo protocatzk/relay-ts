@@ -403,6 +403,69 @@ describe('API', () => {
     expect(upload.statusCode).toBe(400);
   });
 
+  it('uploads, lists and deletes media videos', async () => {
+    const boundary = '----relay-media-boundary';
+    const payload = Buffer.from('fake video bytes');
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from('Content-Disposition: form-data; name="file"; filename="Mein Video!.MP4"\r\n'),
+      Buffer.from('Content-Type: video/mp4\r\n\r\n'),
+      payload,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const upload = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: {
+        cookie: cookieHeader,
+        origin: 'http://localhost',
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+    expect(upload.statusCode).toBe(201);
+    const file = (upload.json() as { file: { filename: string; size: number } }).file;
+    expect(file.filename).toBe('mein-video.mp4');
+    expect(file.size).toBe(payload.length);
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/media',
+      headers: { cookie: cookieHeader },
+    });
+    expect(list.statusCode).toBe(200);
+    const files = (list.json() as { files: { filename: string }[] }).files;
+    expect(files.some((entry) => entry.filename === file.filename)).toBe(true);
+
+    const remove = await app.inject({
+      method: 'DELETE',
+      url: `/api/media/${file.filename}`,
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+    });
+    expect(remove.statusCode).toBe(200);
+  });
+
+  it('rejects unsupported media types', async () => {
+    const boundary = '----relay-media-boundary';
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from('Content-Disposition: form-data; name="file"; filename="bad.txt"\r\n'),
+      Buffer.from('Content-Type: text/plain\r\n\r\nnot a video'),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const upload = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: {
+        cookie: cookieHeader,
+        origin: 'http://localhost',
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: body,
+    });
+    expect(upload.statusCode).toBe(400);
+  });
+
   it('activates and stops manual screens', async () => {
     const startup = await app.inject({
       method: 'POST',

@@ -2363,3 +2363,59 @@ body {
     max-height: calc(100vh - var(--header-h) - env(safe-area-inset-top) - 16px);
   }
 }
+
+/* Media upload */
+.media-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 140px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: 2px;
+  background: var(--surface-1);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.media-dropzone:hover,
+.media-dropzone:focus-visible {
+  border-color: var(--accent-border);
+  color: var(--text-strong);
+}
+
+.media-dropzone.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.media-dropzone.is-busy {
+  cursor: progress;
+}
+
+.media-dropzone .link {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.progress-track {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}

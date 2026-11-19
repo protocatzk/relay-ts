@@ -23,6 +23,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Playlists' },
   },
   {
+    path: '/media',
+    name: 'media',
+    component: () => import('@/src/views/MediaView.vue'),
+    meta: { title: 'Medien' },
+  },
+  {
     path: '/youtube',
     name: 'youtube',
     component: () => import('@/src/views/YouTubeView.vue'),

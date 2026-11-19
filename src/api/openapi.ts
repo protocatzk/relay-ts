@@ -567,12 +567,33 @@ const routes: RouteDoc[] = [
   },
   { method: 'get', path: '/api/media', tag: 'media', summary: 'Lokale Videos in data/media auflisten' },
   {
+    method: 'post',
+    path: '/api/media',
+    tag: 'media',
+    summary: 'Lokales Video hochladen (max. 2 GB)',
+    body: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+    bodyContentType: 'multipart/form-data',
+    status: 201,
+    responseDescription: 'Metadaten des hochgeladenen Videos',
+  },
+  {
     method: 'get',
     path: '/api/media/:filename',
     tag: 'media',
     summary: 'Lokales Video streamen',
     responseType: 'video/mp4',
     response: { type: 'string' },
+  },
+  {
+    method: 'delete',
+    path: '/api/media/:filename',
+    tag: 'media',
+    summary: 'Lokales Video löschen',
+    response: 'Ok',
   },
   {
     method: 'get',

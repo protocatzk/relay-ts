@@ -12,6 +12,7 @@ import type {
   LogEntry,
   LogsResponse,
   MediaFile,
+  MediaUploadResult,
   Playlist,
   PlaylistInput,
   PlaylistsResponse,
@@ -286,6 +287,51 @@ export const api = {
 
   media: {
     list: () => request<{ files: MediaFile[] }>('/api/media'),
+    upload: (
+      file: File,
+      onProgress?: (percent: number) => void,
+    ): Promise<MediaUploadResult> =>
+      new Promise((resolve, reject) => {
+        const form = new FormData();
+        form.append('file', file);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/media');
+        xhr.withCredentials = true;
+        if (onProgress) {
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              onProgress(Math.round((event.loaded / event.total) * 100));
+            }
+          });
+        }
+        xhr.addEventListener('load', () => {
+          const data = (() => {
+            try {
+              return JSON.parse(xhr.responseText || '{}') as unknown;
+            } catch {
+              return null;
+            }
+          })();
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data as MediaUploadResult);
+            return;
+          }
+          const { code, message } = extractMessage(data, xhr.status);
+          if (xhr.status === 401) unauthorizedHandler?.();
+          reject(new ApiError(xhr.status, code, message));
+        });
+        xhr.addEventListener('error', () => {
+          reject(new ApiError(0, 'network_error', 'Verbindung zum Server fehlgeschlagen.'));
+        });
+        xhr.addEventListener('abort', () => {
+          reject(new ApiError(0, 'aborted', 'Upload abgebrochen.'));
+        });
+        xhr.send(form);
+      }),
+    remove: (filename: string) =>
+      request<{ ok: true }>(`/api/media/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      }),
   },
 
   playlists: {

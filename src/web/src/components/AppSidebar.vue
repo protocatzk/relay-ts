@@ -124,6 +124,26 @@ function isActive(path: string): boolean {
       </RouterLink>
 
       <RouterLink
+        to="/media"
+        class="nav-link"
+        :class="{ 'is-active': isActive('/media') }"
+        :aria-current="isActive('/media') ? 'page' : undefined"
+        @click="emit('close')"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
+          <path
+            d="M6.4 6.4 8 4.8h8l1.6 1.6m-11.2 0-1.6 1.6v8l1.6 1.6h11.2L19 16v-8l-1.6-1.6m-11.2 0L5 6m1.4.4L8 4.8"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span>Medien</span>
+      </RouterLink>
+
+      <RouterLink
         to="/settings"
         class="nav-link"
         :class="{ 'is-active': isActive('/settings') }"
