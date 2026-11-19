@@ -84,7 +84,7 @@ export function parseColor(value: string, fallback: Rgba = { r: 0, g: 0, b: 0, a
   const at = raw.lastIndexOf('@');
   const base = (at > 0 ? raw.slice(0, at) : raw).trim();
   const alpha = at > 0 ? Number(raw.slice(at + 1)) : undefined;
-  let rgb: [number, number, number] | null = null;
+  let rgb: [number, number, number] | null;
   const hex = /^#?([0-9a-f]{6})$/i.exec(base);
   if (hex) {
     const value = hex[1]!;
