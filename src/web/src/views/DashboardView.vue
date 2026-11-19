@@ -553,28 +553,16 @@ onBeforeUnmount(() => {
       />
     </section>
 
-    <div class="dash-2col">
+    <div class="dash-grid">
+      <div v-if="status?.watchdog.last_error" class="alert alert-warn span-3" role="status">
+        <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
+      </div>
+
       <LivePreview :state="state" />
 
-      <div class="stack">
-        <YoutubeChatPanel />
+      <YoutubeChatPanel />
 
-        <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
-          <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
-        </div>
-      </div>
-    </div>
-
-    <div class="dash-2col">
-      <EarningsPanel
-        v-if="status?.earnings"
-        :earnings="status.earnings"
-        :refreshing="refreshingEarnings"
-        @refresh="refreshEarnings"
-        @period="changeEarningsPeriod"
-      />
-
-      <section class="card dashboard-live" :class="{ 'dash-span-full': !status?.earnings }">
+      <section class="card dashboard-live">
       <div class="card-head">
         <div>
           <h2 class="card-title">Overlay & Technik</h2>
@@ -666,9 +654,13 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    </div>
-
-    <div class="dashboard-grid">
+      <EarningsPanel
+        v-if="status?.earnings"
+        :earnings="status.earnings"
+        :refreshing="refreshingEarnings"
+        @refresh="refreshEarnings"
+        @period="changeEarningsPeriod"
+      />
       <section class="card">
         <div class="card-head">
           <div>
@@ -772,9 +764,8 @@ onBeforeUnmount(() => {
           <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
         </div>
       </section>
-    </div>
 
-    <section class="card">
+    <section class="card span-3">
       <div class="card-head">
         <div>
           <h2 class="card-title">Streamer</h2>
@@ -837,5 +828,6 @@ onBeforeUnmount(() => {
         </li>
       </ul>
     </section>
+    </div>
   </div>
 </template>
