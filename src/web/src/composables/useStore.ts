@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 import { api } from '@/src/api/client';
 import type { AuthMe, LogEntry, Playlist, StatusPayload, Streamer } from '@/src/api/types';
+import { recordStatus, resetTelemetry } from '@/src/composables/useTelemetry';
 
 export type ConnectionMode = 'connecting' | 'live' | 'offline';
 
@@ -98,6 +99,7 @@ export async function refreshStatus(): Promise<void> {
   store.loading.status = true;
   try {
     store.status = await api.status.get();
+    recordStatus(store.status);
   } finally {
     store.loading.status = false;
   }
@@ -168,7 +170,10 @@ function connectEvents(): void {
   source.addEventListener('status', (event) => {
     try {
       const payload = JSON.parse((event as MessageEvent<string>).data) as StatusPayload;
-      if (payload && typeof payload === 'object' && 'state' in payload) store.status = payload;
+      if (payload && typeof payload === 'object' && 'state' in payload) {
+        store.status = payload;
+        recordStatus(payload);
+      }
     } catch {
       /* ignore malformed events */
     }
@@ -226,6 +231,7 @@ export function resetSession(): void {
   stopEvents();
   initialized = false;
   logKeys = new Set<string>();
+  resetTelemetry();
   store.authenticated = false;
   store.authChecked = false;
   store.status = null;

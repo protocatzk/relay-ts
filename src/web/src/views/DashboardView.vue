@@ -6,7 +6,9 @@ import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
 import YoutubeChatPanel from '@/src/components/YoutubeChatPanel.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
+import ModuleVital from '@/src/components/ModuleVital.vue';
 import { useStore } from '@/src/composables/useStore';
+import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
 import {
   formatBitrate,
@@ -18,6 +20,7 @@ import {
 import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
 const { store, refreshStatus, refreshStreamers, refreshPlaylists } = useStore();
+const { series } = useTelemetry();
 const { pushToast } = useToast();
 
 const busy = ref<string | null>(null);
@@ -29,6 +32,22 @@ const status = computed(() => store.status);
 const state = computed(() => status.value?.state ?? null);
 const isPaused = computed(() => state.value === 'paused');
 const manualScreen = computed(() => status.value?.manual_screen ?? null);
+
+const sourceTone = computed(() => {
+  if (state.value === 'error') return 'danger';
+  if (state.value === 'reconnecting' || !status.value?.source.connected) return 'warning';
+  if (status.value?.source.connected) return 'success';
+  return undefined;
+});
+const sinkTone = computed(() => {
+  if (state.value === 'error') return 'danger';
+  if (state.value === 'live' && status.value?.sink.running) return 'success';
+  if (state.value === 'reconnecting') return 'warning';
+  return undefined;
+});
+const watchdogTone = computed(() =>
+  status.value?.watchdog.last_error ? 'danger' : undefined,
+);
 
 const canStart = computed(
   () =>
@@ -619,68 +638,38 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="metric-grid" aria-label="Stream-Metriken">
-      <div class="card metric">
-        <span class="metric-label">Relay-Puffer</span>
-        <span class="metric-value mono">{{ formatSeconds(status?.relay.buffer_seconds) }}</span>
-        <span class="metric-sub"
-          >Verzögerung {{ formatNumber(status?.relay.delay_seconds) }} s</span
-        >
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Quelle</span>
-        <span class="metric-value mono">{{ formatBitrate(status?.source.bitrate_kbps) }}</span>
-        <span class="metric-sub">
-          {{ status?.source.connected ? 'Verbunden' : 'Nicht verbunden' }} ·
-          {{ formatNumber(status?.source.reconnects) }} Reconnects
-        </span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Ausgang</span>
-        <span class="metric-value mono">{{ formatBitrate(status?.sink.bitrate_kbps) }}</span>
-        <span class="metric-sub">
-          Ziel {{ formatBitrate(status?.sink.target_bitrate_kbps) }} ·
-          {{ status?.sink.running ? 'Läuft' : 'Gestoppt' }}
-        </span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">FPS</span>
-        <span class="metric-value mono">{{ formatFps(status?.sink.fps) }}</span>
-        <span class="metric-sub">Geschwindigkeit {{ status?.sink.speed ?? '–' }}</span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Dropped Frames</span>
-        <span class="metric-value mono">{{ formatNumber(status?.sink.dropped_frames) }}</span>
-        <span class="metric-sub">{{ formatNumber(status?.sink.restarts) }} Sink-Neustarts</span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Watchdog-Stalls</span>
-        <span class="metric-value mono">{{ formatNumber(status?.watchdog.stall_count) }}</span>
-        <span class="metric-sub">
-          Timeout {{ formatNumber(status?.watchdog.stall_timeout) }} s
-        </span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Auto-Refresh</span>
-        <span class="metric-value mono">
-          {{
-            status?.auto_refresh.enabled && status.auto_refresh.next_refresh_in_seconds != null
-              ? formatUptime(status.auto_refresh.next_refresh_in_seconds)
-              : 'Aus'
-          }}
-        </span>
-        <span class="metric-sub">
-          Alle {{ formatNumber(status?.auto_refresh.interval_minutes) }} Min. ·
-          {{ formatNumber(status?.auto_refresh.count) }}×
-        </span>
-      </div>
-      <div class="card metric">
-        <span class="metric-label">Relay-Daten</span>
-        <span class="metric-value mono">{{ formatNumber(status?.relay.ingest_clients) }}</span>
-        <span class="metric-sub">
-          Ingest-Clients · Pacing {{ formatBitrate(status?.relay.pacing_kbps) }}
-        </span>
-      </div>
+    <section class="vitals-rail" aria-label="System-Vitals">
+      <ModuleVital
+        label="Quelle"
+        :value="formatBitrate(status?.source.bitrate_kbps)"
+        :sub="`${status?.source.connected ? 'Verbunden' : 'Nicht verbunden'} · ${formatNumber(status?.source.reconnects)} Reconnects`"
+        module="source"
+        :series="series('source_kbps')"
+        :tone="sourceTone"
+      />
+      <ModuleVital
+        label="Relay"
+        :value="formatSeconds(status?.relay.buffer_seconds)"
+        :sub="`Verzögerung ${formatNumber(status?.relay.delay_seconds)} s · ${formatNumber(status?.relay.ingest_clients)} Ingest`"
+        module="relay"
+        :series="series('relay_buffer_s')"
+      />
+      <ModuleVital
+        label="Sink"
+        :value="formatBitrate(status?.sink.bitrate_kbps)"
+        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}`"
+        module="sink"
+        :series="series('sink_kbps')"
+        :tone="sinkTone"
+      />
+      <ModuleVital
+        label="Watchdog"
+        :value="formatNumber(status?.watchdog.stall_count)"
+        :sub="status?.watchdog.last_error ?? `Timeout ${formatNumber(status?.watchdog.stall_timeout)} s`"
+        module="watchdog"
+        :series="series('watchdog_stalls')"
+        :tone="watchdogTone"
+      />
     </section>
 
     <div class="dashboard-grid">

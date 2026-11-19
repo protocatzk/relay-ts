@@ -16,6 +16,7 @@ const focusableSelector =
 let sidebarWasOpen = false;
 
 const isAuthLayout = computed(() => route.meta.layout === 'auth');
+const isDeckLayout = computed(() => route.meta.layout === 'deck');
 
 function sidebarElement(): HTMLElement | null {
   return document.getElementById('sidebar');
@@ -100,6 +101,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="isAuthLayout" class="auth-shell">
+    <router-view />
+  </div>
+
+  <div v-else-if="isDeckLayout" class="deck-shell">
     <router-view />
   </div>
 

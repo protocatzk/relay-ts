@@ -53,6 +53,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Logs' },
   },
   {
+    path: '/deck',
+    name: 'deck',
+    component: () => import('@/src/views/StreamDeckView.vue'),
+    meta: { title: 'Stream-Deck', layout: 'deck' },
+  },
+  {
     path: '/login',
     name: 'login',
     component: () => import('@/src/views/LoginView.vue'),

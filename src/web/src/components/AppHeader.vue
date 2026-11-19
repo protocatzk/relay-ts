@@ -57,6 +57,19 @@ async function handleLogout(): Promise<void> {
 
     <div class="header-actions">
       <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        aria-label="Stream-Deck öffnen"
+        title="Stream-Deck (Vollbild-Steuerung)"
+        @click="router.push('/deck')"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8" />
+          <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1.8" />
+        </svg>
+        <span class="hide-xs">Deck</span>
+      </button>
+      <button
         v-if="pwaState.canInstall || pwaState.isIos"
         type="button"
         class="btn btn-ghost btn-sm"
