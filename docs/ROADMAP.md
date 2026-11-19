@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-19** · Version **0.6.0**
+Stand: **2026-11-19** · Version **0.6.1**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -73,6 +73,15 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 - Live-Menü im Header für Stream-Auswahl und manuelles Beenden.
 - Mehrzeilige Einnahmen-Templates inklusive Vorschau und Stream-Ausgabe.
 - Globales Video-Layout mit Größe (50–400 %), Zoom/Beschnitt und Position.
+
+### v0.6.1 – Refactoring
+
+**Status: veröffentlicht in 0.6.1.** Keine bewussten Verhaltensänderungen.
+
+- Supervisor in `StatusBuilder`, `OverlayRuntime`, `SinkController`,
+  `PauseController` und `SourceSession` aufgeteilt.
+- Charakterisierungstests für Status, Sink-Restart, Pause-Timer, Source-Refresh
+  und Reconnect-State ergänzt.
 
 ## Definition of Done
 
