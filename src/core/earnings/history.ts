@@ -107,9 +107,10 @@ export class EarningsHistoryStore {
     streamerId: string | null,
     period: EarningsPeriod,
     limit = 240,
+    now = Date.now(),
   ): EarningsHistoryPoint[] {
     this.load();
-    const start = periodStart(period);
+    const start = periodStart(period, now);
     const filtered = this.points.filter((point) => {
       if (streamerId && point.streamer_id !== streamerId) return false;
       if (point.period !== period) return false;
@@ -119,8 +120,8 @@ export class EarningsHistoryStore {
     return filtered.slice(-Math.max(1, Math.min(limit, 1000)));
   }
 
-  delta(streamerId: string | null, period: EarningsPeriod): EarningsDelta | null {
-    const points = this.query(streamerId, period, 1000);
+  delta(streamerId: string | null, period: EarningsPeriod, now = Date.now()): EarningsDelta | null {
+    const points = this.query(streamerId, period, 1000, now);
     if (points.length < 2) return null;
     const first = points[0]!;
     const last = points[points.length - 1]!;

@@ -59,10 +59,13 @@ describe('earnings history', () => {
 
   it('computes the delta since the first point in the period', () => {
     const { store } = setup();
-    const now = Date.now();
+    // Fixed midday timestamp so the "1 hour ago" point stays within the same
+    // "today" window regardless of the wall clock (the previous Date.now()
+    // version failed between 00:00 and 01:00 when the point fell on yesterday).
+    const now = new Date('2026-11-18T12:00:00').getTime();
     store.append(point(new Date(now - 3600_000).toISOString(), 10, 100));
     store.append(point(new Date(now).toISOString(), 25, 250));
-    expect(store.delta('kiyan', 'today')).toEqual({
+    expect(store.delta('kiyan', 'today', now)).toEqual({
       net: 15,
       gross: 30,
       coins: 150,
