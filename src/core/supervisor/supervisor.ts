@@ -339,8 +339,9 @@ export class Supervisor {
       settings: this.settings,
       logger,
       getActive: () => this.activeStreamer,
-      onUpdate: (_snapshot, overlayText) => {
+      onUpdate: (snapshot, overlayText) => {
         this.overlays.updateEarnings(overlayText);
+        this.deps.bus.emit({ type: 'earnings', data: snapshot });
       },
       history: earningsHistory,
     });
@@ -1652,7 +1653,6 @@ export class Supervisor {
       watchdog: this.watchdog?.stats(),
       autoRefresh: this.autoRefresh?.stats(),
       chat: this.chatStatus(),
-      earnings: this.earnings?.get() ?? null,
     });
   }
 }

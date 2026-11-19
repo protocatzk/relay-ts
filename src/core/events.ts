@@ -65,14 +65,14 @@ export interface StatusSnapshot {
     api_configured: boolean;
     canvas_active: boolean;
   };
-  earnings: EarningsSnapshot | null;
   version: string;
 }
 
 export type SystemEvent =
   | { type: 'status'; data: StatusSnapshot }
   | { type: 'streamers'; data: StreamerView[] }
-  | { type: 'log'; data: LogEntry };
+  | { type: 'log'; data: LogEntry }
+  | { type: 'earnings'; data: EarningsSnapshot };
 
 export class EventBus {
   private readonly subject = new Subject<SystemEvent>();

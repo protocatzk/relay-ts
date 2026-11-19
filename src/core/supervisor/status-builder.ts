@@ -1,6 +1,5 @@
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import type { StatusSnapshot, StreamState } from '../events.js';
-import type { EarningsSnapshot } from '../earnings/monitor.js';
 import type { TikTokSource } from '../source/tiktok-source.js';
 import type { MpegTsRelay } from '../relay/relay-server.js';
 import type { DelayBuffer } from '../relay/delay-buffer.js';
@@ -30,7 +29,6 @@ export interface StatusBuilderContext {
   watchdog?: ReturnType<Watchdog['stats']>;
   autoRefresh?: ReturnType<AutoRefresh['stats']>;
   chat: StatusSnapshot['chat'];
-  earnings: EarningsSnapshot | null;
 }
 
 /** Builds the API/SSE status snapshot from the current supervisor state. */
@@ -54,7 +52,6 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     watchdog,
     autoRefresh,
     chat,
-    earnings,
   } = context;
   const now = Date.now();
   return {
@@ -117,7 +114,6 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
       count: autoRefresh?.count ?? 0,
     },
     chat,
-    earnings,
     version: VERSION,
   };
 }

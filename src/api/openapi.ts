@@ -751,7 +751,6 @@ const components = {
         watchdog: { type: 'object' },
         auto_refresh: { type: 'object' },
         chat: { type: 'object' },
-        earnings: { type: ['object', 'null'] },
         version: { type: 'string', example: VERSION },
       },
     },

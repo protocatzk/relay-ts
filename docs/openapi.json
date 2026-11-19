@@ -3559,12 +3559,6 @@
           "chat": {
             "type": "object"
           },
-          "earnings": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
           "version": {
             "type": "string",
             "example": "0.9.1"

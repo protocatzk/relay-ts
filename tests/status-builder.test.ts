@@ -35,7 +35,6 @@ function context(overrides: Partial<StatusBuilderContext> = {}): StatusBuilderCo
     reconnecting: false,
     monitorOnline: true,
     chat,
-    earnings: null,
     ...overrides,
   };
 }

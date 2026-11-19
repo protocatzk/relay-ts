@@ -165,7 +165,6 @@ export interface StatusPayload {
   watchdog: WatchdogStatus;
   auto_refresh: AutoRefreshStatus;
   chat: ChatStatus;
-  earnings: EarningsSnapshot | null;
   version: string;
 }
 

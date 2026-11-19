@@ -78,7 +78,6 @@ function status(): StatusSnapshot {
       api_configured: false,
       canvas_active: false,
     },
-    earnings: null,
     version: VERSION,
   };
 }

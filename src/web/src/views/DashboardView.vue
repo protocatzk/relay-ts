@@ -18,7 +18,7 @@ import {
 } from '@/src/utils/format';
 import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
-const { store, refreshStatus, refreshStreamers, refreshPlaylists } = useStore();
+const { store, refreshStatus, refreshStreamers, refreshPlaylists, refreshEarnings: syncEarnings } = useStore();
 const { series } = useTelemetry();
 const { pushToast } = useToast();
 
@@ -127,7 +127,7 @@ async function refreshEarnings(): Promise<void> {
   refreshingEarnings.value = true;
   try {
     await api.earnings.refresh();
-    await refreshStatus();
+    await syncEarnings();
     pushToast('Einnahmen aktualisiert.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -140,7 +140,7 @@ async function changeEarningsPeriod(period: EarningsPeriod): Promise<void> {
   refreshingEarnings.value = true;
   try {
     await api.earnings.setPeriod(period);
-    await refreshStatus();
+    await syncEarnings();
     pushToast('Einnahmen-Zeitraum geändert.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -653,8 +653,8 @@ onBeforeUnmount(() => {
     </section>
 
       <EarningsPanel
-        v-if="status?.earnings"
-        :earnings="status.earnings"
+        v-if="store.earnings"
+        :earnings="store.earnings"
         :refreshing="refreshingEarnings"
         @refresh="refreshEarnings"
         @period="changeEarningsPeriod"
