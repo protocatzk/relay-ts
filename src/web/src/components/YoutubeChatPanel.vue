@@ -7,9 +7,6 @@ const connected = ref(false);
 const loading = ref(false);
 const error = ref('');
 const broadcasts = ref<YouTubeBroadcast[]>([]);
-const open = ref(false);
-
-const hostname = computed(() => window.location.hostname || 'relay.positronium.dev');
 
 /** Prefer a currently live broadcast; otherwise the one with an active ingest. */
 const liveBroadcast = computed<YouTubeBroadcast | null>(
@@ -22,9 +19,7 @@ const liveBroadcast = computed<YouTubeBroadcast | null>(
 const chatUrl = computed(() => {
   const broadcast = liveBroadcast.value;
   if (!broadcast) return '';
-  const videoId = encodeURIComponent(broadcast.id);
-  const domain = encodeURIComponent(hostname.value);
-  return `https://www.youtube.com/live_chat?v=${videoId}&embed_domain=${domain}`;
+  return `https://www.youtube.com/live_chat?v=${encodeURIComponent(broadcast.id)}`;
 });
 
 async function load(): Promise<void> {
@@ -46,10 +41,6 @@ async function load(): Promise<void> {
   }
 }
 
-function toggle(): void {
-  open.value = !open.value;
-}
-
 onMounted(load);
 </script>
 
@@ -58,7 +49,7 @@ onMounted(load);
     <div class="card-head">
       <div>
         <h2 id="youtube-chat-title" class="card-title">YouTube-Chat</h2>
-        <p class="card-sub">Live-Chat des aktiven Broadcasts, eingebettet.</p>
+        <p class="card-sub">Live-Chat des aktiven Broadcasts öffnen.</p>
       </div>
       <div class="card-badges">
         <span
@@ -88,33 +79,19 @@ onMounted(load);
     <template v-else>
       <p v-if="!liveBroadcast && !loading" class="muted">
         Es läuft gerade kein Live-Broadcast. Sobald ein Broadcast live ist, kann der Chat hier
-        eingeblendet werden.
+        geöffnet werden.
       </p>
 
       <div v-if="liveBroadcast" class="stack">
-        <div class="youtube-chat-stage" :class="{ 'is-open': open }">
-          <iframe
-            v-if="open && chatUrl"
-            :src="chatUrl"
-            class="youtube-chat-frame"
-            title="YouTube Live-Chat"
-            referrerpolicy="origin"
-            allow="autoplay; encrypted-media"
-            loading="lazy"
-          ></iframe>
-          <div v-else class="youtube-chat-placeholder">
-            <p>Chat wird erst beim Öffnen geladen.</p>
-          </div>
-        </div>
         <div class="live-preview-actions">
-          <button
-            type="button"
+          <a
+            :href="chatUrl"
+            target="_blank"
+            rel="noopener noreferrer"
             class="btn btn-primary btn-sm"
-            :disabled="loading"
-            @click="toggle"
           >
-            {{ open ? 'Chat schließen' : 'Chat öffnen' }}
-          </button>
+            Chat öffnen
+          </a>
           <button
             type="button"
             class="btn btn-ghost btn-sm"
@@ -125,8 +102,8 @@ onMounted(load);
           </button>
         </div>
         <p class="muted small">
-          Hinweis: Die Anmeldung im Chat hängt von deinem Browser-Konto bei Google ab – nicht vom
-          serverseitigen OAuth von RELAY. Ohne Browser-Login ist der Chat nur lesbar.
+          Der Chat öffnet in einem neuen Tab auf youtube.com. Ob du dort angemeldet bist, hängt
+          von deinem Browser-Konto bei Google ab – nicht vom serverseitigen OAuth von RELAY.
         </p>
       </div>
     </template>
