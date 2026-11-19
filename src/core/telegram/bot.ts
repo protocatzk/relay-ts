@@ -1173,7 +1173,7 @@ export class TelegramBot {
   private async sendEarnings(
     chatId: number,
     period?: string,
-    query: TelegramCallbackQuery | null = null,
+    _query: TelegramCallbackQuery | null = null,
   ): Promise<void> {
     const control = this.options.control;
     if (!control?.earnings) {
@@ -1355,7 +1355,7 @@ export class TelegramBot {
 
   private async sendScreens(
     chatId: number,
-    query: TelegramCallbackQuery | null = null,
+    _query: TelegramCallbackQuery | null = null,
   ): Promise<void> {
     const control = this.options.control;
     if (!control?.showScreen || !control.hideScreen) {
@@ -1389,7 +1389,7 @@ export class TelegramBot {
 
   private async sendOverlays(
     chatId: number,
-    query: TelegramCallbackQuery | null = null,
+    _query: TelegramCallbackQuery | null = null,
   ): Promise<void> {
     const settings = this.options.control?.settings?.();
     if (!settings) {

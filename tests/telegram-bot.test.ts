@@ -614,7 +614,7 @@ describe('Telegram bot control', () => {
   });
 
   it('creates a YouTube broadcast through the wizard', async () => {
-    const { bot, calls, stopped } = setup();
+    const { bot, stopped } = setup();
     const handler = bot as unknown as {
       handleCallback: (q: unknown) => Promise<void>;
       handleMessage: (m: unknown) => Promise<void>;

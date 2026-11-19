@@ -52,13 +52,6 @@ function jsonResponse(schema: Schema | string, description = 'OK'): Schema {
   };
 }
 
-function binaryResponse(contentType: string, description = 'OK'): Schema {
-  return {
-    description,
-    content: { [contentType]: { schema: { type: 'string', format: 'binary' } } },
-  };
-}
-
 function body(schema: Schema | string, contentType = 'application/json'): Schema {
   return {
     required: true,
