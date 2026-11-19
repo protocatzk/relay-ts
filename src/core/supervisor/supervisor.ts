@@ -39,6 +39,7 @@ import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
 import { buildStatusSnapshot } from './status-builder.js';
 import { OverlayRuntime } from './overlay-runtime.js';
+import { SinkController } from './sink-controller.js';
 import { incMetric } from '../metrics.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
 import {
@@ -104,7 +105,7 @@ export class Supervisor {
   private relay!: MpegTsRelay;
   private resolver!: { resolve(streamer: StreamerConfig): Promise<ResolvedStream> };
   private source!: TikTokSource;
-  private sink!: YouTubeSink;
+  private sinkController!: SinkController;
   private overlays!: OverlayManager;
   private pauseScreen!: PauseScreen;
   private startupScreen!: PauseScreen;
@@ -118,20 +119,12 @@ export class Supervisor {
   private activeStreamer: StreamerConfig | null = null;
   private activeMediaFile: string | null = null;
   private readonly playlistController: PlaylistController;
-  private activeKey = '';
-  private activeOverlayFilters: string[] = [];
-  private activeOverlayInput?: SinkOverlayInput;
-  private activeOverlaySignature = '';
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
   private reconnects = 0;
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
-  private sinkRestartTimer?: NodeJS.Timeout;
-  private sinkStartTimer?: NodeJS.Timeout;
-  private youtubeStartTimer?: NodeJS.Timeout;
-  private sinkStarting = false;
   private pauseRestartTimer?: NodeJS.Timeout;
   private pauseLimitTimer?: NodeJS.Timeout;
   private startupTimer?: NodeJS.Timeout;
@@ -139,7 +132,6 @@ export class Supervisor {
   private statusTimer?: NodeJS.Timeout;
   private autoStartTimer?: NodeJS.Timeout;
   private stoppingSource = 0;
-  private stoppingSink = false;
   private shuttingDown = false;
   private pauseReason: 'user' | 'offline' | null = null;
   private manualScreen: 'startup' | 'pause' | null = null;
@@ -147,7 +139,6 @@ export class Supervisor {
   private resolving = false;
   private producerStartedAt: number | null = null;
   private producerOffset = 0;
-  private sinkGraceUntil = 0;
 
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
@@ -239,13 +230,26 @@ export class Supervisor {
       onExit: (code, signal) => this.handleSourceExit(code, signal),
       onCodecProblem: (line) => this.handleCodecProblem(line),
     });
-    this.sink = new YouTubeSink({
+    const sink = new YouTubeSink({
       media: config.media,
       settings: this.settings,
       relay: relayEndpoint,
       logger,
       redact: this.deps.redact,
       onExit: () => this.handleSinkExit(),
+    });
+    this.sinkController = new SinkController({
+      sink,
+      settings: this.settings,
+      logger,
+      lock: this.lock,
+      isShuttingDown: () => this.shuttingDown,
+      canStartDelayed: () =>
+        this.source.running || this.pauseScreen.running || this.startupScreen.running,
+      onStarted: () => this.overlayRuntime.attachToSink(this.sinkController.overlayStream()),
+      onStopping: () => this.overlayRuntime.detachEngine(),
+      onPrefillDone: () => this.emitAll(),
+      youtube: () => this.deps.youtube,
     });
     this.overlays = new OverlayManager(
       { media: config.media, overlaysDir: config.paths.overlaysDir, logger },
@@ -282,16 +286,16 @@ export class Supervisor {
       snapshot: () => ({
         state: this.state,
         relayLastDataAt: this.relay.lastData,
-        sinkRunning: this.sink.running,
-        sinkStarting: this.sinkStarting,
-        sinkLastProgressAt: this.sink.lastProgressAt,
+        sinkRunning: this.sinkController.running,
+        sinkStarting: this.sinkController.starting,
+        sinkLastProgressAt: this.sinkController.lastProgressAt,
         sourceRunning: this.source.running,
         sourceStartedAt: this.source.startedAt,
-        sinkStartedAt: this.sink.startedAt,
+        sinkStartedAt: this.sinkController.startedAt,
         sourceBitrateKbps: this.source.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
         sourceOutputSeconds: this.source.outputTimeSeconds,
         suppressStall: this.playlistController.isAdvancePending,
-        sinkGraceUntil: this.sinkGraceUntil,
+        sinkGraceUntil: this.sinkController.graceUntil,
       }),
       onRelayStall: (age) => void this.handleRelayStall(age),
       onSinkDown: () => this.scheduleSinkRestart(1000),
@@ -361,8 +365,7 @@ export class Supervisor {
   }
 
   private markSinkGrace(): void {
-    const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
-    this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
+    this.sinkController.markGrace();
   }
 
   private resetTimeline(): void {
@@ -503,12 +506,12 @@ export class Supervisor {
 
   private rebuildChatEngineLocked(): void {
     const rebuilt = this.overlayRuntime.rebuildEngine(
-      this.activeOverlayFilters,
+      this.sinkController.filters,
       Boolean(this.activeStreamer),
     );
     if (!rebuilt) return;
-    this.activeOverlayInput = rebuilt.panel;
-    this.activeOverlaySignature = rebuilt.signature;
+    this.sinkController.overlayInput = rebuilt.panel;
+    this.sinkController.signature = rebuilt.signature;
   }
 
   private async startFileLocked(
@@ -520,12 +523,12 @@ export class Supervisor {
     if (!path || !existsSync(path)) {
       throw new ValidationError(`Lokales Video "${file}" wurde nicht gefunden`);
     }
-    this.clearSinkStartTimer();
+    this.sinkController.clearStartTimer();
     const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
     const prepared = this.overlays.prepare();
     const signature = this.overlayRuntime.signature(prepared.filters, undefined);
     await this.stopSourceAndChatLocked();
-    if (this.sink.running) await this.stopSinkLocked();
+    if (this.sinkController.running) await this.stopSinkLocked();
     this.buffer.reset();
     this.resetTimeline();
     this.overlayRuntime.stopEngine();
@@ -534,10 +537,10 @@ export class Supervisor {
 
     this.activeStreamer = null;
     this.activeMediaFile = file;
-    this.activeKey = options.key;
-    this.activeOverlayFilters = prepared.filters;
-    this.activeOverlayInput = undefined;
-    this.activeOverlaySignature = signature;
+    this.sinkController.key = options.key;
+    this.sinkController.filters = prepared.filters;
+    this.sinkController.overlayInput = undefined;
+    this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = file;
     this.pauseReason = null;
@@ -582,7 +585,7 @@ export class Supervisor {
     options: StartOptions,
   ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
-    this.clearSinkStartTimer();
+    this.sinkController.clearStartTimer();
     const key = options.key ?? resolveStreamKey(streamer).key;
     if (!key) throw new MissingStreamKeyError();
     this.deps.registerSecret(key);
@@ -590,7 +593,7 @@ export class Supervisor {
     if (
       this.activeStreamer?.id === streamer.id &&
       this.state === 'live' &&
-      this.activeKey === key &&
+      this.sinkController.key === key &&
       !options.forceReencode
     ) {
       return this.buildStatus();
@@ -627,13 +630,13 @@ export class Supervisor {
     }
     this.resolving = false;
 
-    const previousKey = this.activeKey;
+    const previousKey = this.sinkController.key;
     const prepared = this.overlays.prepare();
     const candidateEngine = this.overlayRuntime.createEngine();
     const overlayInput = candidateEngine?.panel;
     const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
     const reusable =
-      this.sink.running && previousKey === key && this.activeOverlaySignature === signature;
+      this.sinkController.running && previousKey === key && this.sinkController.signature === signature;
     const timestampOffset = reusable ? this.nextProducerOffset() : 0;
 
     await this.stopSourceAndChatLocked();
@@ -641,19 +644,19 @@ export class Supervisor {
     if (!reusable) {
       this.buffer.reset();
       this.resetTimeline();
-      if (previousKey && previousKey !== key) this.notifyYouTubeStopped(previousKey);
-      if (this.sink.running) await this.stopSinkLocked();
+      if (previousKey && previousKey !== key) this.sinkController.notifyStopped(previousKey);
+      if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine);
     } else if (!this.overlayRuntime.engine && candidateEngine) {
-      this.overlayRuntime.adoptEngine(candidateEngine, this.sink.overlayStream());
+      this.overlayRuntime.adoptEngine(candidateEngine, this.sinkController.overlayStream());
     }
     this.applyConfiguredDelay();
 
     this.activeStreamer = streamer;
-    this.activeKey = key;
-    this.activeOverlayFilters = prepared.filters;
-    this.activeOverlayInput = overlayInput;
-    this.activeOverlaySignature = signature;
+    this.sinkController.key = key;
+    this.sinkController.filters = prepared.filters;
+    this.sinkController.overlayInput = overlayInput;
+    this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = stream.title;
     this.pauseReason = null;
@@ -754,23 +757,23 @@ export class Supervisor {
     const overlayInput = candidateEngine?.panel;
     const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
     const reusable =
-      this.sink.running && this.activeKey === key && this.activeOverlaySignature === signature;
+      this.sinkController.running && this.sinkController.key === key && this.sinkController.signature === signature;
 
     await this.stopSourceAndChatLocked();
     if (!reusable) {
       this.buffer.reset();
       this.resetTimeline();
-      if (this.sink.running) await this.stopSinkLocked();
+      if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine);
     } else if (!this.overlayRuntime.engine && candidateEngine) {
-      this.overlayRuntime.adoptEngine(candidateEngine, this.sink.overlayStream());
+      this.overlayRuntime.adoptEngine(candidateEngine, this.sinkController.overlayStream());
     }
 
     this.activeStreamer = streamer;
-    this.activeKey = key;
-    this.activeOverlayFilters = prepared.filters;
-    this.activeOverlayInput = overlayInput;
-    this.activeOverlaySignature = signature;
+    this.sinkController.key = key;
+    this.sinkController.filters = prepared.filters;
+    this.sinkController.overlayInput = overlayInput;
+    this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = streamer.name;
     this.reconnectAttempts = 0;
@@ -793,12 +796,6 @@ export class Supervisor {
     );
   }
 
-  private clearSinkStartTimer(): void {
-    if (this.sinkStartTimer) clearTimeout(this.sinkStartTimer);
-    this.sinkStartTimer = undefined;
-    this.sinkStarting = false;
-  }
-
   /**
    * On a cold start the delay line would hold the first packets for the whole
    * configured delay, leaving YouTube without media. Start the producer first
@@ -810,70 +807,22 @@ export class Supervisor {
     signature: string,
     overlayInput?: SinkOverlayInput,
   ): void {
-    this.clearSinkStartTimer();
-    this.clearYouTubeStartTimer();
-    this.activeKey = key;
-    this.activeOverlayFilters = filters;
-    this.activeOverlaySignature = signature;
-    this.activeOverlayInput = overlayInput;
     const delaySeconds = this.settings.delay_buffer.enabled
       ? Math.max(0, this.settings.delay_buffer.size)
       : 0;
-    const buffered = this.buffer?.stats().bufferSeconds ?? 0;
-    const remaining = Math.max(0, delaySeconds - buffered);
-    if (remaining <= 0) {
-      this.startSinkLocked(key, filters, signature, overlayInput);
-      return;
-    }
-    this.sinkStarting = true;
-    this.deps.logger.info(
-      { delaySeconds, bufferedSeconds: buffered, waitSeconds: remaining },
-      'Sink startet nach Delay-Prefill',
-    );
-    this.sinkStartTimer = setTimeout(() => {
-      this.sinkStartTimer = undefined;
-      this.sinkStarting = false;
-      void this.lock.run(async () => {
-        if (this.shuttingDown || this.sink.running || this.activeKey !== key) return;
-        if (!this.source.running && !this.pauseScreen.running && !this.startupScreen.running) {
-          this.deps.logger.warn('Delay-Prefill beendet, aber keine Quelle aktiv');
-          return;
-        }
-        this.startSinkLocked(key, filters, signature, overlayInput);
-        this.emitAll();
-      });
-    }, remaining * 1000 + 250);
-  }
-
-  private startSinkLocked(
-    key: string,
-    filters: string[],
-    signature: string,
-    overlayInput?: SinkOverlayInput,
-  ): void {
-    this.clearSinkStartTimer();
-    this.stoppingSink = false;
-    this.activeKey = key;
-    this.activeOverlayFilters = filters;
-    this.activeOverlayInput = overlayInput;
-    this.activeOverlaySignature = signature;
-    const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
-    this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
-    this.sink.start(key, filters, overlayInput);
-    this.scheduleYouTubeStarted(key);
-    if (overlayInput) this.overlayRuntime.attachToSink(this.sink.overlayStream());
+    const bufferedSeconds = this.buffer?.stats().bufferSeconds ?? 0;
+    this.sinkController.startOrPrefill({
+      key,
+      filters,
+      signature,
+      overlayInput,
+      delaySeconds,
+      bufferedSeconds,
+    });
   }
 
   private async stopSinkLocked(): Promise<void> {
-    this.clearSinkStartTimer();
-    this.clearYouTubeStartTimer();
-    this.stoppingSink = true;
-    this.overlayRuntime.detachEngine();
-    try {
-      await this.sink.stop();
-    } finally {
-      this.stoppingSink = false;
-    }
+    await this.sinkController.stop();
   }
 
   private async stopSourceAndChatLocked(): Promise<void> {
@@ -891,53 +840,13 @@ export class Supervisor {
     if (this.startupScreen?.running) await this.startupScreen.stop();
   }
 
-  private clearYouTubeStartTimer(): void {
-    if (this.youtubeStartTimer) clearTimeout(this.youtubeStartTimer);
-    this.youtubeStartTimer = undefined;
-  }
-
-  /**
-   * The hook must run after the sink actually publishes, not when the source
-   * starts. Otherwise YouTube sees an idle ingest and rejects the transition.
-   */
-  private scheduleYouTubeStarted(key: string): void {
-    this.clearYouTubeStartTimer();
-    if (!key) return;
-    this.youtubeStartTimer = setTimeout(() => {
-      this.youtubeStartTimer = undefined;
-      if (this.shuttingDown || !this.sink.running || this.activeKey !== key) return;
-      this.notifyYouTubeStarted(key);
-    }, 5000);
-    this.youtubeStartTimer.unref?.();
-  }
-
-  private notifyYouTubeStarted(key: string): void {
-    const hook = this.deps.youtube?.streamStarted;
-    if (!hook || !key) return;
-    void Promise.resolve()
-      .then(() => hook(key))
-      .catch((error: unknown) => {
-        this.deps.logger.warn({ err: toErrorMessage(error) }, 'YouTube-Autostart fehlgeschlagen');
-      });
-  }
-
-  private notifyYouTubeStopped(key: string): void {
-    const hook = this.deps.youtube?.streamStopped;
-    if (!hook || !key) return;
-    void Promise.resolve()
-      .then(() => hook(key))
-      .catch((error: unknown) => {
-        this.deps.logger.warn({ err: toErrorMessage(error) }, 'YouTube-Autostop fehlgeschlagen');
-      });
-  }
-
   async stop(): Promise<StatusSnapshot> {
     return this.lock.run(() => this.stopInternalLocked());
   }
 
   private async stopInternalLocked(): Promise<StatusSnapshot> {
-    this.clearYouTubeStartTimer();
-    const stoppingKey = this.activeKey;
+    this.sinkController.clearTimers();
+    const stoppingKey = this.sinkController.key;
     this.transitionTo('stopping');
     this.pauseReason = null;
     this.manualScreen = null;
@@ -948,7 +857,7 @@ export class Supervisor {
     await this.stopSinkLocked();
     // A container restart is not a user stop. Keep the broadcast for the next
     // start instead of completing it on every deploy.
-    if (!this.shuttingDown) this.notifyYouTubeStopped(stoppingKey);
+    if (!this.shuttingDown) this.sinkController.notifyStopped(stoppingKey);
     this.overlayRuntime.stopEngine();
     this.buffer.reset();
     this.overlays.clear();
@@ -956,10 +865,10 @@ export class Supervisor {
     this.activeStreamer = null;
     this.activeMediaFile = null;
     this.playlistController.detach();
-    this.activeKey = '';
-    this.activeOverlayFilters = [];
-    this.activeOverlayInput = undefined;
-    this.activeOverlaySignature = '';
+    this.sinkController.key = '';
+    this.sinkController.filters = [];
+    this.sinkController.overlayInput = undefined;
+    this.sinkController.signature = '';
     this.startedAt = null;
     this.activeTitle = '';
     this.lastError = null;
@@ -995,8 +904,8 @@ export class Supervisor {
    * YOUTUBE_STREAM_KEY acts as the last fallback.
    */
   private resolveScreenTarget(): { streamer: StreamerConfig | null; key: string } {
-    if (this.activeStreamer && this.activeKey) {
-      return { streamer: this.activeStreamer, key: this.activeKey };
+    if (this.activeStreamer && this.sinkController.key) {
+      return { streamer: this.activeStreamer, key: this.sinkController.key };
     }
     const streamers = this.deps.store.list();
     const ordered = [
@@ -1026,7 +935,7 @@ export class Supervisor {
       this.clearOfflinePauseTimer();
       this.clearPauseLimit();
       this.clearReconnectTimer();
-      this.clearSinkStartTimer();
+      this.sinkController.clearStartTimer();
       await this.stopSourceAndChatLocked();
 
       let pendingSink: {
@@ -1036,16 +945,16 @@ export class Supervisor {
         input?: SinkOverlayInput;
       } | null = null;
 
-      if (this.activeStreamer && this.activeKey) {
+      if (this.activeStreamer && this.sinkController.key) {
         // Keep the existing sink so the RTMP connection survives the swap.
-        if (!this.sink.running) {
+        if (!this.sinkController.running) {
           this.buffer.reset();
           this.resetTimeline();
           pendingSink = {
-            key: this.activeKey,
-            filters: this.activeOverlayFilters,
-            signature: this.activeOverlaySignature,
-            input: this.activeOverlayInput,
+            key: this.sinkController.key,
+            filters: this.sinkController.filters,
+            signature: this.sinkController.signature,
+            input: this.sinkController.overlayInput,
           };
         }
       } else {
@@ -1056,8 +965,8 @@ export class Supervisor {
           );
         }
         this.deps.registerSecret(target.key);
-        if (!this.sink.running || this.activeKey !== target.key) {
-          if (this.sink.running) await this.stopSinkLocked();
+        if (!this.sinkController.running || this.sinkController.key !== target.key) {
+          if (this.sinkController.running) await this.stopSinkLocked();
           this.overlayRuntime.stopEngine();
           this.overlayRuntime.resetMessages(false, false);
           this.buffer.reset();
@@ -1112,7 +1021,7 @@ export class Supervisor {
       this.clearPauseLimit();
       this.clearStartupTimer();
       return this.startStreamerLocked(streamer, {
-        key: this.activeKey,
+        key: this.sinkController.key,
         playlist: this.playlistController.current ?? undefined,
         allowOfflineWait: true,
         intro: false,
@@ -1147,10 +1056,8 @@ export class Supervisor {
 
   private clearAllTimers(): void {
     this.clearReconnectTimer();
-    this.clearSinkStartTimer();
+    this.sinkController.clearTimers();
     this.playlistController.clearTimers();
-    if (this.sinkRestartTimer) clearTimeout(this.sinkRestartTimer);
-    this.sinkRestartTimer = undefined;
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
     this.autoStartTimer = undefined;
     if (this.pauseRestartTimer) clearTimeout(this.pauseRestartTimer);
@@ -1228,12 +1135,12 @@ export class Supervisor {
         this.applyConfiguredDelay();
         const timestampOffset = this.nextProducerOffset();
         this.source.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
-        if (!this.sink.running && this.activeKey) {
+        if (!this.sinkController.running && this.sinkController.key) {
           this.startSinkOrPrefillLocked(
-            this.activeKey,
-            this.activeOverlayFilters,
-            this.activeOverlaySignature,
-            this.activeOverlayInput,
+            this.sinkController.key,
+            this.sinkController.filters,
+            this.sinkController.signature,
+            this.sinkController.overlayInput,
           );
         }
         this.markProducerStarted(timestampOffset);
@@ -1267,7 +1174,7 @@ export class Supervisor {
             this.emitStatus();
             return;
           }
-          if (this.settings.pause.enabled && this.sink.running && !this.pauseScreen.running) {
+          if (this.settings.pause.enabled && this.sinkController.running && !this.pauseScreen.running) {
             await this.startPauseLocked();
           }
           this.emitStatus();
@@ -1277,7 +1184,7 @@ export class Supervisor {
         if (
           error instanceof StreamerOfflineError &&
           this.settings.pause.enabled &&
-          this.sink.running &&
+          this.sinkController.running &&
           !this.pauseScreen.running &&
           this.reconnectAttempts >= 2
         ) {
@@ -1296,12 +1203,12 @@ export class Supervisor {
     this.applyConfiguredDelay();
     const timestampOffset = this.nextProducerOffset();
     await this.pauseScreen.start(undefined, undefined, timestampOffset);
-    if (!this.sink.running && this.activeKey) {
+    if (!this.sinkController.running && this.sinkController.key) {
       this.startSinkOrPrefillLocked(
-        this.activeKey,
-        this.activeOverlayFilters,
-        this.activeOverlaySignature,
-        this.activeOverlayInput,
+        this.sinkController.key,
+        this.sinkController.filters,
+        this.sinkController.signature,
+        this.sinkController.overlayInput,
       );
     }
     this.markProducerStarted(timestampOffset);
@@ -1351,13 +1258,13 @@ export class Supervisor {
    * the pause screen instead of letting the encoder starve.
    */
   private scheduleOfflinePauseLocked(): void {
-    if (this.offlinePauseTimer || !this.settings.pause.enabled || !this.sink.running) return;
+    if (this.offlinePauseTimer || !this.settings.pause.enabled || !this.sinkController.running) return;
     const delayMs = Math.max(0, this.settings.pause.grace_seconds) * 1000;
     this.offlinePauseTimer = setTimeout(() => {
       this.offlinePauseTimer = undefined;
       void this.lock.run(async () => {
         if (this.shuttingDown) return;
-        if (this.source.running || this.pauseScreen.running || !this.sink.running) return;
+        if (this.source.running || this.pauseScreen.running || !this.sinkController.running) return;
         if (this.playlistController.isAdvancePending) return;
         if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return;
         if (this.state === 'paused' && this.pauseReason === 'user') return;
@@ -1449,8 +1356,8 @@ export class Supervisor {
   }
 
   private handleSinkExit(): void {
-    if (this.stoppingSink || this.shuttingDown) return;
-    if (!this.activeStreamer || !this.activeKey) return;
+    if (this.sinkController.stopping || this.shuttingDown) return;
+    if (!this.activeStreamer || !this.sinkController.key) return;
     if (['idle', 'stopping'].includes(this.state)) return;
     this.overlayRuntime.detachEngine();
     this.deps.logger.warn('YouTube-Sink beendet – Neustart geplant');
@@ -1458,32 +1365,17 @@ export class Supervisor {
   }
 
   private scheduleSinkRestart(delayMs: number): void {
-    if (this.sinkRestartTimer || this.shuttingDown) return;
-    this.sinkRestartTimer = setTimeout(() => {
-      this.sinkRestartTimer = undefined;
-      void this.lock.run(async () => {
-        if (this.shuttingDown || !this.activeKey || ['idle', 'stopping'].includes(this.state))
-          return;
-        await this.restartSinkLocked();
-      });
-    }, delayMs);
+    this.sinkController.scheduleRestart(
+      delayMs,
+      () => this.restartSinkLocked(),
+      () => !this.shuttingDown && Boolean(this.sinkController.key) && !['idle', 'stopping'].includes(this.state),
+    );
   }
 
   private async restartSinkLocked(): Promise<void> {
-    if (!this.activeKey) return;
-    this.clearSinkStartTimer();
+    if (!this.sinkController.key) return;
     incMetric('sink_restarts_total');
-    if (this.sinkRestartTimer) {
-      clearTimeout(this.sinkRestartTimer);
-      this.sinkRestartTimer = undefined;
-    }
-    await this.stopSinkLocked();
-    this.startSinkLocked(
-      this.activeKey,
-      this.activeOverlayFilters,
-      this.activeOverlaySignature,
-      this.activeOverlayInput,
-    );
+    await this.sinkController.restart();
     this.emitAll();
   }
 
@@ -1551,9 +1443,9 @@ export class Supervisor {
 
   private async handleSinkStall(ageSeconds: number): Promise<void> {
     await this.lock.run(async () => {
-      if (this.shuttingDown || !this.activeKey) return;
+      if (this.shuttingDown || !this.sinkController.key) return;
       if (this.playlistController.isAdvancePending) return;
-      const last = this.sink.lastProgressAt;
+      const last = this.sinkController.lastProgressAt;
       if (last && Date.now() - last.getTime() < this.settings.watchdog.stall_timeout * 1000) {
         return;
       }
@@ -1567,7 +1459,7 @@ export class Supervisor {
   async applySettings(next: Settings, previous: Settings): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       this.settings = next;
-      this.sink.updateSettings(next);
+      this.sinkController.updateSettings(next);
       this.applyConfiguredDelay();
       this.buffer.setMaxBytes(this.bufferMaxBytes(next));
       this.watchdog.updateSettings(next);
@@ -1597,8 +1489,8 @@ export class Supervisor {
       let needsSinkRestart = false;
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
         const prepared = this.overlays.prepare();
-        this.activeOverlayFilters = prepared.filters;
-        this.activeOverlaySignature = this.overlayRuntime.signature(
+        this.sinkController.filters = prepared.filters;
+        this.sinkController.signature = this.overlayRuntime.signature(
           prepared.filters,
           this.activeStreamer ? this.overlayRuntime.engine : undefined,
         );
@@ -1607,7 +1499,7 @@ export class Supervisor {
 
       if (overlaysChanged && overlayCarrier) {
         const prepared = this.overlays.prepare();
-        this.activeOverlayFilters = prepared.filters;
+        this.sinkController.filters = prepared.filters;
         this.rebuildChatEngineLocked();
         if (this.state === 'live' && this.activeStreamer) {
           this.overlayRuntime.startChat(this.activeStreamer, { preserveMessages: true });
@@ -1639,7 +1531,7 @@ export class Supervisor {
         this.rebuildChatEngineLocked();
         needsSinkRestart = true;
       }
-      if (needsSinkRestart && this.sink.running) await this.restartSinkLocked();
+      if (needsSinkRestart && this.sinkController.running) await this.restartSinkLocked();
       if (videoEncodeChanged && this.source.running && this.source.resolved) {
         const reencoding =
           this.activeStreamer?.video_mode === 'reencode' || !this.source.resolved.isH264;
@@ -1868,7 +1760,7 @@ export class Supervisor {
       source: this.source?.stats(),
       relay: this.relay?.stats(),
       delay: this.buffer?.stats(),
-      sink: this.sink?.stats(),
+      sink: this.sinkController?.stats(),
       watchdog: this.watchdog?.stats(),
       autoRefresh: this.autoRefresh?.stats(),
       chat: this.chatStatus(),
