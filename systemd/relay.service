@@ -1,0 +1,40 @@
+[Unit]
+Description=RELAY restreamer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=relay
+Group=relay
+UMask=0077
+WorkingDirectory=/srv/relay/current
+EnvironmentFile=/etc/relay.env
+ExecStart=/opt/node22/bin/node dist/main.js
+Restart=always
+RestartSec=2s
+TimeoutStopSec=30s
+KillMode=mixed
+
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=169.254.169.254/32
+MemoryMax=2G
+TasksMax=256
+
+ReadWritePaths=/srv/relay/config /srv/relay/data /srv/relay/logs
+
+[Install]
+WantedBy=multi-user.target

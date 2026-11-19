@@ -26,13 +26,15 @@ npm test               # nur Vitest
 npm run build:web      # nur Dashboard
 ```
 
-Deployment:
+Deployment (nativ/systemd):
 
 ```bash
-docker compose up -d --build
-docker compose ps
-docker compose logs --since=2m
+git fetch --tags
+sudo scripts/deploy.sh 0.8.0         # Release bauen, Symlink wechseln, Health-Check
+sudo scripts/deploy.sh --rollback    # zurück auf die vorherige Version
+sudo systemctl restart caddy         # nur bei Änderungen an der Caddyfile
 curl -fsS https://relay.positronium.dev/health
+journalctl -u relay -n 50 --no-pager
 ```
 
 ## Architektur
@@ -208,12 +210,31 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 
 ## Deployment
 
-- `docker-compose.override.yml` setzt `VIRTUAL_HOST=relay.positronium.dev` und
-  verbindet den Container mit `toktrackerapp_toktracker_net`.
-- `nginx-proxy` + `acme-companion` übernehmen TLS/Let's Encrypt.
-- Ports bleiben lokal auf `127.0.0.1:3000` gebunden; der Proxy erreicht den
-  Container intern über Port 3000.
-- `SECURE_COOKIES=true` ist für die produktive Domain gesetzt.
+- RELAY läuft **nativ** als systemd-Dienst `relay.service` unter dem User `relay`
+  (kein App-Container mehr). Die Unit-Quelle liegt im Repo unter
+  `systemd/relay.service`; Installation per
+  `sudo install systemd/relay.service /etc/systemd/system/relay.service`.
+- **Layout:** Code in versionierten Release-Verzeichnissen
+  `/srv/relay/releases/<version>/`, aktiv über Symlink `/srv/relay/current`.
+  Laufzeit-Daten liegen getrennt in `/srv/relay/{config,data,logs}`
+  (`relay:relay`), Secrets/Env in `/etc/relay.env` (0600).
+  In `/etc/relay.env` müssen `CONFIG_DIR`, `DATA_DIR`, `LOGS_DIR`,
+  `STREAMERS_FILE`, `SETTINGS_FILE` und `COOKIES_FILE` **absolut** gesetzt sein,
+  sonst sucht die App sie relativ zu `current` (Fehler beim Start).
+- **Deploy** über `sudo scripts/deploy.sh <version>`: baut aus einem Git-Tag
+  (`git archive`) ein sauberes Release, wechselt den Symlink atomar, startet den
+  Dienst neu und prüft `/health`; bei Fehlschlag wird automatisch zurückgerollt.
+  `--rollback` wechselt auf die vorherige Version.
+- **TLS/Reverse-Proxy:** Caddy auf dem Host (`/etc/caddy/Caddyfile`), automatisches
+  Let's-Encrypt-TLS. Der Dienst bindet nur `127.0.0.1:3000`; Caddy routet
+  `relay.positronium.dev` → `127.0.0.1:3000` und `web.positronium.dev` →
+  `127.0.0.1:3001`. Änderungen an der Caddyfile: `systemctl restart caddy`.
+- **Legacy-Rollback:** der alte Compose-Service `restreamer-ts` ist als
+  `profiles: ["legacy"]` deaktiviert; `nginx-proxy`/`acme-companion` sind
+  gestoppt. Rollback zum Container:
+  `systemctl disable --now relay && docker compose --profile legacy up -d restreamer-ts`
+  (und für TLS `systemctl disable --now caddy && docker start nginx-proxy acme-companion`).
+- `SECURE_COOKIES=true` und `TRUST_PROXY=true` sind gesetzt.
 - `GET /health` liefert Source-/Relay-/Sink-/Pause-Details; `GET /api/metrics`
   liefert JSON-Zähler (Auth erforderlich).
 - `scripts/backup.sh` und `scripts/restore.sh` sichern `config/` und `data/`

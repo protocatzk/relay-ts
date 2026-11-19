@@ -1,5 +1,6 @@
 services:
   restreamer-ts:
+    profiles: ["legacy"]
     build: .
     image: restreamer-ts:local
     container_name: restreamer-ts
