@@ -14,6 +14,7 @@ export default tseslint.config(
       'tools/**',
       'coverage/**',
       'config/**',
+      'restreamer/**',
     ],
   },
   js.configs.recommended,
