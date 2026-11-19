@@ -546,4 +546,77 @@ describe('Supervisor integration', () => {
     },
     25_000,
   );
+  it(
+    'restarts the sink when the video layout changes',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19700 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+      });
+      await supervisor.init();
+      await supervisor.start('alpha');
+      await waitFor(() => supervisor!.buildStatus().sink.running, 5000);
+      const before = supervisor.buildStatus().sink.restarts;
+
+      const { previous, next } = settingsService.update({
+        video: {
+          layout: { enabled: true, scale: 60, position_x: 10, position_y: 90 },
+        },
+      });
+      await supervisor.applySettings(next, previous);
+
+      expect(settingsService.get().video.layout).toEqual({
+        enabled: true,
+        scale: 60,
+        position_x: 10,
+        position_y: 90,
+      });
+      await waitFor(() => supervisor!.buildStatus().sink.restarts > before, 5000);
+      expect(supervisor.buildStatus().sink.running).toBe(true);
+    },
+    20_000,
+  );
+
 });

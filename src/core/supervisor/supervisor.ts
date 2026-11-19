@@ -17,7 +17,6 @@ import {
   ValidationError,
   toErrorMessage,
 } from '../../utils/errors.js';
-import { isoOrNull } from '../../utils/format.js';
 import { VERSION } from '../../version.js';
 import type { EventBus, StatusSnapshot, StreamState } from '../events.js';
 import type { SettingsService } from '../store/settings-service.js';
@@ -29,20 +28,17 @@ import { TikTokSource } from '../source/tiktok-source.js';
 import type { ResolvedStream } from '../source/tiktok.js';
 import { YouTubeSink } from '../sink/youtube-sink.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
-import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
-import { ChatOverlayEngine } from '../overlays/chat-engine.js';
+import type { ChatMessage } from '../overlays/chat-service.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
 import { OnlineMonitor } from '../online/monitor.js';
-import {
-  EarningsMonitor,
-  formatEarningsOverlay,
-  type EarningsSnapshot,
-} from '../earnings/monitor.js';
+import { EarningsMonitor } from '../earnings/monitor.js';
 import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
-import { renderStudioPreview, type PreviewAspect } from '../overlays/studio-preview.js';
+import type { PreviewAspect } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import { SupervisorStateMachine } from './state-machine.js';
+import { buildStatusSnapshot } from './status-builder.js';
+import { OverlayRuntime } from './overlay-runtime.js';
 import { incMetric } from '../metrics.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
 import {
@@ -116,12 +112,7 @@ export class Supervisor {
   private autoRefresh!: AutoRefresh;
   private online!: OnlineMonitor;
   private earnings!: EarningsMonitor;
-  private chat?: ChatService;
-  private chatEngine?: ChatOverlayEngine;
-  private previewEngine?: ChatOverlayEngine;
-  private previewSignature = '';
-  private currentChatMessages: ChatMessage[] = [];
-  private lastChatMessageAt: Date | null = null;
+  private overlayRuntime!: OverlayRuntime;
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
@@ -335,6 +326,12 @@ export class Supervisor {
       },
       history: earningsHistory,
     });
+    this.overlayRuntime = new OverlayRuntime({
+      settings: this.settings,
+      overlays: this.overlays,
+      earnings: this.earnings,
+      logger,
+    });
     this.earnings.start();
     this.watchdog.start();
     this.statusTimer = setInterval(() => this.emitStatus(), 2000);
@@ -504,32 +501,14 @@ export class Supervisor {
     return this.start(id);
   }
 
-  private createChatEngine(): ChatOverlayEngine | undefined {
-    const chat = this.settings.overlays.chat;
-    if (!chat.enabled || chat.engine !== 'canvas') return undefined;
-    return new ChatOverlayEngine({
-      settings: this.settings,
-      overlays: this.settings.overlays,
-      logger: this.deps.logger,
-    });
-  }
-
-  private overlaySignature(filters: string[], engine: ChatOverlayEngine | undefined): string {
-    const chat = this.settings.overlays.chat;
-    const engineSpec = engine ? JSON.stringify(engine.panel) : 'off';
-    return `${filters.join('|')}|chat:${chat.enabled ? chat.engine : 'off'}:${engineSpec}|style:${chat.style}`;
-  }
-
   private rebuildChatEngineLocked(): void {
-    if (!this.activeStreamer) return;
-    this.chatEngine?.detach();
-    this.chatEngine = this.createChatEngine();
-    this.activeOverlayInput = this.chatEngine?.panel;
-    this.activeOverlaySignature = this.overlaySignature(
+    const rebuilt = this.overlayRuntime.rebuildEngine(
       this.activeOverlayFilters,
-      this.chatEngine,
+      Boolean(this.activeStreamer),
     );
-    if (this.chatEngine) this.chatEngine.setMessages(this.currentChatMessages);
+    if (!rebuilt) return;
+    this.activeOverlayInput = rebuilt.panel;
+    this.activeOverlaySignature = rebuilt.signature;
   }
 
   private async startFileLocked(
@@ -544,15 +523,13 @@ export class Supervisor {
     this.clearSinkStartTimer();
     const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
     const prepared = this.overlays.prepare();
-    const signature = this.overlaySignature(prepared.filters, undefined);
+    const signature = this.overlayRuntime.signature(prepared.filters, undefined);
     await this.stopSourceAndChatLocked();
     if (this.sink.running) await this.stopSinkLocked();
     this.buffer.reset();
     this.resetTimeline();
-    this.chatEngine?.stop();
-    this.chatEngine = undefined;
-    this.currentChatMessages = [];
-    this.lastChatMessageAt = null;
+    this.overlayRuntime.stopEngine();
+    this.overlayRuntime.resetMessages();
     this.applyConfiguredDelay();
 
     this.activeStreamer = null;
@@ -652,9 +629,9 @@ export class Supervisor {
 
     const previousKey = this.activeKey;
     const prepared = this.overlays.prepare();
-    const candidateEngine = this.createChatEngine();
+    const candidateEngine = this.overlayRuntime.createEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlaySignature(prepared.filters, candidateEngine);
+    const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
     const reusable =
       this.sink.running && previousKey === key && this.activeOverlaySignature === signature;
     const timestampOffset = reusable ? this.nextProducerOffset() : 0;
@@ -666,11 +643,9 @@ export class Supervisor {
       this.resetTimeline();
       if (previousKey && previousKey !== key) this.notifyYouTubeStopped(previousKey);
       if (this.sink.running) await this.stopSinkLocked();
-      this.chatEngine?.stop();
-      this.chatEngine = candidateEngine;
-    } else if (!this.chatEngine && candidateEngine) {
-      this.chatEngine = candidateEngine;
-      this.chatEngine.attach(this.sink.overlayStream());
+      this.overlayRuntime.replaceEngine(candidateEngine);
+    } else if (!this.overlayRuntime.engine && candidateEngine) {
+      this.overlayRuntime.adoptEngine(candidateEngine, this.sink.overlayStream());
     }
     this.applyConfiguredDelay();
 
@@ -711,7 +686,7 @@ export class Supervisor {
       this.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.clearOfflinePauseTimer();
-      this.startChatLocked(streamer);
+      this.overlayRuntime.startChat(streamer);
       this.earnings.setActive();
       this.autoRefresh.start();
       this.watchdog.reset();
@@ -753,7 +728,7 @@ export class Supervisor {
         this.markProducerStarted(offset);
         this.markSinkGrace();
         this.clearOfflinePauseTimer();
-        this.startChatLocked(streamer);
+        this.overlayRuntime.startChat(streamer);
         this.autoRefresh.start();
         this.transitionTo('live', 'startup finished');
         this.emitAll();
@@ -775,9 +750,9 @@ export class Supervisor {
     this.clearReconnectTimer();
     this.clearOfflinePauseTimer();
     const prepared = this.overlays.prepare();
-    const candidateEngine = this.createChatEngine();
+    const candidateEngine = this.overlayRuntime.createEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlaySignature(prepared.filters, candidateEngine);
+    const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
     const reusable =
       this.sink.running && this.activeKey === key && this.activeOverlaySignature === signature;
 
@@ -786,11 +761,9 @@ export class Supervisor {
       this.buffer.reset();
       this.resetTimeline();
       if (this.sink.running) await this.stopSinkLocked();
-      this.chatEngine?.stop();
-      this.chatEngine = candidateEngine;
-    } else if (!this.chatEngine && candidateEngine) {
-      this.chatEngine = candidateEngine;
-      this.chatEngine.attach(this.sink.overlayStream());
+      this.overlayRuntime.replaceEngine(candidateEngine);
+    } else if (!this.overlayRuntime.engine && candidateEngine) {
+      this.overlayRuntime.adoptEngine(candidateEngine, this.sink.overlayStream());
     }
 
     this.activeStreamer = streamer;
@@ -888,17 +861,14 @@ export class Supervisor {
     this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
     this.sink.start(key, filters, overlayInput);
     this.scheduleYouTubeStarted(key);
-    if (this.chatEngine && overlayInput) {
-      this.chatEngine.attach(this.sink.overlayStream());
-      this.chatEngine.setMessages(this.currentChatMessages);
-    }
+    if (overlayInput) this.overlayRuntime.attachToSink(this.sink.overlayStream());
   }
 
   private async stopSinkLocked(): Promise<void> {
     this.clearSinkStartTimer();
     this.clearYouTubeStartTimer();
     this.stoppingSink = true;
-    this.chatEngine?.detach();
+    this.overlayRuntime.detachEngine();
     try {
       await this.sink.stop();
     } finally {
@@ -908,10 +878,7 @@ export class Supervisor {
 
   private async stopSourceAndChatLocked(): Promise<void> {
     this.activeMediaFile = null;
-    if (this.chat) {
-      this.chat.stop();
-      this.chat = undefined;
-    }
+    this.overlayRuntime.stopChat();
     if (this.source.running || this.source.currentStreamer) {
       this.stoppingSource += 1;
       try {
@@ -922,35 +889,6 @@ export class Supervisor {
     }
     if (this.pauseScreen.running) await this.pauseScreen.stop();
     if (this.startupScreen?.running) await this.startupScreen.stop();
-  }
-
-  private startChatLocked(
-    streamer: StreamerConfig,
-    options: { preserveMessages?: boolean } = {},
-  ): void {
-    const preserve = options.preserveMessages ?? false;
-    this.chat?.stop(!preserve);
-    if (!preserve) {
-      this.currentChatMessages = [];
-      this.lastChatMessageAt = null;
-      this.chatEngine?.setMessages([]);
-      this.overlays.updateChat([]);
-    }
-    this.chat = new ChatService({
-      streamer,
-      chat: this.settings.overlays.chat,
-      settings: this.settings,
-      logger: this.deps.logger,
-      onMessages: (messages) => {
-        this.currentChatMessages = messages;
-        if (messages.length > 0) this.lastChatMessageAt = new Date();
-        this.chatEngine?.setMessages(messages);
-        this.overlays.updateChat(
-          messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
-        );
-      },
-    });
-    this.chat.start();
   }
 
   private clearYouTubeStartTimer(): void {
@@ -1011,12 +949,10 @@ export class Supervisor {
     // A container restart is not a user stop. Keep the broadcast for the next
     // start instead of completing it on every deploy.
     if (!this.shuttingDown) this.notifyYouTubeStopped(stoppingKey);
-    this.chatEngine?.stop();
+    this.overlayRuntime.stopEngine();
     this.buffer.reset();
     this.overlays.clear();
-    this.chatEngine = undefined;
-    this.currentChatMessages = [];
-    this.lastChatMessageAt = null;
+    this.overlayRuntime.resetMessages();
     this.activeStreamer = null;
     this.activeMediaFile = null;
     this.playlistController.detach();
@@ -1122,16 +1058,15 @@ export class Supervisor {
         this.deps.registerSecret(target.key);
         if (!this.sink.running || this.activeKey !== target.key) {
           if (this.sink.running) await this.stopSinkLocked();
-          this.chatEngine?.stop();
-          this.chatEngine = undefined;
-          this.currentChatMessages = [];
+          this.overlayRuntime.stopEngine();
+          this.overlayRuntime.resetMessages(false, false);
           this.buffer.reset();
           this.resetTimeline();
           const prepared = this.overlays.prepare();
           pendingSink = {
             key: target.key,
             filters: prepared.filters,
-            signature: this.overlaySignature(prepared.filters, undefined),
+            signature: this.overlayRuntime.signature(prepared.filters, undefined),
           };
         }
       }
@@ -1312,7 +1247,7 @@ export class Supervisor {
         this.lastError = null;
         this.reconnectAttempts = 0;
         this.watchdog.clearError();
-        if (!this.chat) this.startChatLocked(this.activeStreamer);
+        this.overlayRuntime.ensureChat(this.activeStreamer);
         this.transitionTo('live');
         incMetric('reconnect_success_total');
         this.emitAll();
@@ -1357,10 +1292,7 @@ export class Supervisor {
   private async startPauseLocked(): Promise<void> {
     this.clearStartupTimer();
     if (this.startupScreen?.running) await this.startupScreen.stop();
-    if (this.chat) {
-      this.chat.stop();
-      this.chat = undefined;
-    }
+    this.overlayRuntime.stopChat();
     this.applyConfiguredDelay();
     const timestampOffset = this.nextProducerOffset();
     await this.pauseScreen.start(undefined, undefined, timestampOffset);
@@ -1479,7 +1411,7 @@ export class Supervisor {
         this.autoRefresh.markRefreshed();
         // Keep the running chat service alive: restarting it would clear the
         // overlay until the next poll and cause visible flicker.
-        if (!this.chat) this.startChatLocked(streamer);
+        this.overlayRuntime.ensureChat(streamer);
         this.emitAll();
       } catch (error) {
         this.lastError = toErrorMessage(error);
@@ -1520,7 +1452,7 @@ export class Supervisor {
     if (this.stoppingSink || this.shuttingDown) return;
     if (!this.activeStreamer || !this.activeKey) return;
     if (['idle', 'stopping'].includes(this.state)) return;
-    this.chatEngine?.detach();
+    this.overlayRuntime.detachEngine();
     this.deps.logger.warn('YouTube-Sink beendet – Neustart geplant');
     this.scheduleSinkRestart(3000);
   }
@@ -1642,6 +1574,7 @@ export class Supervisor {
       this.autoRefresh.updateSettings(next);
       this.online.updateSettings(next);
       this.overlays.updateSettings(next);
+      this.overlayRuntime.updateSettings(next);
       this.pauseScreen.updateSettings(next);
       this.startupScreen.updateSettings(next);
       this.earnings.updateSettings(next);
@@ -1665,9 +1598,9 @@ export class Supervisor {
       if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
         const prepared = this.overlays.prepare();
         this.activeOverlayFilters = prepared.filters;
-        this.activeOverlaySignature = this.overlaySignature(
+        this.activeOverlaySignature = this.overlayRuntime.signature(
           prepared.filters,
-          this.activeStreamer ? this.chatEngine : undefined,
+          this.activeStreamer ? this.overlayRuntime.engine : undefined,
         );
         needsSinkRestart = true;
       }
@@ -1677,7 +1610,7 @@ export class Supervisor {
         this.activeOverlayFilters = prepared.filters;
         this.rebuildChatEngineLocked();
         if (this.state === 'live' && this.activeStreamer) {
-          this.startChatLocked(this.activeStreamer, { preserveMessages: true });
+          this.overlayRuntime.startChat(this.activeStreamer, { preserveMessages: true });
         }
         needsSinkRestart = true;
       }
@@ -1685,29 +1618,29 @@ export class Supervisor {
       const videoLayoutChanged =
         JSON.stringify(previous.video.layout) !== JSON.stringify(next.video.layout);
       if (videoLayoutChanged) needsSinkRestart = true;
-      if (needsSinkRestart && this.sink.running) await this.restartSinkLocked();
 
       const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
       if (chatChanged && this.activeStreamer) {
         if (this.state === 'live') {
-          this.startChatLocked(this.activeStreamer, { preserveMessages: true });
+          this.overlayRuntime.startChat(this.activeStreamer, { preserveMessages: true });
         } else if (this.state === 'paused') {
-          this.chat?.stop();
-          this.chat = undefined;
-          this.currentChatMessages = [];
-          this.chatEngine?.setMessages([]);
-          this.overlays.updateChat([]);
+          this.overlayRuntime.stopChat();
+          this.overlayRuntime.resetMessages(false);
         }
       }
 
-      const videoChanged = JSON.stringify(previous.video) !== JSON.stringify(next.video);
-      if (videoChanged) {
+      const videoEncodeChanged =
+        previous.video.resolution !== next.video.resolution ||
+        previous.video.fps !== next.video.fps ||
+        previous.video.video_bitrate !== next.video.video_bitrate ||
+        previous.video.audio_bitrate !== next.video.audio_bitrate ||
+        previous.video.preset !== next.video.preset;
+      if (videoEncodeChanged) {
         this.rebuildChatEngineLocked();
+        needsSinkRestart = true;
       }
-      if (videoChanged && this.sink.running) {
-        await this.restartSinkLocked();
-      }
-      if (videoChanged && this.source.running && this.source.resolved) {
+      if (needsSinkRestart && this.sink.running) await this.restartSinkLocked();
+      if (videoEncodeChanged && this.source.running && this.source.resolved) {
         const reencoding =
           this.activeStreamer?.video_mode === 'reencode' || !this.source.resolved.isH264;
         const resolved = this.source.resolved;
@@ -1785,28 +1718,12 @@ export class Supervisor {
     await this.relay.stop();
   }
 
-  private getPreviewEngine(): ChatOverlayEngine {
-    const signature = JSON.stringify({
-      chat: this.settings.overlays.chat,
-      resolution: this.settings.video.resolution,
-    });
-    if (!this.previewEngine || this.previewSignature !== signature) {
-      this.previewEngine = new ChatOverlayEngine({
-        settings: this.settings,
-        overlays: this.settings.overlays,
-        logger: this.deps.logger,
-      });
-      this.previewSignature = signature;
-    }
-    return this.previewEngine;
-  }
-
   subscribePreview(listener: (chunk: Buffer) => void): () => void {
     return this.relay.subscribe(listener);
   }
 
   overlayPreviewPng(sample = false): Buffer {
-    return (this.chatEngine ?? this.getPreviewEngine()).previewPng(sample);
+    return this.overlayRuntime.previewPng(sample);
   }
 
   studioPreviewPng(
@@ -1818,79 +1735,24 @@ export class Supervisor {
     videoLayoutDraft?: Partial<Settings['video']['layout']>,
     videoAspect?: PreviewAspect,
   ): Buffer {
-    const settings = {
-      ...this.settings,
-      video: videoLayoutDraft
-        ? { ...this.settings.video, layout: { ...this.settings.video.layout, ...videoLayoutDraft } }
-        : this.settings.video,
-      earnings: earningsDraft
-        ? { ...this.settings.earnings, ...earningsDraft }
-        : this.settings.earnings,
-    };
-    return renderStudioPreview({
-      settings,
+    return this.overlayRuntime.studioPreviewPng(
       overlays,
-      logger: this.deps.logger,
       sample,
-      chatMessages,
-      earningsText: this.studioEarningsText(settings, sample),
       maxDimension,
+      chatMessages,
+      earningsDraft,
+      videoLayoutDraft,
       videoAspect,
-    });
-  }
-
-  private studioEarningsText(settings: Settings, sample: boolean): string {
-    const current = this.earnings?.get() ?? null;
-    if (current && (current.net !== null || current.gross !== null || current.coins !== null)) {
-      return formatEarningsOverlay(settings.earnings.overlay_template, current);
-    }
-    if (!sample) return '';
-    const demo = {
-      ...current,
-      period: settings.earnings.period,
-      period_label: 'Heute',
-      net: 205.28,
-      gross: 410.64,
-      coins: 42505,
-      viewers: 344,
-      followers: 76800,
-      gifts: 42,
-      gifts_sent: 77,
-      gifters: 12,
-      currency: 'EUR',
-      display_name: 'Beispiel',
-      streamer_name: 'Beispiel',
-      streamer_handle: 'beispiel',
-      is_live: true,
-      session: {
-        id: null,
-        started_at: null,
-        ended_at: null,
-        status: 'active',
-        peak_viewers: 400,
-        last_fan_tickets: 120,
-        coins: 2000,
-        gifts: 4,
-        net: 12.4,
-        gross: 24.8,
-        currency: 'EUR',
-      },
-      top_gift: { name: 'Money Gun', coins: 6000, count: 2 },
-      top_gifter: { username: 'viewer', display_name: null, coins: 1200 },
-      last_seen_at: new Date().toISOString(),
-    } as EarningsSnapshot;
-    return formatEarningsOverlay(settings.earnings.overlay_template, demo);
+    );
   }
 
   /** Latest real chat messages, used by the overlay studio when samples are off. */
   recentChatMessages(): ChatMessage[] {
-    return this.currentChatMessages.map((message) => ({ ...message }));
+    return this.overlayRuntime.recentMessages();
   }
 
   earningsOverlayText(): string {
-    return this.earnings
-      ? formatEarningsOverlay(this.settings.earnings.overlay_template, this.earnings.get())
-      : '';
+    return this.earnings ? this.overlayRuntime.earningsOverlayText() : '';
   }
 
   earningsStatus(): ReturnType<EarningsMonitor['get']> | null {
@@ -1907,36 +1769,11 @@ export class Supervisor {
   }
 
   addTestChatMessage(username: string, text: string): ChatMessage[] {
-    if (this.chat) {
-      return this.chat.injectMessage(username, text);
-    }
-    const engine = this.chatEngine ?? this.getPreviewEngine();
-    const messages = engine.addLocalMessage(username, text);
-    this.currentChatMessages = messages;
-    this.lastChatMessageAt = new Date();
-    this.overlays.updateChat(
-      messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
-    );
-    return messages;
+    return this.overlayRuntime.addTestMessage(username, text);
   }
 
-  chatStatus(): {
-    enabled: boolean;
-    engine: 'canvas' | 'drawtext' | null;
-    messages: number;
-    last_message_at: string | null;
-    api_configured: boolean;
-    canvas_active: boolean;
-  } {
-    const chat = this.settings.overlays.chat;
-    return {
-      enabled: Boolean(chat?.enabled),
-      engine: chat?.engine ?? null,
-      messages: this.currentChatMessages.length,
-      last_message_at: isoOrNull(this.lastChatMessageAt),
-      api_configured: Boolean(chat?.api_url || this.settings.chat.api_url),
-      canvas_active: Boolean(this.chatEngine),
-    };
+  chatStatus(): StatusSnapshot['chat'] {
+    return this.overlayRuntime.chatStatus();
   }
 
   notifyStreamersChanged(): void {
@@ -2014,80 +1851,28 @@ export class Supervisor {
   }
 
   buildStatus(): StatusSnapshot {
-    const source = this.source?.stats();
-    const relay = this.relay?.stats();
-    const delay = this.buffer?.stats();
-    const sink = this.sink?.stats();
-    const watchdog = this.watchdog?.stats();
-    const refresh = this.autoRefresh?.stats();
-    const now = Date.now();
-    const activeId = this.activeStreamer?.id ?? null;
-    const activePlaylist = this.playlistController.current;
-    const monitorOnline = this.activeStreamer
-      ? (this.online?.isOnline(this.activeStreamer) ?? null)
-      : null;
-    return {
+    return buildStatusSnapshot({
       state: this.state,
-      active_streamer_id: activeId,
-      active_streamer_name: this.activeStreamer?.name ?? null,
-      active_playlist: activePlaylist
-        ? {
-            id: activePlaylist.playlist.id,
-            name: activePlaylist.playlist.name,
-            index: activePlaylist.index,
-            total: activePlaylist.playlist.channels.length,
-          }
+      settings: this.settings,
+      activeStreamer: this.activeStreamer,
+      activePlaylist: this.playlistController.current,
+      manualScreen: this.manualScreen,
+      startedAt: this.startedAt,
+      resolving: this.resolving,
+      reconnects: this.reconnects,
+      lastError: this.lastError,
+      reconnecting: this.state === 'reconnecting' || Boolean(this.reconnectTimer),
+      monitorOnline: this.activeStreamer
+        ? (this.online?.isOnline(this.activeStreamer) ?? null)
         : null,
-      manual_screen: this.manualScreen,
-      started_at: isoOrNull(this.startedAt),
-      uptime_seconds: this.startedAt ? Math.round((now - this.startedAt.getTime()) / 1000) : 0,
-      source: {
-        online: this.activeStreamer ? (this.state === 'live' ? true : monitorOnline) : null,
-        resolving: this.resolving,
-        connected: relay?.connected ?? false,
-        pid: source?.pid ?? null,
-        last_data_at: isoOrNull(relay?.lastDataAt ?? null),
-        bitrate_kbps: source?.bitrateKbps ?? delay?.pacingKbps ?? null,
-        reconnects: this.reconnects,
-      },
-      relay: {
-        ingest_clients: relay?.ingestClients ?? 0,
-        output_connected: delay?.outputConnected ?? false,
-        buffer_seconds: delay?.bufferSeconds ?? 0,
-        buffered_bytes: delay?.bufferedBytes ?? 0,
-        dropped_bytes: delay?.droppedBytes ?? 0,
-        delay_seconds: delay?.delaySeconds ?? this.settings.delay_buffer.size,
-        pacing_kbps: delay?.pacingKbps ?? null,
-        total_bytes: relay?.totalBytes ?? 0,
-      },
-      sink: {
-        running: sink?.running ?? false,
-        pid: sink?.pid ?? null,
-        bitrate_kbps: sink?.bitrateKbps ?? null,
-        target_bitrate_kbps: sink?.targetBitrateKbps ?? this.settings.video.video_bitrate,
-        fps: sink?.fps ?? null,
-        dropped_frames: sink?.droppedFrames ?? 0,
-        speed: sink?.speed ?? null,
-        last_progress_at: isoOrNull(sink?.lastProgressAt ?? null),
-        restarts: sink?.restarts ?? 0,
-      },
-      watchdog: {
-        stall_timeout: this.settings.watchdog.stall_timeout,
-        stall_count: watchdog?.stallCount ?? 0,
-        last_stall_at: isoOrNull(watchdog?.lastStallAt ?? null),
-        last_error: watchdog?.lastError ?? this.lastError,
-        reconnecting: this.state === 'reconnecting' || Boolean(this.reconnectTimer),
-      },
-      auto_refresh: {
-        enabled: refresh?.enabled ?? this.settings.auto_refresh.enabled,
-        interval_minutes: refresh?.intervalMinutes ?? this.settings.auto_refresh.interval,
-        next_refresh_in_seconds: refresh?.nextRefreshInSeconds ?? null,
-        last_refresh_at: isoOrNull(refresh?.lastRefreshAt ?? null),
-        count: refresh?.count ?? 0,
-      },
+      source: this.source?.stats(),
+      relay: this.relay?.stats(),
+      delay: this.buffer?.stats(),
+      sink: this.sink?.stats(),
+      watchdog: this.watchdog?.stats(),
+      autoRefresh: this.autoRefresh?.stats(),
       chat: this.chatStatus(),
       earnings: this.earnings?.get() ?? null,
-      version: VERSION,
-    };
+    });
   }
 }
