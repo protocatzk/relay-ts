@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import AppHeader from '@/src/components/AppHeader.vue';
 import AppSidebar from '@/src/components/AppSidebar.vue';
 import ToastHost from '@/src/components/ToastHost.vue';
+import PwaPrompt from '@/src/components/PwaPrompt.vue';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
 
 const route = useRoute();
@@ -118,4 +119,5 @@ onBeforeUnmount(() => {
   </div>
 
   <ToastHost />
+  <PwaPrompt />
 </template>

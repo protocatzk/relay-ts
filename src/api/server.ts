@@ -89,10 +89,23 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     reply.header('referrer-policy', 'no-referrer');
     reply.header(
       'content-security-policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
-    if (request.url.startsWith('/api/')) {
+    const pathname = (request.url ?? '').split('?')[0] ?? '/';
+    if (pathname.startsWith('/api/')) {
       reply.header('cache-control', 'no-store');
+    } else if (pathname.startsWith('/assets/')) {
+      // Hashed build assets are immutable.
+      reply.header('cache-control', 'public, max-age=31536000, immutable');
+    } else if (
+      pathname === '/sw.js' ||
+      pathname === '/manifest.webmanifest' ||
+      pathname === '/index.html'
+    ) {
+      reply.header('cache-control', 'no-cache');
+    }
+    if (pathname === '/sw.js') {
+      reply.header('service-worker-allowed', '/');
     }
     if (ctx.config.server.secureCookies) {
       reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
@@ -121,7 +134,13 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       maxAge: 0,
     });
     app.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith('/api/') || request.url === '/health') {
+      const pathname = (request.url ?? '').split('?')[0] ?? '/';
+      if (
+        request.url.startsWith('/api/') ||
+        request.url === '/health' ||
+        pathname === '/sw.js' ||
+        pathname === '/manifest.webmanifest'
+      ) {
         return reply.code(404).send({
           error: { code: 'not_found', message: 'Endpunkt nicht gefunden' },
         });

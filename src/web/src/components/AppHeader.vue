@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import LiveMenu from '@/src/components/LiveMenu.vue';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
+import { useTheme } from '@/src/composables/useTheme';
+import { usePwa } from '@/src/composables/usePwa';
 
 const props = defineProps<{ sidebarOpen: boolean }>();
 const emit = defineEmits<{ 'toggle-sidebar': [] }>();
 
 const router = useRouter();
 const { store } = useStore();
+const { theme, themeLabel, toggleTheme } = useTheme();
+const { state: pwaState, promptInstall } = usePwa();
 
-const theme = ref(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
-
-function toggleTheme(): void {
-  theme.value = theme.value === 'light' ? 'dark' : 'light';
-  document.documentElement.dataset.theme = theme.value;
-  localStorage.setItem('relay-theme', theme.value);
+async function handleInstall(): Promise<void> {
+  if (pwaState.isIos) {
+    pushToast('Öffne das Teilen-Menü und tippe „Zum Home-Bildschirm“.', 'info');
+    return;
+  }
+  const installed = await promptInstall();
+  if (installed) pushToast('RELAY wurde installiert.', 'success');
 }
 
 async function handleLogout(): Promise<void> {
@@ -52,9 +56,26 @@ async function handleLogout(): Promise<void> {
     </div>
 
     <div class="header-actions">
+      <button
+        v-if="pwaState.canInstall || pwaState.isIos"
+        type="button"
+        class="btn btn-ghost btn-sm"
+        @click="handleInstall"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <path
+            d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span class="hide-xs">Installieren</span>
+      </button>
       <button type="button" class="theme-toggle" :aria-label="`Theme: ${theme}`" @click="toggleTheme">
         <span aria-hidden="true">{{ theme === 'light' ? '☾' : '☀' }}</span>
-        <span class="hide-xs">{{ theme === 'light' ? 'Dark' : 'Light' }}</span>
+        <span class="hide-xs">{{ themeLabel }}</span>
       </button>
       <button
         v-if="store.authRequired"

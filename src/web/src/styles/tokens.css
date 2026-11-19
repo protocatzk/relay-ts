@@ -1,0 +1,233 @@
+/* ------------------------------------------------------------------
+   RELAY · Design tokens
+   Neon Night (dark) + Amber CRT (light). Single source of truth for
+   color, type, radius, shadow, glass and glow.
+   ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin-var.woff2') format('woff2');
+  font-style: normal;
+  font-weight:100 800;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------ Dark · Neon Night */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #05070b;
+  --bg-soft: #090d14;
+  --surface: #0c1119;
+  --surface-1: #0c1119;
+  --surface-2: #101823;
+  --surface-3: #16202f;
+  --surface-hover: #1a2535;
+
+  /* Borders */
+  --border: rgba(148, 208, 255, 0.14);
+  --border-subtle: rgba(148, 208, 255, 0.08);
+  --border-strong: rgba(148, 208, 255, 0.34);
+  --border-input: rgba(148, 208, 255, 0.2);
+
+  /* Text */
+  --text: #e6f1ff;
+  --text-strong: #ffffff;
+  --text-muted: #92a9c6;
+  --text-dim: #61748f;
+  --muted: #92a9c6;
+  --inverse: #04121a;
+
+  /* Accent (interactive / focus / primary) */
+  --accent: #22d3ee;
+  --accent-hover: #4de0f5;
+  --accent-strong: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.13);
+  --accent-border: rgba(34, 211, 238, 0.42);
+  --accent-text: #a5f3fc;
+  --on-accent: #04121a;
+
+  /* Status */
+  --success: #39ff88;
+  --success-soft: rgba(57, 255, 136, 0.12);
+  --success-border: rgba(57, 255, 136, 0.38);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --warning-border: rgba(251, 191, 36, 0.38);
+  --danger: #ff4d6d;
+  --danger-soft: rgba(255, 77, 109, 0.12);
+  --danger-border: rgba(255, 77, 109, 0.42);
+  --info: #22d3ee;
+  --info-soft: rgba(34, 211, 238, 0.12);
+
+  /* Module colors (hue = identity, never the only signal) */
+  --module-source: #22d3ee;
+  --module-source-soft: rgba(34, 211, 238, 0.12);
+  --module-relay: #3b82f6;
+  --module-relay-soft: rgba(59, 130, 246, 0.14);
+  --module-sink: #39ff88;
+  --module-sink-soft: rgba(57, 255, 136, 0.12);
+  --module-watchdog: #fbbf24;
+  --module-watchdog-soft: rgba(251, 191, 36, 0.12);
+  --module-chat: #a78bfa;
+  --module-chat-soft: rgba(167, 139, 250, 0.13);
+  --module-earnings: #ff3bd4;
+  --module-earnings-soft: rgba(255, 59, 212, 0.12);
+  --module-youtube: #ff5c5c;
+  --module-youtube-soft: rgba(255, 92, 92, 0.12);
+  --module-media: #2dd4bf;
+  --module-media-soft: rgba(45, 212, 191, 0.12);
+
+  /* Shape */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 18px;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 16px 44px rgba(0, 0, 0, 0.45);
+
+  /* Type */
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --sans: var(--font);
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas,
+    monospace;
+
+  /* Layout */
+  --sidebar-w: 236px;
+  --header-h: 60px;
+
+  /* Glass */
+  --glass-bg: rgba(13, 19, 29, 0.58);
+  --glass-bg-strong: rgba(17, 25, 38, 0.82);
+  --glass-border: rgba(148, 208, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.055);
+  --glass-blur: 18px;
+
+  /* Glow */
+  --glow-accent: 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 20px rgba(34, 211, 238, 0.22);
+  --glow-success: 0 0 0 1px rgba(57, 255, 136, 0.35), 0 0 20px rgba(57, 255, 136, 0.22);
+  --glow-danger: 0 0 0 1px rgba(255, 77, 109, 0.4), 0 0 20px rgba(255, 77, 109, 0.24);
+  --glow-warning: 0 0 0 1px rgba(251, 191, 36, 0.4), 0 0 20px rgba(251, 191, 36, 0.2);
+
+  /* Ambient background accents */
+  --bg-glow-1: rgba(34, 211, 238, 0.09);
+  --bg-glow-2: rgba(255, 59, 212, 0.05);
+}
+
+/* ------------------------------------------------------------------ Light · Amber CRT (paper) */
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4ead8;
+  --bg-soft: #eee0c9;
+  --surface: #fbf5ea;
+  --surface-1: #fbf5ea;
+  --surface-2: #f2e8d5;
+  --surface-3: #e7d9c0;
+  --surface-hover: #ecdfca;
+
+  --border: rgba(90, 60, 20, 0.2);
+  --border-subtle: rgba(90, 60, 20, 0.13);
+  --border-strong: #2b1d10;
+  --border-input: rgba(90, 60, 20, 0.32);
+
+  --text: #2b1d10;
+  --text-strong: #180f04;
+  --text-muted: #5f4a32;
+  --text-dim: #775f40;
+  --muted: #5f4a32;
+  --inverse: #fbf5ea;
+
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-strong: #92400e;
+  --accent-soft: rgba(180, 83, 9, 0.12);
+  --accent-border: rgba(180, 83, 9, 0.45);
+  --accent-text: #78350f;
+  --on-accent: #180f04;
+
+  --success: #15803d;
+  --success-soft: rgba(21, 128, 61, 0.1);
+  --success-border: rgba(21, 128, 61, 0.35);
+  --warning: #92600a;
+  --warning-soft: rgba(146, 96, 10, 0.12);
+  --warning-border: rgba(146, 96, 10, 0.35);
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.09);
+  --danger-border: rgba(185, 28, 28, 0.38);
+  --info: #0e7490;
+  --info-soft: rgba(14, 116, 144, 0.1);
+
+  --module-source: #0e7490;
+  --module-source-soft: rgba(14, 116, 144, 0.1);
+  --module-relay: #1d4ed8;
+  --module-relay-soft: rgba(29, 78, 216, 0.1);
+  --module-sink: #15803d;
+  --module-sink-soft: rgba(21, 128, 61, 0.1);
+  --module-watchdog: #b45309;
+  --module-watchdog-soft: rgba(180, 83, 9, 0.1);
+  --module-chat: #6d28d9;
+  --module-chat-soft: rgba(109, 40, 217, 0.1);
+  --module-earnings: #be185d;
+  --module-earnings-soft: rgba(190, 24, 93, 0.1);
+  --module-youtube: #b91c1c;
+  --module-youtube-soft: rgba(185, 28, 28, 0.1);
+  --module-media: #0f766e;
+  --module-media-soft: rgba(15, 118, 110, 0.1);
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 18px;
+  --shadow: 0 20px 50px rgba(90, 60, 20, 0.18);
+  --shadow-sm: 0 6px 18px rgba(90, 60, 20, 0.1);
+  --shadow-md: 0 14px 34px rgba(90, 60, 20, 0.16);
+
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --sans: var(--font);
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas,
+    monospace;
+
+  --sidebar-w: 236px;
+  --header-h: 60px;
+
+  --glass-bg: rgba(251, 245, 234, 0.62);
+  --glass-bg-strong: rgba(251, 245, 234, 0.9);
+  --glass-border: rgba(90, 60, 20, 0.18);
+  --glass-highlight: rgba(255, 255, 255, 0.5);
+  --glass-blur: 16px;
+
+  --glow-accent: 0 0 0 1px rgba(180, 83, 9, 0.3), 0 0 14px rgba(180, 83, 9, 0.16);
+  --glow-success: 0 0 0 1px rgba(21, 128, 61, 0.28), 0 0 14px rgba(21, 128, 61, 0.14);
+  --glow-danger: 0 0 0 1px rgba(185, 28, 28, 0.3), 0 0 14px rgba(185, 28, 28, 0.16);
+  --glow-warning: 0 0 0 1px rgba(146, 96, 10, 0.3), 0 0 14px rgba(146, 96, 10, 0.16);
+
+  --bg-glow-1: rgba(180, 83, 9, 0.08);
+  --bg-glow-2: rgba(14, 116, 144, 0.05);
+}
+
+/* ------------------------------------------------------------------ Effects budget */
+
+/* "low" disables blur, glow and noise for weak GPUs / battery saver. */
+[data-effects='low'] {
+  --glass-bg: var(--surface-2);
+  --glass-bg-strong: var(--surface);
+  --glass-blur: 0px;
+  --glow-accent: none;
+  --glow-success: none;
+  --glow-danger: none;
+  --glow-warning: none;
+}

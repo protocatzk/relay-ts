@@ -3,11 +3,12 @@ import App from './App.vue';
 import router from './router';
 import { setUnauthorizedHandler } from '@/src/api/client';
 import { resetSession } from '@/src/composables/useStore';
-import './style.css';
-import './toktracker.css';
+import { initTheme } from '@/src/composables/useTheme';
+import { initPwa } from '@/src/composables/usePwa';
+import '@/src/styles/index.css';
 
-const savedTheme = localStorage.getItem('relay-theme');
-document.documentElement.dataset.theme = savedTheme === 'light' ? 'light' : 'dark';
+initTheme();
+initPwa();
 
 setUnauthorizedHandler(() => {
   const current = router.currentRoute.value;
