@@ -619,4 +619,68 @@ describe('Supervisor integration', () => {
     20_000,
   );
 
+  it(
+    'refreshes the running source without ending the session',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 19900 + Math.floor(Math.random() * 1000);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+          ],
+          playlists: [],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+      });
+      await supervisor.init();
+      await supervisor.start('alpha');
+      await waitFor(() => supervisor!.buildStatus().sink.running, 5000);
+      const before = supervisor.buildStatus().source.pid;
+
+      const status = await supervisor.refreshNow();
+      expect(status.state).toBe('live');
+      await waitFor(() => {
+        const status = supervisor!.buildStatus();
+        return status.source.pid !== before && status.source.connected;
+      }, 5000);
+    },
+    20_000,
+  );
+
 });

@@ -41,6 +41,7 @@ import { buildStatusSnapshot } from './status-builder.js';
 import { OverlayRuntime } from './overlay-runtime.js';
 import { SinkController } from './sink-controller.js';
 import { PauseController } from './pause-controller.js';
+import { SourceSession } from './source-session.js';
 import { incMetric } from '../metrics.js';
 import {
   PlaylistController,
@@ -48,7 +49,6 @@ import {
   type PlaylistStartOptions,
 } from './playlist-controller.js';
 import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
-import { reconnectDelay } from './reconnect-policy.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 
 export interface SupervisorDeps {
@@ -103,8 +103,7 @@ export class Supervisor {
 
   private buffer!: DelayBuffer;
   private relay!: MpegTsRelay;
-  private resolver!: { resolve(streamer: StreamerConfig): Promise<ResolvedStream> };
-  private source!: TikTokSource;
+  private sourceSession!: SourceSession;
   private sinkController!: SinkController;
   private overlays!: OverlayManager;
   private pauseController!: PauseController;
@@ -121,17 +120,10 @@ export class Supervisor {
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
-  private reconnects = 0;
-  private reconnectAttempts = 0;
-  private reconnectTimer?: NodeJS.Timeout;
   private statusTimer?: NodeJS.Timeout;
   private autoStartTimer?: NodeJS.Timeout;
-  private stoppingSource = 0;
   private shuttingDown = false;
   private forceReencodeNext = false;
-  private resolving = false;
-  private producerStartedAt: number | null = null;
-  private producerOffset = 0;
 
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
@@ -206,7 +198,7 @@ export class Supervisor {
       );
     }
 
-    this.resolver =
+    const resolver =
       this.deps.resolver ??
       new TikTokResolver({
         media: config.media,
@@ -214,7 +206,7 @@ export class Supervisor {
         cookiesFile: config.paths.cookiesFile,
         redact: this.deps.redact,
       });
-    this.source = new TikTokSource({
+    const source = new TikTokSource({
       media: config.media,
       settings: this.settings,
       relay: relayEndpoint,
@@ -222,6 +214,11 @@ export class Supervisor {
       redact: this.deps.redact,
       onExit: (code, signal) => this.handleSourceExit(code, signal),
       onCodecProblem: (line) => this.handleCodecProblem(line),
+    });
+    this.sourceSession = new SourceSession({
+      source,
+      resolver,
+      settings: this.settings,
     });
     const sink = new YouTubeSink({
       media: config.media,
@@ -238,7 +235,7 @@ export class Supervisor {
       lock: this.lock,
       isShuttingDown: () => this.shuttingDown,
       canStartDelayed: () =>
-        this.source.running ||
+        this.sourceSession.running ||
         this.pauseController.pauseRunning ||
         this.pauseController.startupRunning,
       onStarted: () => this.overlayRuntime.attachToSink(this.sinkController.overlayStream()),
@@ -284,8 +281,8 @@ export class Supervisor {
       hooks: {
         isShuttingDown: () => this.shuttingDown,
         isPaused: () => this.state === 'paused',
-        nextOffset: () => this.nextProducerOffset(),
-        markProducerStarted: (offset) => this.markProducerStarted(offset),
+        nextOffset: () => this.sourceSession.nextOffset(),
+        markProducerStarted: (offset) => this.sourceSession.markProducerStarted(offset),
         emitStatus: () => this.emitStatus(),
         emitAll: () => this.emitAll(),
         canScheduleOfflinePause: () => this.sinkController.running,
@@ -306,11 +303,11 @@ export class Supervisor {
         sinkRunning: this.sinkController.running,
         sinkStarting: this.sinkController.starting,
         sinkLastProgressAt: this.sinkController.lastProgressAt,
-        sourceRunning: this.source.running,
-        sourceStartedAt: this.source.startedAt,
+        sourceRunning: this.sourceSession.running,
+        sourceStartedAt: this.sourceSession.startedAt,
         sinkStartedAt: this.sinkController.startedAt,
-        sourceBitrateKbps: this.source.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
-        sourceOutputSeconds: this.source.outputTimeSeconds,
+        sourceBitrateKbps: this.sourceSession.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
+        sourceOutputSeconds: this.sourceSession.outputTimeSeconds,
         suppressStall: this.playlistController.isAdvancePending,
         sinkGraceUntil: this.sinkController.graceUntil,
       }),
@@ -364,30 +361,8 @@ export class Supervisor {
     logger.info({ version: VERSION, relayPort: relayEndpoint.port }, 'Supervisor bereit');
   }
 
-  /**
-   * Keep MPEG-TS timestamps monotonic across source/pause switches. The new
-   * producer gets the offset used by the previous one plus the wall-clock time
-   * it was running (and a safety margin). This avoids backward DTS jumps in the
-   * long-lived encoder when TikTok restarts its timeline at zero.
-   */
-  private nextProducerOffset(): number {
-    if (this.producerStartedAt === null) return this.producerOffset;
-    const elapsed = Math.max(0, (Date.now() - this.producerStartedAt) / 1000);
-    return Math.round((this.producerOffset + Math.max(2, elapsed + 1)) * 1000) / 1000;
-  }
-
-  private markProducerStarted(offset: number): void {
-    this.producerOffset = offset;
-    this.producerStartedAt = Date.now();
-  }
-
   private markSinkGrace(): void {
     this.sinkController.markGrace();
-  }
-
-  private resetTimeline(): void {
-    this.producerOffset = 0;
-    this.producerStartedAt = null;
   }
 
   /**
@@ -547,7 +522,7 @@ export class Supervisor {
     await this.stopSourceAndChatLocked();
     if (this.sinkController.running) await this.stopSinkLocked();
     this.buffer.reset();
-    this.resetTimeline();
+    this.sourceSession.resetTimeline();
     this.overlayRuntime.stopEngine();
     this.overlayRuntime.resetMessages();
     this.applyConfiguredDelay();
@@ -563,7 +538,7 @@ export class Supervisor {
     this.pauseController.pauseReason = null;
     this.pauseController.manualScreen = null;
     this.pauseController.clearPauseLimit();
-    this.reconnectAttempts = 0;
+    this.sourceSession.resetReconnectAttempts();
     this.forceReencodeNext = false;
 
     const synthetic = StreamerSchema.parse({
@@ -582,9 +557,9 @@ export class Supervisor {
       resolvedAt: new Date(),
     };
     const offset = 0;
-    this.source.start(synthetic, resolved, false, offset);
+    this.sourceSession.start(synthetic, resolved, false, offset);
     this.startSinkOrPrefillLocked(options.key, prepared.filters, signature);
-    this.markProducerStarted(offset);
+    this.sourceSession.markProducerStarted(offset);
     this.markSinkGrace();
     this.earnings.setActive();
     this.autoRefresh.stop();
@@ -616,18 +591,18 @@ export class Supervisor {
       return this.buildStatus();
     }
 
-    this.clearReconnectTimer();
+    this.sourceSession.clearReconnectTimer();
     const previousState = this.state;
     this.transitionTo('starting');
     this.lastError = null;
-    this.resolving = true;
+    this.sourceSession.beginResolve();
     this.emitStatus();
 
     let stream: ResolvedStream;
     try {
-      stream = await this.resolver.resolve(streamer);
+      stream = await this.sourceSession.resolve(streamer);
     } catch (error) {
-      this.resolving = false;
+      this.sourceSession.endResolve();
       const message = toErrorMessage(error);
       this.lastError = message;
       if (
@@ -645,7 +620,7 @@ export class Supervisor {
       this.emitAll();
       throw error;
     }
-    this.resolving = false;
+    this.sourceSession.endResolve();
 
     const previousKey = this.sinkController.key;
     const prepared = this.overlays.prepare();
@@ -654,13 +629,13 @@ export class Supervisor {
     const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
     const reusable =
       this.sinkController.running && previousKey === key && this.sinkController.signature === signature;
-    const timestampOffset = reusable ? this.nextProducerOffset() : 0;
+    const timestampOffset = reusable ? this.sourceSession.nextOffset() : 0;
 
     await this.stopSourceAndChatLocked();
 
     if (!reusable) {
       this.buffer.reset();
-      this.resetTimeline();
+      this.sourceSession.resetTimeline();
       if (previousKey && previousKey !== key) this.sinkController.notifyStopped(previousKey);
       if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine);
@@ -679,7 +654,7 @@ export class Supervisor {
     this.pauseController.pauseReason = null;
     this.pauseController.manualScreen = null;
     this.pauseController.clearPauseLimit();
-    this.reconnectAttempts = 0;
+    this.sourceSession.resetReconnectAttempts();
     this.forceReencodeNext = options.forceReencode ?? false;
 
     const introSeconds =
@@ -693,7 +668,7 @@ export class Supervisor {
     if (introSeconds > 0) {
       incMetric('startup_screens_total');
       await this.pauseController.startStartup(timestampOffset);
-      this.markProducerStarted(timestampOffset);
+      this.sourceSession.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.pauseController.clearOfflinePauseTimer();
       this.earnings.setActive();
@@ -702,8 +677,8 @@ export class Supervisor {
       this.transitionTo('starting', 'startup screen');
       this.scheduleStartupFinishLocked(streamer, stream, introSeconds);
     } else {
-      this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
-      this.markProducerStarted(timestampOffset);
+      this.sourceSession.start(streamer, stream, this.forceReencodeNext, timestampOffset);
+      this.sourceSession.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.pauseController.clearOfflinePauseTimer();
       this.overlayRuntime.startChat(streamer);
@@ -740,10 +715,10 @@ export class Supervisor {
           return;
         }
         await this.pauseController.stopStartup();
-        if (this.source.running) return;
-        const offset = this.nextProducerOffset();
-        this.source.start(streamer, stream, this.forceReencodeNext, offset);
-        this.markProducerStarted(offset);
+        if (this.sourceSession.running) return;
+        const offset = this.sourceSession.nextOffset();
+        this.sourceSession.start(streamer, stream, this.forceReencodeNext, offset);
+        this.sourceSession.markProducerStarted(offset);
         this.markSinkGrace();
         this.pauseController.clearOfflinePauseTimer();
         this.overlayRuntime.startChat(streamer);
@@ -765,7 +740,7 @@ export class Supervisor {
     options: StartOptions,
     message: string,
   ): Promise<void> {
-    this.clearReconnectTimer();
+    this.sourceSession.clearReconnectTimer();
     this.pauseController.clearOfflinePauseTimer();
     const prepared = this.overlays.prepare();
     const candidateEngine = this.overlayRuntime.createEngine();
@@ -777,7 +752,7 @@ export class Supervisor {
     await this.stopSourceAndChatLocked();
     if (!reusable) {
       this.buffer.reset();
-      this.resetTimeline();
+      this.sourceSession.resetTimeline();
       if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine);
     } else if (!this.overlayRuntime.engine && candidateEngine) {
@@ -791,7 +766,7 @@ export class Supervisor {
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = streamer.name;
-    this.reconnectAttempts = 0;
+    this.sourceSession.resetReconnectAttempts();
     this.forceReencodeNext = false;
     this.applyConfiguredDelay();
     this.autoRefresh.stop();
@@ -843,14 +818,7 @@ export class Supervisor {
   private async stopSourceAndChatLocked(): Promise<void> {
     this.activeMediaFile = null;
     this.overlayRuntime.stopChat();
-    if (this.source.running || this.source.currentStreamer) {
-      this.stoppingSource += 1;
-      try {
-        await this.source.stop();
-      } finally {
-        this.stoppingSource -= 1;
-      }
-    }
+    await this.sourceSession.stop();
     await this.pauseController.stopScreens();
   }
 
@@ -886,8 +854,8 @@ export class Supervisor {
     this.activeTitle = '';
     this.lastError = null;
     this.forceReencodeNext = false;
-    this.reconnectAttempts = 0;
-    this.resetTimeline();
+    this.sourceSession.resetReconnectAttempts();
+    this.sourceSession.resetTimeline();
     this.earnings.setActive();
     this.transitionTo('idle');
     this.emitAll();
@@ -947,7 +915,7 @@ export class Supervisor {
       this.pauseController.clearStartupTimer();
       this.pauseController.clearOfflinePauseTimer();
       this.pauseController.clearPauseLimit();
-      this.clearReconnectTimer();
+      this.sourceSession.clearReconnectTimer();
       this.sinkController.clearStartTimer();
       await this.stopSourceAndChatLocked();
 
@@ -962,7 +930,7 @@ export class Supervisor {
         // Keep the existing sink so the RTMP connection survives the swap.
         if (!this.sinkController.running) {
           this.buffer.reset();
-          this.resetTimeline();
+          this.sourceSession.resetTimeline();
           pendingSink = {
             key: this.sinkController.key,
             filters: this.sinkController.filters,
@@ -983,7 +951,7 @@ export class Supervisor {
           this.overlayRuntime.stopEngine();
           this.overlayRuntime.resetMessages(false, false);
           this.buffer.reset();
-          this.resetTimeline();
+          this.sourceSession.resetTimeline();
           const prepared = this.overlays.prepare();
           pendingSink = {
             key: target.key,
@@ -993,7 +961,7 @@ export class Supervisor {
         }
       }
       this.applyConfiguredDelay();
-      const offset = this.nextProducerOffset();
+      const offset = this.sourceSession.nextOffset();
       const screen = this.pauseController.screen(type);
       if (screen === this.pauseController.screen('startup')) {
         await this.pauseController.startStartup(offset);
@@ -1008,7 +976,7 @@ export class Supervisor {
           pendingSink.input,
         );
       }
-      this.markProducerStarted(offset);
+      this.sourceSession.markProducerStarted(offset);
       this.markSinkGrace();
       this.pauseController.manualScreen = type;
       this.pauseController.pauseReason = 'user';
@@ -1066,13 +1034,8 @@ export class Supervisor {
     return this.stop();
   }
 
-  private clearReconnectTimer(): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = undefined;
-  }
-
   private clearAllTimers(): void {
-    this.clearReconnectTimer();
+    this.sourceSession.clearReconnectTimer();
     this.sinkController.clearTimers();
     this.playlistController.clearTimers();
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
@@ -1084,7 +1047,7 @@ export class Supervisor {
     code: number | null = null,
     signal: NodeJS.Signals | null = null,
   ): void {
-    if (this.shuttingDown || this.stoppingSource > 0) return;
+    if (this.shuttingDown || this.sourceSession.stopping > 0) return;
     if (this.activeMediaFile) {
       const file = this.activeMediaFile;
       this.activeMediaFile = null;
@@ -1099,7 +1062,7 @@ export class Supervisor {
     if (!this.activeStreamer) return;
     if (!['live', 'starting'].includes(this.state)) return;
     incMetric('source_exits_total');
-    this.reconnects += 1;
+    this.sourceSession.incrementReconnects();
     this.lastError = 'Stream-Quelle beendet';
     this.pauseController.scheduleOfflinePause();
     if (!this.settings.watchdog.auto_reconnect) {
@@ -1117,35 +1080,31 @@ export class Supervisor {
   }
 
   private scheduleReconnect(delayMs?: number): void {
-    if (this.shuttingDown || !this.activeStreamer || this.reconnectTimer) return;
+    if (this.shuttingDown || !this.activeStreamer || this.sourceSession.reconnecting) return;
     incMetric('source_reconnects_total');
-    this.reconnectAttempts += 1;
-    const delay = reconnectDelay(this.reconnectAttempts, this.settings, delayMs);
+    const scheduled = this.sourceSession.scheduleReconnect(delayMs, () => void this.reconnect());
+    if (!scheduled) return;
     if (this.state !== 'paused') this.transitionTo('reconnecting', 'reconnect scheduled');
     this.emitStatus();
     this.deps.logger.info(
-      { attempt: this.reconnectAttempts, delaySeconds: Math.round(delay / 100) / 10 },
+      { attempt: scheduled.attempt, delaySeconds: Math.round(scheduled.delayMs / 100) / 10 },
       'Neuverbindung geplant',
     );
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      void this.reconnect();
-    }, delay);
   }
 
   private async reconnect(): Promise<void> {
     await this.lock.run(async () => {
       if (this.shuttingDown || !this.activeStreamer) return;
       if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
-      if (this.source.running) return;
+      if (this.sourceSession.running) return;
       this.transitionTo('reconnecting');
       this.emitStatus();
       try {
-        const stream = await this.resolver.resolve(this.activeStreamer);
+        const stream = await this.sourceSession.resolve(this.activeStreamer);
         await this.pauseController.stopPause();
         this.applyConfiguredDelay();
-        const timestampOffset = this.nextProducerOffset();
-        this.source.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
+        const timestampOffset = this.sourceSession.nextOffset();
+        this.sourceSession.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
         if (!this.sinkController.running && this.sinkController.key) {
           this.startSinkOrPrefillLocked(
             this.sinkController.key,
@@ -1154,7 +1113,7 @@ export class Supervisor {
             this.sinkController.overlayInput,
           );
         }
-        this.markProducerStarted(timestampOffset);
+        this.sourceSession.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();
         this.pauseController.clearOfflinePauseTimer();
@@ -1163,7 +1122,7 @@ export class Supervisor {
         this.pauseController.pauseReason = null;
         this.pauseController.manualScreen = null;
         this.lastError = null;
-        this.reconnectAttempts = 0;
+        this.sourceSession.resetReconnectAttempts();
         this.watchdog.clearError();
         this.overlayRuntime.ensureChat(this.activeStreamer);
         this.transitionTo('live');
@@ -1197,7 +1156,7 @@ export class Supervisor {
           this.settings.pause.enabled &&
           this.sinkController.running &&
           !this.pauseController.pauseRunning &&
-          this.reconnectAttempts >= 2
+          this.sourceSession.reconnectAttempts >= 2
         ) {
           await this.startPauseLocked();
         }
@@ -1212,7 +1171,7 @@ export class Supervisor {
     await this.pauseController.stopStartup();
     this.overlayRuntime.stopChat();
     this.applyConfiguredDelay();
-    const timestampOffset = this.nextProducerOffset();
+    const timestampOffset = this.sourceSession.nextOffset();
     await this.pauseController.startPause(timestampOffset);
     if (!this.sinkController.running && this.sinkController.key) {
       this.startSinkOrPrefillLocked(
@@ -1222,7 +1181,7 @@ export class Supervisor {
         this.sinkController.overlayInput,
       );
     }
-    this.markProducerStarted(timestampOffset);
+    this.sourceSession.markProducerStarted(timestampOffset);
     this.markSinkGrace();
     this.pauseController.pauseReason = 'offline';
     this.pauseController.manualScreen = null;
@@ -1233,7 +1192,7 @@ export class Supervisor {
   }
 
   private canStartOfflinePauseLocked(): boolean {
-    if (this.source.running || this.pauseController.pauseRunning || !this.sinkController.running) {
+    if (this.sourceSession.running || this.pauseController.pauseRunning || !this.sinkController.running) {
       return false;
     }
     if (this.playlistController.isAdvancePending) return false;
@@ -1249,17 +1208,12 @@ export class Supervisor {
       if (!['live', 'paused'].includes(this.state)) return;
       this.deps.logger.info({ reason }, 'Quell-URL wird aktualisiert');
       try {
-        const stream = await this.resolver.resolve(streamer);
+        const stream = await this.sourceSession.resolve(streamer);
         await this.pauseController.stopPause();
-        this.stoppingSource += 1;
-        try {
-          await this.source.stop();
-        } finally {
-          this.stoppingSource -= 1;
-        }
-        const timestampOffset = this.nextProducerOffset();
-        this.source.start(streamer, stream, this.forceReencodeNext, timestampOffset);
-        this.markProducerStarted(timestampOffset);
+        await this.sourceSession.stop();
+        const timestampOffset = this.sourceSession.nextOffset();
+        this.sourceSession.start(streamer, stream, this.forceReencodeNext, timestampOffset);
+        this.sourceSession.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();
         this.pauseController.clearOfflinePauseTimer();
@@ -1277,7 +1231,7 @@ export class Supervisor {
       } catch (error) {
         this.lastError = toErrorMessage(error);
         this.emitStatus();
-        if (!this.source.running && this.state === 'live') {
+        if (!this.sourceSession.running && this.state === 'live') {
           this.scheduleReconnect(3000);
         }
         if (error instanceof StreamerOfflineError) {
@@ -1294,16 +1248,11 @@ export class Supervisor {
   }
 
   private handleCodecProblem(line: string): void {
-    if (this.shuttingDown || this.stoppingSource > 0 || !this.activeStreamer) return;
+    if (this.shuttingDown || this.sourceSession.stopping > 0 || !this.activeStreamer) return;
     this.deps.logger.warn({ line }, 'Quell-Codec wird nicht unterstützt – Re-Encoding-Fallback');
     this.forceReencodeNext = true;
     void (async () => {
-      this.stoppingSource += 1;
-      try {
-        await this.source.stop();
-      } finally {
-        this.stoppingSource -= 1;
-      }
+      await this.sourceSession.stop();
       this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(1000);
     })();
@@ -1345,12 +1294,7 @@ export class Supervisor {
       this.lastError = `Quelle liefert seit ${ageSeconds}s keine Daten`;
       incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ageSeconds }, 'Quelle wird wegen Stall neu gestartet');
-      this.stoppingSource += 1;
-      try {
-        await this.source.stop();
-      } finally {
-        this.stoppingSource -= 1;
-      }
+      await this.sourceSession.stop();
       this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(1000);
     });
@@ -1384,12 +1328,7 @@ export class Supervisor {
       this.lastError = reason;
       incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ...context, reason }, 'Quelle wird neu gestartet');
-      this.stoppingSource += 1;
-      try {
-        await this.source.stop();
-      } finally {
-        this.stoppingSource -= 1;
-      }
+      await this.sourceSession.stop();
       this.pauseController.scheduleOfflinePause();
       this.scheduleReconnect(2000);
     });
@@ -1421,6 +1360,7 @@ export class Supervisor {
       this.online.updateSettings(next);
       this.overlays.updateSettings(next);
       this.overlayRuntime.updateSettings(next);
+      this.sourceSession.updateSettings(next);
       this.pauseController.updateSettings(next);
       this.earnings.updateSettings(next);
 
@@ -1485,20 +1425,15 @@ export class Supervisor {
         needsSinkRestart = true;
       }
       if (needsSinkRestart && this.sinkController.running) await this.restartSinkLocked();
-      if (videoEncodeChanged && this.source.running && this.source.resolved) {
+      if (videoEncodeChanged && this.sourceSession.running && this.sourceSession.resolved) {
         const reencoding =
-          this.activeStreamer?.video_mode === 'reencode' || !this.source.resolved.isH264;
-        const resolved = this.source.resolved;
+          this.activeStreamer?.video_mode === 'reencode' || !this.sourceSession.resolved.isH264;
+        const resolved = this.sourceSession.resolved;
         if (reencoding && this.activeStreamer && resolved) {
-          this.stoppingSource += 1;
-          try {
-            await this.source.stop();
-          } finally {
-            this.stoppingSource -= 1;
-          }
-          const timestampOffset = this.nextProducerOffset();
-          this.source.start(this.activeStreamer, resolved, true, timestampOffset);
-          this.markProducerStarted(timestampOffset);
+          await this.sourceSession.stop();
+          const timestampOffset = this.sourceSession.nextOffset();
+          this.sourceSession.start(this.activeStreamer, resolved, true, timestampOffset);
+          this.sourceSession.markProducerStarted(timestampOffset);
           this.markSinkGrace();
           this.applyConfiguredDelay();
         }
@@ -1511,9 +1446,9 @@ export class Supervisor {
             : null;
         if (screen) {
           await screen.stop();
-          const timestampOffset = this.nextProducerOffset();
+          const timestampOffset = this.sourceSession.nextOffset();
           await screen.start(undefined, undefined, timestampOffset);
-          this.markProducerStarted(timestampOffset);
+          this.sourceSession.markProducerStarted(timestampOffset);
         }
       }
       if (!next.auto_refresh.enabled) {
@@ -1703,14 +1638,14 @@ export class Supervisor {
       activePlaylist: this.playlistController.current,
       manualScreen: this.pauseController.manualScreen,
       startedAt: this.startedAt,
-      resolving: this.resolving,
-      reconnects: this.reconnects,
+      resolving: this.sourceSession.resolving,
+      reconnects: this.sourceSession.reconnects,
       lastError: this.lastError,
-      reconnecting: this.state === 'reconnecting' || Boolean(this.reconnectTimer),
+      reconnecting: this.state === 'reconnecting' || this.sourceSession.reconnecting,
       monitorOnline: this.activeStreamer
         ? (this.online?.isOnline(this.activeStreamer) ?? null)
         : null,
-      source: this.source?.stats(),
+      source: this.sourceSession?.stats(),
       relay: this.relay?.stats(),
       delay: this.buffer?.stats(),
       sink: this.sinkController?.stats(),
