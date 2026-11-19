@@ -1,6 +1,6 @@
 {
   "name": "restreamer-ts",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "description": "TikTok to YouTube restreaming service with delay buffer, watchdog and web dashboard",
   "license": "MIT",

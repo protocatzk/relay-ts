@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-19** · Version **0.6.1**
+Stand: **2026-11-19** · Version **0.7.0**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -82,6 +82,15 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   `PauseController` und `SourceSession` aufgeteilt.
 - Charakterisierungstests für Status, Sink-Restart, Pause-Timer, Source-Refresh
   und Reconnect-State ergänzt.
+
+### v0.7.0 – API & Developer Experience
+
+**Status: veröffentlicht in 0.7.0.**
+
+- OpenAPI-3.1-Spezifikation für alle API-Routen inklusive Auth- und
+  Fehlerantworten.
+- Auslieferung über `GET /api/openapi.json`, Generator und CI-Frischecheck.
+- Route-Coverage-, Ref- und Typ-Paritätstests.
 
 ## Definition of Done
 
