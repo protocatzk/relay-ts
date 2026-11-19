@@ -9,18 +9,20 @@
 # eine einzige "encode"-Zeile ohne weitere Sonderbehandlung.
 #
 # Nutzung:
-#   sudo scripts/add-caddy-compression.sh            # anwenden + caddy reload
+#   sudo scripts/add-caddy-compression.sh            # anwenden + caddy neu laden/starten
 #   sudo scripts/add-caddy-compression.sh --dry-run  # nur Diff + Validierung zeigen
 #
 # Konfigurierbar über Umgebungsvariablen:
 #   CADDYFILE   (Default: /etc/caddy/Caddyfile)
 #   SITE        (Default: relay.positronium.dev)
+#   SERVICE     (Default: caddy)
 #   ENCODE_LINE (Default: "encode zstd gzip")
 
 set -euo pipefail
 
 CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
 SITE="${SITE:-relay.positronium.dev}"
+SERVICE="${SERVICE:-caddy}"
 ENCODE_LINE="${ENCODE_LINE:-encode zstd gzip}"
 DRY_RUN=0
 
@@ -94,13 +96,14 @@ log "Backup: $BACKUP"
 cat "$TMP" > "$CADDYFILE"
 rm -f "$TMP"
 
-# Caddy neu laden; bei Fehler Rollback.
-if ! systemctl reload caddy; then
-  warn "systemctl reload caddy fehlgeschlagen – stelle Backup wieder her."
+# Caddy neu laden (reload-or-restart: lädt graceful, fällt bei Units ohne
+# ExecReload automatisch auf restart zurück); bei Fehler Rollback.
+if ! systemctl reload-or-restart "$SERVICE"; then
+  warn "systemctl reload-or-restart $SERVICE fehlgeschlagen – stelle Backup wieder her."
   cat "$BACKUP" > "$CADDYFILE"
-  systemctl reload caddy >/dev/null 2>&1 || true
-  fail "Rollback durchgeführt. Bitte Log prüfen (journalctl -u caddy)."
+  systemctl reload-or-restart "$SERVICE" >/dev/null 2>&1 || true
+  fail "Rollback durchgeführt. Bitte Log prüfen (journalctl -u $SERVICE)."
 fi
 
-log "Kompression ($ENCODE_LINE) hinzugefügt und Caddy neu geladen."
+log "Kompression ($ENCODE_LINE) hinzugefügt und $SERVICE neu geladen/gestartet."
 log "Backup: $BACKUP"
