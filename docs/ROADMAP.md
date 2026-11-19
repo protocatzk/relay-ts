@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-18** · Version **0.4.2**
+Stand: **2026-11-19** · Version **0.5.0**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -51,6 +51,10 @@ als Folge-Issue außerhalb von v0.3.0.
 | Mobile Accessibility und E2E-Tests | P3 | Mobile | abgeschlossen |
 
 ### v0.5.0 – Aufräumen & Developer Experience
+
+**Status: veröffentlicht in 0.5.0.** YouTube-Verwaltung, lokale Videos,
+Telegram-Parität, Overlay-Vereinheitlichung und die Entfernung der
+Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 
 | Issue | Priorität | Bereich |
 |---|---|---|
