@@ -1,6 +1,6 @@
 # RELAY Roadmap
 
-Stand: **2026-11-19** · Version **0.5.0**
+Stand: **2026-11-19** · Version **0.6.0**
 
 Dieser Plan bündelt die nächsten Verbesserungen nach der Feature-Parität. Die
 Reihenfolge ist bewusst nach Risiko und Nutzen sortiert. Jeder Punkt hat einen
@@ -65,6 +65,14 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Telegram-Bot: Featureparität mit der Webapp ausbauen | P3 | Telegram |
 | Per-Streamer-Overlays entfernen und Migration abschließen | P4 | Tech Debt |
 | OpenAPI aus Zod/Fastify generieren und Client typisieren | P4 | Tech Debt |
+
+### v0.6.0 – Dashboard & Stream-Layout
+
+**Status: veröffentlicht in 0.6.0.**
+
+- Live-Menü im Header für Stream-Auswahl und manuelles Beenden.
+- Mehrzeilige Einnahmen-Templates inklusive Vorschau und Stream-Ausgabe.
+- Globales Video-Layout mit Größe (50–400 %), Zoom/Beschnitt und Position.
 
 ## Definition of Done
 
