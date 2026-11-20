@@ -442,7 +442,7 @@ export class ChatOverlayEngine {
         this.dirty = true;
       }
     }
-    const card = this.shouldRenderEarningsCard(false, now);
+    const card = this.shouldRenderEarningsCard(false);
     const cardKey = card ? `${card.net}:${card.coins}:${card.periodLabel}` : '';
     if (cardKey !== this.lastEarningsCardKey) {
       this.lastEarningsCardKey = cardKey;
@@ -484,7 +484,7 @@ export class ChatOverlayEngine {
     return Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
   }
 
-  private shouldRenderEarningsCard(isPreviewSample: boolean, now = Date.now()): ChatEarningsCard | null {
+  private shouldRenderEarningsCard(isPreviewSample: boolean): ChatEarningsCard | null {
     const cfg = this.options.overlays.chat;
     if (!cfg.show_earnings_card) return null;
     if (isPreviewSample) {
@@ -500,10 +500,6 @@ export class ChatOverlayEngine {
         }
       );
     }
-    if (!this.earningsCard) return null;
-    const intervalMs = Math.max(10, cfg.earnings_card_interval_seconds ?? 120) * 1000;
-    const windowMs = Math.min(20_000, Math.round(intervalMs * 0.4));
-    if (now % intervalMs >= windowMs) return null;
     return this.earningsCard;
   }
 

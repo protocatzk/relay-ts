@@ -47,6 +47,7 @@ export class OverlayRuntime {
   private previewSignature = '';
   private currentMessages: ChatMessage[] = [];
   private lastMessageAt: Date | null = null;
+  private lastValidEarningsCard: ChatEarningsCard | null = null;
   private readonly analytics = new ChatAnalytics();
 
   constructor(deps: OverlayRuntimeDeps) {
@@ -304,10 +305,14 @@ export class OverlayRuntime {
   }
 
   private buildEarningsCard(snapshot: EarningsSnapshot | null): ChatEarningsCard | null {
-    if (!snapshot || (snapshot.net === null && snapshot.gross === null && snapshot.coins === null)) {
+    if (!snapshot || !snapshot.enabled || !snapshot.configured) {
+      this.lastValidEarningsCard = null;
       return null;
     }
-    return {
+    if (snapshot.net === null && snapshot.gross === null && snapshot.coins === null) {
+      return this.lastValidEarningsCard;
+    }
+    const card: ChatEarningsCard = {
       periodLabel: snapshot.period_label || snapshot.period || 'Heute',
       currency: snapshot.currency,
       net: snapshot.net,
@@ -316,6 +321,8 @@ export class OverlayRuntime {
       goalAmount: this.settings.earnings.goal_amount,
       goalLabel: this.settings.earnings.goal_label,
     };
+    this.lastValidEarningsCard = card;
+    return card;
   }
 
   chatStatus(): StatusSnapshot['chat'] {
