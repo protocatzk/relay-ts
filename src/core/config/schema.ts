@@ -304,6 +304,21 @@ export const YouTubeAutomationSettingsSchema = z.object({
   default_dvr: z.boolean().default(true),
 });
 
+export const SecondarySinkSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  provider: z.enum(['twitch', 'kick', 'custom']).default('twitch'),
+  rtmp_url: z.string().max(500).default('rtmp://live.twitch.tv/app'),
+  stream_key: z.string().max(300).default(''),
+  mode: z.enum(['copy', 'reencode']).default('reencode'),
+});
+
+export const RecordingSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  max_total_mb: z.number().int().min(0).max(1_000_000).default(10_240),
+  min_free_mb: z.number().int().min(0).max(500_000).default(1024),
+  auto_delete: z.boolean().default(false),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -318,6 +333,8 @@ export const SettingsSchema = z.object({
   earnings: EarningsSettingsSchema.default(EarningsSettingsSchema.parse({})),
   overlays: OverlaysSettingsSchema.default(OverlaysSettingsSchema.parse({})),
   youtube: YouTubeAutomationSettingsSchema.default(YouTubeAutomationSettingsSchema.parse({})),
+  secondary_sink: SecondarySinkSettingsSchema.default(SecondarySinkSettingsSchema.parse({})),
+  recording: RecordingSettingsSchema.default(RecordingSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -332,6 +349,8 @@ export type StreamerConfig = z.infer<typeof StreamerSchema>;
 export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettingsSchema>;
+export type SecondarySinkSettings = z.infer<typeof SecondarySinkSettingsSchema>;
+export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

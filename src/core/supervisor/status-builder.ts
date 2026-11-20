@@ -30,6 +30,8 @@ export interface StatusBuilderContext {
   autoRefresh?: ReturnType<AutoRefresh['stats']>;
   chat: StatusSnapshot['chat'];
   media: StatusSnapshot['media'];
+  secondarySink?: StatusSnapshot['secondary_sink'];
+  recording?: StatusSnapshot['recording'];
 }
 
 /** Builds the API/SSE status snapshot from the current supervisor state. */
@@ -54,6 +56,8 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     autoRefresh,
     chat,
     media,
+    secondarySink,
+    recording,
   } = context;
   const now = Date.now();
   return {
@@ -117,6 +121,8 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     },
     chat,
     media,
+    ...(secondarySink ? { secondary_sink: secondarySink } : {}),
+    ...(recording ? { recording } : {}),
     version: VERSION,
   };
 }

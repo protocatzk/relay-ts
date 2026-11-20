@@ -70,6 +70,26 @@ export interface StatusSnapshot {
     duration_seconds: number;
     position_seconds: number;
   } | null;
+  secondary_sink?: {
+    enabled: boolean;
+    provider: 'twitch' | 'kick' | 'custom';
+    mode: 'copy' | 'reencode';
+    running: boolean;
+    pid: number | null;
+    bitrate_kbps: number | null;
+    fps: number | null;
+    restarts: number;
+    last_error: string | null;
+  };
+  recording?: {
+    enabled: boolean;
+    active: boolean;
+    filename: string | null;
+    started_at: string | null;
+    bytes: number;
+    disk_warning: string | null;
+    last_error: string | null;
+  };
   version: string;
 }
 

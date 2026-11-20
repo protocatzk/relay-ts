@@ -141,11 +141,15 @@ export function mapHttpAuditAction(method: string, url: string): MappedAuditActi
     return { action: 'auth.sessions_revoke_all', target: 'all' };
   }
 
-  // Media
+  // Media & recordings
   if (path === '/api/media' && method === 'POST') return { action: 'media.upload', target: null };
   match = /^\/api\/media\/([^/]+)$/.exec(path);
   if (match && method === 'DELETE') {
     return { action: 'media.delete', target: decodeURIComponent(match[1]!) };
+  }
+  match = /^\/api\/recordings\/([^/]+)$/.exec(path);
+  if (match && method === 'DELETE') {
+    return { action: 'recording.delete', target: decodeURIComponent(match[1]!) };
   }
 
   // YouTube

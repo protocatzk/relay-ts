@@ -301,6 +301,8 @@ export function createLogger(options: LoggerOptions = {}): LoggerBundle {
           '*.youtube_key',
           'streamKey',
           '*.streamKey',
+          'stream_key',
+          '*.stream_key',
           'api_key',
           '*.api_key',
           'sessionid',

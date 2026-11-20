@@ -69,6 +69,7 @@ export const SECTIONS: NavSection[] = [
     tabs: [
       { label: 'Overlays', to: '/overlays' },
       { label: 'YouTube', to: '/youtube' },
+      { label: 'Ausgabe', to: '/output' },
     ],
   },
   {

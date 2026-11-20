@@ -4033,6 +4033,108 @@
         }
       }
     },
+    "/api/recordings": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Lokale MKV-Aufzeichnungen und Speicherstatus auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recordings/:filename": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Aufzeichnung als MKV herunterladen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "video/x-matroska": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Aufzeichnung löschen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/preview.ts": {
       "get": {
         "tags": [
@@ -6296,6 +6398,80 @@
                 "type": "boolean"
               }
             }
+          },
+          "secondary_sink": {
+            "default": {
+              "enabled": false,
+              "provider": "twitch",
+              "rtmp_url": "rtmp://live.twitch.tv/app",
+              "stream_key": "",
+              "mode": "reencode"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "provider": {
+                "default": "twitch",
+                "type": "string",
+                "enum": [
+                  "twitch",
+                  "kick",
+                  "custom"
+                ]
+              },
+              "rtmp_url": {
+                "default": "rtmp://live.twitch.tv/app",
+                "type": "string",
+                "maxLength": 500
+              },
+              "stream_key": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              },
+              "mode": {
+                "default": "reencode",
+                "type": "string",
+                "enum": [
+                  "copy",
+                  "reencode"
+                ]
+              }
+            }
+          },
+          "recording": {
+            "default": {
+              "enabled": false,
+              "max_total_mb": 10240,
+              "min_free_mb": 1024,
+              "auto_delete": false
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "max_total_mb": {
+                "default": 10240,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "min_free_mb": {
+                "default": 1024,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500000
+              },
+              "auto_delete": {
+                "default": false,
+                "type": "boolean"
+              }
+            }
           }
         }
       },
@@ -7337,6 +7513,80 @@
               },
               "default_dvr": {
                 "default": true,
+                "type": "boolean"
+              }
+            }
+          },
+          "secondary_sink": {
+            "default": {
+              "enabled": false,
+              "provider": "twitch",
+              "rtmp_url": "rtmp://live.twitch.tv/app",
+              "stream_key": "",
+              "mode": "reencode"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "provider": {
+                "default": "twitch",
+                "type": "string",
+                "enum": [
+                  "twitch",
+                  "kick",
+                  "custom"
+                ]
+              },
+              "rtmp_url": {
+                "default": "rtmp://live.twitch.tv/app",
+                "type": "string",
+                "maxLength": 500
+              },
+              "stream_key": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              },
+              "mode": {
+                "default": "reencode",
+                "type": "string",
+                "enum": [
+                  "copy",
+                  "reencode"
+                ]
+              }
+            }
+          },
+          "recording": {
+            "default": {
+              "enabled": false,
+              "max_total_mb": 10240,
+              "min_free_mb": 1024,
+              "auto_delete": false
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "max_total_mb": {
+                "default": 10240,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "min_free_mb": {
+                "default": 1024,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500000
+              },
+              "auto_delete": {
+                "default": false,
                 "type": "boolean"
               }
             }

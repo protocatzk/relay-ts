@@ -4,13 +4,17 @@ import { ValidationError } from '../../utils/errors.js';
 import { readYamlFile, writeYamlFile } from '../../utils/fs.js';
 import { deepMerge } from '../../utils/format.js';
 
-export type SanitizedSettings = Omit<Settings, 'online' | 'chat' | 'earnings' | 'overlays'> & {
+export type SanitizedSettings = Omit<
+  Settings,
+  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink'
+> & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
   earnings: Omit<Settings['earnings'], 'api_key'> & { api_key_set: boolean };
   overlays: Omit<Settings['overlays'], 'chat'> & {
     chat: Omit<Settings['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
   };
+  secondary_sink: Omit<Settings['secondary_sink'], 'stream_key'> & { stream_key_set: boolean };
 };
 
 export class SettingsService {
@@ -48,6 +52,11 @@ export class SettingsService {
           api_key_set: Boolean(settings.overlays.chat.api_key),
         },
       },
+      secondary_sink: {
+        ...settings.secondary_sink,
+        stream_key: undefined,
+        stream_key_set: Boolean(settings.secondary_sink.stream_key),
+      },
     } as SanitizedSettings;
   }
 
@@ -63,6 +72,9 @@ export class SettingsService {
     if (raw.chat && !('api_key' in raw.chat)) merged.chat.api_key = this.current.chat.api_key;
     if (raw.earnings && !('api_key' in raw.earnings)) {
       merged.earnings.api_key = this.current.earnings.api_key;
+    }
+    if (raw.secondary_sink && !('stream_key' in raw.secondary_sink)) {
+      merged.secondary_sink.stream_key = this.current.secondary_sink.stream_key;
     }
     const parsed = SettingsSchema.safeParse(merged);
     if (!parsed.success) {
@@ -94,6 +106,10 @@ function stripSecretFlags(input: Record<string, unknown>): Record<string, unknow
     if (chat && typeof chat === 'object' && !Array.isArray(chat)) {
       delete (chat as Record<string, unknown>).api_key_set;
     }
+  }
+  const secondary = result.secondary_sink;
+  if (secondary && typeof secondary === 'object' && !Array.isArray(secondary)) {
+    delete (secondary as Record<string, unknown>).stream_key_set;
   }
   return result;
 }

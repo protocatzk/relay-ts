@@ -27,6 +27,7 @@ import type {
   PlaylistInput,
   PlaylistsResponse,
   QueueSnapshot,
+  RecordingsListResponse,
   Settings,
   SettingsUpdate,
   StatusPayload,
@@ -375,6 +376,16 @@ export const api = {
       }),
     remove: (filename: string) =>
       request<{ ok: true }>(`/api/media/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  recordings: {
+    list: () => request<RecordingsListResponse>('/api/recordings'),
+    downloadUrl: (filename: string): string =>
+      `/api/recordings/${encodeURIComponent(filename)}`,
+    remove: (filename: string) =>
+      request<{ ok: true }>(`/api/recordings/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
       }),
   },

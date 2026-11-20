@@ -18,6 +18,8 @@ export interface ManagedProcessOptions {
   killTimeoutMs?: number;
   /** Additional writable file descriptors starting at 3 (e.g. raw overlay frames). */
   extraPipes?: number;
+  /** Standard input mode (`ignore` by default, `pipe` when feeding MPEG-TS via stdin). */
+  stdinMode?: 'ignore' | 'pipe';
 }
 
 const MAX_RECENT_LINES = 200;
@@ -57,6 +59,10 @@ export class ManagedProcess {
     return [...this.recentLines];
   }
 
+  get stdin(): import('node:stream').Writable | null {
+    return this.child?.stdin ?? null;
+  }
+
   extraStream(index = 3): NodeJS.WritableStream | null {
     const stream = this.child?.stdio[index];
     if (!stream || typeof (stream as NodeJS.WritableStream).write !== 'function') return null;
@@ -74,7 +80,7 @@ export class ManagedProcess {
       cwd: this.options.cwd,
       env: this.options.env ?? process.env,
       stdio: [
-        'ignore',
+        this.options.stdinMode ?? 'ignore',
         'pipe',
         'pipe',
         ...Array.from({ length: this.options.extraPipes ?? 0 }, () => 'pipe' as const),

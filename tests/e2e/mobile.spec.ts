@@ -12,6 +12,7 @@ test.describe('mobile layout and navigation', () => {
       { path: '/#/streamers', heading: 'Streamer' },
       { path: '/#/playlists', heading: 'Playlists' },
       { path: '/#/overlays', heading: 'Overlay-Studio' },
+      { path: '/#/output', heading: 'Ausgabe' },
       { path: '/#/settings', heading: 'Einstellungen' },
       { path: '/#/logs', heading: 'Logs' },
       { path: '/#/diagnostics', heading: 'Diagnose' },

@@ -28,6 +28,8 @@ import { TikTokResolver } from '../source/resolver.js';
 import { TikTokSource } from '../source/tiktok-source.js';
 import type { ResolvedStream } from '../source/tiktok.js';
 import { YouTubeSink } from '../sink/youtube-sink.js';
+import { SecondarySink } from '../sink/secondary-sink.js';
+import { RecordingController } from '../recording/recording-controller.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
 import type { ChatMessage } from '../overlays/chat-service.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
@@ -126,6 +128,8 @@ export class Supervisor {
   private relay!: MpegTsRelay;
   private sourceSession!: SourceSession;
   private sinkController!: SinkController;
+  private secondarySink!: SecondarySink;
+  private recording!: RecordingController;
   private overlays!: OverlayManager;
   private pauseController!: PauseController;
   private watchdog!: Watchdog;
@@ -287,6 +291,23 @@ export class Supervisor {
       onPrefillDone: () => this.emitAll(),
       youtube: () => this.deps.youtube,
     });
+    this.secondarySink = new SecondarySink({
+      media: config.media,
+      settings: this.settings,
+      relay: this.relay,
+      logger,
+      redact: this.deps.redact,
+    });
+    this.recording = new RecordingController({
+      dataDir: config.paths.dataDir,
+      media: config.media,
+      settings: this.settings,
+      relay: this.relay,
+      logger,
+    });
+    if (this.settings.secondary_sink.stream_key) {
+      this.deps.registerSecret?.(this.settings.secondary_sink.stream_key);
+    }
     this.overlays = new OverlayManager(
       { media: config.media, overlaysDir: config.paths.overlaysDir, logger },
       this.settings,
@@ -1063,6 +1084,8 @@ export class Supervisor {
       delaySeconds,
       bufferedSeconds,
     });
+    this.secondarySink.start();
+    this.recording.start(this.activeStreamer?.id ?? this.activeMediaFile ?? 'stream');
   }
 
   private async stopSinkLocked(): Promise<void> {
@@ -1096,6 +1119,7 @@ export class Supervisor {
     this.autoRefresh.stop();
     this.watchdog.reset();
     await this.stopSourceAndChatLocked();
+    await Promise.allSettled([this.secondarySink.stop(), this.recording.stop()]);
     await this.stopSinkLocked();
     // A container restart is not a user stop. Keep the broadcast for the next
     // start instead of completing it on every deploy.
@@ -1882,6 +1906,21 @@ export class Supervisor {
       this.sourceSession.updateSettings(next);
       this.pauseController.updateSettings(next);
       this.earnings.updateSettings(next);
+      this.secondarySink.updateSettings(next);
+      this.recording.updateSettings(next);
+      if (next.secondary_sink.stream_key) {
+        this.deps.registerSecret?.(next.secondary_sink.stream_key);
+      }
+      const sessionActive = this.sinkController.running || this.sinkController.starting;
+      if (JSON.stringify(previous.secondary_sink) !== JSON.stringify(next.secondary_sink)) {
+        await this.secondarySink.syncWithSettings(sessionActive);
+      }
+      if (JSON.stringify(previous.recording) !== JSON.stringify(next.recording)) {
+        await this.recording.syncWithSettings(
+          sessionActive,
+          this.activeStreamer?.id ?? this.activeMediaFile ?? 'stream',
+        );
+      }
 
       const overlaysChanged = JSON.stringify(previous.overlays) !== JSON.stringify(next.overlays);
       const earningsOverlayChanged =
@@ -2164,6 +2203,10 @@ export class Supervisor {
     }
   }
 
+  recordingFilename(): string | null {
+    return this.recording?.filename ?? null;
+  }
+
   buildStatus(): StatusSnapshot {
     return buildStatusSnapshot({
       state: this.state,
@@ -2194,6 +2237,8 @@ export class Supervisor {
               position_seconds: this.currentMediaPosition(),
             }
           : null,
+      secondarySink: this.secondarySink?.status(),
+      recording: this.recording?.status(),
     });
   }
 }

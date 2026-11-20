@@ -51,6 +51,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Overlays', section: 'studio' },
   },
   {
+    path: '/output',
+    name: 'output',
+    component: () => import('@/src/views/OutputView.vue'),
+    meta: { title: 'Ausgabe', section: 'studio' },
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/src/views/SettingsView.vue'),

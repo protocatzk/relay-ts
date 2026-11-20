@@ -794,6 +794,27 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/recordings',
+    tag: 'media',
+    summary: 'Lokale MKV-Aufzeichnungen und Speicherstatus auflisten',
+  },
+  {
+    method: 'get',
+    path: '/api/recordings/:filename',
+    tag: 'media',
+    summary: 'Aufzeichnung als MKV herunterladen',
+    responseType: 'video/x-matroska',
+    response: { type: 'string' },
+  },
+  {
+    method: 'delete',
+    path: '/api/recordings/:filename',
+    tag: 'media',
+    summary: 'Aufzeichnung löschen',
+    response: 'Ok',
+  },
+  {
+    method: 'get',
     path: '/api/preview.ts',
     tag: 'preview',
     summary: 'MPEG-TS-Tap der Live-Vorschau',

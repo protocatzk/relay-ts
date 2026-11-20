@@ -101,6 +101,8 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         bitrate_kbps: status.sink.bitrate_kbps,
         fps: status.sink.fps,
       },
+      ...(status.secondary_sink ? { secondary_sink: status.secondary_sink } : {}),
+      ...(status.recording ? { recording: status.recording } : {}),
       pause: {
         active: status.state === 'paused',
         manual_screen: status.manual_screen,

@@ -184,6 +184,26 @@ export interface StatusPayload {
     duration_seconds: number;
     position_seconds: number;
   } | null;
+  secondary_sink?: {
+    enabled: boolean;
+    provider: 'twitch' | 'kick' | 'custom';
+    mode: 'copy' | 'reencode';
+    running: boolean;
+    pid: number | null;
+    bitrate_kbps: number | null;
+    fps: number | null;
+    restarts: number;
+    last_error: string | null;
+  };
+  recording?: {
+    enabled: boolean;
+    active: boolean;
+    filename: string | null;
+    started_at: string | null;
+    bytes: number;
+    disk_warning: string | null;
+    last_error: string | null;
+  };
   version: string;
 }
 
@@ -436,6 +456,45 @@ export interface SourceSettings {
   reencode: 'off' | 'always' | 'on_reconnect';
 }
 
+export interface SecondarySinkSettings {
+  enabled: boolean;
+  provider: 'twitch' | 'kick' | 'custom';
+  rtmp_url: string;
+  stream_key_set: boolean;
+  mode: 'copy' | 'reencode';
+}
+
+export interface RecordingSettings {
+  enabled: boolean;
+  max_total_mb: number;
+  min_free_mb: number;
+  auto_delete: boolean;
+}
+
+export interface RecordingFile {
+  filename: string;
+  size: number;
+  modified_at: string;
+  active: boolean;
+}
+
+export interface RecordingsListResponse {
+  files: RecordingFile[];
+  storage: {
+    total_bytes: number;
+    file_count: number;
+    max_total_mb: number;
+    min_free_mb: number;
+    disk_warning: string | null;
+    filesystem: {
+      total_bytes: number;
+      free_bytes: number;
+      available_bytes: number;
+    } | null;
+  };
+  active: string | null;
+}
+
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
@@ -449,6 +508,8 @@ export interface Settings {
   streaming: StreamingSettings;
   earnings: EarningsSettings;
   overlays: StreamerOverlays;
+  secondary_sink?: SecondarySinkSettings;
+  recording?: RecordingSettings;
 }
 
 export interface StreamingSettings {
@@ -559,6 +620,14 @@ export interface SettingsUpdate {
     title_template: string;
   };
   overlays?: StreamerOverlaysInput;
+  secondary_sink?: {
+    enabled: boolean;
+    provider: 'twitch' | 'kick' | 'custom';
+    rtmp_url: string;
+    stream_key?: string;
+    mode: 'copy' | 'reencode';
+  };
+  recording?: RecordingSettings;
   earnings: {
     enabled: boolean;
     source_url: string;

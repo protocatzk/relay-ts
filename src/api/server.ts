@@ -24,6 +24,7 @@ import { registerQueueRoutes } from './routes/queue.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerPauseAssetRoutes } from './routes/pause-assets.js';
 import { registerMediaRoutes } from './routes/media.js';
+import { registerRecordingRoutes } from './routes/recordings.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerYouTubeRoutes } from './routes/youtube.js';
 import { registerOpenApiRoutes } from './routes/openapi.js';
@@ -140,6 +141,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerSystemRoutes(app, ctx);
   await registerPauseAssetRoutes(app, ctx);
   await registerMediaRoutes(app, ctx);
+  await registerRecordingRoutes(app, ctx);
   await registerPreviewRoutes(app, ctx);
   await registerYouTubeRoutes(app, ctx);
   await registerOpenApiRoutes(app);
