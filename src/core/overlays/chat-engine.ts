@@ -516,7 +516,8 @@ export class ChatOverlayEngine {
   ): void {
     const cfg = this.options.overlays.chat;
     ctx.clearRect(0, 0, width, height);
-    if (messages.length === 0) return;
+    const card = this.shouldRenderEarningsCard(isPreviewSample);
+    if (messages.length === 0 && !card) return;
 
     const padding = 12;
     const gap = 6;
@@ -535,7 +536,7 @@ export class ChatOverlayEngine {
     const visible = messages.slice(-cfg.max_lines);
     let topLimit = padding;
 
-    if (style === 'panel') {
+    if (style === 'panel' && visible.length > 0) {
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.fillStyle = rgba(box);
@@ -547,7 +548,7 @@ export class ChatOverlayEngine {
       ctx.restore();
     }
 
-    if (cfg.show_stats) {
+    if (cfg.show_stats && visible.length > 0) {
       const cutoff = Date.now() - 10 * 60_000;
       const recent = messages.filter((message) => {
         const at = (message.timestamp ?? message.receivedAt).getTime();
@@ -572,7 +573,6 @@ export class ChatOverlayEngine {
       topLimit += nameLineHeight + 6;
     }
 
-    const card = this.shouldRenderEarningsCard(isPreviewSample);
     if (card) {
       const symbol = card.currency === 'USD' ? '$' : '€';
       const netText = card.net !== null ? `${card.net.toFixed(2)} ${symbol}` : '–';

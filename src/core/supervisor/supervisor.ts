@@ -405,6 +405,7 @@ export class Supervisor {
       getActive: () => this.activeStreamer,
       onUpdate: (snapshot, overlayText) => {
         this.overlays.updateEarnings(overlayText);
+        this.overlayRuntime?.updateEarnings(snapshot);
         this.deps.bus.emit({ type: 'earnings', data: snapshot });
       },
       history: earningsHistory,

@@ -68,6 +68,11 @@ export class OverlayRuntime {
 
   updateSettings(settings: Settings): void {
     this.settings = settings;
+    this.chatEngine?.setEarningsCard(this.currentEarningsCard());
+  }
+
+  updateEarnings(snapshot: EarningsSnapshot | null): void {
+    this.chatEngine?.setEarningsCard(this.buildEarningsCard(snapshot));
   }
 
   get engine(): ChatOverlayEngine | undefined {

@@ -78,6 +78,10 @@ describe('In-chat earnings card (#42)', () => {
     });
     const png = engine.previewPng(true);
     expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+    // Also renders when there are zero chat messages and overlay_enabled is false.
+    const noMsgPng = engine.previewPng(false);
+    expect(noMsgPng.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
     engine.stop();
   });
 });
