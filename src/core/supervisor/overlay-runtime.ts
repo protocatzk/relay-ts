@@ -123,6 +123,8 @@ export class OverlayRuntime {
     stream: NodeJS.WritableStream | null,
     logoStream: NodeJS.WritableStream | null,
   ): void {
+    if (this.chatEngine && this.chatEngine !== engine) this.chatEngine.stop();
+    if (this.logoEngine && this.logoEngine !== logoEngine) this.logoEngine.stop();
     this.chatEngine = engine;
     this.logoEngine = logoEngine;
     this.chatEngine?.attach(stream);

@@ -225,6 +225,8 @@ export interface ChatPanelSpec {
   x: number;
   y: number;
   fps: number;
+  /** Rawvideo pipe fed to the sink; chat defaults to fd 3, logo uses fd 4. */
+  fd?: number;
 }
 
 export interface ChatOverlayEngineOptions {

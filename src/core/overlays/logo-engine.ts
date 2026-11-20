@@ -39,7 +39,7 @@ export class LogoOverlayEngine {
     const margin = Math.max(0, cfg.margin);
     const x = cfg.position.endsWith('right') ? outputWidth - width - margin : margin;
     const y = cfg.position.startsWith('top') ? margin : outputHeight - height - margin;
-    this.spec = { width, height, x: x + cfg.offset_x, y: y + cfg.offset_y, fps: 10 };
+    this.spec = { width, height, x: x + cfg.offset_x, y: y + cfg.offset_y, fps: 10, fd: 4 };
 
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');

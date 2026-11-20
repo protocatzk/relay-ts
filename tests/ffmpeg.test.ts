@@ -152,6 +152,22 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('[base][1:v]overlay=30:40');
   });
 
+  it('defaults the logo to fd 4 when the chat canvas is disabled', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'stream-key',
+      relay,
+      // The real logo engine panel carries fd 4, but the sink must not depend
+      // on the caller: a logo-only pipeline has to read pipe 4, not pipe 3.
+      logoInput: { width: 100, height: 50, x: 30, y: 40, fps: 10 },
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-i pipe:4');
+    expect(line).not.toContain('-i pipe:3');
+    expect(line).toContain('[base][1:v]overlay=30:40');
+  });
+
   it('builds a CBR sink for YouTube with the configured canvas', () => {
     const args = buildSinkCommand({
       media,

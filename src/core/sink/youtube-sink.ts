@@ -100,6 +100,8 @@ export class YouTubeSink {
       args,
       logger: this.options.logger,
       redact: this.options.redact,
+      // Always reserve fd 3 (chat) and fd 4 (logo) so the overlay engines keep
+      // stable pipe descriptors even when only one overlay is active.
       extraPipes: overlayInput || logoInput ? 2 : 0,
       onLine: (line, stream) => {
         if (stream === 'stdout') {

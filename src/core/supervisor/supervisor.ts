@@ -956,6 +956,7 @@ export class Supervisor {
     this.sinkController.key = '';
     this.sinkController.filters = [];
     this.sinkController.overlayInput = undefined;
+    this.sinkController.logoInput = undefined;
     this.sinkController.signature = '';
     this.startedAt = null;
     this.activeTitle = '';
@@ -1070,6 +1071,7 @@ export class Supervisor {
         if (!this.sinkController.running || this.sinkController.key !== target.key) {
           if (this.sinkController.running) await this.stopSinkLocked();
           this.overlayRuntime.stopEngine();
+          this.sinkController.logoInput = undefined;
           this.overlayRuntime.resetMessages(false, false);
           this.buffer.reset();
           this.sourceSession.resetTimeline();

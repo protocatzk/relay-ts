@@ -237,10 +237,18 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '-i',
     playbackUrl(relay),
   ];
-  const overlayInputs: SinkOverlayInput[] = [];
-  if (options.overlayInput) overlayInputs.push(options.overlayInput);
-  if (options.logoInput) overlayInputs.push(options.logoInput);
-  for (const overlay of overlayInputs) {
+  // The sink always opens two rawvideo pipes: fd 3 for the chat canvas and
+  // fd 4 for the logo. Keep those descriptors stable even when only one of
+  // the overlays is active, otherwise ffmpeg would read the logo from fd 3
+  // while the logo engine writes to fd 4 (and the sink would stall).
+  const overlayInputs: { overlay: SinkOverlayInput; fd: number }[] = [];
+  if (options.overlayInput) {
+    overlayInputs.push({ overlay: options.overlayInput, fd: options.overlayInput.fd ?? 3 });
+  }
+  if (options.logoInput) {
+    overlayInputs.push({ overlay: options.logoInput, fd: options.logoInput.fd ?? 4 });
+  }
+  for (const { overlay, fd } of overlayInputs) {
     inputArgs.push(
       '-thread_queue_size',
       '512',
@@ -253,7 +261,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
       '-framerate',
       String(overlay.fps),
       '-i',
-      `pipe:${overlay.fd ?? 3}`,
+      `pipe:${fd}`,
     );
   }
 
@@ -262,7 +270,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
   const graphParts: string[] = [];
   if (overlayInputs.length > 0) {
     graphParts.push(`[0:v]${filters.join(',')}[base]`);
-    overlayInputs.forEach((overlay, index) => {
+    overlayInputs.forEach(({ overlay }, index) => {
       const input = index + 1;
       const isLast = index === overlayInputs.length - 1;
       const source = index === 0 ? 'base' : `stage${index - 1}`;

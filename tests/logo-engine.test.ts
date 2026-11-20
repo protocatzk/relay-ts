@@ -31,7 +31,7 @@ describe('LogoOverlayEngine', () => {
       image,
       logger,
     });
-    expect(engine.panel).toEqual({ width: 160, height: 160, x: 42, y: 27, fps: 10 });
+    expect(engine.panel).toEqual({ width: 160, height: 160, x: 42, y: 27, fps: 10, fd: 4 });
     engine.stop();
   });
 
@@ -52,6 +52,7 @@ describe('LogoOverlayEngine', () => {
       x: width - 100 - 20,
       y: height - 100 - 20,
       fps: 10,
+      fd: 4,
     });
     engine.stop();
   });
