@@ -134,16 +134,22 @@ test.describe('mobile layout and navigation', () => {
     await expect(page.getByRole('button', { name: 'Positionieren' })).toBeVisible();
   });
 
-  test('overlay studio collapses the preview while scrolling', async ({ page }) => {
+  test('overlay studio collapses the preview manually', async ({ page }) => {
     await page.goto('/#/overlays');
-    await expect(page.getByRole('button', { name: 'Vorschau einklappen' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
-    await page.evaluate(() => window.scrollTo(0, 600));
-    const expand = page.getByRole('button', { name: 'Vorschau ausklappen' });
-    await expect(expand).toBeVisible();
-    await expand.click();
+    const collapse = page.getByRole('button', { name: 'Vorschau einklappen' });
+    await expect(collapse).toHaveAttribute('aria-expanded', 'true');
+
+    // The panel must keep its size while scrolling over the form; only the
+    // chevron changes it. A scroll-triggered collapse caused a layout jump.
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await page.waitForTimeout(400);
+    await expect(page.getByRole('button', { name: 'Vorschau einklappen' })).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    await collapse.click();
+    await expect(page.getByRole('button', { name: 'Vorschau ausklappen' })).toBeVisible();
+    await page.getByRole('button', { name: 'Vorschau ausklappen' }).click();
     await expect(page.getByRole('button', { name: 'Vorschau einklappen' })).toBeVisible();
   });
 

@@ -40,9 +40,7 @@ const previewError = ref('');
 const sendingTest = ref(false);
 const positioning = ref(false);
 const compact = useMediaQuery('(max-width: 1100px)');
-const pageHeadRef = ref<HTMLElement | null>(null);
 const previewCollapsed = ref(false);
-const previewOverride = ref(false);
 const history = ref<string[]>([]);
 const historyIndex = ref(-1);
 const canUndo = computed(() => historyIndex.value > 0);
@@ -56,7 +54,6 @@ let initialLayoutSnapshot = '';
 let previewTimer: number | null = null;
 let previewController: AbortController | null = null;
 let previewObjectUrl = '';
-let headObserver: IntersectionObserver | null = null;
 
 const chatStatus = computed(() => store.status?.chat ?? null);
 const chat = computed(() => draft.value?.chat ?? null);
@@ -140,7 +137,6 @@ function commitDrag(): void {
 }
 
 function togglePreviewCollapsed(value: boolean): void {
-  previewOverride.value = true;
   previewCollapsed.value = value;
 }
 
@@ -482,12 +478,6 @@ watch(
 );
 
 onMounted(async () => {
-  if (pageHeadRef.value) {
-    headObserver = new IntersectionObserver(([entry]) => {
-      if (!previewOverride.value && entry) previewCollapsed.value = !entry.isIntersecting;
-    });
-    headObserver.observe(pageHeadRef.value);
-  }
   loading.value = true;
   try {
     await refreshStatus().catch(() => undefined);
@@ -510,7 +500,6 @@ onBeforeUnmount(() => {
   if (previewTimer !== null) window.clearTimeout(previewTimer);
   if (historyTimer !== null) window.clearTimeout(historyTimer);
   document.body.classList.remove('studio-positioning');
-  headObserver?.disconnect();
   previewController?.abort();
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
 });
@@ -518,7 +507,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page overlay-studio-page" :class="{ 'is-positioning': positioning }">
-    <div ref="pageHeadRef" class="page-head">
+    <div class="page-head">
       <div>
         <h1>Overlay-Studio</h1>
       </div>

@@ -3989,13 +3989,22 @@ body.studio-positioning {
     gap: 12px;
   }
 
+  /* Expanded the preview scrolls with the page. Only the collapsed header
+     sticks, so it never covers the tabs or form fields. */
   .overlay-preview-card {
-    position: sticky;
+    position: static;
+    grid-row: auto;
     background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    --studio-stage-h: 34vh;
+  }
+
+  .overlay-preview-card.is-collapsed {
+    position: sticky;
     top: calc(var(--header-h) + 42px);
     z-index: 20;
-    grid-row: auto;
-    --studio-stage-h: 34vh;
+    box-shadow: var(--shadow-md);
   }
 
   .overlay-settings-card .studio-body {
@@ -4145,8 +4154,11 @@ body.studio-positioning {
 
 @media (max-width: 720px) {
   .overlay-preview-card {
-    top: calc(var(--header-h) + 42px + env(safe-area-inset-top));
     --studio-stage-h: 30vh;
+  }
+
+  .overlay-preview-card.is-collapsed {
+    top: calc(var(--header-h) + 42px + env(safe-area-inset-top));
   }
 
   .studio-preview-foot {
@@ -4183,6 +4195,12 @@ body.studio-positioning {
 }
 
 @media (min-width: 721px) and (max-width: 1100px) {
+  .overlay-preview-card {
+    position: sticky;
+    top: calc(var(--header-h) + 42px);
+    z-index: 20;
+  }
+
   .overlay-studio-layout {
     display: grid;
     grid-template-columns: minmax(0, 0.85fr) minmax(360px, 1.15fr);

@@ -320,8 +320,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   clientseitig 220 ms Debounce + `AbortController`. Drag/Resize ändert
   `offset_x`/`offset_y` bzw. `font_size`; Presets sind JSON-Export/-Import.
   Ohne Beispielmodus liefert der Server die letzten echten Chat-Nachrichten.
-- Overlay-Studio ≤ 1100 px: kompakter Editor. Die Vorschau klebt unter den
-  Section-Tabs und klappt beim Scrollen auf eine Kopfzeile ein (Chevron);
+- Overlay-Studio ≤ 1100 px: kompakter Editor. Auf dem Handy scrollt die
+  Vorschau mit; eingeklappt (Chevron) klebt sie als flache, deckende Kopfzeile
+  unter den Section-Tabs. Tablets bleiben zweispaltig mit sticky Vorschau.
   „Positionieren" zeigt sie bildschirmfüllend mit 40-px-Griffen und
   Ecken-Picker. Gespeichert wird über die feste Leiste über der Bottom-Nav,
   die Tabs scrollen horizontal, Formulargruppen sind Accordions.
