@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { RecordingFile, RecordingsListResponse } from '@/src/api/types';
 import ToggleField from '@/src/components/ToggleField.vue';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import { formatBitrate, formatBytes, formatDateTime, formatFps } from '@/src/utils/format';
@@ -130,7 +131,14 @@ async function saveRecording(): Promise<void> {
 }
 
 async function deleteRecording(file: RecordingFile): Promise<void> {
-  if (!window.confirm(`Aufzeichnung „${file.filename}“ wirklich löschen?`)) return;
+  if (
+    !(await confirmAction(`Aufzeichnung „${file.filename}“ wirklich löschen?`, {
+      title: 'Aufzeichnung löschen',
+      confirmLabel: 'Löschen',
+    }))
+  ) {
+    return;
+  }
   deletingFile.value = file.filename;
   try {
     await api.recordings.remove(file.filename);

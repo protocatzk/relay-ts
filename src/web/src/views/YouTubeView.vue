@@ -9,6 +9,7 @@ import type {
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
 import { sortStreamersByPriority } from '@/src/utils/sort-streamers';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
 import { useStore } from '@/src/composables/useStore';
 import YouTubeBroadcastEditor from '@/src/components/YouTubeBroadcastEditor.vue';
@@ -249,9 +250,10 @@ async function assignToRelay(broadcast: YouTubeBroadcast): Promise<void> {
     return;
   }
   if (
-    !window.confirm(
+    !(await confirmAction(
       `Broadcast „${broadcast.title}“ an den RELAY-Ingest von ${target.name} binden?`,
-    )
+      { title: 'Ingest zuordnen', confirmLabel: 'Zuweisen', tone: 'primary' },
+    ))
   ) {
     return;
   }
@@ -268,7 +270,16 @@ async function assignToRelay(broadcast: YouTubeBroadcast): Promise<void> {
 }
 
 async function startBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
-  if (!window.confirm(`Broadcast „${broadcast.title}“ jetzt live schalten?`)) return;  await runAction(
+  if (
+    !(await confirmAction(`Broadcast „${broadcast.title}“ jetzt live schalten?`, {
+      title: 'Broadcast live schalten',
+      confirmLabel: 'Live schalten',
+      tone: 'primary',
+    }))
+  ) {
+    return;
+  }
+  await runAction(
     broadcast,
     () => api.youtube.transitionBroadcast(broadcast.id, 'live'),
     'Broadcast ist live.',
@@ -276,7 +287,14 @@ async function startBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
 }
 
 async function completeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
-  if (!window.confirm(`Broadcast „${broadcast.title}“ beenden?`)) return;
+  if (
+    !(await confirmAction(`Broadcast „${broadcast.title}“ beenden?`, {
+      title: 'Broadcast beenden',
+      confirmLabel: 'Beenden',
+    }))
+  ) {
+    return;
+  }
   await runAction(
     broadcast,
     () => api.youtube.transitionBroadcast(broadcast.id, 'complete'),
@@ -285,7 +303,15 @@ async function completeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
 }
 
 async function publishBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
-  if (!window.confirm(`Broadcast „${broadcast.title}“ öffentlich stellen?`)) return;
+  if (
+    !(await confirmAction(`Broadcast „${broadcast.title}“ öffentlich stellen?`, {
+      title: 'Broadcast veröffentlichen',
+      confirmLabel: 'Veröffentlichen',
+      tone: 'primary',
+    }))
+  ) {
+    return;
+  }
   await runAction(
     broadcast,
     () => api.youtube.publishBroadcast(broadcast.id),
@@ -294,7 +320,14 @@ async function publishBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
 }
 
 async function removeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
-  if (!window.confirm(`Broadcast „${broadcast.title}“ endgültig löschen?`)) return;
+  if (
+    !(await confirmAction(`Broadcast „${broadcast.title}“ endgültig löschen?`, {
+      title: 'Broadcast löschen',
+      confirmLabel: 'Löschen',
+    }))
+  ) {
+    return;
+  }
   await runAction(
     broadcast,
     () => api.youtube.deleteBroadcast(broadcast.id),

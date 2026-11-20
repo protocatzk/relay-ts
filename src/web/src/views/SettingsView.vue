@@ -22,6 +22,7 @@ import {
 } from '@/src/utils/settings-sections';
 import ToggleField from '@/src/components/ToggleField.vue';
 import TotpSection from '@/src/components/TotpSection.vue';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 
@@ -276,7 +277,14 @@ async function removePauseAsset(
     else section.font = '';
     return;
   }
-  if (!window.confirm('Datei wirklich löschen?')) return;
+  if (
+    !(await confirmAction('Datei wirklich löschen?', {
+      title: 'Datei löschen',
+      confirmLabel: 'Löschen',
+    }))
+  ) {
+    return;
+  }
   try {
     await api.pause.remove(filename);
     if (kind === 'background') {
@@ -311,7 +319,14 @@ async function loadSessions(): Promise<void> {
 }
 
 async function revokeSession(session: AuthSessionInfo): Promise<void> {
-  if (!window.confirm(`Sitzung von ${session.user} abmelden?`)) return;
+  if (
+    !(await confirmAction(`Sitzung von ${session.user} abmelden?`, {
+      title: 'Sitzung abmelden',
+      confirmLabel: 'Abmelden',
+    }))
+  ) {
+    return;
+  }
   try {
     await api.auth.revokeSession(session.id);
     await loadSessions();
@@ -322,7 +337,14 @@ async function revokeSession(session: AuthSessionInfo): Promise<void> {
 }
 
 async function revokeAllSessions(): Promise<void> {
-  if (!window.confirm('Alle Sessions abmelden? Du musst dich danach neu anmelden.')) return;
+  if (
+    !(await confirmAction('Alle Sessions abmelden? Du musst dich danach neu anmelden.', {
+      title: 'Alle Sessions abmelden',
+      confirmLabel: 'Alle abmelden',
+    }))
+  ) {
+    return;
+  }
   try {
     await api.auth.revokeAllSessions();
     window.location.assign('/login');

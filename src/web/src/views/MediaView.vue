@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { MediaFile, MediaStorageSummary } from '@/src/api/types';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
 import { formatBytes, formatDateTime, formatUptime } from '@/src/utils/format';
 
@@ -106,9 +107,10 @@ async function upload(file: File): Promise<void> {
 
 async function remove(file: MediaFile): Promise<void> {
   if (
-    !window.confirm(
+    !(await confirmAction(
       `Video „${file.filename}“ löschen?\n\nWird auch von Playlists verwendet.`,
-    )
+      { title: 'Video löschen', confirmLabel: 'Löschen' },
+    ))
   ) {
     return;
   }

@@ -6,6 +6,7 @@ import AppBottomNav from '@/src/components/AppBottomNav.vue';
 import SectionTabs from '@/src/components/SectionTabs.vue';
 import ToastHost from '@/src/components/ToastHost.vue';
 import PwaPrompt from '@/src/components/PwaPrompt.vue';
+import ConfirmDialog from '@/src/components/ConfirmDialog.vue';
 import UnsavedChangesDialog from '@/src/components/UnsavedChangesDialog.vue';
 import { checkServerVersion } from '@/src/composables/usePwa';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
@@ -72,5 +73,6 @@ onBeforeUnmount(() => {
 
   <ToastHost />
   <PwaPrompt />
+  <ConfirmDialog />
   <UnsavedChangesDialog />
 </template>

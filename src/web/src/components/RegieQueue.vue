@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { MediaFile, QueueEntryKind, QueueSnapshot, QueueViewEntry } from '@/src/api/types';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 
@@ -230,9 +231,16 @@ function stop(): void {
   void run(() => api.queue.stop());
 }
 
-function clear(): void {
-  if (!window.confirm('Regie-Queue leeren?')) return;
-  void run(() => api.queue.clear());
+async function clear(): Promise<void> {
+  if (
+    !(await confirmAction('Regie-Queue leeren?', {
+      title: 'Regie-Queue leeren',
+      confirmLabel: 'Leeren',
+    }))
+  ) {
+    return;
+  }
+  await run(() => api.queue.clear());
 }
 
 onMounted(() => void loadMedia());
