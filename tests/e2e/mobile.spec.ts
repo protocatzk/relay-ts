@@ -80,11 +80,33 @@ test.describe('mobile layout and navigation', () => {
   });
 
   test('bottom navigation keeps the Stream-Deck reachable from Live', async ({ page }) => {
+    await page.addInitScript(`
+      window.__fullscreenCalls = 0;
+      Element.prototype.requestFullscreen = function () {
+        window.__fullscreenCalls += 1;
+        return Promise.resolve();
+      };
+    `);
     await page.goto('/#/');
     const deck = page.getByRole('link', { name: 'Stream-Deck' });
     await expect(deck).toBeVisible();
     await deck.click();
     await expect(page).toHaveURL(/#\/deck$/);
+    await expect(page.locator('.deck-title')).toHaveText('Stream-Deck');
+    // Opening the deck must not force fullscreen; the button is opt-in.
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __fullscreenCalls: number }).__fullscreenCalls,
+      ),
+    ).toBe(0);
+    await page.getByRole('button', { name: 'Vollbild', exact: true }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __fullscreenCalls: number }).__fullscreenCalls,
+        ),
+      )
+      .toBe(1);
   });
 
   test('streamer table becomes labelled cards', async ({ page, request }) => {

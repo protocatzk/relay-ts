@@ -167,9 +167,6 @@ function exit(): void {
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange);
   isFullscreen.value = Boolean(document.fullscreenElement);
-  // Fullscreen needs a user gesture in most browsers; the button handles that.
-  // We still try in case the app already runs in a permitted context.
-  void document.documentElement.requestFullscreen?.().catch(() => undefined);
 });
 
 onBeforeUnmount(() => {
@@ -190,6 +187,7 @@ onBeforeUnmount(() => {
           type="button"
           class="btn btn-ghost btn-sm"
           :aria-pressed="isFullscreen"
+          :aria-label="isFullscreen ? 'Vollbild beenden' : 'Vollbild'"
           @click="toggleFullscreen"
         >
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
@@ -207,7 +205,7 @@ onBeforeUnmount(() => {
           </svg>
           <span class="hide-xs">{{ isFullscreen ? 'Fenster' : 'Vollbild' }}</span>
         </button>
-        <button type="button" class="btn btn-ghost btn-sm" @click="exit">
+        <button type="button" class="btn btn-ghost btn-sm" aria-label="Stream-Deck schließen" @click="exit">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
             <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>
