@@ -4,6 +4,7 @@ import type { Settings, StreamerConfig } from '../config/schema.js';
 import type { StatusSnapshot } from '../events.js';
 import { isoOrNull } from '../../utils/format.js';
 import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
+import { ChatAnalytics, type ChatAnalyticsSnapshot } from '../overlays/chat-analytics.js';
 import { ChatOverlayEngine } from '../overlays/chat-engine.js';
 import { LogoOverlayEngine } from '../overlays/logo-engine.js';
 import type { OverlayManager } from '../overlays/overlay-manager.js';
@@ -46,6 +47,7 @@ export class OverlayRuntime {
   private previewSignature = '';
   private currentMessages: ChatMessage[] = [];
   private lastMessageAt: Date | null = null;
+  private readonly analytics = new ChatAnalytics();
 
   constructor(deps: OverlayRuntimeDeps) {
     this.settings = deps.settings;
@@ -170,6 +172,7 @@ export class OverlayRuntime {
 
   resetMessages(resetLastMessageAt = true, updateOverlayText = true): void {
     this.currentMessages = [];
+    this.analytics.reset();
     if (resetLastMessageAt) this.lastMessageAt = null;
     this.chatEngine?.setMessages([]);
     if (updateOverlayText) this.overlays.updateChat([]);
@@ -180,6 +183,7 @@ export class OverlayRuntime {
     this.chat?.stop(!preserve);
     if (!preserve) {
       this.currentMessages = [];
+      this.analytics.reset();
       this.lastMessageAt = null;
       this.chatEngine?.setMessages([]);
       this.overlays.updateChat([]);
@@ -191,6 +195,7 @@ export class OverlayRuntime {
       logger: this.logger,
       onMessages: (messages) => {
         this.currentMessages = messages;
+        this.analytics.record(messages);
         if (messages.length > 0) this.lastMessageAt = new Date();
         this.chatEngine?.setMessages(messages);
         this.overlays.updateChat(
@@ -217,6 +222,7 @@ export class OverlayRuntime {
     const engine = this.chatEngine ?? this.getPreviewEngine();
     const messages = engine.addLocalMessage(username, text);
     this.currentMessages = messages;
+    this.analytics.record(messages);
     this.lastMessageAt = new Date();
     this.overlays.updateChat(
       messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
@@ -226,6 +232,10 @@ export class OverlayRuntime {
 
   recentMessages(): ChatMessage[] {
     return this.currentMessages.map((message) => ({ ...message }));
+  }
+
+  chatAnalytics(): ChatAnalyticsSnapshot {
+    return this.analytics.snapshot();
   }
 
   previewPng(sample = false): Buffer {
@@ -264,7 +274,11 @@ export class OverlayRuntime {
   }
 
   earningsOverlayText(): string {
-    return formatEarningsOverlay(this.settings.earnings.overlay_template, this.earnings.get());
+    return formatEarningsOverlay(
+      this.settings.earnings.overlay_template,
+      this.earnings.get(),
+      this.settings.earnings,
+    );
   }
 
   chatStatus(): StatusSnapshot['chat'] {
@@ -298,7 +312,7 @@ export class OverlayRuntime {
   private studioEarningsText(settings: Settings, sample: boolean): string {
     const current = this.earnings.get() ?? null;
     if (current && (current.net !== null || current.gross !== null || current.coins !== null)) {
-      return formatEarningsOverlay(settings.earnings.overlay_template, current);
+      return formatEarningsOverlay(settings.earnings.overlay_template, current, settings.earnings);
     }
     if (!sample) return '';
     const demo = {
@@ -335,6 +349,6 @@ export class OverlayRuntime {
       top_gifter: { username: 'viewer', display_name: null, coins: 1200 },
       last_seen_at: new Date().toISOString(),
     } as EarningsSnapshot;
-    return formatEarningsOverlay(settings.earnings.overlay_template, demo);
+    return formatEarningsOverlay(settings.earnings.overlay_template, demo, settings.earnings);
   }
 }

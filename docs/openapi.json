@@ -3786,6 +3786,30 @@
         }
       }
     },
+    "/api/chat/analytics": {
+      "get": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Chat-Aktivität der letzten 30 Minuten (Nachrichten/min, Top-Chatter, Badges)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/test": {
       "post": {
         "tags": [
@@ -5831,7 +5855,10 @@
               "overlay_offset_y": 0,
               "overlay_font_color": "white",
               "overlay_box_color": "black@0.45",
-              "overlay_show_box": true
+              "overlay_show_box": true,
+              "goal_amount": 0,
+              "goal_label": "Tagesziel",
+              "goal_bar_enabled": true
             },
             "type": "object",
             "properties": {
@@ -5927,6 +5954,21 @@
                 "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
               },
               "overlay_show_box": {
+                "default": true,
+                "type": "boolean"
+              },
+              "goal_amount": {
+                "default": 0,
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "goal_label": {
+                "default": "Tagesziel",
+                "type": "string",
+                "maxLength": 80
+              },
+              "goal_bar_enabled": {
                 "default": true,
                 "type": "boolean"
               }
@@ -6949,7 +6991,10 @@
               "overlay_offset_y": 0,
               "overlay_font_color": "white",
               "overlay_box_color": "black@0.45",
-              "overlay_show_box": true
+              "overlay_show_box": true,
+              "goal_amount": 0,
+              "goal_label": "Tagesziel",
+              "goal_bar_enabled": true
             },
             "type": "object",
             "properties": {
@@ -7045,6 +7090,21 @@
                 "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
               },
               "overlay_show_box": {
+                "default": true,
+                "type": "boolean"
+              },
+              "goal_amount": {
+                "default": 0,
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "goal_label": {
+                "default": "Tagesziel",
+                "type": "string",
+                "maxLength": 80
+              },
+              "goal_bar_enabled": {
                 "default": true,
                 "type": "boolean"
               }

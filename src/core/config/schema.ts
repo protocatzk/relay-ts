@@ -293,6 +293,9 @@ export const EarningsSettingsSchema = z.object({
   overlay_font_color: ColorSchema.default('white'),
   overlay_box_color: ColorSchema.default('black@0.45'),
   overlay_show_box: z.boolean().default(true),
+  goal_amount: z.number().min(0).max(1_000_000).default(0),
+  goal_label: z.string().max(80).default('Tagesziel'),
+  goal_bar_enabled: z.boolean().default(true),
 });
 
 export const YouTubeAutomationSettingsSchema = z.object({

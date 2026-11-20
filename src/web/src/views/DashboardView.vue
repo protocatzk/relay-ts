@@ -2,10 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
-import type { EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
+import type { ChatAnalyticsSnapshot, EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
 import RegieQueue from '@/src/components/RegieQueue.vue';
+import Sparkline from '@/src/components/Sparkline.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import ModuleVital from '@/src/components/ModuleVital.vue';
 import { useStore } from '@/src/composables/useStore';
@@ -91,6 +92,7 @@ const startCandidate = computed<Streamer | null>(() => {
 const activePlaylist = computed(() => status.value?.active_playlist ?? null);
 const streamers = computed(() => sortStreamersByLive(store.streamers));
 const previewUrl = ref(api.overlays.previewUrl(false));
+const chatAnalytics = ref<ChatAnalyticsSnapshot | null>(null);
 const chatTest = reactive({ username: 'Testuser', text: '' });
 const sendingChat = ref(false);
 const titlePreview = ref<TitlePreview | null>(null);
@@ -98,6 +100,12 @@ let previewTimer: number | null = null;
 
 function refreshPreview(): void {
   previewUrl.value = api.overlays.previewUrl(false);
+  void api.chat
+    .analytics()
+    .then((data) => {
+      chatAnalytics.value = data;
+    })
+    .catch(() => undefined);
 }
 
 async function sendChatTest(): Promise<void> {
@@ -613,7 +621,36 @@ onBeforeUnmount(() => {
               <dt>Chat-API</dt>
               <dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd>
             </div>
+            <template v-if="chatAnalytics">
+              <div>
+                <dt>Rate (5 min)</dt>
+                <dd class="mono">{{ chatAnalytics.messages_per_minute }} / min</dd>
+              </div>
+              <div>
+                <dt>Peak (30 min)</dt>
+                <dd class="mono">{{ chatAnalytics.peak_per_minute }} / min</dd>
+              </div>
+              <div>
+                <dt>Aktive Chatter</dt>
+                <dd class="mono">{{ chatAnalytics.unique_chatters }}</dd>
+              </div>
+            </template>
           </dl>
+          <div v-if="chatAnalytics" class="chat-analytics-box">
+            <div class="chat-analytics-head">
+              <span class="label">Chat-Aktivität ({{ chatAnalytics.window_minutes }} min · {{ chatAnalytics.total_messages }} Nachr.)</span>
+            </div>
+            <Sparkline :values="chatAnalytics.series" :height="32" />
+            <div v-if="chatAnalytics.top_chatters.length > 0" class="chat-analytics-chips">
+              <span
+                v-for="chatter in chatAnalytics.top_chatters.slice(0, 3)"
+                :key="chatter.username"
+                class="badge badge-xs tone-neutral"
+              >
+                {{ chatter.username }} ({{ chatter.count }})
+              </span>
+            </div>
+          </div>
           <form class="stack compact" @submit.prevent="sendChatTest">
             <div class="field">
               <label for="dash-chat-text">Testnachricht</label>

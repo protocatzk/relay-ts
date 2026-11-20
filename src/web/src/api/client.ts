@@ -10,6 +10,7 @@ import type {
   TotpStatus,
   BulkAddInput,
   BulkAddResult,
+  ChatAnalyticsSnapshot,
   DiagnosticsSnapshot,
   EarningsHistoryPoint,
   EarningsPeriod,
@@ -558,6 +559,7 @@ export const api = {
   },
 
   chat: {
+    analytics: () => request<ChatAnalyticsSnapshot>('/api/chat/analytics'),
     test: (username: string, text: string) =>
       request<{ ok: true; count: number }>('/api/chat/test', {
         method: 'POST',

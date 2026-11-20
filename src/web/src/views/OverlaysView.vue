@@ -1098,9 +1098,36 @@ onBeforeUnmount(() => {
               Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
               {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
               {live}, {top_gift}, {top_gifter}, {display_name}, {last_seen}, {name},
-              {username}, {currency}.
+              {username}, {currency}, {goal}, {goal_label}, {goal_percent}, {goal_remaining}, {goal_bar}.
             </p>
           </div>
+          <div class="studio-grid">
+            <div class="field">
+              <label for="studio-earnings-goal">Einnahmen-Ziel (0 = aus)</label>
+              <input
+                id="studio-earnings-goal"
+                v-model.number="earnings.goal_amount"
+                type="number"
+                min="0"
+                max="1000000"
+                step="10"
+              />
+            </div>
+            <div class="field">
+              <label for="studio-earnings-goal-label">Ziel-Bezeichnung</label>
+              <input
+                id="studio-earnings-goal-label"
+                v-model="earnings.goal_label"
+                type="text"
+                maxlength="80"
+                placeholder="Tagesziel"
+              />
+            </div>
+          </div>
+          <label class="checkbox studio-checks">
+            <input v-model="earnings.goal_bar_enabled" type="checkbox" />
+            Fortschrittsbalken automatisch anhängen (wenn Ziel &gt; 0)
+          </label>
           <div class="studio-grid">
             <div class="field">
               <label for="studio-earnings-position">Position</label>

@@ -272,6 +272,8 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     earnings: await ctx.supervisor.refreshEarnings(),
   }));
 
+  app.get('/api/chat/analytics', async () => ctx.supervisor.chatAnalytics());
+
   app.post('/api/chat/test', async (request) => {    const body = z
       .object({
         username: z.string().max(40).optional(),

@@ -593,11 +593,74 @@ export function parseEarningsPayload(
   return parseEntry(entry, rates, period);
 }
 
-export function formatEarningsOverlay(template: string, snapshot: EarningsSnapshot): string {
+export interface EarningsGoalConfig {
+  goal_amount?: number;
+  goal_label?: string;
+  goal_bar_enabled?: boolean;
+}
+
+export interface EarningsGoalProgress {
+  enabled: boolean;
+  current: number;
+  target: number;
+  percent: number;
+  clampedPercent: number;
+  remaining: number;
+  reached: boolean;
+  bar: string;
+}
+
+/** Computes progress towards an optional earnings goal (#38). */
+export function computeEarningsGoal(
+  current: number | null,
+  goalAmount: number,
+  barWidth = 10,
+): EarningsGoalProgress {
+  if (!Number.isFinite(goalAmount) || goalAmount <= 0) {
+    return {
+      enabled: false,
+      current: current ?? 0,
+      target: 0,
+      percent: 0,
+      clampedPercent: 0,
+      remaining: 0,
+      reached: false,
+      bar: '',
+    };
+  }
+  const safeCurrent = current !== null && Number.isFinite(current) ? Math.max(0, current) : 0;
+  const rawPercent = (safeCurrent / goalAmount) * 100;
+  const percent = Math.round(rawPercent);
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+  const remaining = Math.max(0, Math.round((goalAmount - safeCurrent) * 100) / 100);
+  const filled = Math.round((clampedPercent / 100) * barWidth);
+  const bar = `${'█'.repeat(filled)}${'░'.repeat(Math.max(0, barWidth - filled))}`;
+  return {
+    enabled: true,
+    current: safeCurrent,
+    target: goalAmount,
+    percent,
+    clampedPercent,
+    remaining,
+    reached: safeCurrent >= goalAmount,
+    bar,
+  };
+}
+
+export function formatEarningsOverlay(
+  template: string,
+  snapshot: EarningsSnapshot,
+  goalConfig?: EarningsGoalConfig,
+): string {
   const value = (number: number | null, digits = 2): string =>
     number === null ? '–' : number.toFixed(digits);
   const session = snapshot.session;
-  return template
+  const goalAmount = goalConfig?.goal_amount ?? 0;
+  const goalLabel = (goalConfig?.goal_label ?? 'Tagesziel').trim() || 'Tagesziel';
+  const goal = computeEarningsGoal(snapshot.net, goalAmount);
+  const currencySymbol = snapshot.currency === 'USD' ? '$' : '€';
+
+  let formatted = template
     .replaceAll('{period}', snapshot.period_label || snapshot.period || '–')
     .replaceAll('{net}', value(snapshot.net))
     .replaceAll('{gross}', value(snapshot.gross))
@@ -624,7 +687,22 @@ export function formatEarningsOverlay(template: string, snapshot: EarningsSnapsh
     .replaceAll('{last_seen}', snapshot.last_seen_at ?? '–')
     .replaceAll('{name}', snapshot.streamer_name ?? '–')
     .replaceAll('{username}', snapshot.streamer_handle ?? '–')
-    .replaceAll('{currency}', snapshot.currency);
+    .replaceAll('{currency}', snapshot.currency)
+    .replaceAll('{goal}', goal.enabled ? value(goal.target) : '–')
+    .replaceAll('{goal_label}', goalLabel)
+    .replaceAll('{goal_percent}', goal.enabled ? `${goal.percent} %` : '–')
+    .replaceAll('{goal_remaining}', goal.enabled ? value(goal.remaining) : '–')
+    .replaceAll('{goal_bar}', goal.enabled ? goal.bar : '');
+
+  const hasGoalPlaceholder =
+    template.includes('{goal') &&
+    (template.includes('{goal}') ||
+      template.includes('{goal_bar}') ||
+      template.includes('{goal_percent}'));
+  if (goal.enabled && (goalConfig?.goal_bar_enabled ?? true) && !hasGoalPlaceholder) {
+    formatted += `\n${goalLabel}: ${value(snapshot.net)}/${value(goal.target)} ${currencySymbol} (${goal.percent} %) ${goal.bar}`;
+  }
+  return formatted;
 }
 
 /**
@@ -749,7 +827,11 @@ export class EarningsMonitor {
     const snapshot = this.get();
     this.options.onUpdate(
       snapshot,
-      formatEarningsOverlay(this.options.settings.earnings.overlay_template, snapshot),
+      formatEarningsOverlay(
+        this.options.settings.earnings.overlay_template,
+        snapshot,
+        this.options.settings.earnings,
+      ),
     );
   }
 

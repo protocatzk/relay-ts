@@ -610,6 +610,20 @@ export interface EarningsSettings {
   overlay_font_color: string;
   overlay_box_color: string;
   overlay_show_box: boolean;
+  goal_amount?: number;
+  goal_label?: string;
+  goal_bar_enabled?: boolean;
+}
+
+export interface ChatAnalyticsSnapshot {
+  window_minutes: number;
+  total_messages: number;
+  messages_per_minute: number;
+  peak_per_minute: number;
+  unique_chatters: number;
+  series: number[];
+  top_chatters: { username: string; count: number }[];
+  top_badges: { badge: string; count: number }[];
 }
 
 export interface ChatSettings {

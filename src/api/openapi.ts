@@ -748,6 +748,12 @@ const routes: RouteDoc[] = [
     summary: 'Einnahmen sofort aktualisieren',
   },
   {
+    method: 'get',
+    path: '/api/chat/analytics',
+    tag: 'overlays',
+    summary: 'Chat-Aktivität der letzten 30 Minuten (Nachrichten/min, Top-Chatter, Badges)',
+  },
+  {
     method: 'post',
     path: '/api/chat/test',
     tag: 'overlays',

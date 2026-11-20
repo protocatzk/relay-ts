@@ -2092,6 +2092,10 @@ export class Supervisor {
     return this.overlayRuntime.recentMessages();
   }
 
+  chatAnalytics() {
+    return this.overlayRuntime.chatAnalytics();
+  }
+
   earningsOverlayText(): string {
     return this.earnings ? this.overlayRuntime.earningsOverlayText() : '';
   }
