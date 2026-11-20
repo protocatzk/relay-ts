@@ -379,7 +379,7 @@ watch(
         <path :d="chartGeometry.line" class="earnings-chart-line" />
       </svg>
       <p v-else class="earnings-chart-empty">
-        Noch kein Verlauf für diesen Zeitraum – Daten werden beim nächsten Abruf gesammelt.
+        Noch kein Verlauf für diesen Zeitraum.
       </p>
       <div v-if="chartGeometry" class="earnings-chart-foot mono">
         <span>{{ chartRange }}</span>

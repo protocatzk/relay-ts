@@ -179,7 +179,6 @@ onMounted(() => {
     <div class="page-head">
       <div>
         <h1>Streamer</h1>
-        <p class="page-sub">Streamer verwalten, konfigurieren und starten.</p>
       </div>
       <div class="page-actions">
         <button type="button" class="btn btn-primary" @click="openCreate">
@@ -195,7 +194,7 @@ onMounted(() => {
       <div class="card-head">
         <div>
           <h2 class="card-title">Schnell hinzufügen</h2>
-          <p class="card-sub">Mehrere Handles oder TikTok-URLs per Zeile oder Komma.</p>
+          <p class="card-sub">Je Zeile oder durch Komma getrennt.</p>
         </div>
       </div>
       <div class="quick-add-row">
@@ -225,7 +224,7 @@ onMounted(() => {
           Anlegen
         </button>
       </div>
-      <p class="field-hint">IDs und Namen werden aus dem Handle abgeleitet; vorhandene Streamer werden übersprungen. Strg/Cmd+Enter legt an.</p>
+      <p class="field-hint">Vorhandene Streamer werden übersprungen. Strg/Cmd+Enter legt an.</p>
     </section>
 
     <section class="card">

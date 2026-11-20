@@ -73,7 +73,7 @@ async function upload(file: File): Promise<void> {
 async function remove(file: MediaFile): Promise<void> {
   if (
     !window.confirm(
-      `Video „${file.filename}“ löschen?\n\nPlaylists, die auf dieses Video verweisen, laufen dann ins Leere.`,
+      `Video „${file.filename}“ löschen?\n\nWird auch von Playlists verwendet.`,
     )
   ) {
     return;
@@ -98,7 +98,6 @@ onMounted(load);
     <div class="page-head">
       <div>
         <h1>Medien</h1>
-        <p class="page-sub">Lokale Videos für Playlists verwalten – kein SCP mehr nötig.</p>
       </div>
       <div class="page-actions">
         <button type="button" class="btn btn-ghost" :disabled="loading" @click="load">

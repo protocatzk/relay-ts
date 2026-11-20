@@ -347,9 +347,6 @@ onMounted(async () => {
     <div class="page-head">
       <div>
         <h1>YouTube</h1>
-        <p class="page-sub">
-          Konto verbinden, Streams planen und Broadcasts verwalten.
-        </p>
       </div>
       <div class="page-actions">
         <button
@@ -379,7 +376,7 @@ onMounted(async () => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Google-Client fehlt</h2>
-            <p class="card-sub">Ohne OAuth-Client kann RELAY kein YouTube-Konto verbinden.</p>
+            <p class="card-sub">Ohne Client ist keine Verbindung möglich.</p>
           </div>
           <span class="badge tone-warning">Nicht konfiguriert</span>
         </div>
@@ -387,7 +384,7 @@ onMounted(async () => {
           <p class="muted">
             Trage in <code>.env</code> <code>GOOGLE_CLIENT_ID</code>,
             <code>GOOGLE_CLIENT_SECRET</code> und <code>GOOGLE_REDIRECT_URI</code> ein und starte
-            den Container neu. Die Redirect-URI muss im Google-Client exakt hinterlegt sein.
+            RELAY neu. Die Redirect-URI muss im Google-Client exakt hinterlegt sein.
           </p>
         </div>
       </section>
@@ -396,9 +393,7 @@ onMounted(async () => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Verbindung</h2>
-            <p class="card-sub">
-              Ein YouTube-Konto, Tokens ausschließlich serverseitig gespeichert.
-            </p>
+            <p class="card-sub">Ein Konto pro Instanz.</p>
           </div>
           <span class="badge" :class="connected ? 'tone-success' : 'tone-neutral'">
             {{ connected ? 'Verbunden' : 'Nicht verbunden' }}
@@ -429,8 +424,7 @@ onMounted(async () => {
         </dl>
 
         <p v-else class="muted">
-          Verbinde das Google-Konto, das den YouTube-Kanal besitzt. RELAY kann danach Streams
-          anlegen, planen und starten. Der Zugriff kann jederzeit widerrufen werden.
+          Konto des YouTube-Kanals verbinden. Der Zugriff lässt sich jederzeit widerrufen.
         </p>
 
         <div class="live-preview-actions">
@@ -464,9 +458,6 @@ onMounted(async () => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Automatik</h2>
-            <p class="card-sub">
-              Steuert, ob RELAY Broadcasts selbst live schaltet und beendet.
-            </p>
           </div>
           <span class="badge" :class="automationMode === 'off' ? 'tone-muted' : 'tone-success'">
             {{ automationMode === 'off' ? 'Aus' : automationMode === 'all' ? 'Alle' : 'Nur RELAY' }}
@@ -492,21 +483,20 @@ onMounted(async () => {
           <ToggleField
             :model-value="autoStart"
             label="Automatisch live"
-            description="Nach dem Sink-Start den passenden Broadcast live schalten"
+            description="Nach dem Sink-Start."
             :disabled="automationSaving || automationMode === 'off'"
             @update:model-value="saveAutomation({ auto_start: $event })"
           />
           <ToggleField
             :model-value="autoStop"
             label="Automatisch beenden"
-            description="Beim Stream-Stop den aktiven Broadcast abschließen"
+            description="Beim Stream-Stop."
             :disabled="automationSaving || automationMode === 'off'"
             @update:model-value="saveAutomation({ auto_stop: $event })"
           />
         </div>
         <p class="field-hint">
-          Im Modus „Nur RELAY" bleiben Studio-/Quick-Live-Broadcasts unberührt – auch beim
-          automatischen Beenden.
+          „Nur RELAY" lässt Studio- und Quick-Live-Broadcasts unberührt.
         </p>
       </section>
 
@@ -514,7 +504,6 @@ onMounted(async () => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Broadcasts</h2>
-            <p class="card-sub">Geplante, laufende und beendete Streams des Kanals.</p>
           </div>
           <span class="badge tone-neutral">
             {{ broadcastsLoading && broadcasts.length === 0 ? 'Lädt…' : `${broadcasts.length} Einträge` }}
@@ -531,7 +520,7 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="broadcasts.length === 0" class="empty">
-          <p>Keine Broadcasts gefunden. Anlegen und Planen folgt im nächsten Schritt.</p>
+          <p>Keine Broadcasts gefunden.</p>
         </div>
 
         <div v-else class="table-wrap">

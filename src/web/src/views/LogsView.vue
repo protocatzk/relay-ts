@@ -86,7 +86,6 @@ onMounted(async () => {
     <div class="page-head">
       <div>
         <h1>Logs</h1>
-        <p class="page-sub">Live-Logs des Restreamers durchsuchen und filtern.</p>
       </div>
       <div class="page-actions">
         <span class="conn" :class="`conn-${store.connectionMode}`">
@@ -153,7 +152,7 @@ onMounted(async () => {
           Logs werden geladen…
         </div>
         <div v-else-if="filtered.length === 0" class="log-empty">
-          <template v-if="store.logs.length === 0">Noch keine Log-Einträge empfangen.</template>
+          <template v-if="store.logs.length === 0">Noch keine Log-Einträge.</template>
           <template v-else>Keine Einträge für die aktuelle Filterauswahl.</template>
         </div>
         <div
@@ -170,7 +169,7 @@ onMounted(async () => {
       </div>
 
       <p class="logs-foot muted small">
-        Live-Updates via Server-Sent Events · Die Anzeige wird lokal geleert, Server-Logs bleiben erhalten.
+        Live via SSE · Leeren betrifft nur die Anzeige.
       </p>
     </section>
   </div>

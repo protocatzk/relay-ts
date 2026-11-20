@@ -133,7 +133,7 @@ onMounted(() => void loadMedia());
     <div class="card-head">
       <div>
         <h2 id="regie-title" class="card-title">Regie-Queue</h2>
-        <p class="card-sub">Videos, Streamer und Screens spontan zusammenstellen.</p>
+        <p class="card-sub">Videos, Streamer und Screens.</p>
       </div>
       <div class="card-badges">
         <span v-if="queue?.playing" class="badge tone-success">Läuft</span>
@@ -277,7 +277,7 @@ onMounted(() => void loadMedia());
       </li>
     </ol>
     <div v-else class="empty compact">
-      <p>Noch keine Einträge. Videos, Streamer oder Screens hinzufügen.</p>
+      <p>Noch keine Einträge.</p>
     </div>
 
     <div class="regie-footer">

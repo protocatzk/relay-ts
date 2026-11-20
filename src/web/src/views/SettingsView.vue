@@ -37,12 +37,12 @@ const SETTINGS_SECTIONS = [
   { id: 'settings-video', label: 'Video' },
   { id: 'settings-watchdog', label: 'Watchdog' },
   { id: 'settings-refresh', label: 'Auto-Refresh' },
-  { id: 'settings-startup', label: 'Start' },
+  { id: 'settings-startup', label: 'Startbildschirm' },
   { id: 'settings-pause', label: 'Pause' },
-  { id: 'settings-monitor', label: 'Monitor' },
+  { id: 'settings-monitor', label: 'Online-Monitor' },
   { id: 'settings-earnings', label: 'Einnahmen' },
-  { id: 'settings-chat', label: 'Chat' },
-  { id: 'settings-title', label: 'Titel' },
+  { id: 'settings-chat', label: 'Chat-Overlay' },
+  { id: 'settings-title', label: 'YouTube-Titel' },
   { id: 'settings-sessions', label: 'Sessions' },
 ] as const;
 
@@ -468,7 +468,6 @@ onBeforeUnmount(() => {
     <div class="page-head">
       <div>
         <h1>Einstellungen</h1>
-        <p class="page-sub">Restream-Parameter, Watchdog und Überwachung konfigurieren.</p>
       </div>
       <div class="page-actions">
         <span v-if="dirty" class="badge tone-warning">Ungespeicherte Änderungen</span>
@@ -515,20 +514,19 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Verzögerung</h2>
-            <p class="card-sub">Delay-Buffer zwischen TikTok-Quelle und YouTube-Ausgang.</p>
           </div>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.delay_buffer.enabled"
             label="Delay-Buffer aktiviert"
-            description="Glättet Verbindungsabbrüche und puffert den Stream."
+            description="Puffert die Quelle gegen kurze Aussetzer."
           />
           <div class="settings-grid">
             <div class="field">
               <label for="delay-size">Puffergröße (Sekunden)</label>
               <input id="delay-size" v-model.number="form.delay_buffer.size" type="number" min="0" max="300" />
-              <p class="field-hint">Empfohlen: 20–40 Sekunden. Änderungen erfordern einen Stream-Neustart.</p>
+              <p class="field-hint">20–40 s empfohlen; Neustart erforderlich.</p>
             </div>
           </div>
         </div>
@@ -538,7 +536,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Video</h2>
-            <p class="card-sub">Auflösung, Bitrate und Encoder-Preset für den YouTube-Ausgang.</p>
           </div>
           <span class="badge tone-warning">Neustart erforderlich</span>
         </div>
@@ -591,14 +588,12 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Watchdog</h2>
-            <p class="card-sub">Erkennt Stalls und startet die Quelle bei Bedarf neu.</p>
           </div>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.watchdog.auto_reconnect"
             label="Automatisch neu verbinden"
-            description="Quelle nach einem erkannten Stall automatisch neu starten."
           />
           <div class="settings-grid">
             <div class="field">
@@ -625,14 +620,12 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Auto-Refresh</h2>
-            <p class="card-sub">TikTok-URL regelmäßig neu auflösen, um die Verbindung zu stabilisieren.</p>
           </div>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.auto_refresh.enabled"
             label="Auto-Refresh aktiviert"
-            description="Stream-URL in festen Abständen neu auflösen."
           />
           <div class="settings-grid">
             <div class="field">
@@ -647,14 +640,13 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Startbildschirm</h2>
-            <p class="card-sub">Wird beim Start aus dem Idle-Zustand vor dem Live-Stream gezeigt.</p>
+            <p class="card-sub">Vor dem ersten Live-Bild nach dem Start.</p>
           </div>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.startup.enabled"
             label="Startbildschirm aktiviert"
-            description="Zeigt vor dem ersten Live-Bild ein konfigurierbares Video oder Bild."
           />
           <div class="settings-grid">
             <div class="field">
@@ -773,14 +765,12 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Pause</h2>
-            <p class="card-sub">Pausenscreen anzeigen, wenn der Stream pausiert ist.</p>
           </div>
         </div>
         <div class="settings-body">
           <ToggleField
             v-model="form.pause.enabled"
             label="Pause-Funktion aktiviert"
-            description="Ermöglicht das Umschalten auf einen Pausenscreen."
           />
           <div class="settings-grid">
             <div class="field">
@@ -810,9 +800,7 @@ onBeforeUnmount(() => {
                 placeholder="z. B. /app/data/pause/background.webm oder https://…/loop.webm"
               />
               <p class="field-hint">
-                Unterstützt PNG/JPG/WebP/GIF/MP4/WebM (loop) sowie statisches SVG.
-                Animiertes SVG wird nicht nativ von ffmpeg dekodiert – dafür WebM/GIF verwenden.
-                Leer = Hintergrundfarbe.
+                PNG/JPG/WebP/GIF/MP4/WebM; SVG nur statisch. Leer = Hintergrundfarbe.
               </p>
               <div class="pause-upload-row">
                 <label class="btn btn-ghost btn-sm">
@@ -915,7 +903,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Online-Monitor</h2>
-            <p class="card-sub">Prüft, ob der TikTok-Kanal live ist.</p>
           </div>
           <span v-if="form.online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
           <span v-else class="badge tone-muted">Kein API-Key</span>
@@ -928,12 +915,11 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="form.online.enabled"
             label="Online-Monitor aktiviert"
-            description="Live-Status des Kanals über eine externe API abfragen."
           />
           <ToggleField
             v-model="form.online.auto_switch_preferred"
             label="Bevorzugte Streamer automatisch übernehmen"
-            description="Wenn ein als bevorzugt markierter Streamer online geht, automatisch dorthin wechseln."
+            description="Wechselt, sobald der Streamer live ist; danach zurück zum vorherigen Ziel."
           />
           <div class="settings-grid">
             <div class="field">
@@ -969,7 +955,7 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Einnahmen</h2>
-            <p class="card-sub">TokTracker-kompatible Einnahmen-Anzeige und Overlay.</p>
+            <p class="card-sub">TokTracker-Format.</p>
           </div>
           <span v-if="form.earnings.api_key_set" class="badge tone-success">API-Key gesetzt</span>
           <span v-else class="badge tone-muted">Kein API-Key</span>
@@ -978,7 +964,6 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="form.earnings.enabled"
             label="Einnahmen-Monitor aktiviert"
-            description="Einnahmen des aktiven Streamers regelmäßig abrufen."
           />
           <div class="settings-grid">
             <div class="field">
@@ -1019,9 +1004,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="alert alert-info">
-            Das Einnahmen-Overlay wird im
+            Overlay-Text und Position:
             <RouterLink to="/overlays">Overlay-Studio</RouterLink>
-            bearbeitet – inklusive Position, Farben, Template und Vorschau.
           </div>
         </div>
       </section>
@@ -1030,7 +1014,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Chat-Overlay</h2>
-            <p class="card-sub">Globale Chat-API und Live-Vorschau.</p>
           </div>
           <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
         </div>
@@ -1045,7 +1028,7 @@ onBeforeUnmount(() => {
                 placeholder="https://toktracker.example/api/chat-logs"
                 spellcheck="false"
               />
-              <p class="field-hint">Der Streamer kann in seinen Overlay-Einstellungen eine eigene URL setzen.</p>
+              <p class="field-hint">Gilt global für alle Streamer.</p>
             </div>
             <div class="field">
               <label for="chat-key">Chat-API-Key</label>
@@ -1065,7 +1048,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">YouTube-Titel</h2>
-            <p class="card-sub">Lokale Vorschau des Stream-Titels.</p>
           </div>
         </div>
         <div class="settings-body">
@@ -1080,8 +1062,7 @@ onBeforeUnmount(() => {
             />
             <p class="field-hint">
               Platzhalter: <code>{name}</code>, <code>{tiktok}</code>, <code>{title}</code>,
-              <code>{date}</code>, <code>{time}</code>. Es wird nur lokal angezeigt, nicht per
-              YouTube-API gesetzt.
+              <code>{date}</code>, <code>{time}</code>. Nur lokal, wird nicht an YouTube gesendet.
             </p>
           </div>
         </div>
@@ -1091,7 +1072,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Sessions</h2>
-            <p class="card-sub">Angemeldete Browser und Telegram-Sitzungen.</p>
           </div>
           <button
             type="button"

@@ -25,7 +25,8 @@ const entries = computed<Record<string, string>>(() => {
       :class="{ 'is-active': activeSection === section.id }"
       :aria-current="activeSection === section.id ? 'page' : undefined"
       :aria-label="section.label"
-      :title="section.label"
+      :aria-description="section.description"
+      :title="`${section.label} – ${section.description}`"
     >
       <svg class="bnav-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
         <path

@@ -157,7 +157,7 @@ function submit(): void {
             @input="markIdTouched"
           />
           <p class="field-hint">
-            {{ isCreate ? 'Kleinbuchstaben, Zahlen, - und _. Wird als eindeutige ID verwendet.' : 'Die ID kann nach dem Anlegen nicht geändert werden.' }}
+            {{ isCreate ? 'Kleinbuchstaben, Zahlen, - und _.' : 'Nach dem Anlegen nicht änderbar.' }}
           </p>
         </div>
 
@@ -226,8 +226,7 @@ function submit(): void {
             inputmode="numeric"
           />
           <p class="field-hint">
-            Kleinere Zahl = höhere Priorität. Gilt für bevorzugte Streamer (automatischer Wechsel)
-            und für Auto-Start.
+            Kleinere Zahl = höhere Priorität (Wechsel und Auto-Start).
           </p>
         </div>
 
@@ -255,8 +254,8 @@ function submit(): void {
       </div>
 
       <div class="alert alert-info">
-        Overlay-Einstellungen gelten global für alle Streamer und werden im
-        <RouterLink to="/overlays">Overlay-Studio</RouterLink> verwaltet.
+        Overlays gelten global für alle Streamer:
+        <RouterLink to="/overlays">Overlay-Studio</RouterLink>
       </div>
     </form>
 

@@ -23,6 +23,8 @@ export interface SectionTab {
 export interface NavSection {
   id: SectionId;
   label: string;
+  /** Short description for tooltips and assistive tech. */
+  description: string;
   /** Destination when the section entry in the bottom nav is tapped. */
   to: string;
   segments: IconSegment[];
@@ -33,6 +35,7 @@ export const SECTIONS: NavSection[] = [
   {
     id: 'live',
     label: 'Live',
+    description: 'Status, Steuerung und Vorschau',
     to: '/',
     segments: [{ d: 'M3 12h3.5l2.5-7 4 14 2.5-7H21' }],
     tabs: [],
@@ -40,6 +43,7 @@ export const SECTIONS: NavSection[] = [
   {
     id: 'inhalte',
     label: 'Inhalte',
+    description: 'Streamer, Playlists und Medien',
     to: '/streamers',
     segments: [
       { d: 'M12 3 3 8l9 5 9-5-9-5z' },
@@ -55,6 +59,7 @@ export const SECTIONS: NavSection[] = [
   {
     id: 'studio',
     label: 'Studio',
+    description: 'Overlays und YouTube',
     to: '/overlays',
     segments: [
       { d: 'M3 5h18v11H3z' },
@@ -69,6 +74,7 @@ export const SECTIONS: NavSection[] = [
   {
     id: 'system',
     label: 'System',
+    description: 'Einstellungen und Logs',
     to: '/settings',
     segments: [
       { d: 'M4 6h16M4 12h16M4 18h16' },

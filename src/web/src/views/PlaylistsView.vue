@@ -254,7 +254,6 @@ onBeforeUnmount(() => {
     <div class="page-head">
       <div>
         <h1>Playlists</h1>
-        <p class="page-sub">Kanal-Playlists abspielen, wechseln und stoppen.</p>
       </div>
       <div class="page-actions">
         <button type="button" class="btn btn-primary" :disabled="busy !== null" @click="openCreate">
@@ -295,7 +294,6 @@ onBeforeUnmount(() => {
         <path d="m16 14 5 3-5 3v-6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
       </svg>
       <p>Noch keine Playlists konfiguriert.</p>
-      <p class="muted small">Playlists werden in der Server-Konfiguration angelegt.</p>
     </div>
 
     <div v-else class="playlist-grid">

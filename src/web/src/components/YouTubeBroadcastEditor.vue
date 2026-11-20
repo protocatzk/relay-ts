@@ -140,8 +140,7 @@ function submit(): void {
           </option>
         </select>
         <p class="field-hint">
-          Bindet den Broadcast an den Ingest, den RELAY gerade verwendet – kein neuer
-          YouTube-Ingest.
+          Bindet an den laufenden RELAY-Ingest.
           <template v-if="relayIngest"> Aktuell: {{ relayIngest.name }}.</template>
           <template v-else> Kein Streamer mit YouTube-Key konfiguriert.</template>
         </p>
@@ -154,8 +153,7 @@ function submit(): void {
       />
 
       <p class="muted small">
-        Ein Broadcast-Schreibvorgang kostet ca. 50 Quota-Einheiten. Der
-        Auto-Start/Stop wird vom Supervisor nur für den zugeordneten Ingest ausgelöst.
+        Auto-Start und Auto-Stop gelten nur für den zugeordneten Ingest.
       </p>
     </form>
 

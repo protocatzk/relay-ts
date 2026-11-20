@@ -65,7 +65,7 @@ const activeDetail = computed(() => {
     return `${stateLabel(state.value)} · ${uptime}`;
   }
   if (manualScreen.value) return 'Manuell eingespielter Screen';
-  return 'Bereit für den nächsten Start';
+  return 'Bereit';
 });
 
 function tiktokHandle(streamer: Streamer): string {
@@ -257,7 +257,7 @@ async function activate(streamer: Streamer): Promise<void> {
             {{ manualScreen && !activeStreamer ? 'Screen beenden' : 'Beenden' }}
           </button>
         </div>
-        <p v-else class="live-menu-empty">Kein aktiver Stream – wähle unten einen Live-Streamer.</p>
+        <p v-else class="live-menu-empty">Kein aktiver Stream.</p>
       </section>
 
       <section class="live-menu-section" aria-labelledby="live-menu-streams-title">
@@ -291,9 +291,7 @@ async function activate(streamer: Streamer): Promise<void> {
             </button>
           </li>
         </ul>
-        <p v-else class="live-menu-empty">
-          Kein Streamer ist gerade live. Sobald einer online geht, erscheint er hier.
-        </p>
+        <p v-else class="live-menu-empty">Kein Streamer ist live.</p>
       </section>
 
       <footer class="live-menu-foot">

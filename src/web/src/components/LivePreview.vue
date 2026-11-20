@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
     <div class="card-head">
       <div>
         <h2 id="live-preview-title" class="card-title">Live-Vorschau</h2>
-        <p class="card-sub">Direkter Relay-Tap, getrennt vom YouTube-Sink.</p>
+        <p class="card-sub">Unabhängig vom YouTube-Sink.</p>
       </div>
       <div class="card-badges">
         <span
@@ -187,9 +187,9 @@ onBeforeUnmount(() => {
         :class="{ 'is-visible': isRunning }"
       ></video>
       <div v-if="!isRunning" class="live-preview-placeholder">
-        <p v-if="!canPlay">Kein aktiver Stream – Vorschau startet, sobald eine Quelle läuft.</p>
+        <p v-if="!canPlay">Kein aktiver Stream.</p>
         <p v-else-if="status === 'unsupported' || status === 'error'">{{ error }}</p>
-        <p v-else>Vorschau starten, um das Relay-Bild zu prüfen.</p>
+        <p v-else>Keine Vorschau.</p>
       </div>
     </div>
 

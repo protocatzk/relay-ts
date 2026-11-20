@@ -673,7 +673,6 @@ onBeforeUnmount(() => {
     <div class="page-head">
       <div>
         <h1>Overlay-Studio</h1>
-        <p class="page-sub">Globale Overlays für alle Streamer gestalten, prüfen und speichern.</p>
       </div>
       <div class="page-actions">
         <span class="badge tone-info">Global</span>
@@ -706,7 +705,7 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Live-Vorschau</h2>
-            <p class="card-sub">Gilt für alle Streamer · {{ resolution }}</p>
+            <p class="card-sub mono">{{ resolution }}</p>
           </div>
           <div class="studio-preview-tools">
             <button
@@ -836,8 +835,8 @@ onBeforeUnmount(() => {
 
         <div class="studio-preview-foot">
           <p class="muted small">
-            Rahmen ziehen, am Griff skalieren oder Pfeiltasten nutzen. Speichern baut Sink und
-            Chat-Engine kurz neu auf; die Vorschau nutzt ungespeicherte Werte.
+            Rahmen ziehen, am Griff skalieren oder Pfeiltasten nutzen. Speichern startet den Sink
+            neu; die Vorschau nutzt ungespeicherte Werte.
           </p>
           <span class="badge tone-neutral">
             {{ sample ? 'Beispieldaten' : `${chatStatus?.messages ?? 0} Live-Nachrichten` }}
@@ -878,11 +877,9 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="videoLayout.enabled"
             label="Video-Layout"
-            description="TikTok-Live-Bild verkleinern, vergrößern oder verschieben."
           />
           <p class="field-hint">
-            Gilt global für Live-Quelle, Pause-/Startbildschirm und lokale Videos. Speichern
-            startet den Sink kurz neu.
+            Gilt für Quelle, Screens und lokale Videos.
           </p>
           <div class="studio-grid">
             <div class="field">
@@ -939,18 +936,10 @@ onBeforeUnmount(() => {
               Vollbild / Mitte
             </button>
           </div>
-          <p class="field-hint">
-            Rahmen ziehen verschiebt das Video, der Griff unten rechts skaliert. Pfeiltasten
-            verschieben in 2-%-Schritten.
-          </p>
         </div>
 
         <div v-else-if="activeSection === 'chat' && chat" class="studio-body">
-          <ToggleField
-            v-model="chat.enabled"
-            label="Chat-Overlay"
-            description="TikTok-Chat als Bubbles oder Panel im Stream."
-          />
+          <ToggleField v-model="chat.enabled" label="Chat-Overlay" />
           <div class="studio-grid">
             <div class="field">
               <label for="studio-chat-engine">Engine</label>
@@ -1081,7 +1070,6 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="clock.enabled"
             label="Uhr-Overlay"
-            description="Aktuelle Uhrzeit direkt von ffmpeg gerendert."
           />
           <div class="studio-grid">
             <div class="field">
@@ -1125,7 +1113,6 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="text.enabled"
             label="Text-Overlay"
-            description="Freier Text oder automatische Laufschrift."
           />
           <div class="field">
             <label for="studio-text-content">Text</label>
@@ -1171,7 +1158,6 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="logo.enabled"
             label="Logo-Overlay"
-            description="RELAY-Logo als Canvas-Overlay im Stream anzeigen."
           />
           <div class="studio-grid">
             <div class="field">
@@ -1220,7 +1206,6 @@ onBeforeUnmount(() => {
           <ToggleField
             v-model="earnings.overlay_enabled"
             label="Einnahmen-Overlay"
-            description="Aktuelle Einnahmen als Text im Stream einblenden."
           />
           <div class="field">
             <label for="studio-earnings-template">Template</label>
@@ -1232,7 +1217,7 @@ onBeforeUnmount(() => {
               spellcheck="false"
             ></textarea>
             <p class="field-hint">
-              Mehrzeilig möglich – Zeilenumbrüche werden im Overlay übernommen.
+              Zeilenumbrüche bleiben erhalten.
             </p>
             <p class="field-hint">
               Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},

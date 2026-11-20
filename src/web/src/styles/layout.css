@@ -484,22 +484,11 @@
   line-height: 1.2;
 }
 
-.page-sub {
-  margin-top: 5px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
 .page-actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.update-hint {
-  color: var(--text-dim);
-  font-size: 11px;
 }
 
 /* ------------------------------------------------------------------ Live menu (header panel) */

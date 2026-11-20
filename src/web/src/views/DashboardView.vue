@@ -366,12 +366,8 @@ onBeforeUnmount(() => {
     <div class="page-head">
       <div>
         <h1>Dashboard</h1>
-        <p class="page-sub">Live-Status, Steuerung und Schnellstart deines Restreams.</p>
       </div>
       <div class="page-actions">
-        <span class="update-hint mono">
-          {{ store.loading.status ? 'Aktualisiere…' : 'Auto-Update via SSE' }}
-        </span>
         <RouterLink
           to="/deck"
           class="btn btn-ghost btn-sm"
@@ -419,7 +415,7 @@ onBeforeUnmount(() => {
               <RouterLink to="/logs" class="hero-log-link">Logs ansehen</RouterLink>
             </template>
             <template v-else-if="status">
-              {{ status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.' }}
+              {{ status.source.online === false ? 'Quelle offline.' : 'Bereit.' }}
             </template>
             <template v-else>Keine Statusdaten empfangen.</template>
           </p>
@@ -580,8 +576,7 @@ onBeforeUnmount(() => {
       <section class="card dashboard-live">
       <div class="card-head">
         <div>
-          <h2 class="card-title">Overlay & Technik</h2>
-          <p class="card-sub">Live-Chat-Vorschau und Wartungsaktionen.</p>
+          <h2 class="card-title">Chat & Wartung</h2>
         </div>
         <div class="card-badges">
           <span v-if="status?.chat.canvas_active" class="badge tone-success">Canvas live</span>
@@ -681,7 +676,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Schnellstart</h2>
-            <p class="card-sub">TikTok-Stream oder Playlist direkt starten.</p>
           </div>
           <svg
             viewBox="0 0 24 24"
@@ -787,7 +781,6 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Streamer</h2>
-            <p class="card-sub">Online-Status und schneller Wechsel.</p>
           </div>
           <RouterLink to="/streamers" class="btn btn-ghost btn-sm">Verwalten</RouterLink>
         </div>
