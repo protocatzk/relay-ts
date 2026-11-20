@@ -14,8 +14,11 @@ Stand: **2026-11-20** · geprüft mit Chromium (Playwright) bei 320 px und 1280 
   Fokus an das auslösende Element zurück.
 - **Sichtbare Fokuszustände:** `:focus-visible` mit 2-px-Akzentrahmen; auch
   Eingaben, Selects und Textareas behalten einen sichtbaren Fokus.
-- **Overlay-Studio:** Das aktive Overlay ist per Tab erreichbar und lässt sich
-  mit den Pfeiltasten verschieben.
+- **Overlay-Studio:** Die Bereichs-Tabs (`role="tablist"`) unterstützen Roving
+  `tabindex`, `ArrowLeft`/`ArrowRight`, `Home`/`End`, verknüpfte
+  `aria-controls`/`aria-labelledby`-Panels (`role="tabpanel"`) und
+  Status-Ansagen für Screenreader. Das aktive Overlay ist per Tab erreichbar und
+  lässt sich mit den Pfeiltasten verschieben.
 
 ## Struktur und Screenreader
 

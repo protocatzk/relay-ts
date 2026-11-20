@@ -1243,6 +1243,9 @@ select {
 }
 
 .settings-jump-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   min-height: 32px;
   padding: 0 10px;
@@ -1260,6 +1263,26 @@ select {
 .settings-jump-btn:hover {
   border-color: var(--accent-border);
   color: var(--accent-text);
+}
+
+.settings-jump-btn.is-dirty {
+  border-color: var(--warn-border, rgba(245, 158, 11, 0.45));
+  color: var(--text-strong);
+}
+
+.settings-jump-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn, #f59e0b);
+}
+
+.settings-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .settings-body {
@@ -2422,6 +2445,12 @@ select {
   color: var(--text-strong);
 }
 
+.studio-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  color: var(--text-strong);
+}
+
 .studio-tab.is-active {
   border-bottom-color: var(--accent);
   background: var(--surface-1);
@@ -2442,6 +2471,11 @@ select {
   max-height: calc(100vh - 190px);
   padding: 16px;
   overflow-y: auto;
+}
+
+.studio-body:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .studio-grid {

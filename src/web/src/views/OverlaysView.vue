@@ -19,6 +19,7 @@ import ToggleField from '@/src/components/ToggleField.vue';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 import { POSITIONS, PREVIEW_ASPECTS, SECTIONS } from '@/src/overlay-studio';
 import type { OverlayGeometry, PreviewAspect, Section } from '@/src/overlay-studio';
 
@@ -70,6 +71,58 @@ const dirty = computed(
       JSON.stringify(settings.value?.earnings) !== initialEarningsSnapshot ||
       JSON.stringify(settings.value?.video.layout) !== initialLayoutSnapshot),
 );
+
+useUnsavedChanges(dirty, {
+  message:
+    'Du hast ungespeicherte Änderungen im Overlay-Studio. Möchtest du sie verwerfen und die Seite verlassen?',
+});
+
+const tabRefs = ref<Partial<Record<Section, HTMLButtonElement | null>>>({});
+const activeTabAnnouncement = ref('');
+
+function setTabRef(id: Section, el: unknown): void {
+  tabRefs.value[id] = el instanceof HTMLButtonElement ? el : null;
+}
+
+function studioTabId(id: Section): string {
+  return `studio-tab-${id}`;
+}
+
+function studioPanelId(id: Section): string {
+  return `studio-panel-${id}`;
+}
+
+function selectSection(id: Section, options: { focus?: boolean; announce?: boolean } = {}): void {
+  activeSection.value = id;
+  if (options.announce !== false) {
+    const label = SECTIONS.find((entry) => entry.id === id)?.label ?? id;
+    activeTabAnnouncement.value = `Bereich ${label} ausgewählt`;
+  }
+  if (options.focus) {
+    const target = tabRefs.value[id];
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+}
+
+function onTabKeydown(event: KeyboardEvent): void {
+  const currentIndex = SECTIONS.findIndex((entry) => entry.id === activeSection.value);
+  if (currentIndex === -1) return;
+  let nextIndex: number | null = null;
+  if (event.key === 'ArrowRight') {
+    nextIndex = (currentIndex + 1) % SECTIONS.length;
+  } else if (event.key === 'ArrowLeft') {
+    nextIndex = (currentIndex - 1 + SECTIONS.length) % SECTIONS.length;
+  } else if (event.key === 'Home') {
+    nextIndex = 0;
+  } else if (event.key === 'End') {
+    nextIndex = SECTIONS.length - 1;
+  }
+  if (nextIndex === null) return;
+  event.preventDefault();
+  const target = SECTIONS[nextIndex];
+  if (target) selectSection(target.id, { focus: true, announce: true });
+}
 
 const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
   if (activeSection.value === 'chat') return chat.value;
@@ -568,16 +621,25 @@ onBeforeUnmount(() => {
       />
 
       <section class="card overlay-settings-card">
-        <div class="studio-tabs" role="tablist" aria-label="Overlay-Bereich">
+        <div
+          class="studio-tabs"
+          role="tablist"
+          aria-label="Overlay-Bereich"
+          @keydown="onTabKeydown"
+        >
           <button
             v-for="section in SECTIONS"
+            :id="studioTabId(section.id)"
             :key="section.id"
+            :ref="(el) => setTabRef(section.id, el)"
             type="button"
             role="tab"
             class="studio-tab"
             :class="{ 'is-active': activeSection === section.id }"
             :aria-selected="activeSection === section.id"
-            @click="activeSection = section.id"
+            :aria-controls="studioPanelId(section.id)"
+            :tabindex="activeSection === section.id ? 0 : -1"
+            @click="selectSection(section.id, { focus: false, announce: true })"
           >
             {{ section.label }}
             <span
@@ -586,6 +648,7 @@ onBeforeUnmount(() => {
                 (section.id === 'chat' && chat?.enabled) ||
                 (section.id === 'clock' && clock?.enabled) ||
                 (section.id === 'text' && text?.enabled) ||
+                (section.id === 'logo' && logo?.enabled) ||
                 (section.id === 'earnings' && earnings?.overlay_enabled)
               "
               class="studio-tab-dot"
@@ -593,8 +656,18 @@ onBeforeUnmount(() => {
             ></span>
           </button>
         </div>
+        <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {{ activeTabAnnouncement }}
+        </span>
 
-        <div v-if="activeSection === 'video' && videoLayout" class="studio-body">
+        <div
+          v-if="activeSection === 'video' && videoLayout"
+          :id="studioPanelId('video')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('video')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField
             v-model="videoLayout.enabled"
             label="Video-Layout"
@@ -659,7 +732,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-else-if="activeSection === 'chat' && chat" class="studio-body">
+        <div
+          v-else-if="activeSection === 'chat' && chat"
+          :id="studioPanelId('chat')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('chat')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField v-model="chat.enabled" label="Chat-Overlay" />
           <StudioGroup
             title="Darstellung"
@@ -813,7 +893,14 @@ onBeforeUnmount(() => {
           </StudioGroup>
         </div>
 
-        <div v-else-if="activeSection === 'clock' && clock" class="studio-body">
+        <div
+          v-else-if="activeSection === 'clock' && clock"
+          :id="studioPanelId('clock')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('clock')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField
             v-model="clock.enabled"
             label="Uhr-Overlay"
@@ -856,7 +943,14 @@ onBeforeUnmount(() => {
           </label>
         </div>
 
-        <div v-else-if="activeSection === 'text' && text" class="studio-body">
+        <div
+          v-else-if="activeSection === 'text' && text"
+          :id="studioPanelId('text')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('text')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField
             v-model="text.enabled"
             label="Text-Overlay"
@@ -916,7 +1010,14 @@ onBeforeUnmount(() => {
           </StudioGroup>
         </div>
 
-        <div v-else-if="activeSection === 'logo' && logo" class="studio-body">
+        <div
+          v-else-if="activeSection === 'logo' && logo"
+          :id="studioPanelId('logo')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('logo')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField
             v-model="logo.enabled"
             label="Logo-Overlay"
@@ -964,7 +1065,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-else-if="activeSection === 'earnings' && earnings" class="studio-body">
+        <div
+          v-else-if="activeSection === 'earnings' && earnings"
+          :id="studioPanelId('earnings')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('earnings')"
+          tabindex="0"
+          class="studio-body"
+        >
           <ToggleField
             v-model="earnings.overlay_enabled"
             label="Einnahmen-Overlay"

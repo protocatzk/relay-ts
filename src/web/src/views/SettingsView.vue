@@ -6,13 +6,23 @@ import type {
   PauseAsset,
   PausePreviewInput,
   Settings,
-  SettingsUpdate,
   VideoEncoderSetting,
   VideoPreset,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
+import {
+  EDITABLE_SETTINGS_SECTIONS,
+  SETTINGS_SECTIONS,
+  applySavedSection,
+  buildAllSectionsPayload,
+  buildSectionPayload,
+  isSectionDirty,
+  type EditableSettingsSectionId,
+  type SettingsSecretsDraft,
+} from '@/src/utils/settings-sections';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useToast } from '@/src/composables/useToast';
+import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 
 const { pushToast } = useToast();
 
@@ -40,21 +50,6 @@ const ENCODERS: { value: VideoEncoderSetting; label: string }[] = [
   { value: 'h264_amf', label: 'AMD AMF' },
 ];
 
-/** Jump targets for the long settings form (mobile-first section navigation). */
-const SETTINGS_SECTIONS = [
-  { id: 'settings-delay', label: 'Verzögerung' },
-  { id: 'settings-video', label: 'Video' },
-  { id: 'settings-watchdog', label: 'Watchdog' },
-  { id: 'settings-refresh', label: 'Auto-Refresh' },
-  { id: 'settings-startup', label: 'Startbildschirm' },
-  { id: 'settings-pause', label: 'Pause' },
-  { id: 'settings-monitor', label: 'Online-Monitor' },
-  { id: 'settings-earnings', label: 'Einnahmen' },
-  { id: 'settings-chat', label: 'Chat-Overlay' },
-  { id: 'settings-title', label: 'YouTube-Titel' },
-  { id: 'settings-sessions', label: 'Sessions' },
-] as const;
-
 function jumpToSettings(id: string): void {
   const target = document.getElementById(id);
   if (!target) return;
@@ -63,15 +58,15 @@ function jumpToSettings(id: string): void {
 }
 
 const form = ref<Settings | null>(null);
+const baseline = ref<Settings | null>(null);
 const loading = ref(true);
 const saving = ref(false);
+const savingSection = ref<EditableSettingsSectionId | null>(null);
 const loadError = ref('');
 const apiKey = ref('');
 const chatApiKey = ref('');
 const earningsApiKey = ref('');
 const checkingOnline = ref(false);
-const initialSnapshot = ref('');
-const baselineRestart = ref('');
 const pauseUploading = ref<'background' | 'font' | null>(null);
 const pauseAsset = ref<PauseAsset | null>(null);
 const pausePreviewUrl = ref('');
@@ -92,22 +87,29 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function restartSnapshot(settings: Settings): string {
-  return JSON.stringify({ delay_buffer: settings.delay_buffer, video: settings.video });
+const secretsDraft = computed<SettingsSecretsDraft>(() => ({
+  onlineApiKey: apiKey.value,
+  chatApiKey: chatApiKey.value,
+  earningsApiKey: earningsApiKey.value,
+}));
+
+function sectionDirty(section: EditableSettingsSectionId): boolean {
+  if (!form.value || !baseline.value) return false;
+  return isSectionDirty(section, form.value, baseline.value, secretsDraft.value);
 }
 
-const restartRequired = computed(
-  () => form.value !== null && restartSnapshot(form.value) !== baselineRestart.value,
-);
+const restartRequired = computed(() => sectionDirty('delay') || sectionDirty('video'));
 
-const dirty = computed(() => {
-  if (!form.value) return false;
-  return `${JSON.stringify(form.value)}|${apiKey.value}|${chatApiKey.value}|${earningsApiKey.value}` !== initialSnapshot.value;
+const dirty = computed(() => EDITABLE_SETTINGS_SECTIONS.some((section) => sectionDirty(section)));
+
+const busySaving = computed(() => saving.value || savingSection.value !== null);
+
+useUnsavedChanges(dirty, {
+  message: 'Du hast ungespeicherte Einstellungen. Möchtest du sie verwerfen und die Seite verlassen?',
 });
 
-function toNumber(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+function sectionLabel(section: EditableSettingsSectionId): string {
+  return SETTINGS_SECTIONS.find((entry) => entry.id === section)?.label ?? section;
 }
 
 function pauseFileName(path: string): string | null {
@@ -334,11 +336,10 @@ async function loadSettings(silent = false): Promise<void> {
   try {
     const settings = await api.settings.get();
     form.value = clone(settings);
+    baseline.value = clone(settings);
     apiKey.value = '';
     chatApiKey.value = '';
     earningsApiKey.value = '';
-    baselineRestart.value = restartSnapshot(settings);
-    initialSnapshot.value = `${JSON.stringify(settings)}|||`;
   } catch (error) {
     loadError.value = errorMessage(error);
   } finally {
@@ -358,99 +359,42 @@ async function checkOnline(): Promise<void> {
   }
 }
 
+async function saveSection(section: EditableSettingsSectionId): Promise<void> {
+  const current = form.value;
+  if (!current || !baseline.value || busySaving.value) return;
+  const payload = buildSectionPayload(section, current, secretsDraft.value);
+  savingSection.value = section;
+  try {
+    const saved = await api.settings.update(payload);
+    if (form.value && baseline.value) {
+      applySavedSection(section, form.value, saved);
+      applySavedSection(section, baseline.value, saved);
+    }
+    if (section === 'monitor') apiKey.value = '';
+    if (section === 'chat') chatApiKey.value = '';
+    if (section === 'earnings') earningsApiKey.value = '';
+    pushToast(`Bereich „${sectionLabel(section)}“ gespeichert.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    savingSection.value = null;
+  }
+}
+
 async function save(): Promise<void> {
   const current = form.value;
-  if (!current) return;
-  const payload: SettingsUpdate = {
-    delay_buffer: {
-      enabled: current.delay_buffer.enabled,
-      size: toNumber(current.delay_buffer.size, 30),
-    },
-    video: {
-      resolution: current.video.resolution,
-      fps: toNumber(current.video.fps, 30),
-      video_bitrate: toNumber(current.video.video_bitrate, 4000),
-      audio_bitrate: toNumber(current.video.audio_bitrate, 128),
-      preset: current.video.preset,
-      encoder: current.video.encoder,
-      layout: clone(current.video.layout),
-    },
-    source: {
-      reencode: current.source.reencode,
-    },
-    watchdog: {
-      stall_timeout: toNumber(current.watchdog.stall_timeout, 30),
-      min_bitrate: toNumber(current.watchdog.min_bitrate, 500),
-      min_source_rate_percent: toNumber(current.watchdog.min_source_rate_percent, 85),
-      interval: toNumber(current.watchdog.interval, 5),
-      auto_reconnect: current.watchdog.auto_reconnect,
-    },
-    auto_refresh: {
-      enabled: current.auto_refresh.enabled,
-      interval: toNumber(current.auto_refresh.interval, 20),
-    },
-    pause: {
-      enabled: current.pause.enabled,
-      text: current.pause.text,
-      subtext: current.pause.subtext,
-      max_minutes: toNumber(current.pause.max_minutes, 15),
-      grace_seconds: toNumber(current.pause.grace_seconds, 2),
-      color: current.pause.color,
-      background: current.pause.background.trim(),
-      font: current.pause.font.trim(),
-      text_color: current.pause.text_color.trim() || 'white',
-      fit: current.pause.fit,
-    },
-    startup: {
-      enabled: current.startup.enabled,
-      duration_seconds: toNumber(current.startup.duration_seconds, 10),
-      text: current.startup.text,
-      subtext: current.startup.subtext,
-      color: current.startup.color,
-      background: current.startup.background.trim(),
-      font: current.startup.font.trim(),
-      text_color: current.startup.text_color.trim() || 'white',
-      fit: current.startup.fit,
-    },
-    online: {
-      enabled: current.online.enabled,
-      source_url: current.online.source_url.trim(),
-      interval: toNumber(current.online.interval, 30),
-      auto_switch_preferred: current.online.auto_switch_preferred,
-      ...(apiKey.value.trim() ? { api_key: apiKey.value.trim() } : {}),
-    },
-    chat: {
-      api_url: current.chat.api_url.trim(),
-      ...(chatApiKey.value.trim() ? { api_key: chatApiKey.value.trim() } : {}),
-    },
-    streaming: {
-      title_template: current.streaming.title_template,
-    },
-    earnings: {
-      enabled: current.earnings.enabled,
-      source_url: current.earnings.source_url.trim(),
-      interval: toNumber(current.earnings.interval, 300),
-      period: current.earnings.period,
-      view: current.earnings.view,
-      overlay_enabled: current.earnings.overlay_enabled,
-      overlay_position: current.earnings.overlay_position,
-      overlay_template: current.earnings.overlay_template,
-      overlay_font_size: toNumber(current.earnings.overlay_font_size, 22),
-      overlay_margin: toNumber(current.earnings.overlay_margin, 32),
-      overlay_offset_x: toNumber(current.earnings.overlay_offset_x, 0),
-      overlay_offset_y: toNumber(current.earnings.overlay_offset_y, 0),
-      overlay_font_color: current.earnings.overlay_font_color,
-      overlay_box_color: current.earnings.overlay_box_color,
-      overlay_show_box: current.earnings.overlay_show_box,
-      ...(earningsApiKey.value.trim() ? { api_key: earningsApiKey.value.trim() } : {}),
-    },
-  };
+  if (!current || busySaving.value) return;
+  const payload = buildAllSectionsPayload(current, secretsDraft.value);
 
   saving.value = true;
   try {
-    await api.settings.update(payload);
+    const saved = await api.settings.update(payload);
+    form.value = clone(saved);
+    baseline.value = clone(saved);
+    apiKey.value = '';
+    chatApiKey.value = '';
+    earningsApiKey.value = '';
     pushToast('Einstellungen gespeichert.', 'success');
-    await loadSettings(true);
   } catch (error) {
     pushToast(errorMessage(error), 'error');
   } finally {
@@ -482,12 +426,12 @@ onBeforeUnmount(() => {
       <div class="page-actions">
         <span v-if="dirty" class="badge tone-warning">Ungespeicherte Änderungen</span>
         <RouterLink to="/overlays" class="btn btn-ghost">Overlay-Studio</RouterLink>
-        <button type="button" class="btn btn-ghost" :disabled="loading || saving" @click="loadSettings()">
+        <button type="button" class="btn btn-ghost" :disabled="loading || busySaving" @click="loadSettings()">
           Zurücksetzen
         </button>
-        <button type="button" class="btn btn-primary" :disabled="!form || saving" @click="save">
+        <button type="button" class="btn btn-primary" :disabled="!form || !dirty || busySaving" @click="save">
           <span v-if="saving" class="spinner" aria-hidden="true"></span>
-          Speichern
+          Alles speichern
         </button>
       </div>
     </div>
@@ -495,12 +439,18 @@ onBeforeUnmount(() => {
     <nav v-if="form" class="settings-jump" aria-label="Einstellungen: Bereiche">
       <button
         v-for="section in SETTINGS_SECTIONS"
-        :key="section.id"
+        :key="section.domId"
         type="button"
         class="settings-jump-btn"
-        @click="jumpToSettings(section.id)"
+        :class="{ 'is-dirty': section.editable && sectionDirty(section.id as EditableSettingsSectionId) }"
+        @click="jumpToSettings(section.domId)"
       >
         {{ section.label }}
+        <span
+          v-if="section.editable && sectionDirty(section.id as EditableSettingsSectionId)"
+          class="settings-jump-dot"
+          aria-hidden="true"
+        ></span>
       </button>
     </nav>
 
@@ -525,6 +475,20 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Verzögerung</h2>
           </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('delay')" class="badge tone-warning">Ungespeichert</span>
+            <span class="badge tone-warning">Neustart erforderlich</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Verzögerung speichern"
+              :disabled="!sectionDirty('delay') || busySaving"
+              @click="saveSection('delay')"
+            >
+              <span v-if="savingSection === 'delay'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <ToggleField
@@ -547,7 +511,20 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Video</h2>
           </div>
-          <span class="badge tone-warning">Neustart erforderlich</span>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('video')" class="badge tone-warning">Ungespeichert</span>
+            <span class="badge tone-warning">Neustart erforderlich</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Video speichern"
+              :disabled="!sectionDirty('video') || busySaving"
+              @click="saveSection('video')"
+            >
+              <span v-if="savingSection === 'video'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <div class="settings-grid">
@@ -611,6 +588,19 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Watchdog</h2>
           </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('watchdog')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Watchdog speichern"
+              :disabled="!sectionDirty('watchdog') || busySaving"
+              @click="saveSection('watchdog')"
+            >
+              <span v-if="savingSection === 'watchdog'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <ToggleField
@@ -643,6 +633,19 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Auto-Refresh</h2>
           </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('refresh')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Auto-Refresh speichern"
+              :disabled="!sectionDirty('refresh') || busySaving"
+              @click="saveSection('refresh')"
+            >
+              <span v-if="savingSection === 'refresh'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <ToggleField
@@ -663,6 +666,19 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Startbildschirm</h2>
             <p class="card-sub">Vor dem ersten Live-Bild nach dem Start.</p>
+          </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('startup')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Startbildschirm speichern"
+              :disabled="!sectionDirty('startup') || busySaving"
+              @click="saveSection('startup')"
+            >
+              <span v-if="savingSection === 'startup'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
           </div>
         </div>
         <div class="settings-body">
@@ -787,6 +803,19 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">Pause</h2>
+          </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('pause')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Pause speichern"
+              :disabled="!sectionDirty('pause') || busySaving"
+              @click="saveSection('pause')"
+            >
+              <span v-if="savingSection === 'pause'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
           </div>
         </div>
         <div class="settings-body">
@@ -926,12 +955,25 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Online-Monitor</h2>
           </div>
-          <span v-if="form.online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
-          <span v-else class="badge tone-muted">Kein API-Key</span>
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="checkingOnline" @click="checkOnline">
-            <span v-if="checkingOnline" class="spinner" aria-hidden="true"></span>
-            Jetzt prüfen
-          </button>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('monitor')" class="badge tone-warning">Ungespeichert</span>
+            <span v-if="form.online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
+            <span v-else class="badge tone-muted">Kein API-Key</span>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="checkingOnline" @click="checkOnline">
+              <span v-if="checkingOnline" class="spinner" aria-hidden="true"></span>
+              Jetzt prüfen
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Online-Monitor speichern"
+              :disabled="!sectionDirty('monitor') || busySaving"
+              @click="saveSection('monitor')"
+            >
+              <span v-if="savingSection === 'monitor'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <ToggleField
@@ -979,8 +1021,21 @@ onBeforeUnmount(() => {
             <h2 class="card-title">Einnahmen</h2>
             <p class="card-sub">TokTracker-Format.</p>
           </div>
-          <span v-if="form.earnings.api_key_set" class="badge tone-success">API-Key gesetzt</span>
-          <span v-else class="badge tone-muted">Kein API-Key</span>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('earnings')" class="badge tone-warning">Ungespeichert</span>
+            <span v-if="form.earnings.api_key_set" class="badge tone-success">API-Key gesetzt</span>
+            <span v-else class="badge tone-muted">Kein API-Key</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Einnahmen speichern"
+              :disabled="!sectionDirty('earnings') || busySaving"
+              @click="saveSection('earnings')"
+            >
+              <span v-if="savingSection === 'earnings'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <ToggleField
@@ -1037,7 +1092,20 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="card-title">Chat-Overlay</h2>
           </div>
-          <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('chat')" class="badge tone-warning">Ungespeichert</span>
+            <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Chat-Overlay speichern"
+              :disabled="!sectionDirty('chat') || busySaving"
+              @click="saveSection('chat')"
+            >
+              <span v-if="savingSection === 'chat'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
         </div>
         <div class="settings-body">
           <div class="settings-grid">
@@ -1070,6 +1138,19 @@ onBeforeUnmount(() => {
         <div class="card-head">
           <div>
             <h2 class="card-title">YouTube-Titel</h2>
+          </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('title')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="YouTube-Titel speichern"
+              :disabled="!sectionDirty('title') || busySaving"
+              @click="saveSection('title')"
+            >
+              <span v-if="savingSection === 'title'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
           </div>
         </div>
         <div class="settings-body">
@@ -1136,12 +1217,12 @@ onBeforeUnmount(() => {
 
       <div class="form-actions">
         <span v-if="dirty" class="muted small">Ungespeicherte Änderungen</span>
-        <button type="button" class="btn btn-ghost" :disabled="saving" @click="loadSettings()">
+        <button type="button" class="btn btn-ghost" :disabled="!dirty || busySaving" @click="loadSettings()">
           Verwerfen
         </button>
-        <button type="submit" class="btn btn-primary" :disabled="saving">
+        <button type="submit" class="btn btn-primary" :disabled="!dirty || busySaving">
           <span v-if="saving" class="spinner" aria-hidden="true"></span>
-          Einstellungen speichern
+          Alles speichern
         </button>
       </div>
     </form>

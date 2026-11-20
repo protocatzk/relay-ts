@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import type { StreamQuality, Streamer, StreamerInput } from '@/src/api/types';
+import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 import ModalDialog from './ModalDialog.vue';
 
 const props = defineProps<{
@@ -53,6 +54,19 @@ const form = reactive<StreamerForm>({
 
 const idTouched = ref(source !== null);
 const validationError = ref('');
+const initialSnapshot = JSON.stringify(form);
+
+const dirty = computed(() => props.open && JSON.stringify(form) !== initialSnapshot);
+
+const { confirmDiscard } = useUnsavedChanges(dirty, {
+  message: 'Du hast ungespeicherte Änderungen an diesem Streamer. Möchtest du sie verwerfen?',
+});
+
+async function requestClose(): Promise<void> {
+  if (props.saving) return;
+  if (!(await confirmDiscard())) return;
+  emit('close');
+}
 
 const isCreate = computed(() => source === null);
 const modalTitle = computed(() =>
@@ -136,7 +150,7 @@ function submit(): void {
 </script>
 
 <template>
-  <ModalDialog :open="open" :title="modalTitle" size="lg" @close="emit('close')">
+  <ModalDialog :open="open" :title="modalTitle" size="lg" @close="requestClose">
     <form id="streamer-form" class="stack" @submit.prevent="submit">
       <div v-if="error || validationError" class="alert alert-error" role="alert">
         {{ validationError || error }}
@@ -260,7 +274,7 @@ function submit(): void {
     </form>
 
     <template #footer>
-      <button type="button" class="btn btn-ghost" :disabled="saving" @click="emit('close')">
+      <button type="button" class="btn btn-ghost" :disabled="saving" @click="requestClose">
         Abbrechen
       </button>
       <button type="submit" form="streamer-form" class="btn btn-primary" :disabled="saving">

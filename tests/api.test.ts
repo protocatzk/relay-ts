@@ -293,6 +293,53 @@ describe('API', () => {
     expect(JSON.stringify(settings)).not.toContain('"api_key":');
   });
 
+  it('applies partial settings updates without overwriting other sections or secrets', async () => {
+    const setOnline = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+      payload: {
+        online: {
+          enabled: false,
+          source_url: 'https://example.test/online',
+          interval: 45,
+          auto_switch_preferred: false,
+          api_key: 'super-secret-online-key',
+        },
+        streaming: {
+          title_template: 'Keep Me {name}',
+        },
+      },
+    });
+    expect(setOnline.statusCode).toBe(200);
+    expect((setOnline.json() as { online: { api_key_set: boolean } }).online.api_key_set).toBe(true);
+
+    const partialWatchdog = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: cookieHeader, origin: 'http://localhost' },
+      payload: {
+        watchdog: {
+          stall_timeout: 42,
+          min_bitrate: 500,
+          min_source_rate_percent: 85,
+          interval: 5,
+          auto_reconnect: true,
+        },
+      },
+    });
+    expect(partialWatchdog.statusCode).toBe(200);
+    const body = partialWatchdog.json() as {
+      watchdog: { stall_timeout: number };
+      streaming: { title_template: string };
+      online: { interval: number; api_key_set: boolean };
+    };
+    expect(body.watchdog.stall_timeout).toBe(42);
+    expect(body.streaming.title_template).toBe('Keep Me {name}');
+    expect(body.online.interval).toBe(45);
+    expect(body.online.api_key_set).toBe(true);
+  });
+
   it('exposes login methods publicly', async () => {
     const methods = await app.inject({ method: 'GET', url: '/api/auth/methods' });
     expect(methods.statusCode).toBe(200);

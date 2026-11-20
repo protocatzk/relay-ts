@@ -6,6 +6,7 @@ import ModalDialog from '@/src/components/ModalDialog.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 import { formatNumber } from '@/src/utils/format';
 
 const { store, refreshPlaylists, refreshStatus } = useStore();
@@ -103,9 +104,32 @@ function resetForm(): void {
   form.youtube_key = '';
 }
 
+const editorInitialSnapshot = ref('');
+
+function formSnapshot(): string {
+  return JSON.stringify({
+    id: form.id,
+    name: form.name,
+    channels: form.channels,
+    auto_advance: form.auto_advance,
+    wrap: form.wrap,
+    advance_delay_seconds: form.advance_delay_seconds,
+    end_after_minutes: form.end_after_minutes,
+    end_time: form.end_time,
+    youtube_key: form.youtube_key,
+  });
+}
+
+const editorDirty = computed(() => editorOpen.value && formSnapshot() !== editorInitialSnapshot.value);
+
+const { confirmDiscard } = useUnsavedChanges(editorDirty, {
+  message: 'Du hast ungespeicherte Änderungen an dieser Playlist. Möchtest du sie verwerfen?',
+});
+
 function openCreate(): void {
   editingPlaylist.value = null;
   resetForm();
+  editorInitialSnapshot.value = formSnapshot();
   editorOpen.value = true;
   void loadMediaFiles();
 }
@@ -121,12 +145,14 @@ function openEdit(playlist: Playlist): void {
   form.end_after_minutes = playlist.end_after_minutes ?? null;
   form.end_time = playlist.end_time ?? '';
   form.youtube_key = '';
+  editorInitialSnapshot.value = formSnapshot();
   editorOpen.value = true;
   void loadMediaFiles();
 }
 
-function closeEditor(): void {
+async function closeEditor(): Promise<void> {
   if (saving.value) return;
+  if (!(await confirmDiscard())) return;
   editorOpen.value = false;
 }
 

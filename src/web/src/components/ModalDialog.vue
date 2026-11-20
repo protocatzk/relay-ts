@@ -1,3 +1,8 @@
+<script lang="ts">
+// Track stacked modals so Escape and focus-trapping apply only to the topmost dialog.
+const openModals: symbol[] = [];
+</script>
+
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -12,14 +17,28 @@ const props = withDefaults(
 
 const emit = defineEmits<{ close: [] }>();
 
+const modalToken = Symbol('modal');
 const panel = ref<HTMLElement | null>(null);
 let previousFocus: HTMLElement | null = null;
+
+function isTopmost(): boolean {
+  return openModals[openModals.length - 1] === modalToken;
+}
+
+function registerModal(): void {
+  if (!openModals.includes(modalToken)) openModals.push(modalToken);
+}
+
+function unregisterModal(): void {
+  const index = openModals.indexOf(modalToken);
+  if (index !== -1) openModals.splice(index, 1);
+}
 
 const focusableSelector =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function onKeydown(event: KeyboardEvent): void {
-  if (!props.open) return;
+  if (!props.open || !isTopmost()) return;
   if (event.key === 'Escape') {
     event.stopPropagation();
     emit('close');
@@ -44,6 +63,7 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 function handleBackdrop(event: MouseEvent): void {
+  if (!isTopmost()) return;
   if (event.target === event.currentTarget) emit('close');
 }
 
@@ -51,13 +71,15 @@ watch(
   () => props.open,
   async (open) => {
     if (open) {
+      registerModal();
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       document.body.classList.add('modal-open');
       await nextTick();
       const first = panel.value?.querySelector<HTMLElement>(focusableSelector);
       first?.focus();
     } else {
-      document.body.classList.remove('modal-open');
+      unregisterModal();
+      if (openModals.length === 0) document.body.classList.remove('modal-open');
       previousFocus?.focus();
       previousFocus = null;
     }
@@ -68,7 +90,8 @@ watch(
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown);
-  document.body.classList.remove('modal-open');
+  unregisterModal();
+  if (openModals.length === 0) document.body.classList.remove('modal-open');
 });
 </script>
 
