@@ -87,6 +87,8 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
     const bitrate = settings.video.video_bitrate;
     const gop = Math.max(1, settings.video.fps * 2);
     args.push(
+      '-r',
+      String(settings.video.fps),
       '-c:v',
       'libx264',
       '-preset',

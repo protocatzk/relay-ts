@@ -343,6 +343,9 @@ async function save(): Promise<void> {
       preset: current.video.preset,
       layout: clone(current.video.layout),
     },
+    source: {
+      reencode: current.source.reencode,
+    },
     watchdog: {
       stall_timeout: toNumber(current.watchdog.stall_timeout, 30),
       min_bitrate: toNumber(current.watchdog.min_bitrate, 500),
@@ -536,6 +539,15 @@ onBeforeUnmount(() => {
                 </option>
               </select>
               <p class="field-hint">Schnellere Presets reduzieren die CPU-Last.</p>
+            </div>
+            <div class="field">
+              <label for="source-reencode">Quellen-Re-Encoding</label>
+              <select id="source-reencode" v-model="form.source.reencode">
+                <option value="on_reconnect">Nur bei Reconnect (empfohlen)</option>
+                <option value="always">Immer</option>
+                <option value="off">Nie (Copy)</option>
+              </select>
+              <p class="field-hint">Verhindert Mid-GOP-Ruckler beim Neustart der TikTok-Quelle.</p>
             </div>
           </div>
         </div>

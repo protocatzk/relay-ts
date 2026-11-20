@@ -181,6 +181,14 @@ export const DelayBufferSettingsSchema = z.object({
   max_bytes: z.number().int().min(1).max(512).default(32),
 });
 
+export const SourceSettingsSchema = z.object({
+  // `on_reconnect` keeps the cheap `-c copy` for the initial pull and only
+  // re-encodes once the source had to reconnect, so the relay always carries a
+  // clean, keyframe-aligned stream and the sink does not stutter on mid-GOP
+  // decode errors.
+  reencode: z.enum(['off', 'always', 'on_reconnect']).default('on_reconnect'),
+});
+
 export const VideoLayoutSchema = z.object({
   enabled: z.boolean().default(false),
   scale: z.number().int().min(50).max(400).default(100),
@@ -290,6 +298,7 @@ export const YouTubeAutomationSettingsSchema = z.object({
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
+  source: SourceSettingsSchema.default(SourceSettingsSchema.parse({})),
   watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
   auto_refresh: AutoRefreshSettingsSchema.default(AutoRefreshSettingsSchema.parse({})),
   pause: PauseSettingsSchema.default(PauseSettingsSchema.parse({})),
@@ -317,6 +326,7 @@ export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettings
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;
+export type SourceSettings = z.infer<typeof SourceSettingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
 

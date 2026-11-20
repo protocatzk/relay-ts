@@ -106,6 +106,23 @@ describe('ffmpeg command builders', () => {
     const line = args.join(' ');
     expect(line).toContain('libx264');
     expect(line).toContain('-b:v 4000k');
+    expect(line).toContain('-r 25');
+    expect(line).toContain('-g 50');
+  });
+
+  it('re-encodes on forceReencode with the configured fps', () => {
+    const args = buildSourceCommand({
+      media,
+      settings: { ...DEFAULT_SETTINGS, video: { ...DEFAULT_SETTINGS.video, fps: 20 } },
+      streamer,
+      stream,
+      relay,
+      forceReencode: true,
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-r 20');
+    expect(line).toContain('-g 40');
+    expect(line).not.toContain('-c:v copy');
   });
 
   it('adds a timestamp offset when a source is restarted', () => {

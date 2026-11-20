@@ -4717,6 +4717,23 @@
               }
             }
           },
+          "source": {
+            "default": {
+              "reencode": "on_reconnect"
+            },
+            "type": "object",
+            "properties": {
+              "reencode": {
+                "default": "on_reconnect",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "always",
+                  "on_reconnect"
+                ]
+              }
+            }
+          },
           "watchdog": {
             "default": {
               "stall_timeout": 30,
@@ -5729,6 +5746,23 @@
                     "maximum": 100
                   }
                 }
+              }
+            }
+          },
+          "source": {
+            "default": {
+              "reencode": "on_reconnect"
+            },
+            "type": "object",
+            "properties": {
+              "reencode": {
+                "default": "on_reconnect",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "always",
+                  "on_reconnect"
+                ]
               }
             }
           },

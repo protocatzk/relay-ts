@@ -426,9 +426,14 @@ export interface OnlineSettings {
   auto_switch_preferred: boolean;
 }
 
+export interface SourceSettings {
+  reencode: 'off' | 'always' | 'on_reconnect';
+}
+
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  source: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
   pause: PauseSettings;
@@ -528,6 +533,7 @@ export interface ChatSettings {
 export interface SettingsUpdate {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  source?: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
   pause: PauseSettings;

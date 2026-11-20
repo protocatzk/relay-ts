@@ -760,7 +760,7 @@ export class Supervisor {
       this.transitionTo('starting', 'startup screen');
       this.scheduleStartupFinishLocked(streamer, stream, introSeconds);
     } else {
-      this.sourceSession.start(streamer, stream, this.forceReencodeNext, timestampOffset);
+      this.sourceSession.start(streamer, stream, this.reencodeSource(false), timestampOffset);
       this.sourceSession.markProducerStarted(timestampOffset);
       this.markSinkGrace();
       this.pauseController.clearOfflinePauseTimer();
@@ -800,7 +800,7 @@ export class Supervisor {
         await this.pauseController.stopStartup();
         if (this.sourceSession.running) return;
         const offset = this.sourceSession.nextOffset();
-        this.sourceSession.start(streamer, stream, this.forceReencodeNext, offset);
+        this.sourceSession.start(streamer, stream, this.reencodeSource(false), offset);
         this.sourceSession.markProducerStarted(offset);
         this.markSinkGrace();
         this.pauseController.clearOfflinePauseTimer();
@@ -1382,6 +1382,14 @@ export class Supervisor {
     );
   }
 
+  private reencodeSource(reconnect: boolean): boolean {
+    if (this.forceReencodeNext) return true;
+    const mode = this.settings.source.reencode;
+    if (mode === 'always') return true;
+    if (mode === 'on_reconnect' && reconnect) return true;
+    return false;
+  }
+
   private async reconnect(): Promise<void> {
     await this.lock.run(async () => {
       if (this.shuttingDown || !this.activeStreamer) return;
@@ -1394,7 +1402,7 @@ export class Supervisor {
         await this.pauseController.stopPause();
         this.applyConfiguredDelay();
         const timestampOffset = this.sourceSession.nextOffset();
-        this.sourceSession.start(this.activeStreamer, stream, this.forceReencodeNext, timestampOffset);
+        this.sourceSession.start(this.activeStreamer, stream, this.reencodeSource(true), timestampOffset);
         if (!this.sinkController.running && this.sinkController.key) {
           this.startSinkOrPrefillLocked(
             this.sinkController.key,
@@ -1504,7 +1512,7 @@ export class Supervisor {
         await this.pauseController.stopPause();
         await this.sourceSession.stop();
         const timestampOffset = this.sourceSession.nextOffset();
-        this.sourceSession.start(streamer, stream, this.forceReencodeNext, timestampOffset);
+        this.sourceSession.start(streamer, stream, this.reencodeSource(true), timestampOffset);
         this.sourceSession.markProducerStarted(timestampOffset);
         this.markSinkGrace();
         this.applyConfiguredDelay();

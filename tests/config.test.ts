@@ -19,6 +19,7 @@ describe('config loader', () => {
     expect(config.server.port).toBe(3300);
     expect(config.server.logLevel).toBe('debug');
     expect(config.settings.delay_buffer.size).toBe(DEFAULT_SETTINGS.delay_buffer.size);
+    expect(config.settings.source.reencode).toBe('on_reconnect');
     expect(config.settings.video.layout).toEqual({
       enabled: false,
       scale: 100,
@@ -39,6 +40,7 @@ describe('config loader', () => {
         VIDEO_BITRATE: '5M',
         AUDIO_BITRATE: '160k',
         OUTPUT_RESOLUTION: '1280x720',
+        SOURCE_REENCODE: 'always',
         STALL_TIMEOUT: '60',
         AUTO_REFRESH_MINUTES: '30',
         ONLINE_CHECK_ENABLED: 'true',
@@ -50,6 +52,7 @@ describe('config loader', () => {
     expect(config.settings.video.video_bitrate).toBe(5000);
     expect(config.settings.video.audio_bitrate).toBe(160);
     expect(config.settings.video.resolution).toBe('1280x720');
+    expect(config.settings.source.reencode).toBe('always');
     expect(config.settings.watchdog.stall_timeout).toBe(60);
     expect(config.settings.auto_refresh.interval).toBe(30);
     expect(config.settings.online.enabled).toBe(true);

@@ -78,6 +78,11 @@ Wichtige Pfade:
 
 - Der YouTube-Sink bleibt bei Quellenwechseln und Pausen bestehen. Quellen
   werden nur am Relay ausgetauscht.
+- `source.reencode` (`off`/`always`/`on_reconnect`, Default `on_reconnect`)
+  steuert, ob die TikTok-Quelle re-encodiert statt `-c copy` läuft. Re-Encoding
+  erzeugt bei jedem Verbindungsstart einen IDR-Keyframe, sodass der Sink keinen
+  Mid-GOP-`decode_slice_header error` bekommt und YouTube nicht buffert.
+  `on_reconnect` re-encodiert erst nach dem ersten Reconnect (CPU-schonend).
 - Bei Quellenausfall startet nach `pause.grace_seconds` (Default 2 s) der
   Pausenscreen. Reconnect läuft weiter; bei Erfolg wird der Pausenscreen
   gestoppt.
