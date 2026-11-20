@@ -984,6 +984,13 @@ select {
   overflow-wrap: anywhere;
 }
 
+.hero-log-link {
+  margin-left: 8px;
+  color: var(--accent-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1209,6 +1216,50 @@ select {
 
 .settings-section {
   padding: 22px;
+  scroll-margin-top: calc(var(--header-h) + 64px);
+}
+
+.settings-section:focus {
+  outline: none;
+}
+
+.settings-jump {
+  position: sticky;
+  top: calc(var(--header-h) + 42px);
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  margin: -4px 0 2px;
+  padding: 6px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: linear-gradient(var(--surface-1) 84%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.settings-jump::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-jump-btn {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.settings-jump-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
 }
 
 .settings-body {
@@ -2702,6 +2753,10 @@ select {
   select,
   textarea {
     font-size: 16px;
+  }
+
+  .settings-jump {
+    top: calc(var(--header-h) + 42px + env(safe-area-inset-top));
   }
 
   .card {

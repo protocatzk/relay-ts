@@ -31,6 +31,28 @@ const PRESETS: { value: VideoPreset; label: string }[] = [
   { value: 'medium', label: 'Medium' },
 ];
 
+/** Jump targets for the long settings form (mobile-first section navigation). */
+const SETTINGS_SECTIONS = [
+  { id: 'settings-delay', label: 'Verzögerung' },
+  { id: 'settings-video', label: 'Video' },
+  { id: 'settings-watchdog', label: 'Watchdog' },
+  { id: 'settings-refresh', label: 'Auto-Refresh' },
+  { id: 'settings-startup', label: 'Start' },
+  { id: 'settings-pause', label: 'Pause' },
+  { id: 'settings-monitor', label: 'Monitor' },
+  { id: 'settings-earnings', label: 'Einnahmen' },
+  { id: 'settings-chat', label: 'Chat' },
+  { id: 'settings-title', label: 'Titel' },
+  { id: 'settings-sessions', label: 'Sessions' },
+] as const;
+
+function jumpToSettings(id: string): void {
+  const target = document.getElementById(id);
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  target.focus({ preventScroll: true });
+}
+
 const form = ref<Settings | null>(null);
 const loading = ref(true);
 const saving = ref(false);
@@ -461,6 +483,18 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <nav v-if="form" class="settings-jump" aria-label="Einstellungen: Bereiche">
+      <button
+        v-for="section in SETTINGS_SECTIONS"
+        :key="section.id"
+        type="button"
+        class="settings-jump-btn"
+        @click="jumpToSettings(section.id)"
+      >
+        {{ section.label }}
+      </button>
+    </nav>
+
     <div v-if="loadError" class="alert alert-error" role="alert">
       <span>{{ loadError }}</span>
       <button type="button" class="btn btn-ghost btn-sm" @click="loadSettings()">Erneut versuchen</button>
@@ -477,7 +511,7 @@ onBeforeUnmount(() => {
         nach einem Neustart des Streams wirksam.
       </div>
 
-      <section class="card settings-section">
+      <section id="settings-delay" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Verzögerung</h2>
@@ -500,7 +534,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-video" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Video</h2>
@@ -553,7 +587,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-watchdog" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Watchdog</h2>
@@ -587,7 +621,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-refresh" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Auto-Refresh</h2>
@@ -609,7 +643,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-startup" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Startbildschirm</h2>
@@ -735,7 +769,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-pause" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Pause</h2>
@@ -877,7 +911,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-monitor" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Online-Monitor</h2>
@@ -931,7 +965,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-earnings" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Einnahmen</h2>
@@ -992,7 +1026,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-chat" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Chat-Overlay</h2>
@@ -1027,7 +1061,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-title" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">YouTube-Titel</h2>
@@ -1053,7 +1087,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="card settings-section">
+      <section id="settings-sessions" class="card settings-section" tabindex="-1">
         <div class="card-head">
           <div>
             <h2 class="card-title">Sessions</h2>

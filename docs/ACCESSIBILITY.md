@@ -1,14 +1,15 @@
 # Accessibility
 
-Stand: **2026-11-18** · geprüft mit Chromium (Playwright) bei 320 px und 1280 px.
+Stand: **2026-11-20** · geprüft mit Chromium (Playwright) bei 320 px und 1280 px.
 
 ## Tastatur und Fokus
 
 - **Skip-Link:** Der erste Tab-Fokus liegt auf „Zum Inhalt springen“. Enter setzt
   den Fokus auf `<main id="main-content">`, ohne die Hash-Route zu wechseln.
-- **Drawer:** Beim Öffnen wandert der Fokus auf „Menü schließen“. Tab und
-  Shift+Tab bleiben im Drawer. `Escape` schließt ihn und setzt den Fokus zurück
-  auf „Navigation öffnen“. Ein Klick auf den Backdrop macht dasselbe.
+- **Navigation:** Die Hauptnavigation ist eine Tab-Leiste unten mit vier
+  Bereichen (Live, Inhalte, Studio, System). Die aktive Seite trägt
+  `aria-current="page"`. Innerhalb eines Bereichs zeigt eine zweite
+  Navigationsleiste die Unterseiten (`aria-label="<Bereich>: Unterseiten"`).
 - **Modals:** `ModalDialog` fängt den Fokus, schließt mit `Escape` und gibt den
   Fokus an das auslösende Element zurück.
 - **Sichtbare Fokuszustände:** `:focus-visible` mit 2-px-Akzentrahmen; auch
@@ -18,8 +19,8 @@ Stand: **2026-11-18** · geprüft mit Chromium (Playwright) bei 320 px und 1280 
 
 ## Struktur und Screenreader
 
-- Header, Sidebar (`aria-label="Hauptnavigation"`), `<main>` und Footer sind
-  eindeutige Landmarks; jede Seite hat genau eine `<h1>`.
+- Header, Hauptnavigation (`aria-label="Hauptnavigation"`), Unterseiten-Tabs,
+  `<main>` und Footer sind eindeutige Landmarks; jede Seite hat genau eine `<h1>`.
 - Die Streamer-Tabelle hat ein `<caption>`, explizite Rollen
   (`table`/`row`/`columnheader`/`cell`) und `scope="col"`.
 - Auf Mobile werden Tabellenzeilen zu Karten; jedes `<td>` trägt ein
@@ -52,7 +53,9 @@ Die Suite prüft:
 
 - kein horizontaler Overflow auf Dashboard, Streamer, Playlists, Overlay-Studio,
   Einstellungen und Logs bei **320 px**,
-- Fokus-Falle, `Escape` und Fokus-Rückgabe im Drawer,
+- vier beschriftete Bereiche in der Hauptnavigation samt `aria-current`,
+- Wechsel über die Unterseiten-Tabs (z. B. Streamer → Medien) inklusive
+  aktivem Bereich,
 - Landmarks, Skip-Link, Tabellen-Caption und Spaltenrollen,
 - zugängliche Namen aller sichtbaren Eingaben in den Einstellungen,
 - Theme-Wechsel Dark/Light ohne Overflow,
@@ -63,5 +66,5 @@ CI: `.github/workflows/ci.yml` führt die E2E-Suite nach den Unit-Tests aus.
 ## Manuelle Restprüfung
 
 Screenreader-Stichproben (VoiceOver/Safari, TalkBack/Chrome, NVDA/Firefox) sind
-nicht automatisiert. Zu prüfen sind Drawer-Ansage, Statusmeldungen und die
+nicht automatisiert. Zu prüfen sind Navigations-Ansage, Statusmeldungen und die
 Karten-Tabellen; die Struktur ist dafür mit Rollen und Labels vorbereitet.

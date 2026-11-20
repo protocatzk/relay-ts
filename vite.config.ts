@@ -53,8 +53,8 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: 'Dashboard',
-            short_name: 'Dashboard',
+            name: 'Live',
+            short_name: 'Live',
             url: '/#/',
             icons: [{ src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
           },

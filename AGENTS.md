@@ -304,11 +304,16 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - `src/web/src/toktracker.css` wird **danach** geladen und überschreibt das
   Design. Responsive Fixes deshalb in `toktracker.css` ergänzen, sonst können
   sie von dessen Desktop-Regeln überschrieben werden.
-- Mobile: Drawer-Navigation, Tabellen werden zu Karten, Touch-Ziele ≥ 38 px,
+- Mobile: Tab-Leiste unten, Tabellen werden zu Karten, Touch-Ziele ≥ 38 px,
   Eingaben 16 px gegen iOS-Zoom, Safe-Area-Insets.
-- Drawer: Fokus-Falle, `Escape`, Fokus-Rückgabe an den Menü-Button; Skip-Link
-  fokussiert `<main>` ohne Hash-Routenwechsel. Details in
-  `docs/ACCESSIBILITY.md`.
+- Hauptnavigation: vier Bereiche (`Live`, `Inhalte`, `Studio`, `System`) in
+  `src/web/src/navigation.ts`. Routen bleiben flach und tragen `meta.section`;
+  `SectionTabs.vue` rendert die zweite Ebene (Inhalte: Streamer/Playlists/Medien,
+  Studio: Overlays/YouTube, System: Einstellungen/Logs). Die Bottom-Nav merkt
+  sich den letzten Sub-Tab pro Bereich (`localStorage`).
+- Skip-Link: fokussiert `<main>` ohne Hash-Routenwechsel; die Tab-Leiste trägt
+  `aria-current="page"`, die Unterseiten-Tabs ein eigenes `aria-label`.
+  Details in `docs/ACCESSIBILITY.md`.
 - TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
   Grün als Akzent, Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
 - Studio-Preview: `POST /api/overlays/studio.png` mit ungespeicherten Overlays,
@@ -332,7 +337,7 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 ## Qualitätsregeln
 
 - Vor jedem Commit: `npm run check` und bei UI/Serveränderungen `npm run build`.
-- Bei UI-Änderungen zusätzlich `npm run test:e2e` (320-px-Overflow, Drawer-Fokus,
+- Bei UI-Änderungen zusätzlich `npm run test:e2e` (320-px-Overflow, Navigation,
   Tabellen-Rollen, Formular-Labels, Theme-Wechsel).
 - Neue Backend-Felder immer in Schema, API-Typen, Frontend-Typen und Tests
   ergänzen.

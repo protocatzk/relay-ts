@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ensureStreamer, expectNoHorizontalOverflow } from './helpers';
 
-test.describe('mobile layout and drawer', () => {
+test.describe('mobile layout and navigation', () => {
   test.use({ viewport: { width: 320, height: 720 } });
 
   test('core pages fit the 320 px viewport', async ({ page }) => {
@@ -35,30 +35,56 @@ test.describe('mobile layout and drawer', () => {
     await expect(trigger).toBeFocused();
   });
 
-  test('drawer traps focus, closes with Escape and restores focus', async ({ page }) => {
+  test('bottom navigation exposes four labelled sections', async ({ page }) => {
     await page.goto('/#/');
-    const toggle = page.getByRole('button', { name: 'Navigation öffnen' });
-    await toggle.click();
-
-    const sidebar = page.locator('#sidebar');
-    await expect(sidebar).toHaveClass(/is-open/);
-    await expect(page.getByRole('button', { name: 'Menü schließen' })).toBeFocused();
-
-    const focusables = sidebar.locator(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-    );
-    const count = await focusables.count();
-    for (let index = 0; index < count + 2; index += 1) {
-      await page.keyboard.press('Tab');
-      const inside = await page.evaluate(() =>
-        Boolean(document.activeElement?.closest('#sidebar')),
-      );
-      expect(inside, `focus left the drawer after ${index + 1} tabs`).toBe(true);
+    const nav = page.getByRole('navigation', { name: 'Hauptnavigation' });
+    const links = nav.getByRole('link');
+    await expect(links).toHaveCount(4);
+    for (const label of ['Live', 'Inhalte', 'Studio', 'System']) {
+      await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
+    await expect(nav.getByRole('link', { name: 'Live', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // Labels stay readable on small screens instead of icons only.
+    await expect(nav.getByText('Inhalte')).toBeVisible();
+    await expectNoHorizontalOverflow(page, 'bottom navigation');
+  });
 
-    await page.keyboard.press('Escape');
-    await expect(sidebar).not.toHaveClass(/is-open/);
-    await expect(toggle).toBeFocused();
+  test('section tabs switch pages inside a section', async ({ page }) => {
+    await page.goto('/#/streamers');
+    const tabs = page.getByRole('navigation', { name: 'Inhalte: Unterseiten' });
+    await expect(tabs).toBeVisible();
+    await expect(tabs.getByRole('link')).toHaveCount(3);
+    await expect(tabs.getByRole('link', { name: 'Streamer' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await tabs.getByRole('link', { name: 'Medien' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Medien' })).toBeVisible();
+    await expect(page).toHaveURL(/#\/media$/);
+    await expect(
+      page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('link', {
+        name: 'Inhalte',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-current', 'page');
+
+    await page.goto('/#/settings');
+    const system = page.getByRole('navigation', { name: 'System: Unterseiten' });
+    await expect(system.getByRole('link')).toHaveCount(2);
+    await system.getByRole('link', { name: 'Logs' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Logs' })).toBeVisible();
+  });
+
+  test('bottom navigation keeps the Stream-Deck reachable from Live', async ({ page }) => {
+    await page.goto('/#/');
+    const deck = page.getByRole('link', { name: 'Stream-Deck' });
+    await expect(deck).toBeVisible();
+    await deck.click();
+    await expect(page).toHaveURL(/#\/deck$/);
   });
 
   test('streamer table becomes labelled cards', async ({ page, request }) => {

@@ -33,6 +33,8 @@ export default defineConfig({
       AUTO_REFRESH: 'false',
       EARNINGS_ENABLED: 'false',
       DELAY_BUFFER_ENABLED: 'false',
+      // Keep the internal relay/playback ports away from a local production instance.
+      RELAY_PORT: '19360',
       LOG_LEVEL: 'silent',
       DATA_DIR: '.playwright/data',
       LOGS_DIR: '.playwright/logs',

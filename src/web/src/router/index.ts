@@ -2,55 +2,65 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { ApiError, api } from '@/src/api/client';
 import { store } from '@/src/composables/useStore';
+import type { SectionId } from '@/src/navigation';
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    title?: string;
+    layout?: 'deck' | 'auth';
+    section?: SectionId;
+    public?: boolean;
+  }
+}
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'dashboard',
     component: () => import('@/src/views/DashboardView.vue'),
-    meta: { title: 'Dashboard' },
+    meta: { title: 'Dashboard', section: 'live' },
   },
   {
     path: '/streamers',
     name: 'streamers',
     component: () => import('@/src/views/StreamersView.vue'),
-    meta: { title: 'Streamer' },
+    meta: { title: 'Streamer', section: 'inhalte' },
   },
   {
     path: '/playlists',
     name: 'playlists',
     component: () => import('@/src/views/PlaylistsView.vue'),
-    meta: { title: 'Playlists' },
+    meta: { title: 'Playlists', section: 'inhalte' },
   },
   {
     path: '/media',
     name: 'media',
     component: () => import('@/src/views/MediaView.vue'),
-    meta: { title: 'Medien' },
+    meta: { title: 'Medien', section: 'inhalte' },
   },
   {
     path: '/youtube',
     name: 'youtube',
     component: () => import('@/src/views/YouTubeView.vue'),
-    meta: { title: 'YouTube' },
+    meta: { title: 'YouTube', section: 'studio' },
   },
   {
     path: '/overlays',
     name: 'overlays',
     component: () => import('@/src/views/OverlaysView.vue'),
-    meta: { title: 'Overlays' },
+    meta: { title: 'Overlays', section: 'studio' },
   },
   {
     path: '/settings',
     name: 'settings',
     component: () => import('@/src/views/SettingsView.vue'),
-    meta: { title: 'Einstellungen' },
+    meta: { title: 'Einstellungen', section: 'system' },
   },
   {
     path: '/logs',
     name: 'logs',
     component: () => import('@/src/views/LogsView.vue'),
-    meta: { title: 'Logs' },
+    meta: { title: 'Logs', section: 'system' },
   },
   {
     path: '/deck',

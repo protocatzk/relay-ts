@@ -372,6 +372,17 @@ onBeforeUnmount(() => {
         <span class="update-hint mono">
           {{ store.loading.status ? 'Aktualisiere…' : 'Auto-Update via SSE' }}
         </span>
+        <RouterLink
+          to="/deck"
+          class="btn btn-ghost btn-sm"
+          title="Stream-Deck (Vollbild-Steuerung)"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8" />
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+          Stream-Deck
+        </RouterLink>
       </div>
     </div>
 
@@ -405,6 +416,7 @@ onBeforeUnmount(() => {
             </template>
             <template v-else-if="status?.state === 'error'">
               {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
+              <RouterLink to="/logs" class="hero-log-link">Logs ansehen</RouterLink>
             </template>
             <template v-else-if="status">
               {{ status.source.online === false ? 'Quelle offline.' : 'Bereit für den nächsten Start.' }}
@@ -557,6 +569,7 @@ onBeforeUnmount(() => {
       <div class="dash-grid">
       <div v-if="status?.watchdog.last_error" class="alert alert-warn span-3" role="status">
         <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
+        <RouterLink to="/logs" class="btn btn-ghost btn-sm">Logs</RouterLink>
       </div>
 
       <div class="dash-stack span-2">

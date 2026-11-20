@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppHeader from '@/src/components/AppHeader.vue';
 import AppBottomNav from '@/src/components/AppBottomNav.vue';
+import SectionTabs from '@/src/components/SectionTabs.vue';
 import ToastHost from '@/src/components/ToastHost.vue';
 import PwaPrompt from '@/src/components/PwaPrompt.vue';
 import { checkServerVersion } from '@/src/composables/usePwa';
@@ -56,6 +57,7 @@ onBeforeUnmount(() => {
     <a class="skip-link" href="#main-content" @click="focusMain">Zum Inhalt springen</a>
     <div class="app-main">
       <AppHeader />
+      <SectionTabs />
       <main id="main-content" ref="mainContent" class="content" tabindex="-1">
         <router-view />
       </main>
