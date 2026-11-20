@@ -13,16 +13,25 @@ import { ValidationError } from '../../utils/errors.js';
 export const QUEUE_PLAYLIST_ID = '__regie__';
 
 const MAX_QUEUE_ENTRIES = 200;
-const QUEUE_FILE_VERSION = 1;
+const QUEUE_FILE_VERSION = 2;
 
 export interface QueueEntry {
   id: string;
   channel: string;
 }
 
+/** Last known position of the active queue video, used to resume after restarts. */
+export interface QueuePlayback {
+  channel: string;
+  position_seconds: number;
+  duration_seconds: number;
+  updated_at: string;
+}
+
 interface QueueFile {
   version: number;
   entries: QueueEntry[];
+  playback: QueuePlayback | null;
 }
 
 export interface QueueControllerDeps {
@@ -41,6 +50,7 @@ export interface QueueControllerDeps {
 export class QueueController {
   private readonly deps: QueueControllerDeps;
   private entries: QueueEntry[] = [];
+  private playback: QueuePlayback | null = null;
   private loaded = false;
 
   constructor(deps: QueueControllerDeps) {
@@ -128,6 +138,25 @@ export class QueueController {
   clear(): void {
     this.load();
     this.entries = [];
+    this.playback = null;
+    this.persist();
+  }
+
+  getPlayback(): QueuePlayback | null {
+    this.load();
+    return this.playback ? { ...this.playback } : null;
+  }
+
+  setPlayback(playback: QueuePlayback | null): void {
+    this.load();
+    this.playback = playback;
+    this.persist();
+  }
+
+  clearPlayback(): void {
+    this.load();
+    if (!this.playback) return;
+    this.playback = null;
     this.persist();
   }
 
@@ -168,7 +197,8 @@ export class QueueController {
     this.loaded = true;
     if (!this.deps.path) return;
     const raw = readJsonFile<QueueFile | null>(this.deps.path, null);
-    if (!raw || raw.version !== QUEUE_FILE_VERSION || !Array.isArray(raw.entries)) return;
+    if (!raw || !Array.isArray(raw.entries)) return;
+    if (raw.version !== 1 && raw.version !== QUEUE_FILE_VERSION) return;
     this.entries = raw.entries
       .filter(
         (entry): entry is QueueEntry =>
@@ -178,6 +208,25 @@ export class QueueController {
           entry.channel.trim().length > 0,
       )
       .slice(0, MAX_QUEUE_ENTRIES);
+    const playback = (raw as { playback?: QueuePlayback | null }).playback;
+    if (
+      playback &&
+      typeof playback.channel === 'string' &&
+      Number.isFinite(playback.position_seconds)
+    ) {
+      this.playback = {
+        channel: playback.channel,
+        position_seconds: Math.max(0, playback.position_seconds),
+        duration_seconds:
+          Number.isFinite(playback.duration_seconds) && playback.duration_seconds > 0
+            ? playback.duration_seconds
+            : 0,
+        updated_at:
+          typeof playback.updated_at === 'string'
+            ? playback.updated_at
+            : new Date().toISOString(),
+      };
+    }
   }
 
   private persist(): void {
@@ -186,6 +235,7 @@ export class QueueController {
       writeJsonFile(this.deps.path, {
         version: QUEUE_FILE_VERSION,
         entries: this.entries,
+        playback: this.playback,
       } satisfies QueueFile);
     } catch (error) {
       this.deps.logger.warn(

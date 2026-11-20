@@ -21,6 +21,8 @@ export interface PlaylistRunState {
 export interface PlaylistStartOptions {
   key: string;
   playlist: PlaylistRunState;
+  /** Start offset for local videos (seconds). */
+  seekSeconds?: number;
 }
 
 export interface PlaylistControllerDeps {
@@ -66,13 +68,13 @@ export class PlaylistController {
     return this.advancePending;
   }
 
-  async play(id: string, startIndex = 0): Promise<StatusSnapshot> {
+  async play(id: string, startIndex = 0, seekSeconds?: number): Promise<StatusSnapshot> {
     return this.deps.lock.run(async () => {
       const playlist = this.deps.resolvePlaylist(id);
       if (!playlist) throw new NotFoundError(`Playlist "${id}" wurde nicht gefunden`);
       this.clearTimers();
       this.endAt = this.endTimestamp(playlist);
-      return this.startEntryLocked(playlist, Math.max(0, Math.trunc(startIndex)));
+      return this.startEntryLocked(playlist, Math.max(0, Math.trunc(startIndex)), seekSeconds);
     });
   }
 
@@ -209,6 +211,7 @@ export class PlaylistController {
   private async startEntryLocked(
     playlist: PlaylistConfig,
     startIndex: number,
+    seekSeconds?: number,
   ): Promise<StatusSnapshot> {
     const { channels } = playlist;
     if (channels.length === 0) throw new ValidationError('Die Playlist enthält keine Kanäle');
@@ -255,6 +258,7 @@ export class PlaylistController {
           return await this.deps.startFile(file, {
             key,
             playlist: { playlist, index },
+            seekSeconds: index === startIndex ? seekSeconds : undefined,
           });
         } catch (error) {
           lastError = toErrorMessage(error);

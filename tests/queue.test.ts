@@ -95,6 +95,29 @@ describe('QueueController', () => {
     expect(reloaded.snapshot(false, null).entries[1]?.id).toBe(second.id);
   });
 
+  it('persists and clears the playback position for resume', () => {
+    const { controller, path, dataDir, store } = setup();
+    controller.add('file:clip.mp4');
+    controller.setPlayback({
+      channel: 'file:clip.mp4',
+      position_seconds: 42,
+      duration_seconds: 120,
+      updated_at: '2026-11-20T00:00:00.000Z',
+    });
+
+    const reloaded = new QueueController({ path, dataDir, store, logger });
+    expect(reloaded.getPlayback()).toEqual({
+      channel: 'file:clip.mp4',
+      position_seconds: 42,
+      duration_seconds: 120,
+      updated_at: '2026-11-20T00:00:00.000Z',
+    });
+
+    reloaded.clearPlayback();
+    const again = new QueueController({ path, dataDir, store, logger });
+    expect(again.getPlayback()).toBeNull();
+  });
+
   it('rejects unknown streamers and missing media files', () => {
     const { controller } = setup();
     expect(() => controller.add('nobody')).toThrow(/Streamer "nobody"/);

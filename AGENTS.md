@@ -178,9 +178,17 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - `POST /api/queue/now` schiebt einen Eintrag direkt hinter den laufenden und
   springt dorthin („Sofort abspielen"); ohne aktive Queue wird er vorne
   eingefügt und abgespielt.
+- Seek: `POST /api/queue/seek { seconds }` startet das laufende lokale Video
+  an der Position neu (`-ss` vor dem Input; der Sink wird dabei neu aufgebaut).
+  Der Countdown berücksichtigt den Seek-Offset.
+- Resume: Die Position des aktiven Queue-Videos wird alle 10 s sowie bei
+  Start/Seek/Shutdown in `data/queue.json` (`playback`) gespeichert. Nach einem
+  Neustart setzt der Supervisor das Video nach ~2,5 s an dieser Stelle fort,
+  sofern die App noch idle ist, die Datei existiert und das Video nicht bereits
+  beendet war. Ein manueller Stopp löscht den Stand.
 - API: `GET /api/queue`, `POST /api/queue/entries`,
   `DELETE /api/queue/entries/:id`, `POST /api/queue/move`,
-  `DELETE /api/queue`, `POST /api/queue/play|next|stop|now`.
+  `DELETE /api/queue`, `POST /api/queue/play|next|stop|now|seek`.
 - Dashboard-Karte `RegieQueue.vue`; das SSE-Event `queue` hält den Stand aktuell.
 
 ## YouTube-Verwaltung

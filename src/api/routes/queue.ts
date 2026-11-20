@@ -15,6 +15,10 @@ const PlayBody = z.object({
   index: z.coerce.number().int().min(0).max(1000).optional(),
 });
 
+const SeekBody = z.object({
+  seconds: z.coerce.number().min(0).max(86_400),
+});
+
 /** Live-editable "Regie" queue of videos, streamers and screens. */
 export async function registerQueueRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
   app.get('/api/queue', async () => ctx.supervisor.buildQueueSnapshot());
@@ -63,6 +67,15 @@ export async function registerQueueRoutes(app: FastifyInstance, ctx: ApiContext)
     return {
       ok: true,
       status: await ctx.supervisor.queuePlayNow(body.channel),
+      queue: ctx.supervisor.buildQueueSnapshot(),
+    };
+  });
+
+  app.post('/api/queue/seek', async (request) => {
+    const body = SeekBody.parse(request.body ?? {});
+    return {
+      ok: true,
+      status: await ctx.supervisor.seekActiveVideo(body.seconds),
       queue: ctx.supervisor.buildQueueSnapshot(),
     };
   });

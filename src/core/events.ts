@@ -65,6 +65,11 @@ export interface StatusSnapshot {
     api_configured: boolean;
     canvas_active: boolean;
   };
+  media: {
+    file: string;
+    duration_seconds: number;
+    position_seconds: number;
+  } | null;
   version: string;
 }
 

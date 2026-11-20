@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { MediaFile, QueueEntryKind, QueueSnapshot } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
@@ -18,6 +18,39 @@ const queue = computed(() => store.queue);
 const entries = computed(() => queue.value?.entries ?? []);
 const activeIndex = computed(() => queue.value?.index ?? null);
 const enabledStreamers = computed(() => store.streamers.filter((streamer) => streamer.enabled));
+const activeMedia = computed(() => store.status?.media ?? null);
+const seekValue = ref(0);
+const seeking = ref(false);
+
+watch(
+  activeMedia,
+  (next) => {
+    if (next && !seeking.value) seekValue.value = Math.round(next.position_seconds);
+  },
+  { immediate: true },
+);
+
+function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
+function seekTo(seconds: number): void {
+  seeking.value = false;
+  void run(() => api.queue.seek(Math.max(0, Math.round(seconds))));
+}
+
+function nudge(delta: number): void {
+  const duration = activeMedia.value?.duration_seconds ?? 0;
+  const target = Math.max(0, Math.min(Math.max(0, duration - 0.5), seekValue.value + delta));
+  seekValue.value = Math.max(0, Math.round(target));
+  seekTo(target);
+}
 
 const KIND_LABELS: Record<QueueEntryKind, string> = {
   file: 'Video',
@@ -160,6 +193,35 @@ onMounted(() => void loadMedia());
         </select>
         <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="addScreen">
           + Screen
+        </button>
+      </div>
+    </div>
+
+    <div v-if="activeMedia" class="regie-seek">
+      <div class="regie-seek-head">
+        <span class="mono">Video · {{ activeMedia.file }}</span>
+        <span class="mono"
+          >{{ formatClock(seekValue) }} / {{ formatClock(activeMedia.duration_seconds) }}</span
+        >
+      </div>
+      <input
+        class="regie-seek-range"
+        type="range"
+        min="0"
+        :max="Math.max(0, Math.floor(activeMedia.duration_seconds))"
+        step="1"
+        v-model.number="seekValue"
+        :disabled="busy"
+        aria-label="Videoposition"
+        @input="seeking = true"
+        @change="seekTo(seekValue)"
+      />
+      <div class="regie-seek-actions">
+        <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="nudge(-10)">
+          −10 s
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="nudge(10)">
+          +10 s
         </button>
       </div>
     </div>

@@ -35,6 +35,7 @@ function context(overrides: Partial<StatusBuilderContext> = {}): StatusBuilderCo
     reconnecting: false,
     monitorOnline: true,
     chat,
+    media: null,
     ...overrides,
   };
 }
@@ -54,8 +55,20 @@ describe('status builder', () => {
     expect(status.uptime_seconds).toBeGreaterThanOrEqual(5);
   });
 
-  it('maps sink stats and paused screens without an active streamer', () => {
+  it('exposes the active local video position', () => {
     const status = buildStatusSnapshot(
+      context({
+        media: { file: 'clip.mp4', duration_seconds: 120, position_seconds: 30 },
+      }),
+    );
+    expect(status.media).toEqual({
+      file: 'clip.mp4',
+      duration_seconds: 120,
+      position_seconds: 30,
+    });
+  });
+
+  it('maps sink stats and paused screens without an active streamer', () => {    const status = buildStatusSnapshot(
       context({
         state: 'paused',
         activeStreamer: null,

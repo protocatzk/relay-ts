@@ -493,6 +493,18 @@ const routes: RouteDoc[] = [
     },
     response: ref('QueueEnvelope'),
   },
+  {
+    method: 'post',
+    path: '/api/queue/seek',
+    tag: 'queue',
+    summary: 'Im laufenden Video springen',
+    body: {
+      type: 'object',
+      required: ['seconds'],
+      properties: { seconds: { type: 'number', minimum: 0, example: 42 } },
+    },
+    response: ref('QueueEnvelope'),
+  },
 
   // Settings & overlays
   { method: 'get', path: '/api/settings', tag: 'settings', summary: 'Einstellungen lesen', response: 'Settings' },
@@ -824,6 +836,7 @@ const components = {
         watchdog: { type: 'object' },
         auto_refresh: { type: 'object' },
         chat: { type: 'object' },
+        media: { type: ['object', 'null'] },
         version: { type: 'string', example: VERSION },
       },
     },

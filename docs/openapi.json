@@ -1953,6 +1953,67 @@
         }
       }
     },
+    "/api/queue/seek": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Im laufenden Video springen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "seconds"
+                ],
+                "properties": {
+                  "seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 42
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "tags": [
@@ -3962,6 +4023,12 @@
           },
           "chat": {
             "type": "object"
+          },
+          "media": {
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "version": {
             "type": "string",

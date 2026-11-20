@@ -165,6 +165,11 @@ export interface StatusPayload {
   watchdog: WatchdogStatus;
   auto_refresh: AutoRefreshStatus;
   chat: ChatStatus;
+  media: {
+    file: string;
+    duration_seconds: number;
+    position_seconds: number;
+  } | null;
   version: string;
 }
 

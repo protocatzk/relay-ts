@@ -29,6 +29,7 @@ export interface StatusBuilderContext {
   watchdog?: ReturnType<Watchdog['stats']>;
   autoRefresh?: ReturnType<AutoRefresh['stats']>;
   chat: StatusSnapshot['chat'];
+  media: StatusSnapshot['media'];
 }
 
 /** Builds the API/SSE status snapshot from the current supervisor state. */
@@ -52,6 +53,7 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     watchdog,
     autoRefresh,
     chat,
+    media,
   } = context;
   const now = Date.now();
   return {
@@ -114,6 +116,7 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
       count: autoRefresh?.count ?? 0,
     },
     chat,
+    media,
     version: VERSION,
   };
 }

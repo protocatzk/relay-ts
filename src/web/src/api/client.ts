@@ -204,6 +204,7 @@ export interface QueueApi {
   next(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   stop(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   now(channel: string): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+  seek(seconds: number): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
 }
 
 export const api = {
@@ -399,6 +400,11 @@ export const api = {
       request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/now', {
         method: 'POST',
         body: { channel },
+      }),
+    seek: (seconds: number) =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/seek', {
+        method: 'POST',
+        body: { seconds },
       }),
   } satisfies QueueApi,
 

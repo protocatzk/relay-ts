@@ -158,14 +158,16 @@ export function remainingTimeFilter(
   settings: Settings,
   fontFile: string,
   durationSeconds: number,
+  seekSeconds = 0,
 ): string | null {
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+  const remainingTotal = durationSeconds - Math.max(0, seekSeconds);
+  if (!Number.isFinite(remainingTotal) || remainingTotal <= 0) return null;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const fontsize = Math.max(18, Math.round(Math.max(width, height) / 40));
-  const duration = durationSeconds.toFixed(3);
+  const duration = remainingTotal.toFixed(3);
   const remaining = `max(0\\,${duration}-t)`;
   const clock =
-    durationSeconds >= 3600
+    remainingTotal >= 3600
       ? `%{eif\\:trunc(${remaining}/3600)\\:d}\\:` +
         `%{eif\\:trunc(mod(trunc(${remaining}/60)\\,60))\\:d\\:2}\\:` +
         `%{eif\\:trunc(mod(${remaining}\\,60))\\:d\\:2}`

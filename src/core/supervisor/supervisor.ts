@@ -52,7 +52,7 @@ import {
 } from './playlist-controller.js';
 import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
-import { QueueController, QUEUE_PLAYLIST_ID } from './queue-controller.js';
+import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
 
 export interface SupervisorDeps {
@@ -120,6 +120,11 @@ export class Supervisor {
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
   private activeMediaFile: string | null = null;
+  private activeMediaOffset = 0;
+  private activeMediaStartedAt: number | null = null;
+  private activeMediaDuration: number | null = null;
+  private statusTicks = 0;
+  private resumeTimer?: NodeJS.Timeout;
   private readonly playlistController: PlaylistController;
   private readonly queue: QueueController;
   private startedAt: Date | null = null;
@@ -367,11 +372,25 @@ export class Supervisor {
     });
     this.earnings.start();
     this.watchdog.start();
-    this.statusTimer = setInterval(() => this.emitStatus(), 2000);
+    this.statusTimer = setInterval(() => {
+      this.emitStatus();
+      this.statusTicks += 1;
+      if (this.statusTicks % 5 === 0) this.persistMediaProgress();
+    }, 2000);
     this.emitAll();
     void this.checkBinaries();
     if (config.autoStart) {
       this.autoStartTimer = setTimeout(() => void this.autoStart(), 1500);
+    }
+    const resume = this.queue.getPlayback();
+    if (
+      resume &&
+      resume.channel.startsWith('file:') &&
+      resume.position_seconds > 1 &&
+      (resume.duration_seconds <= 0 || resume.position_seconds < resume.duration_seconds - 2)
+    ) {
+      this.resumeTimer = setTimeout(() => void this.resumeQueuePlayback(resume), 2500);
+      this.resumeTimer.unref?.();
     }
     logger.info({ version: VERSION, relayPort: relayEndpoint.port }, 'Supervisor bereit');
   }
@@ -530,12 +549,18 @@ export class Supervisor {
     if (!path || !existsSync(path)) {
       throw new ValidationError(`Lokales Video "${file}" wurde nicht gefunden`);
     }
+    const seekSeconds = Math.max(0, options.seekSeconds ?? 0);
     this.sinkController.clearStartTimer();
     const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
     const prepared = this.overlays.prepare();
     const filters = [...prepared.filters];
     if (prepared.fontFile && probe.duration) {
-      const countdown = remainingTimeFilter(this.settings, prepared.fontFile, probe.duration);
+      const countdown = remainingTimeFilter(
+        this.settings,
+        prepared.fontFile,
+        probe.duration,
+        seekSeconds,
+      );
       if (countdown) filters.push(countdown);
     }
     const signature = this.overlayRuntime.signature(filters, undefined);
@@ -549,6 +574,8 @@ export class Supervisor {
 
     this.activeStreamer = null;
     this.activeMediaFile = file;
+    this.activeMediaOffset = seekSeconds;
+    this.activeMediaDuration = probe.duration;
     this.sinkController.key = options.key;
     this.sinkController.filters = filters;
     this.sinkController.overlayInput = undefined;
@@ -577,7 +604,8 @@ export class Supervisor {
       resolvedAt: new Date(),
     };
     const offset = 0;
-    this.sourceSession.start(synthetic, resolved, false, offset);
+    this.sourceSession.start(synthetic, resolved, false, offset, seekSeconds);
+    this.activeMediaStartedAt = Date.now();
     this.startSinkOrPrefillLocked(options.key, filters, signature);
     this.sourceSession.markProducerStarted(offset);
     this.markSinkGrace();
@@ -587,6 +615,14 @@ export class Supervisor {
     this.watchdog.clearError();
     this.playlistController.activate(options.playlist);
     this.transitionTo('live');
+    if (options.playlist.playlist.id === QUEUE_PLAYLIST_ID && probe.duration) {
+      this.queue.setPlayback({
+        channel: `file:${file}`,
+        position_seconds: seekSeconds,
+        duration_seconds: probe.duration,
+        updated_at: new Date().toISOString(),
+      });
+    }
     this.emitAll();
     this.deps.logger.info({ file, playlist: options.playlist.playlist.id }, 'Lokales Video gestartet');
     return this.buildStatus();
@@ -665,6 +701,11 @@ export class Supervisor {
     this.applyConfiguredDelay();
 
     this.activeStreamer = streamer;
+    this.activeMediaFile = null;
+    this.activeMediaOffset = 0;
+    this.activeMediaStartedAt = null;
+    this.activeMediaDuration = null;
+    this.queue.clearPlayback();
     this.sinkController.key = key;
     this.sinkController.filters = prepared.filters;
     this.sinkController.overlayInput = overlayInput;
@@ -837,13 +878,20 @@ export class Supervisor {
 
   private async stopSourceAndChatLocked(): Promise<void> {
     this.activeMediaFile = null;
+    this.activeMediaOffset = 0;
+    this.activeMediaStartedAt = null;
+    this.activeMediaDuration = null;
     this.overlayRuntime.stopChat();
     await this.sourceSession.stop();
     await this.pauseController.stopScreens();
   }
 
   async stop(): Promise<StatusSnapshot> {
-    return this.lock.run(() => this.stopInternalLocked());
+    return this.lock.run(async () => {
+      // A user-initiated stop should not resume the last video after a restart.
+      this.queue.clearPlayback();
+      return this.stopInternalLocked();
+    });
   }
 
   private async stopInternalLocked(): Promise<StatusSnapshot> {
@@ -865,6 +913,9 @@ export class Supervisor {
     this.overlayRuntime.resetMessages();
     this.activeStreamer = null;
     this.activeMediaFile = null;
+    this.activeMediaOffset = 0;
+    this.activeMediaStartedAt = null;
+    this.activeMediaDuration = null;
     this.playlistController.detach();
     this.sinkController.key = '';
     this.sinkController.filters = [];
@@ -951,6 +1002,7 @@ export class Supervisor {
       this.sourceSession.clearReconnectTimer();
       this.sinkController.clearStartTimer();
       await this.stopSourceAndChatLocked();
+      this.queue.clearPlayback();
 
       let pendingSink: {
         key: string;
@@ -1146,6 +1198,28 @@ export class Supervisor {
     return this.playlistController.play(QUEUE_PLAYLIST_ID, 0);
   }
 
+  /** Jumps within the currently playing local video. */
+  async seekActiveVideo(seconds: number): Promise<StatusSnapshot> {
+    return this.lock.run(async () => {
+      const file = this.activeMediaFile;
+      if (!file) throw new ValidationError('Es läuft kein lokales Video');
+      const key = this.sinkController.key;
+      if (!key) throw new ValidationError('Kein aktiver YouTube-Stream-Key');
+      const current = this.playlistController.current;
+      if (!current) throw new ValidationError('Keine aktive Playlist');
+      const max = this.activeMediaDuration
+        ? Math.max(0, this.activeMediaDuration - 0.5)
+        : Math.max(0, seconds);
+      const target = Math.max(0, Math.min(seconds, max));
+      this.deps.logger.info({ file, seconds: target }, 'Lokales Video wird gesucht');
+      return this.startFileLocked(file, {
+        key,
+        playlist: current,
+        seekSeconds: target,
+      });
+    });
+  }
+
   private queueEditState(): { isQueue: boolean; currentId: string | null } {
     const active = this.playlistController.current;
     const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
@@ -1163,7 +1237,47 @@ export class Supervisor {
       this.playlistController.setIndex(nextIndex);
       return;
     }
+    this.queue.clearPlayback();
     await this.stopInternalLocked();
+  }
+
+  private currentMediaPosition(): number {
+    if (!this.activeMediaDuration) return 0;
+    const elapsed =
+      this.activeMediaStartedAt === null
+        ? 0
+        : Math.max(0, (Date.now() - this.activeMediaStartedAt) / 1000);
+    return Math.min(this.activeMediaDuration, this.activeMediaOffset + elapsed);
+  }
+
+  /** Persists the active queue video position (throttled by the status timer). */
+  private persistMediaProgress(): void {
+    if (!this.activeMediaFile || !this.activeMediaDuration) return;
+    if (this.playlistController.current?.playlist.id !== QUEUE_PLAYLIST_ID) return;
+    this.queue.setPlayback({
+      channel: `file:${this.activeMediaFile}`,
+      position_seconds: this.currentMediaPosition(),
+      duration_seconds: this.activeMediaDuration,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  private async resumeQueuePlayback(playback: QueuePlayback): Promise<void> {
+    if (this.shuttingDown || this.state !== 'idle') return;
+    const index = this.queue.get().findIndex((entry) => entry.channel === playback.channel);
+    if (index < 0) return;
+    try {
+      this.deps.logger.info(
+        { channel: playback.channel, position: playback.position_seconds },
+        'Regie-Video wird nach Neustart fortgesetzt',
+      );
+      await this.playlistController.play(QUEUE_PLAYLIST_ID, index, playback.position_seconds);
+    } catch (error) {
+      this.deps.logger.warn(
+        { err: toErrorMessage(error) },
+        'Regie-Video konnte nach Neustart nicht fortgesetzt werden',
+      );
+    }
   }
 
   private clearAllTimers(): void {
@@ -1172,6 +1286,8 @@ export class Supervisor {
     this.playlistController.clearTimers();
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
     this.autoStartTimer = undefined;
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.resumeTimer = undefined;
     this.pauseController.clearTimers();
   }
 
@@ -1183,6 +1299,9 @@ export class Supervisor {
     if (this.activeMediaFile) {
       const file = this.activeMediaFile;
       this.activeMediaFile = null;
+      this.activeMediaOffset = 0;
+      this.activeMediaStartedAt = null;
+      this.activeMediaDuration = null;
       this.deps.logger.info({ file, code, signal }, 'Lokales Playlist-Video beendet');
       void this.playlistController.advanceAfterFile().catch((error) => {
         this.lastError = toErrorMessage(error);
@@ -1616,6 +1735,7 @@ export class Supervisor {
 
   async shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.persistMediaProgress();
     this.online.stop();
     this.earnings?.stop();
     this.watchdog.stop();
@@ -1796,6 +1916,14 @@ export class Supervisor {
       watchdog: this.watchdog?.stats(),
       autoRefresh: this.autoRefresh?.stats(),
       chat: this.chatStatus(),
+      media:
+        this.activeMediaFile && this.activeMediaDuration
+          ? {
+              file: this.activeMediaFile,
+              duration_seconds: this.activeMediaDuration,
+              position_seconds: this.currentMediaPosition(),
+            }
+          : null,
     });
   }
 }

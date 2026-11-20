@@ -112,6 +112,9 @@ describe('drawtext overlays', () => {
     const long = remainingTimeFilter(DEFAULT_SETTINGS, font, 3661);
     expect(long).toContain('/3600');
 
+    const sought = remainingTimeFilter(DEFAULT_SETTINGS, font, 125.4, 25.4);
+    expect(sought).toContain('100.000');
+
     expect(remainingTimeFilter(DEFAULT_SETTINGS, font, 0)).toBeNull();
   });
 

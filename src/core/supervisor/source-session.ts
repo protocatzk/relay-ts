@@ -98,8 +98,9 @@ export class SourceSession {
     stream: ResolvedStream,
     forceReencode: boolean,
     offset: number,
+    seekSeconds = 0,
   ): void {
-    this.source.start(streamer, stream, forceReencode, offset);
+    this.source.start(streamer, stream, forceReencode, offset, seekSeconds);
   }
 
   async stop(): Promise<void> {

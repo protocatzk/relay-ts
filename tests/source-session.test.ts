@@ -43,7 +43,7 @@ describe('source session', () => {
   it('delegates start, stop and resolve to the source', async () => {
     const { session, source, resolver } = setup();
     session.start(streamer, stream, false, 12);
-    expect(source.start).toHaveBeenCalledWith(streamer, stream, false, 12);
+    expect(source.start).toHaveBeenCalledWith(streamer, stream, false, 12, 0);
     await session.stop();
     expect(source.stop).toHaveBeenCalledTimes(1);
     await expect(session.resolve(streamer)).resolves.toBe(stream);

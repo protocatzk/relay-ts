@@ -36,6 +36,8 @@ export interface SourceCommandOptions {
   relay: RelayEndpoint;
   forceReencode?: boolean;
   timestampOffset?: number;
+  /** Start offset for local videos (seconds). */
+  seekSeconds?: number;
 }
 
 export function buildSourceCommand(options: SourceCommandOptions): string[] {
@@ -56,6 +58,9 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
   ];
   if (localFile) {
     // Local playlist videos must be read at real time, not as fast as the disk.
+    if (options.seekSeconds && options.seekSeconds > 0) {
+      args.push('-ss', options.seekSeconds.toFixed(3));
+    }
     args.push('-re', '-i', stream.url);
   } else {
     args.push(

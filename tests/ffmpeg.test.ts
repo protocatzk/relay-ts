@@ -82,6 +82,19 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('tcp://127.0.0.1:12345?tcp_nodelay=1');
   });
 
+  it('seeks local videos with -ss before the input', () => {
+    const args = buildSourceCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      streamer,
+      stream: { ...stream, url: '/app/data/media/intro.mp4' },
+      relay,
+      seekSeconds: 61.5,
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-ss 61.500 -re -i /app/data/media/intro.mp4');
+  });
+
   it('re-encodes non-H.264 sources', () => {
     const args = buildSourceCommand({
       media,

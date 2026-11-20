@@ -3596,6 +3596,35 @@ select {
   min-width: 0;
 }
 
+.regie-seek {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+.regie-seek-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.regie-seek-range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.regie-seek-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .regie-list {
   display: flex;
   flex-direction: column;

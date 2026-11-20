@@ -68,6 +68,7 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
       api_configured: true,
       canvas_active: true,
     },
+    media: null,
     version: '0.4.0',
     ...overrides,
   };

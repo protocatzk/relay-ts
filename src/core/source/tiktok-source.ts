@@ -88,7 +88,13 @@ export class TikTokSource {
     this.options.settings = settings;
   }
 
-  start(streamer: StreamerConfig, stream: ResolvedStream, forceReencode = false, timestampOffset = 0): void {
+  start(
+    streamer: StreamerConfig,
+    stream: ResolvedStream,
+    forceReencode = false,
+    timestampOffset = 0,
+    seekSeconds = 0,
+  ): void {
     if (this.process?.running) throw new Error('Quelle läuft bereits');
     this.streamer = streamer;
     this.stream = stream;
@@ -103,6 +109,7 @@ export class TikTokSource {
       relay: this.options.relay,
       forceReencode,
       timestampOffset,
+      seekSeconds,
     });
     const process = new ManagedProcess({
       name: `source-${streamer.id}`,
