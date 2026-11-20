@@ -10,6 +10,11 @@ export const RESOLUTIONS = [
   '1600x900',
 ] as const;
 export const PRESETS = ['ultrafast', 'veryfast', 'faster', 'fast', 'medium'] as const;
+/** Video encoders selectable in the dashboard; `auto` probes at startup. */
+export const VIDEO_ENCODERS = ['auto', 'libx264', 'h264_qsv', 'h264_nvenc', 'h264_amf'] as const;
+
+export type VideoPreset = (typeof PRESETS)[number];
+export type VideoEncoderSetting = (typeof VIDEO_ENCODERS)[number];
 
 const PositionSchema = z.enum(POSITIONS);
 const ColorSchema = z
@@ -205,6 +210,7 @@ export const VideoSettingsSchema = z.object({
   video_bitrate: z.number().int().min(500).max(50_000).default(4000),
   audio_bitrate: z.number().int().min(32).max(320).default(128),
   preset: z.enum(PRESETS).default('veryfast'),
+  encoder: z.enum(VIDEO_ENCODERS).default('auto'),
   layout: VideoLayoutSchema.default(VideoLayoutSchema.parse({})),
 });
 

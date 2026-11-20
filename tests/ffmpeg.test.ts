@@ -207,6 +207,53 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('rtmp://a.rtmp.youtube.com/live2/abc-def');
   });
 
+  it('uses a hardware encoder override for the sink instead of libx264', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'abc-def',
+      relay,
+      encoder: 'h264_qsv',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-c:v h264_qsv');
+    expect(line).toContain('-pix_fmt nv12');
+    expect(line).toContain('-look_ahead 0');
+    expect(line).not.toContain('libx264');
+    expect(line).not.toContain('nal-hrd=cbr:filler=1');
+  });
+
+  it('uses the encoder override for source re-encodes', () => {
+    const args = buildSourceCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      streamer,
+      stream: { ...stream, vcodec: 'vp9', isH264: false },
+      relay,
+      encoder: 'h264_nvenc',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-c:v h264_nvenc');
+    expect(line).toContain('-preset p2');
+    expect(line).not.toContain('libx264');
+  });
+
+  it('skips x264-only stillimage tuning when a slate uses hardware encoding', () => {
+    const args = buildPauseCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      relay,
+      text: 'Pause',
+      subtext: 'Gleich weiter',
+      background: '/app/data/pause/background.png',
+      encoder: 'h264_amf',
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-c:v h264_amf');
+    expect(line).not.toContain('stillimage');
+    expect(line).not.toContain('libx264');
+  });
+
   it('applies the video layout scale and position to the sink', () => {
     const base = {
       media,

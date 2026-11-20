@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.14.0**
+- Aktuelle Version: **0.18.0**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -78,6 +78,13 @@ Wichtige Pfade:
 
 - Der YouTube-Sink bleibt bei Quellenwechseln und Pausen bestehen. Quellen
   werden nur am Relay ausgetauscht.
+- `video.encoder` (`auto`/`libx264`/`h264_qsv`/`h264_nvenc`/`h264_amf`, Default
+  `auto`) gilt für Sink, Quellen-Re-Encoding und Pause-/Startbildschirm. Beim
+  Start wird die ffmpeg-Encoder-Liste gelesen und jeder Hardware-Encoder mit
+  einem kurzen Testencode inklusive der echten Laufzeit-Argumente geprüft
+  (Treiber, Gerät, Optionssupport). `auto` wählt NVENC → QSV → AMF; ein nicht
+  verfügbarer Encoder fällt auf `libx264` zurück (Warnung im Log). Presets
+  werden auf die jeweilige Encoder-Skala abgebildet, Bitrate/GOP bleiben gleich.
 - `source.reencode` (`off`/`always`/`on_reconnect`, Default `on_reconnect`)
   steuert, ob die TikTok-Quelle re-encodiert statt `-c copy` läuft. Re-Encoding
   erzeugt bei jedem Verbindungsstart einen IDR-Keyframe, sodass der Sink keinen

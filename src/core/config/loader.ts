@@ -419,6 +419,7 @@ export function applyEnvSettings(
   set(['video', 'video_bitrate'], parseBitrate(env.VIDEO_BITRATE));
   set(['video', 'audio_bitrate'], parseBitrate(env.AUDIO_BITRATE));
   set(['video', 'preset'], env.X264_PRESET?.trim() || undefined);
+  set(['video', 'encoder'], env.VIDEO_ENCODER?.trim() || undefined);
   set(['watchdog', 'stall_timeout'], parseNumber(env.STALL_TIMEOUT));
   set(['watchdog', 'min_bitrate'], parseBitrate(env.MIN_BITRATE));
   set(['watchdog', 'min_source_rate_percent'], parseNumber(env.SOURCE_MIN_RATE_PERCENT));

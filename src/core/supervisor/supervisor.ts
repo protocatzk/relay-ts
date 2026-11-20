@@ -51,6 +51,11 @@ import {
   type PlaylistStartOptions,
 } from './playlist-controller.js';
 import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
+import {
+  configureVideoEncoder,
+  probeVideoEncoders,
+  setAvailableVideoEncoders,
+} from '../media/encoders.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
@@ -1823,6 +1828,18 @@ export class Supervisor {
   async applySettings(next: Settings, previous: Settings): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       this.settings = next;
+      if (previous.video.encoder !== next.video.encoder) {
+        // Probe lazily so switching to a hardware encoder in the dashboard
+        // works without a restart; failed probes fall back to libx264.
+        setAvailableVideoEncoders(
+          await probeVideoEncoders({
+            ffmpegBin: this.deps.config.media.ffmpegBin,
+            preferred: next.video.encoder,
+            logger: this.deps.logger,
+          }),
+        );
+      }
+      configureVideoEncoder(next.video.encoder, this.deps.logger);
       this.sinkController.updateSettings(next);
       this.applyConfiguredDelay();
       this.buffer.setMaxBytes(this.bufferMaxBytes(next));
@@ -1891,7 +1908,8 @@ export class Supervisor {
         previous.video.fps !== next.video.fps ||
         previous.video.video_bitrate !== next.video.video_bitrate ||
         previous.video.audio_bitrate !== next.video.audio_bitrate ||
-        previous.video.preset !== next.video.preset;
+        previous.video.preset !== next.video.preset ||
+        previous.video.encoder !== next.video.encoder;
       if (videoEncodeChanged) {
         this.rebuildChatEngineLocked();
         needsSinkRestart = true;

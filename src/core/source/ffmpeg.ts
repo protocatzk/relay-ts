@@ -2,6 +2,11 @@ import type { MediaConfig } from '../config/loader.js';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import type { StreamState } from '../events.js';
 import type { ResolvedStream } from './tiktok.js';
+import {
+  buildVideoEncoderArgs,
+  currentVideoEncoder,
+  type VideoEncoder,
+} from '../media/encoders.js';
 
 export interface RelayEndpoint {
   host: string;
@@ -38,6 +43,8 @@ export interface SourceCommandOptions {
   timestampOffset?: number;
   /** Start offset for local videos (seconds). */
   seekSeconds?: number;
+  /** Overrides the probed encoder (tests, diagnostics). */
+  encoder?: VideoEncoder;
 }
 
 export function buildSourceCommand(options: SourceCommandOptions): string[] {
@@ -85,30 +92,16 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
   const reencode = forceReencode || !stream.isH264 || options.streamer.video_mode === 'reencode';
   if (reencode) {
     const bitrate = settings.video.video_bitrate;
-    const gop = Math.max(1, settings.video.fps * 2);
     args.push(
       '-r',
       String(settings.video.fps),
-      '-c:v',
-      'libx264',
-      '-preset',
-      'veryfast',
-      '-tune',
-      'zerolatency',
-      '-pix_fmt',
-      'yuv420p',
-      '-b:v',
-      `${bitrate}k`,
-      '-maxrate',
-      `${bitrate}k`,
-      '-bufsize',
-      `${bitrate * 2}k`,
-      '-g',
-      String(gop),
-      '-keyint_min',
-      String(gop),
-      '-sc_threshold',
-      '0',
+      ...buildVideoEncoderArgs(options.encoder ?? currentVideoEncoder(), {
+        bitrateKbps: bitrate,
+        fps: settings.video.fps,
+        preset: 'veryfast',
+        tune: 'zerolatency',
+        keyframeLimits: true,
+      }),
       '-c:a',
       'aac',
       '-b:a',
@@ -157,6 +150,8 @@ export interface SinkCommandOptions {
   overlayFilters?: string[];
   overlayInput?: SinkOverlayInput;
   logoInput?: SinkOverlayInput;
+  /** Overrides the probed encoder (tests, diagnostics). */
+  encoder?: VideoEncoder;
 }
 
 function evenDimension(value: number): number {
@@ -213,7 +208,6 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const fps = settings.video.fps;
   const bitrate = settings.video.video_bitrate;
-  const gop = Math.max(1, fps * 2);
   const filters = buildVideoFilters(settings, width, height, options.overlayFilters);
 
   const inputArgs = [
@@ -296,32 +290,16 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     ...videoArgs,
     '-fps_mode',
     'cfr',
-    '-c:v',
-    'libx264',
-    '-preset',
-    settings.video.preset,
-    '-tune',
-    'zerolatency',
-    '-profile:v',
-    'high',
-    '-level',
-    '4.0',
-    '-pix_fmt',
-    'yuv420p',
-    '-b:v',
-    `${bitrate}k`,
-    '-maxrate',
-    `${bitrate}k`,
-    '-bufsize',
-    `${bitrate * 2}k`,
-    '-x264-params',
-    'nal-hrd=cbr:filler=1',
-    '-g',
-    String(gop),
-    '-keyint_min',
-    String(gop),
-    '-sc_threshold',
-    '0',
+    ...buildVideoEncoderArgs(options.encoder ?? currentVideoEncoder(), {
+      bitrateKbps: bitrate,
+      fps,
+      preset: settings.video.preset,
+      tune: 'zerolatency',
+      filler: true,
+      profile: 'high',
+      level: '4.0',
+      keyframeLimits: true,
+    }),
     '-af',
     'aresample=async=1:osr=48000:osf=fltp:ochl=stereo',
     '-c:a',
@@ -359,6 +337,8 @@ export interface PauseCommandOptions {
   textColor?: string;
   color?: string;
   fit?: 'cover' | 'contain' | 'stretch';
+  /** Overrides the probed encoder (tests, diagnostics). */
+  encoder?: VideoEncoder;
 }
 
 function escapeDrawtext(value: string): string {
@@ -512,23 +492,12 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
 
   if (filters.length > 0) args.push('-vf', filters.join(','));
   args.push(
-    '-c:v',
-    'libx264',
-    '-preset',
-    'veryfast',
-  );
-  if (!background || kind === 'image') args.push('-tune', 'stillimage');
-  args.push(
-    '-pix_fmt',
-    'yuv420p',
-    '-b:v',
-    `${bitrate}k`,
-    '-maxrate',
-    `${bitrate}k`,
-    '-bufsize',
-    `${bitrate * 2}k`,
-    '-g',
-    String(Math.max(1, fps * 2)),
+    ...buildVideoEncoderArgs(options.encoder ?? currentVideoEncoder(), {
+      bitrateKbps: bitrate,
+      fps,
+      preset: 'veryfast',
+      tune: !background || kind === 'image' ? 'stillimage' : undefined,
+    }),
     '-c:a',
     'aac',
     '-b:a',

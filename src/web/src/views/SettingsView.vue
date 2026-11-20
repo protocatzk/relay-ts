@@ -7,6 +7,7 @@ import type {
   PausePreviewInput,
   Settings,
   SettingsUpdate,
+  VideoEncoderSetting,
   VideoPreset,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
@@ -29,6 +30,14 @@ const PRESETS: { value: VideoPreset; label: string }[] = [
   { value: 'faster', label: 'Faster' },
   { value: 'fast', label: 'Fast' },
   { value: 'medium', label: 'Medium' },
+];
+
+const ENCODERS: { value: VideoEncoderSetting; label: string }[] = [
+  { value: 'auto', label: 'Auto (empfohlen)' },
+  { value: 'libx264', label: 'libx264 (CPU)' },
+  { value: 'h264_qsv', label: 'Intel Quick Sync (iGPU)' },
+  { value: 'h264_nvenc', label: 'NVIDIA NVENC' },
+  { value: 'h264_amf', label: 'AMD AMF' },
 ];
 
 /** Jump targets for the long settings form (mobile-first section navigation). */
@@ -363,6 +372,7 @@ async function save(): Promise<void> {
       video_bitrate: toNumber(current.video.video_bitrate, 4000),
       audio_bitrate: toNumber(current.video.audio_bitrate, 128),
       preset: current.video.preset,
+      encoder: current.video.encoder,
       layout: clone(current.video.layout),
     },
     source: {
@@ -570,6 +580,18 @@ onBeforeUnmount(() => {
                 </option>
               </select>
               <p class="field-hint">Schnellere Presets reduzieren die CPU-Last.</p>
+            </div>
+            <div class="field">
+              <label for="video-encoder">Video-Encoder</label>
+              <select id="video-encoder" v-model="form.video.encoder">
+                <option v-for="encoder in ENCODERS" :key="encoder.value" :value="encoder.value">
+                  {{ encoder.label }}
+                </option>
+              </select>
+              <p class="field-hint">
+                Auto nutzt die GPU, wenn der Encoder beim Start verfügbar ist; sonst libx264.
+                Ein nicht verfügbarer Encoder fällt automatisch auf libx264 zurück (siehe Logs).
+              </p>
             </div>
             <div class="field">
               <label for="source-reencode">Quellen-Re-Encoding</label>

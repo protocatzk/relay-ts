@@ -224,6 +224,7 @@ jedem Start.
 | `OUTPUT_FPS`                      | Bildrate                                                     | `25`           |
 | `VIDEO_BITRATE` / `AUDIO_BITRATE` | kbit/s                                                       | `4000` / `128` |
 | `X264_PRESET`                     | `ultrafast` … `medium`                                       | `veryfast`     |
+| `VIDEO_ENCODER`                   | `auto`, `libx264`, `h264_qsv`, `h264_nvenc`, `h264_amf`      | `auto`         |
 | `STALL_TIMEOUT`                   | Stall-Erkennung                                              | `30` s         |
 | `MIN_BITRATE`                     | Mindestbitrate                                               | `500` kbit/s   |
 | `SOURCE_MIN_RATE_PERCENT`         | Mindest-Quellrate                                            | `85` %         |

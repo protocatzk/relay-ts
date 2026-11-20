@@ -20,6 +20,11 @@ import { resolveRelayIngestKey } from './core/youtube/ingest.js';
 import { YouTubeBroadcastStore } from './core/youtube/broadcast-store.js';
 import { createLogger, type LogEntry, secretRedactor } from './utils/logger.js';
 import { toErrorMessage } from './utils/errors.js';
+import {
+  configureVideoEncoder,
+  probeVideoEncoders,
+  setAvailableVideoEncoders,
+} from './core/media/encoders.js';
 import { VERSION } from './version.js';
 
 async function main(): Promise<void> {
@@ -38,6 +43,17 @@ async function main(): Promise<void> {
     logFile: config.paths.logFile,
     onEntry: (entry: LogEntry) => bus.emit({ type: 'log', data: entry }),
   });
+
+  // Probe once at startup: listing is cheap, but the short test encode with the
+  // real argument set catches missing drivers/options before the first stream.
+  setAvailableVideoEncoders(
+    await probeVideoEncoders({
+      ffmpegBin: config.media.ffmpegBin,
+      preferred: config.settings.video.encoder,
+      logger,
+    }),
+  );
+  configureVideoEncoder(config.settings.video.encoder, logger);
 
   const redactor = secretRedactor();
   redactor.add(config.server.password);

@@ -15,6 +15,8 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export type VideoPreset = 'ultrafast' | 'veryfast' | 'faster' | 'fast' | 'medium';
 
+export type VideoEncoderSetting = 'auto' | 'libx264' | 'h264_qsv' | 'h264_nvenc' | 'h264_amf';
+
 export interface ChatOverlay {
   enabled: boolean;
   engine: 'canvas' | 'drawtext';
@@ -353,6 +355,7 @@ export interface VideoSettings {
   video_bitrate: number;
   audio_bitrate: number;
   preset: VideoPreset;
+  encoder: VideoEncoderSetting;
   layout: VideoLayout;
 }
 
