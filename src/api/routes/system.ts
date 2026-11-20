@@ -12,11 +12,31 @@ import { ValidationError } from '../../utils/errors.js';
 import { join } from 'node:path';
 import { renderPausePreview } from '../../core/overlays/pause-preview.js';
 import { metricsSnapshot } from '../../core/metrics.js';
+import { collectDiagnostics } from '../../core/diagnostics.js';
+import { formatLogsAsText } from '../../utils/logger.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).optional(),
   level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   q: z.string().max(200).optional(),
+  streamer: z.string().max(120).optional(),
+  since: z.string().max(64).optional(),
+  until: z.string().max(64).optional(),
+});
+
+const LogExportQuery = LogQuery.extend({
+  format: z.enum(['log', 'json']).optional(),
+  limit: z.coerce.number().int().min(1).max(10_000).optional(),
+});
+
+const AuditQuerySchema = z.object({
+  actor: z.string().max(120).optional(),
+  action: z.string().max(80).optional(),
+  source: z.enum(['web', 'api', 'telegram', 'system']).optional(),
+  q: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).optional(),
 });
 
 const StudioPreviewBody = z.object({
@@ -90,11 +110,65 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
 
   app.get('/api/metrics', async () => metricsSnapshot());
 
+  app.get('/api/system/diagnostics', async (request) => {
+    const query = request.query as Record<string, unknown>;
+    const forceProbe = query.refresh === '1' || query.refresh === 'true';
+    return collectDiagnostics({
+      config: ctx.config,
+      version: ctx.version,
+      ring: ctx.ring,
+      forceProbe,
+    });
+  });
+
   app.get('/api/status', async () => ctx.supervisor.buildStatus());
 
   app.get('/api/logs', async (request) => {
     const query = LogQuery.parse(request.query);
-    return { lines: ctx.ring.list(query) };
+    return ctx.ring.query(query, ctx.config.paths.logFile);
+  });
+
+  app.get('/api/logs/export', async (request, reply) => {
+    const query = LogExportQuery.parse(request.query);
+    const format = query.format ?? 'log';
+    const page = ctx.ring.query(
+      {
+        level: query.level,
+        q: query.q,
+        streamer: query.streamer,
+        since: query.since,
+        until: query.until,
+        limit: query.limit ?? 2000,
+        offset: query.offset ?? 0,
+      },
+      ctx.config.paths.logFile,
+    );
+    const stamp = new Date().toISOString().slice(0, 10);
+    const suffix = query.streamer ? `-${query.streamer.replace(/[^a-zA-Z0-9_-]+/g, '')}` : '';
+    const filename = `relay-logs${suffix}-${stamp}.${format}`;
+    reply.header('content-disposition', `attachment; filename="${filename}"`);
+    if (format === 'json') {
+      return reply
+        .type('application/json; charset=utf-8')
+        .send(JSON.stringify({ exported_at: new Date().toISOString(), ...page }, null, 2));
+    }
+    return reply.type('text/plain; charset=utf-8').send(`${formatLogsAsText(page.lines)}\n`);
+  });
+
+  app.get('/api/audit', async (request) => {
+    const query = AuditQuerySchema.parse(request.query);
+    if (!ctx.audit) {
+      return {
+        entries: [],
+        total: 0,
+        offset: query.offset ?? 0,
+        limit: query.limit ?? 100,
+        has_more: false,
+        actors: [],
+        actions: [],
+      };
+    }
+    return ctx.audit.query(query);
   });
 
   app.get('/api/overlays/preview.png', async (request, reply) => {

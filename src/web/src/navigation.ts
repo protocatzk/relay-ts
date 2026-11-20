@@ -83,6 +83,7 @@ export const SECTIONS: NavSection[] = [
     tabs: [
       { label: 'Einstellungen', to: '/settings' },
       { label: 'Logs', to: '/logs' },
+      { label: 'Diagnose', to: '/diagnostics' },
     ],
   },
 ];

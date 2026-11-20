@@ -14,6 +14,7 @@ test.describe('mobile layout and navigation', () => {
       { path: '/#/overlays', heading: 'Overlay-Studio' },
       { path: '/#/settings', heading: 'Einstellungen' },
       { path: '/#/logs', heading: 'Logs' },
+      { path: '/#/diagnostics', heading: 'Diagnose' },
     ];
     for (const item of pages) {
       await page.goto(item.path);
@@ -74,9 +75,11 @@ test.describe('mobile layout and navigation', () => {
 
     await page.goto('/#/settings');
     const system = page.getByRole('navigation', { name: 'System: Unterseiten' });
-    await expect(system.getByRole('link')).toHaveCount(2);
+    await expect(system.getByRole('link')).toHaveCount(3);
     await system.getByRole('link', { name: 'Logs' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Logs' })).toBeVisible();
+    await system.getByRole('link', { name: 'Diagnose' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Diagnose' })).toBeVisible();
   });
 
   test('bottom navigation keeps the Stream-Deck reachable from Live', async ({ page }) => {

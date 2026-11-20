@@ -15,6 +15,7 @@ import { z } from 'zod';
 import type { ApiContext } from './context.js';
 import { AppError } from '../utils/errors.js';
 import { authMode, csrfRejected, isSameOrigin, unauthorized } from './auth.js';
+import { mapHttpAuditAction, resolveHttpActor } from './audit-middleware.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerStreamerRoutes } from './routes/streamers.js';
 import { registerSettingsRoutes } from './routes/settings.js';
@@ -114,6 +115,21 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
     }
     return payload;
+  });
+
+  app.addHook('onResponse', async (request, reply) => {
+    if (!ctx.audit) return;
+    const mapped = mapHttpAuditAction(request.method, request.url);
+    if (!mapped) return;
+    const { actor, source } = resolveHttpActor(request, ctx);
+    ctx.audit.record({
+      actor,
+      source,
+      action: mapped.action,
+      target: mapped.target,
+      result: reply.statusCode < 400 ? 'ok' : 'error',
+      detail: `HTTP ${reply.statusCode}`,
+    });
   });
 
   await registerAuthRoutes(app, ctx);

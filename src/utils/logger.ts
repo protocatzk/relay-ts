@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import { mkdirSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import pino, { type Logger } from 'pino';
 
@@ -14,6 +14,24 @@ export interface LogEntry {
   [key: string]: unknown;
 }
 
+export interface LogQueryFilter {
+  level?: LogLevel;
+  q?: string;
+  streamer?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface LogQueryPage {
+  lines: LogEntry[];
+  total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
+
 const LEVEL_NAMES: Record<number, LogLevel> = {
   10: 'debug',
   20: 'debug',
@@ -22,6 +40,121 @@ const LEVEL_NAMES: Record<number, LogLevel> = {
   50: 'error',
   60: 'error',
 };
+
+function matchesStreamer(entry: LogEntry, needle: string): boolean {
+  const lower = needle.toLowerCase();
+  const candidates = [
+    entry.streamer,
+    entry.streamerId,
+    entry.streamer_id,
+    entry.channel,
+    entry.handle,
+    entry.tiktok,
+  ];
+  for (const field of candidates) {
+    if (typeof field === 'string' && field.toLowerCase().includes(lower)) return true;
+  }
+  const text = `${entry.msg} ${JSON.stringify(entry)}`.toLowerCase();
+  return text.includes(lower);
+}
+
+export function filterLogEntries(entries: readonly LogEntry[], filter: LogQueryFilter = {}): LogEntry[] {
+  const minimum = filter.level ? levelWeight(filter.level) : 0;
+  const query = filter.q?.trim().toLowerCase();
+  const streamer = filter.streamer?.trim();
+  const sinceMs = filter.since ? Date.parse(filter.since) : Number.NaN;
+  const untilMs = filter.until ? Date.parse(filter.until) : Number.NaN;
+
+  return entries.filter((entry) => {
+    if (levelWeight(entry.level) < minimum) return false;
+    if (!Number.isNaN(sinceMs)) {
+      const t = Date.parse(entry.time);
+      if (!Number.isNaN(t) && t < sinceMs) return false;
+    }
+    if (!Number.isNaN(untilMs)) {
+      const t = Date.parse(entry.time);
+      if (!Number.isNaN(t) && t > untilMs) return false;
+    }
+    if (streamer && !matchesStreamer(entry, streamer)) return false;
+    if (query) {
+      const haystack = `${entry.msg} ${JSON.stringify(entry)}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    return true;
+  });
+}
+
+export function parseRawLogLine(line: string): LogEntry | null {
+  if (!line.trim()) return null;
+  try {
+    const raw = JSON.parse(line) as Record<string, unknown>;
+    const rawLevel = raw.level;
+    let level: LogLevel = 'info';
+    if (rawLevel === 'debug' || rawLevel === 'info' || rawLevel === 'warn' || rawLevel === 'error') {
+      level = rawLevel;
+    } else if (typeof rawLevel === 'number' || typeof rawLevel === 'string') {
+      level = LEVEL_NAMES[Number(rawLevel)] ?? 'info';
+    }
+    return {
+      ...raw,
+      time:
+        typeof raw.time === 'number'
+          ? new Date(raw.time).toISOString()
+          : String(raw.time ?? new Date().toISOString()),
+      level,
+      msg: String(raw.msg ?? ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Read up to the trailing `maxBytes` of a JSONL pino log file for historical search/pagination. */
+export function readLogFileEntries(logFile: string, maxBytes = 2 * 1024 * 1024): LogEntry[] {
+  if (!logFile || !existsSync(logFile)) return [];
+  try {
+    const size = statSync(logFile).size;
+    if (size === 0) return [];
+    const readLength = Math.min(size, maxBytes);
+    const start = size - readLength;
+    const buffer = Buffer.alloc(readLength);
+    const fd = openSync(logFile, 'r');
+    try {
+      readSync(fd, buffer, 0, readLength, start);
+    } finally {
+      closeSync(fd);
+    }
+    const text = buffer.toString('utf8');
+    const lines = text.split('\n');
+    // Drop possibly truncated leading line when we started mid-file.
+    if (start > 0) lines.shift();
+    const entries: LogEntry[] = [];
+    for (const line of lines) {
+      const entry = parseRawLogLine(line);
+      if (entry) entries.push(entry);
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
+
+export function formatLogsAsText(entries: readonly LogEntry[]): string {
+  const omit = new Set(['time', 'level', 'msg', 'pid', 'hostname', 'service']);
+  return entries
+    .map((entry) => {
+      const extra = Object.entries(entry)
+        .filter(([key]) => !omit.has(key))
+        .map(([key, value]) =>
+          value !== null && typeof value === 'object'
+            ? `${key}=${JSON.stringify(value)}`
+            : `${key}=${String(value)}`,
+        )
+        .join(' ');
+      return `${entry.time} [${entry.level.toUpperCase()}] ${entry.msg}${extra ? ` ${extra}` : ''}`;
+    })
+    .join('\n');
+}
 
 export class LogRing {
   private readonly entries: LogEntry[] = [];
@@ -38,21 +171,49 @@ export class LogRing {
     }
   }
 
-  list(filter: { level?: LogLevel; q?: string; limit?: number } = {}): LogEntry[] {
-    const minimum = filter.level ? levelWeight(filter.level) : 0;
-    const query = filter.q?.trim().toLowerCase();
-    let result = this.entries.filter((entry) => {
-      if (levelWeight(entry.level) < minimum) return false;
-      if (query) {
-        const haystack = `${entry.msg} ${JSON.stringify(entry)}`.toLowerCase();
-        if (!haystack.includes(query)) return false;
-      }
-      return true;
-    });
+  all(): LogEntry[] {
+    return [...this.entries];
+  }
+
+  list(filter: LogQueryFilter = {}): LogEntry[] {
+    let result = filterLogEntries(this.entries, filter);
     if (filter.limit && filter.limit > 0) {
       result = result.slice(-filter.limit);
     }
     return result;
+  }
+
+  query(filter: LogQueryFilter = {}, logFile?: string): LogQueryPage {
+    const merged: LogEntry[] = [];
+    const seen = new Set<string>();
+    const add = (entry: LogEntry): void => {
+      const key = `${entry.time}|${entry.level}|${entry.msg}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(entry);
+    };
+
+    if (logFile) {
+      for (const entry of readLogFileEntries(logFile)) add(entry);
+    }
+    for (const entry of this.entries) add(entry);
+
+    const matched = filterLogEntries(merged, filter);
+    const total = matched.length;
+    const limit = Math.min(2000, Math.max(1, filter.limit ?? 300));
+    const offset = Math.max(0, filter.offset ?? 0);
+    // Offset counts backwards from the newest entry so offset=0 returns the latest page.
+    const end = Math.max(0, total - offset);
+    const start = Math.max(0, end - limit);
+    const lines = matched.slice(start, end);
+
+    return {
+      lines,
+      total,
+      offset,
+      limit,
+      has_more: start > 0,
+    };
   }
 
   clear(): void {

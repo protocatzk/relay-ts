@@ -233,6 +233,45 @@ test.describe('accessibility smoke checks', () => {
     await expect(titleInput).toHaveValue(originalTitle);
     await expectNoOverflow(page);
   });
+
+  test('diagnostics page renders versions, ports, storage and confirmed actions', async ({
+    page,
+  }) => {
+    await page.goto('/#/diagnostics');
+    await expect(page.getByRole('heading', { level: 1, name: 'Diagnose' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Laufzeit & Versionen' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ports & Stream-Status' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Speicherbelegung' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Sink neu starten' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Sink neu starten' });
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole('button', { name: 'Abbrechen' }).click();
+    await expect(confirm).toHaveCount(0);
+    await expectNoOverflow(page);
+  });
+
+  test('logs view switches between server, streamer and audit views and supports export', async ({
+    page,
+  }) => {
+    await page.goto('/#/logs');
+    await expect(page.getByRole('heading', { level: 1, name: 'Logs' })).toBeVisible();
+    const modeTabs = page.getByRole('tablist', { name: 'Log-Ansicht' });
+    await expect(modeTabs.getByRole('tab', { name: 'Server-Logs' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByRole('button', { name: '.log' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '.json' })).toBeVisible();
+
+    await modeTabs.getByRole('tab', { name: 'Streamer-Logs' }).click();
+    await expect(page.locator('#log-streamer')).toBeVisible();
+
+    await modeTabs.getByRole('tab', { name: 'Audit-Log' }).click();
+    await expect(page.locator('#audit-actor')).toBeVisible();
+    await expect(page.locator('#audit-action')).toBeVisible();
+    await expectNoOverflow(page);
+  });
 });
 
 async function expectNoOverflow(page: import('@playwright/test').Page): Promise<void> {

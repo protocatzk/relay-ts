@@ -63,6 +63,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Logs', section: 'system' },
   },
   {
+    path: '/diagnostics',
+    name: 'diagnostics',
+    component: () => import('@/src/views/DiagnosticsView.vue'),
+    meta: { title: 'Diagnose', section: 'system' },
+  },
+  {
     path: '/deck',
     name: 'deck',
     component: () => import('@/src/views/StreamDeckView.vue'),

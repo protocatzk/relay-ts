@@ -9,6 +9,7 @@ import { Supervisor } from './core/supervisor/supervisor.js';
 import { buildServer } from './api/server.js';
 import { AuthSessionStore } from './api/session-store.js';
 import { TotpStore } from './api/totp-store.js';
+import { AuditLogStore } from './core/audit-log.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
@@ -82,6 +83,9 @@ async function main(): Promise<void> {
   const totp = new TotpStore(join(config.paths.dataDir, 'totp.json'), {
     onSecret: (secret) => redactor.add(secret),
   });
+  const audit = new AuditLogStore(join(config.paths.dataDir, 'audit.jsonl'), {
+    redact: redactor.apply,
+  });
   const telegramAuth = new TelegramAuthStore();
   const youtubeAuth = new YouTubeAuthService({
     config: config.youtube,
@@ -112,6 +116,28 @@ async function main(): Promise<void> {
       streamStopped: (key) => youtubeAuth.onStreamStopped(key),
     },
   });
+  const auditTelegram = async <T>(
+    action: string,
+    target: string | null,
+    fn: () => Promise<T> | T,
+  ): Promise<T> => {
+    try {
+      const value = await fn();
+      audit.record({ actor: 'telegram:bot', source: 'telegram', action, target, result: 'ok' });
+      return value;
+    } catch (error) {
+      audit.record({
+        actor: 'telegram:bot',
+        source: 'telegram',
+        action,
+        target,
+        result: 'error',
+        detail: toErrorMessage(error),
+      });
+      throw error;
+    }
+  };
+
   const telegramBot = config.server.telegramAuth
     ? new TelegramBot({
         token: config.telegram.botToken,
@@ -124,12 +150,12 @@ async function main(): Promise<void> {
           status: () => supervisor.buildStatus(),
           streamers: () => supervisor.streamersView(),
           playlists: () => supervisor.playlistsView(),
-          start: (streamerId) => supervisor.start(streamerId),
-          stop: () => supervisor.stop(),
-          playlistNext: () => supervisor.playlistNext(),
-          playlistPrevious: () => supervisor.playlistPrevious(),
-          pause: () => supervisor.pause(),
-          resume: () => supervisor.hideScreen(),
+          start: (streamerId) => auditTelegram('stream.start', streamerId, () => supervisor.start(streamerId)),
+          stop: () => auditTelegram('stream.stop', null, () => supervisor.stop()),
+          playlistNext: () => auditTelegram('playlist.next', null, () => supervisor.playlistNext()),
+          playlistPrevious: () => auditTelegram('playlist.previous', null, () => supervisor.playlistPrevious()),
+          pause: () => auditTelegram('screen.start', 'pause', () => supervisor.pause()),
+          resume: () => auditTelegram('screen.stop', null, () => supervisor.hideScreen()),
           logs: (limit) => ring.list({ limit }),
           queryLogs: (filter) => ring.list(filter),
           streamerCreate: (input) => {
@@ -166,12 +192,13 @@ async function main(): Promise<void> {
             store.removePlaylist(id);
             supervisor.notifyStreamersChanged();
           },
-          playlistPlay: (id) => supervisor.playPlaylist(id),
-          settingsUpdate: async (patch) => {
-            const { previous, next } = settingsService.update(patch);
-            await supervisor.applySettings(next, previous);
-            return next;
-          },
+          playlistPlay: (id) => auditTelegram('playlist.play', id, () => supervisor.playPlaylist(id)),
+          settingsUpdate: async (patch) =>
+            auditTelegram('settings.update', 'settings', async () => {
+              const { previous, next } = settingsService.update(patch);
+              await supervisor.applySettings(next, previous);
+              return next;
+            }),
           mediaDelete: async (filename) => {
             const path = mediaFilePath(config.paths.dataDir, filename);
             if (!path) throw new ValidationError('Ungültiger Dateiname');
@@ -264,8 +291,8 @@ async function main(): Promise<void> {
           youtubeTransition: (id, status) =>
             youtubeAuth.transitionBroadcastById(id, status),
           youtubePublish: (id) => youtubeAuth.publishBroadcast(id),
-          showScreen: (type) => supervisor.showScreen(type),
-          hideScreen: () => supervisor.hideScreen(),
+          showScreen: (type) => auditTelegram('screen.start', type, () => supervisor.showScreen(type)),
+          hideScreen: () => auditTelegram('screen.stop', null, () => supervisor.hideScreen()),
           toggleOverlay: async (key) => {
             const current = settingsService.get();
             const overlays = structuredClone(current.overlays);
@@ -314,6 +341,7 @@ async function main(): Promise<void> {
     version: VERSION,
     authSessions,
     totp,
+    audit,
     telegramAuth,
     telegramBot,
     youtubeAuth,

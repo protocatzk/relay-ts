@@ -137,8 +137,27 @@ const AssignBody = z.object({ streamer_id: z.string().min(1) });
 
 const LogQuery = z.object({
   limit: z.number().int().min(1).max(2000).optional(),
+  offset: z.number().int().min(0).max(100_000).optional(),
   level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   q: z.string().max(200).optional(),
+  streamer: z.string().max(120).optional(),
+  since: z.string().max(64).optional(),
+  until: z.string().max(64).optional(),
+});
+const LogExportQuery = LogQuery.extend({
+  format: z.enum(['log', 'json']).optional(),
+  limit: z.number().int().min(1).max(10_000).optional(),
+});
+const AuditQuery = z.object({
+  actor: z.string().max(120).optional(),
+  action: z.string().max(80).optional(),
+  source: z.enum(['web', 'api', 'telegram', 'system']).optional(),
+  q: z.string().max(200).optional(),
+  limit: z.number().int().min(1).max(500).optional(),
+  offset: z.number().int().min(0).max(100_000).optional(),
+});
+const DiagnosticsQuery = z.object({
+  refresh: z.boolean().optional(),
 });
 const EarningsHistoryQuery = z.object({
   period: z.enum(PERIODS).optional(),
@@ -285,10 +304,33 @@ const routes: RouteDoc[] = [
     method: 'get',
     path: '/api/logs',
     tag: 'system',
-    summary: 'Logzeilen lesen und filtern',
+    summary: 'Logzeilen lesen, filtern und paginieren',
     query: queryParams(LogQuery),
   },
+  {
+    method: 'get',
+    path: '/api/logs/export',
+    tag: 'system',
+    summary: 'Gefilterte Logs als .log oder .json herunterladen',
+    query: queryParams(LogExportQuery),
+    responseType: 'text/plain',
+    response: { type: 'string' },
+  },
   { method: 'delete', path: '/api/logs', tag: 'system', summary: 'Lokalen Logring leeren', response: 'Ok' },
+  {
+    method: 'get',
+    path: '/api/audit',
+    tag: 'system',
+    summary: 'Audit-Log der Steueraktionen lesen und filtern',
+    query: queryParams(AuditQuery),
+  },
+  {
+    method: 'get',
+    path: '/api/system/diagnostics',
+    tag: 'system',
+    summary: 'Systemdiagnose (Versionen, Ports, Speicher, Fehler)',
+    query: queryParams(DiagnosticsQuery),
+  },
   { method: 'post', path: '/api/reload', tag: 'system', summary: 'Streamer-YAML neu laden' },
   { method: 'post', path: '/api/online/check', tag: 'system', summary: 'Online-Status sofort prüfen', response: 'Ok' },
   {

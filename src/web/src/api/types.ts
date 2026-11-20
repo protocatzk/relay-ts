@@ -753,6 +753,110 @@ export interface BulkAddResult {
 
 export interface LogsResponse {
   lines: LogEntry[];
+  total?: number;
+  offset?: number;
+  limit?: number;
+  has_more?: boolean;
+}
+
+export interface LogQueryParams {
+  limit?: number;
+  offset?: number;
+  level?: LogLevel;
+  q?: string;
+  streamer?: string;
+  since?: string;
+  until?: string;
+}
+
+export interface LogPageResponse {
+  lines: LogEntry[];
+  total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export type AuditSource = 'web' | 'api' | 'telegram' | 'system';
+
+export interface AuditEntry {
+  time: string;
+  actor: string;
+  source: AuditSource;
+  action: string;
+  target: string | null;
+  result: 'ok' | 'error';
+  detail?: string;
+}
+
+export interface AuditQueryParams {
+  actor?: string;
+  action?: string;
+  source?: AuditSource;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AuditPageResponse {
+  entries: AuditEntry[];
+  total: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  actors: string[];
+  actions: string[];
+}
+
+export interface DirectoryStorageStats {
+  exists: boolean;
+  bytes: number;
+  files: number;
+}
+
+export interface DiagnosticsSnapshot {
+  collected_at: string;
+  version: string;
+  node_version: string;
+  platform: string;
+  pid: number;
+  uptime_seconds: number;
+  memory: {
+    rss_bytes: number;
+    heap_used_bytes: number;
+    heap_total_bytes: number;
+  };
+  tools: {
+    ffmpeg: string | null;
+    ytdlp: string | null;
+  };
+  encoder: {
+    active: string;
+    available: string[];
+  };
+  ports: {
+    http: number;
+    relay_host: string;
+    relay: number;
+    playback: number;
+  };
+  storage: {
+    media: DirectoryStorageStats;
+    logs: DirectoryStorageStats;
+    backups: DirectoryStorageStats;
+    data: DirectoryStorageStats;
+    filesystem: {
+      total_bytes: number;
+      free_bytes: number;
+      available_bytes: number;
+    } | null;
+  };
+  metrics: {
+    started_at: string;
+    uptime_seconds: number;
+    counters: Record<string, number>;
+  };
+  recent_errors: LogEntry[];
 }
 
 export interface StreamersResponse {

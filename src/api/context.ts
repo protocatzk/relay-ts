@@ -9,6 +9,7 @@ import type { TelegramBot } from '../core/telegram/bot.js';
 import type { YouTubeAuthService } from '../core/youtube/service.js';
 import type { AuthSessionStore } from './session-store.js';
 import type { TotpStore } from './totp-store.js';
+import type { AuditLogStore } from '../core/audit-log.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -21,6 +22,7 @@ export interface ApiContext {
   version: string;
   authSessions: AuthSessionStore;
   totp?: TotpStore;
+  audit?: AuditLogStore;
   telegramAuth?: TelegramAuthStore;
   telegramBot?: TelegramBot | null;
   youtubeAuth?: YouTubeAuthService;

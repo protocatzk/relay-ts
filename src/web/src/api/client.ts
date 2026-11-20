@@ -1,4 +1,6 @@
 import type {
+  AuditPageResponse,
+  AuditQueryParams,
   AuthMe,
   AuthMethods,
   AuthSessionInfo,
@@ -8,12 +10,15 @@ import type {
   TotpStatus,
   BulkAddInput,
   BulkAddResult,
+  DiagnosticsSnapshot,
   EarningsHistoryPoint,
   EarningsPeriod,
   EarningsSnapshot,
   PauseAsset,
   PausePreviewInput,
   LogEntry,
+  LogPageResponse,
+  LogQueryParams,
   LogsResponse,
   MediaFile,
   MediaUploadResult,
@@ -430,7 +435,64 @@ export const api = {
 
   logs: {
     list: async (limit = 300) => normalizeLogs(await request<LogsResponse>(`/api/logs?limit=${limit}`)),
+    query: (params: LogQueryParams = {}) => {
+      const search = new URLSearchParams();
+      if (params.limit !== undefined) search.set('limit', String(params.limit));
+      if (params.offset !== undefined) search.set('offset', String(params.offset));
+      if (params.level) search.set('level', params.level);
+      if (params.q) search.set('q', params.q);
+      if (params.streamer) search.set('streamer', params.streamer);
+      if (params.since) search.set('since', params.since);
+      if (params.until) search.set('until', params.until);
+      const qs = search.toString();
+      return request<LogPageResponse>(`/api/logs${qs ? `?${qs}` : ''}`);
+    },
+    exportDownload: async (
+      format: 'log' | 'json',
+      params: LogQueryParams = {},
+    ): Promise<{ blob: Blob; filename: string }> => {
+      const search = new URLSearchParams({ format });
+      if (params.limit !== undefined) search.set('limit', String(params.limit));
+      if (params.offset !== undefined) search.set('offset', String(params.offset));
+      if (params.level) search.set('level', params.level);
+      if (params.q) search.set('q', params.q);
+      if (params.streamer) search.set('streamer', params.streamer);
+      if (params.since) search.set('since', params.since);
+      if (params.until) search.set('until', params.until);
+      let response: Response;
+      try {
+        response = await fetch(`/api/logs/export?${search.toString()}`, {
+          credentials: 'include',
+        });
+      } catch {
+        throw new ApiError(0, 'network_error', 'Verbindung zum Server fehlgeschlagen.');
+      }
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const { code, message } = extractMessage(data, response.status);
+        if (response.status === 401) unauthorizedHandler?.();
+        throw new ApiError(response.status, code, message);
+      }
+      const disposition = response.headers.get('content-disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? `relay-logs.${format}`;
+      return { blob: await response.blob(), filename };
+    },
     clear: () => request<{ ok: true }>('/api/logs', { method: 'DELETE' }),
+  },
+
+  audit: {
+    query: (params: AuditQueryParams = {}) => {
+      const search = new URLSearchParams();
+      if (params.actor) search.set('actor', params.actor);
+      if (params.action) search.set('action', params.action);
+      if (params.source) search.set('source', params.source);
+      if (params.q) search.set('q', params.q);
+      if (params.limit !== undefined) search.set('limit', String(params.limit));
+      if (params.offset !== undefined) search.set('offset', String(params.offset));
+      const qs = search.toString();
+      return request<AuditPageResponse>(`/api/audit${qs ? `?${qs}` : ''}`);
+    },
   },
 
   overlays: {
@@ -471,6 +533,8 @@ export const api = {
   },
 
   system: {
+    diagnostics: (refresh = false) =>
+      request<DiagnosticsSnapshot>(`/api/system/diagnostics${refresh ? '?refresh=1' : ''}`),
     restartSink: () => request<unknown>('/api/system/restart-sink', { method: 'POST' }),
     refreshSource: () => request<unknown>('/api/system/refresh', { method: 'POST' }),
     reload: () => request<{ ok: true; changed: boolean }>('/api/reload', { method: 'POST' }),

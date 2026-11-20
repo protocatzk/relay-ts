@@ -1355,6 +1355,119 @@ select {
   max-width: 380px;
 }
 
+/* --------------------------------------------------------------- Diagnostics */
+
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.diag-card {
+  padding: 18px;
+}
+
+.diag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.diag-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.diag-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.diag-row dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.diag-row dd {
+  margin: 0;
+  text-align: right;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.diag-wrap {
+  word-break: break-word;
+}
+
+.diag-storage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.diag-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.diag-stat-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.diag-errors {
+  max-height: 280px;
+}
+
+/* ----------------------------------------------------------- Logs & Audit UI */
+
+.logs-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.logs-streamer-select,
+.logs-audit-filter {
+  min-width: 150px;
+}
+
+.logs-time-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.logs-time-range input {
+  width: auto;
+  max-width: 100%;
+  font-size: 12px;
+}
+
+.logs-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .settings-body {
   display: flex;
   flex-direction: column;
