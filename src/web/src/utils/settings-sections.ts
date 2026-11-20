@@ -12,7 +12,7 @@ export type EditableSettingsSectionId =
   | 'chat'
   | 'title';
 
-export type SettingsSectionId = EditableSettingsSectionId | 'sessions';
+export type SettingsSectionId = EditableSettingsSectionId | 'totp' | 'sessions';
 
 export interface SettingsSectionMeta {
   id: SettingsSectionId;
@@ -33,6 +33,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'earnings', domId: 'settings-earnings', label: 'Einnahmen', editable: true },
   { id: 'chat', domId: 'settings-chat', label: 'Chat-Overlay', editable: true },
   { id: 'title', domId: 'settings-title', label: 'YouTube-Titel', editable: true },
+  { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
   { id: 'sessions', domId: 'settings-sessions', label: 'Sessions', editable: false },
 ];
 

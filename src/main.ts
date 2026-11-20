@@ -8,6 +8,7 @@ import { SettingsService } from './core/store/settings-service.js';
 import { Supervisor } from './core/supervisor/supervisor.js';
 import { buildServer } from './api/server.js';
 import { AuthSessionStore } from './api/session-store.js';
+import { TotpStore } from './api/totp-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
@@ -78,6 +79,9 @@ async function main(): Promise<void> {
 
   const settingsService = new SettingsService(config.paths.settingsFile, config.settings, logger);
   const authSessions = new AuthSessionStore(join(config.paths.dataDir, 'sessions.json'));
+  const totp = new TotpStore(join(config.paths.dataDir, 'totp.json'), {
+    onSecret: (secret) => redactor.add(secret),
+  });
   const telegramAuth = new TelegramAuthStore();
   const youtubeAuth = new YouTubeAuthService({
     config: config.youtube,
@@ -309,6 +313,7 @@ async function main(): Promise<void> {
     ring,
     version: VERSION,
     authSessions,
+    totp,
     telegramAuth,
     telegramBot,
     youtubeAuth,

@@ -21,6 +21,7 @@ import {
   type SettingsSecretsDraft,
 } from '@/src/utils/settings-sections';
 import ToggleField from '@/src/components/ToggleField.vue';
+import TotpSection from '@/src/components/TotpSection.vue';
 import { useToast } from '@/src/composables/useToast';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 
@@ -1170,6 +1171,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
+
+      <TotpSection />
 
       <section id="settings-sessions" class="card settings-section" tabindex="-1">
         <div class="card-head">

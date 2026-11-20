@@ -70,7 +70,12 @@ function pathParameters(path: string): Schema[] {
   }));
 }
 
-const LoginBody = z.object({ password: z.string().min(1) });
+const LoginBody = z.object({
+  password: z.string().min(1),
+  totp_code: z.string().max(32).optional(),
+});
+const TotpEnableBody = z.object({ code: z.string().min(6).max(16) });
+const TotpDisableBody = z.object({ password: z.string().min(1) });
 const TelegramCheckBody = z.object({ token: z.string().min(1) });
 const ChatTestBody = z.object({
   username: z.string().max(40).optional(),
@@ -220,6 +225,33 @@ const routes: RouteDoc[] = [
     path: '/api/auth/sessions/revoke-all',
     tag: 'auth',
     summary: 'Alle Sitzungen widerrufen',
+  },
+  {
+    method: 'get',
+    path: '/api/auth/totp',
+    tag: 'auth',
+    summary: 'Status der TOTP-Zwei-Faktor-Authentifizierung',
+    response: ref('TotpStatus'),
+  },
+  {
+    method: 'post',
+    path: '/api/auth/totp/setup',
+    tag: 'auth',
+    summary: 'TOTP-Einrichtung starten (Secret und QR-Code)',
+  },
+  {
+    method: 'post',
+    path: '/api/auth/totp/enable',
+    tag: 'auth',
+    summary: 'TOTP mit Bestätigungscode aktivieren und Recovery-Codes erhalten',
+    body: schemaOf(TotpEnableBody),
+  },
+  {
+    method: 'post',
+    path: '/api/auth/totp/disable',
+    tag: 'auth',
+    summary: 'TOTP mit aktuellem Passwort deaktivieren',
+    body: schemaOf(TotpDisableBody),
   },
   {
     method: 'get',
@@ -895,8 +927,19 @@ const components = {
       properties: {
         auth_required: { type: 'boolean' },
         password_auth: { type: 'boolean' },
+        totp_enabled: { type: 'boolean' },
         telegram_auth: { type: 'boolean' },
         telegram_bot_username: { type: 'string' },
+      },
+    },
+    TotpStatus: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean' },
+        enabled_at: { type: ['string', 'null'] },
+        recovery_codes_remaining: { type: 'integer' },
+        pending_setup: { type: 'boolean' },
+        password_configured: { type: 'boolean' },
       },
     },
     AuthMe: {

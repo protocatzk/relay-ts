@@ -2,6 +2,10 @@ import type {
   AuthMe,
   AuthMethods,
   AuthSessionInfo,
+  LoginResult,
+  TotpEnableResponse,
+  TotpSetupResponse,
+  TotpStatus,
   BulkAddInput,
   BulkAddResult,
   EarningsHistoryPoint,
@@ -151,13 +155,17 @@ function unwrapResource<T>(data: unknown, key: string): T {
 export interface AuthApi {
   me(): Promise<AuthMe>;
   methods(): Promise<AuthMethods>;
-  login(password: string): Promise<{ ok: true }>;
+  login(password: string, totpCode?: string): Promise<LoginResult>;
   telegramRequest(): Promise<TelegramLoginRequest>;
   telegramCheck(token: string): Promise<TelegramLoginStatus>;
   logout(): Promise<{ ok: true }>;
   sessions(): Promise<{ sessions: AuthSessionInfo[] }>;
   revokeSession(id: string): Promise<{ ok: true }>;
   revokeAllSessions(): Promise<{ ok: true; removed: number }>;
+  totpStatus(): Promise<TotpStatus>;
+  totpSetup(): Promise<TotpSetupResponse>;
+  totpEnable(code: string): Promise<TotpEnableResponse>;
+  totpDisable(password: string): Promise<{ ok: true; status: TotpStatus }>;
 }
 
 export interface StatusApi {
@@ -211,10 +219,10 @@ export const api = {
   auth: {
     me: () => request<AuthMe>('/api/auth/me', { authRedirect: false }),
     methods: () => request<AuthMethods>('/api/auth/methods', { authRedirect: false }),
-    login: (password: string) =>
-      request<{ ok: true }>('/api/auth/login', {
+    login: (password: string, totpCode?: string) =>
+      request<LoginResult>('/api/auth/login', {
         method: 'POST',
-        body: { password },
+        body: totpCode ? { password, totp_code: totpCode } : { password },
         authRedirect: false,
       }),
     telegramRequest: () =>
@@ -238,6 +246,18 @@ export const api = {
     revokeAllSessions: () =>
       request<{ ok: true; removed: number }>('/api/auth/sessions/revoke-all', {
         method: 'POST',
+      }),
+    totpStatus: () => request<TotpStatus>('/api/auth/totp'),
+    totpSetup: () => request<TotpSetupResponse>('/api/auth/totp/setup', { method: 'POST' }),
+    totpEnable: (code: string) =>
+      request<TotpEnableResponse>('/api/auth/totp/enable', {
+        method: 'POST',
+        body: { code },
+      }),
+    totpDisable: (password: string) =>
+      request<{ ok: true; status: TotpStatus }>('/api/auth/totp/disable', {
+        method: 'POST',
+        body: { password },
       }),
   } satisfies AuthApi,
 

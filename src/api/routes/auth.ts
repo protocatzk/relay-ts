@@ -23,9 +23,21 @@ function clientInfo(request: FastifyRequest): string {
 export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
   const { config } = ctx;
 
+  function verifyPasswordSecret(password: string): boolean {
+    return Boolean(
+      (config.server.password && safeEqual(password, config.server.password)) ||
+        (config.server.apiToken && safeEqual(password, config.server.apiToken)),
+    );
+  }
+
+  function passwordAuthConfigured(): boolean {
+    return Boolean(config.server.password || config.server.apiToken);
+  }
+
   app.get('/api/auth/methods', async () => ({
     auth_required: authRequired(config.server),
-    password_auth: Boolean(config.server.password || config.server.apiToken),
+    password_auth: passwordAuthConfigured(),
+    totp_enabled: ctx.totp?.isEnabled() ?? false,
     telegram_auth: config.server.telegramAuth,
     telegram_bot_username: ctx.telegramBot?.botUsername ?? '',
   }));
@@ -39,22 +51,50 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
       if (!authRequired(config.server)) {
         return { ok: true, auth_required: false };
       }
-      const body = request.body as { password?: unknown } | undefined;
+      const body = request.body as { password?: unknown; totp_code?: unknown } | undefined;
       const password = typeof body?.password === 'string' ? body.password : '';
+      const totpCode = typeof body?.totp_code === 'string' ? body.totp_code.trim() : '';
       if (!password) {
         return reply.code(400).send({
           error: { code: 'validation_failed', message: 'Passwort fehlt' },
         });
       }
-      const valid =
-        (config.server.password && safeEqual(password, config.server.password)) ||
-        (config.server.apiToken && safeEqual(password, config.server.apiToken));
-      if (!valid) {
+      if (!verifyPasswordSecret(password)) {
         ctx.logger.warn({ ip: request.ip }, 'Fehlgeschlagene Dashboard-Anmeldung');
         return reply.code(401).send({
           error: { code: 'invalid_credentials', message: 'Passwort ist falsch' },
         });
       }
+
+      let recoveryCodeUsed = false;
+      if (ctx.totp?.isEnabled()) {
+        if (!totpCode) {
+          return reply.code(401).send({
+            error: {
+              code: 'totp_required',
+              message: 'Bestätigungscode (2FA) oder Recovery-Code erforderlich',
+            },
+          });
+        }
+        const verified = ctx.totp.verify(totpCode);
+        if (!verified.valid) {
+          ctx.logger.warn({ ip: request.ip }, 'Fehlgeschlagene 2FA-Prüfung bei Anmeldung');
+          return reply.code(401).send({
+            error: { code: 'invalid_totp', message: 'Ungültiger 2FA- oder Recovery-Code' },
+          });
+        }
+        recoveryCodeUsed = verified.usedRecoveryCode;
+        if (recoveryCodeUsed) {
+          ctx.logger.warn(
+            {
+              ip: request.ip,
+              remaining: ctx.totp.status().recovery_codes_remaining,
+            },
+            'Dashboard-Anmeldung per 2FA-Recovery-Code',
+          );
+        }
+      }
+
       setSessionCookie(
         reply,
         config.server,
@@ -63,7 +103,15 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
         'password',
         isSecureRequest(request, config.server),
       );
-      return { ok: true };
+      return {
+        ok: true,
+        ...(recoveryCodeUsed
+          ? {
+              recovery_code_used: true,
+              recovery_codes_remaining: ctx.totp?.status().recovery_codes_remaining ?? 0,
+            }
+          : {}),
+      };
     },
   );
 
@@ -172,6 +220,129 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
     clearSessionCookie(reply, request, ctx.authSessions);
     return { ok: true, removed };
   });
+
+  app.get('/api/auth/totp', async (request, reply) => {
+    const mode = authMode(request, config.server, ctx.authSessions);
+    if (!mode) return unauthorized(reply);
+    const status = ctx.totp?.status() ?? {
+      enabled: false,
+      enabled_at: null,
+      recovery_codes_remaining: 0,
+      pending_setup: false,
+    };
+    return {
+      ...status,
+      password_configured: passwordAuthConfigured(),
+    };
+  });
+
+  app.post(
+    '/api/auth/totp/setup',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '5 minutes' } },
+    },
+    async (request, reply) => {
+      const mode = authMode(request, config.server, ctx.authSessions);
+      if (!mode) return unauthorized(reply);
+      if (!ctx.totp) {
+        return reply.code(503).send({
+          error: { code: 'totp_unavailable', message: '2FA ist auf dieser Instanz nicht verfügbar' },
+        });
+      }
+      if (!passwordAuthConfigured()) {
+        return reply.code(400).send({
+          error: {
+            code: 'password_required',
+            message: '2FA setzt ein konfiguriertes Dashboard-Passwort oder API-Token voraus',
+          },
+        });
+      }
+      if (ctx.totp.isEnabled()) {
+        return reply.code(409).send({
+          error: { code: 'totp_already_enabled', message: '2FA ist bereits aktiviert' },
+        });
+      }
+      return ctx.totp.beginSetup();
+    },
+  );
+
+  app.post(
+    '/api/auth/totp/enable',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '5 minutes' } },
+    },
+    async (request, reply) => {
+      const mode = authMode(request, config.server, ctx.authSessions);
+      if (!mode) return unauthorized(reply);
+      if (!ctx.totp) {
+        return reply.code(503).send({
+          error: { code: 'totp_unavailable', message: '2FA ist auf dieser Instanz nicht verfügbar' },
+        });
+      }
+      const body = request.body as { code?: unknown } | undefined;
+      const code = typeof body?.code === 'string' ? body.code.trim() : '';
+      if (!code) {
+        return reply.code(400).send({
+          error: { code: 'validation_failed', message: 'Bestätigungscode fehlt' },
+        });
+      }
+      const result = ctx.totp.confirmSetup(code);
+      if (!result) {
+        return reply.code(400).send({
+          error: {
+            code: 'invalid_totp',
+            message: 'Code ungültig oder Einrichtung abgelaufen',
+          },
+        });
+      }
+      ctx.logger.info('TOTP-Zwei-Faktor-Authentifizierung aktiviert');
+      return {
+        ok: true,
+        status: {
+          ...ctx.totp.status(),
+          password_configured: passwordAuthConfigured(),
+        },
+        recovery_codes: result.recoveryCodes,
+      };
+    },
+  );
+
+  app.post(
+    '/api/auth/totp/disable',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '5 minutes' } },
+    },
+    async (request, reply) => {
+      const mode = authMode(request, config.server, ctx.authSessions);
+      if (!mode) return unauthorized(reply);
+      if (!ctx.totp) {
+        return reply.code(503).send({
+          error: { code: 'totp_unavailable', message: '2FA ist auf dieser Instanz nicht verfügbar' },
+        });
+      }
+      const body = request.body as { password?: unknown } | undefined;
+      const password = typeof body?.password === 'string' ? body.password : '';
+      if (!password) {
+        return reply.code(400).send({
+          error: { code: 'validation_failed', message: 'Passwort zur Bestätigung erforderlich' },
+        });
+      }
+      if (!verifyPasswordSecret(password)) {
+        return reply.code(401).send({
+          error: { code: 'invalid_credentials', message: 'Passwort ist falsch' },
+        });
+      }
+      ctx.totp.disable();
+      ctx.logger.info('TOTP-Zwei-Faktor-Authentifizierung deaktiviert');
+      return {
+        ok: true,
+        status: {
+          ...ctx.totp.status(),
+          password_configured: passwordAuthConfigured(),
+        },
+      };
+    },
+  );
 
   app.get('/api/auth/me', async (request, reply) => {
     if (!authRequired(config.server)) {

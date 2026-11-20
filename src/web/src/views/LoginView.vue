@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api, errorMessage } from '@/src/api/client';
+import { ApiError, api, errorMessage } from '@/src/api/client';
 import type { AuthMethods } from '@/src/api/types';
 import { loadAuth, loginWithPassword } from '@/src/composables/useStore';
+import { useToast } from '@/src/composables/useToast';
 
 const router = useRouter();
 const route = useRoute();
+const { pushToast } = useToast();
 
 const password = ref('');
+const totpCode = ref('');
+const totpRequired = ref(false);
+const totpInput = ref<HTMLInputElement | null>(null);
 const error = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
 const methods = ref<AuthMethods | null>(null);
 const methodsError = ref('');
+
+const showTotpField = computed(() => Boolean(methods.value?.totp_enabled || totpRequired.value));
 
 const telegram = ref({
   token: '',
@@ -101,13 +108,30 @@ async function submit(): Promise<void> {
     error.value = 'Bitte ein Passwort eingeben.';
     return;
   }
+  if (showTotpField.value && !totpCode.value.trim()) {
+    error.value = 'Bitte den 2FA- oder Recovery-Code eingeben.';
+    return;
+  }
   loading.value = true;
   error.value = '';
   try {
-    await loginWithPassword(password.value);
+    const result = await loginWithPassword(password.value, totpCode.value.trim() || undefined);
+    if (result.recovery_code_used) {
+      pushToast(
+        `Recovery-Code verwendet (noch ${result.recovery_codes_remaining ?? 0} übrig).`,
+        'info',
+      );
+    }
     await router.replace(safeRedirect());
   } catch (caught) {
-    error.value = errorMessage(caught);
+    if (caught instanceof ApiError && caught.code === 'totp_required') {
+      totpRequired.value = true;
+      error.value = caught.message;
+      await nextTick();
+      totpInput.value?.focus();
+    } else {
+      error.value = errorMessage(caught);
+    }
   } finally {
     loading.value = false;
   }
@@ -201,6 +225,20 @@ onBeforeUnmount(stopPolling);
               </svg>
             </button>
           </div>
+        </div>
+
+        <div v-if="showTotpField" class="field">
+          <label for="login-totp">2FA-Code oder Recovery-Code</label>
+          <input
+            id="login-totp"
+            ref="totpInput"
+            v-model="totpCode"
+            type="text"
+            inputmode="text"
+            autocomplete="one-time-code"
+            placeholder="123456 oder XXXX-XXXX"
+            spellcheck="false"
+          />
         </div>
 
         <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>

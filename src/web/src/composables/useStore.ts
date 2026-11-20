@@ -4,6 +4,7 @@ import type {
   AuthMe,
   EarningsSnapshot,
   LogEntry,
+  LoginResult,
   Playlist,
   QueueSnapshot,
   StatusPayload,
@@ -314,12 +315,16 @@ export async function loadAuth(): Promise<AuthMe | null> {
   }
 }
 
-export async function loginWithPassword(password: string): Promise<void> {
-  await api.auth.login(password);
+export async function loginWithPassword(
+  password: string,
+  totpCode?: string,
+): Promise<LoginResult> {
+  const result = await api.auth.login(password, totpCode);
   const me = await api.auth.me();
   store.authenticated = me.authenticated;
   store.authRequired = me.auth_required;
   store.authChecked = true;
+  return result;
 }
 
 export async function logout(): Promise<void> {

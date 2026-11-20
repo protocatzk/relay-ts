@@ -1285,6 +1285,76 @@ select {
   gap: 8px;
 }
 
+.totp-setup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.totp-qr-wrap {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.totp-qr {
+  display: block;
+  width: 176px;
+  height: 176px;
+}
+
+.totp-setup-fields {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.totp-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.totp-secret {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--surface-2);
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.totp-recovery-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.totp-codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.totp-codes li {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--surface-1);
+  text-align: center;
+  font-size: 12px;
+}
+
+.totp-disable-box {
+  max-width: 380px;
+}
+
 .settings-body {
   display: flex;
   flex-direction: column;

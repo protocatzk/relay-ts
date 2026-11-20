@@ -638,8 +638,37 @@ export interface AuthSessionInfo {
 export interface AuthMethods {
   auth_required: boolean;
   password_auth: boolean;
+  totp_enabled: boolean;
   telegram_auth: boolean;
   telegram_bot_username: string;
+}
+
+export interface LoginResult {
+  ok: true;
+  auth_required?: boolean;
+  recovery_code_used?: boolean;
+  recovery_codes_remaining?: number;
+}
+
+export interface TotpStatus {
+  enabled: boolean;
+  enabled_at: string | null;
+  recovery_codes_remaining: number;
+  pending_setup: boolean;
+  password_configured: boolean;
+}
+
+export interface TotpSetupResponse {
+  secret: string;
+  otpauth_url: string;
+  qr_svg: string;
+  expires_in: number;
+}
+
+export interface TotpEnableResponse {
+  ok: true;
+  status: TotpStatus;
+  recovery_codes: string[];
 }
 
 export interface TelegramLoginRequest {
