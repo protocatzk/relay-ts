@@ -257,7 +257,11 @@ export class Supervisor {
         this.sourceSession.running ||
         this.pauseController.pauseRunning ||
         this.pauseController.startupRunning,
-      onStarted: () => this.overlayRuntime.attachToSink(this.sinkController.overlayStream()),
+      onStarted: () =>
+        this.overlayRuntime.attachToSink(
+          this.sinkController.overlayStream(),
+          this.sinkController.logoStream(),
+        ),
       onStopping: () => this.overlayRuntime.detachEngine(),
       onPrefillDone: () => this.emitAll(),
       youtube: () => this.deps.youtube,
@@ -369,7 +373,9 @@ export class Supervisor {
       overlays: this.overlays,
       earnings: this.earnings,
       logger,
+      logoPath: join(config.paths.webDir, 'logo.png'),
     });
+    await this.overlayRuntime.loadLogo();
     this.earnings.start();
     this.watchdog.start();
     this.statusTimer = setInterval(() => {
@@ -537,6 +543,7 @@ export class Supervisor {
     );
     if (!rebuilt) return;
     this.sinkController.overlayInput = rebuilt.panel;
+    this.sinkController.logoInput = rebuilt.logoPanel;
     this.sinkController.signature = rebuilt.signature;
   }
 
@@ -563,12 +570,14 @@ export class Supervisor {
       );
       if (countdown) filters.push(countdown);
     }
-    const signature = this.overlayRuntime.signature(filters, undefined);
+    const logoEngine = this.overlayRuntime.createLogoEngine();
+    const signature = this.overlayRuntime.signature(filters, undefined, logoEngine);
     await this.stopSourceAndChatLocked();
     if (this.sinkController.running) await this.stopSinkLocked();
     this.buffer.reset();
     this.sourceSession.resetTimeline();
     this.overlayRuntime.stopEngine();
+    this.overlayRuntime.replaceEngine(undefined, logoEngine);
     this.overlayRuntime.resetMessages();
     this.applyConfiguredDelay();
 
@@ -579,6 +588,7 @@ export class Supervisor {
     this.sinkController.key = options.key;
     this.sinkController.filters = filters;
     this.sinkController.overlayInput = undefined;
+    this.sinkController.logoInput = logoEngine?.panel;
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = file;
@@ -606,7 +616,7 @@ export class Supervisor {
     const offset = 0;
     this.sourceSession.start(synthetic, resolved, false, offset, seekSeconds);
     this.activeMediaStartedAt = Date.now();
-    this.startSinkOrPrefillLocked(options.key, filters, signature);
+    this.startSinkOrPrefillLocked(options.key, filters, signature, undefined, logoEngine?.panel);
     this.sourceSession.markProducerStarted(offset);
     this.markSinkGrace();
     this.earnings.setActive();
@@ -681,8 +691,14 @@ export class Supervisor {
     const previousKey = this.sinkController.key;
     const prepared = this.overlays.prepare();
     const candidateEngine = this.overlayRuntime.createEngine();
+    const candidateLogo = this.overlayRuntime.createLogoEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
+    const logoInput = candidateLogo?.panel;
+    const signature = this.overlayRuntime.signature(
+      prepared.filters,
+      candidateEngine,
+      candidateLogo,
+    );
     const reusable =
       this.sinkController.running && previousKey === key && this.sinkController.signature === signature;
     const timestampOffset = reusable ? this.sourceSession.nextOffset() : 0;
@@ -694,9 +710,14 @@ export class Supervisor {
       this.sourceSession.resetTimeline();
       if (previousKey && previousKey !== key) this.sinkController.notifyStopped(previousKey);
       if (this.sinkController.running) await this.stopSinkLocked();
-      this.overlayRuntime.replaceEngine(candidateEngine);
-    } else if (!this.overlayRuntime.engine && candidateEngine) {
-      this.overlayRuntime.adoptEngine(candidateEngine, this.sinkController.overlayStream());
+      this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
+    } else if (!this.overlayRuntime.engine || !this.overlayRuntime.logo) {
+      this.overlayRuntime.adoptEngine(
+        candidateEngine,
+        candidateLogo,
+        this.sinkController.overlayStream(),
+        this.sinkController.logoStream(),
+      );
     }
     this.applyConfiguredDelay();
 
@@ -709,6 +730,7 @@ export class Supervisor {
     this.sinkController.key = key;
     this.sinkController.filters = prepared.filters;
     this.sinkController.overlayInput = overlayInput;
+    this.sinkController.logoInput = logoInput;
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = stream.title;
@@ -750,7 +772,7 @@ export class Supervisor {
       this.transitionTo('live');
     }
     if (!reusable) {
-      this.startSinkOrPrefillLocked(key, prepared.filters, signature, overlayInput);
+      this.startSinkOrPrefillLocked(key, prepared.filters, signature, overlayInput, logoInput);
     }
     this.playlistController.activate(options.playlist ?? null);
     this.emitAll();
@@ -805,8 +827,14 @@ export class Supervisor {
     this.pauseController.clearOfflinePauseTimer();
     const prepared = this.overlays.prepare();
     const candidateEngine = this.overlayRuntime.createEngine();
+    const candidateLogo = this.overlayRuntime.createLogoEngine();
     const overlayInput = candidateEngine?.panel;
-    const signature = this.overlayRuntime.signature(prepared.filters, candidateEngine);
+    const logoInput = candidateLogo?.panel;
+    const signature = this.overlayRuntime.signature(
+      prepared.filters,
+      candidateEngine,
+      candidateLogo,
+    );
     const reusable =
       this.sinkController.running && this.sinkController.key === key && this.sinkController.signature === signature;
 
@@ -815,15 +843,21 @@ export class Supervisor {
       this.buffer.reset();
       this.sourceSession.resetTimeline();
       if (this.sinkController.running) await this.stopSinkLocked();
-      this.overlayRuntime.replaceEngine(candidateEngine);
-    } else if (!this.overlayRuntime.engine && candidateEngine) {
-      this.overlayRuntime.adoptEngine(candidateEngine, this.sinkController.overlayStream());
+      this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
+    } else if (!this.overlayRuntime.engine || !this.overlayRuntime.logo) {
+      this.overlayRuntime.adoptEngine(
+        candidateEngine,
+        candidateLogo,
+        this.sinkController.overlayStream(),
+        this.sinkController.logoStream(),
+      );
     }
 
     this.activeStreamer = streamer;
     this.sinkController.key = key;
     this.sinkController.filters = prepared.filters;
     this.sinkController.overlayInput = overlayInput;
+    this.sinkController.logoInput = logoInput;
     this.sinkController.signature = signature;
     this.startedAt = new Date();
     this.activeTitle = streamer.name;
@@ -857,6 +891,7 @@ export class Supervisor {
     filters: string[],
     signature: string,
     overlayInput?: SinkOverlayInput,
+    logoInput?: SinkOverlayInput,
   ): void {
     const delaySeconds = this.settings.delay_buffer.enabled
       ? Math.max(0, this.settings.delay_buffer.size)
@@ -867,6 +902,7 @@ export class Supervisor {
       filters,
       signature,
       overlayInput,
+      logoInput,
       delaySeconds,
       bufferedSeconds,
     });
@@ -1059,6 +1095,7 @@ export class Supervisor {
           pendingSink.filters,
           pendingSink.signature,
           pendingSink.input,
+          this.sinkController.logoInput,
         );
       }
       this.sourceSession.markProducerStarted(offset);
@@ -1362,6 +1399,7 @@ export class Supervisor {
             this.sinkController.filters,
             this.sinkController.signature,
             this.sinkController.overlayInput,
+            this.sinkController.logoInput,
           );
         }
         this.sourceSession.markProducerStarted(timestampOffset);
@@ -1430,6 +1468,7 @@ export class Supervisor {
         this.sinkController.filters,
         this.sinkController.signature,
         this.sinkController.overlayInput,
+        this.sinkController.logoInput,
       );
     }
     this.sourceSession.markProducerStarted(timestampOffset);
@@ -1637,6 +1676,7 @@ export class Supervisor {
         this.sinkController.signature = this.overlayRuntime.signature(
           prepared.filters,
           this.activeStreamer ? this.overlayRuntime.engine : undefined,
+          this.overlayRuntime.logo,
         );
         needsSinkRestart = true;
       }

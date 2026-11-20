@@ -72,16 +72,28 @@ export const TextOverlaySchema = z.object({
   offset_y: z.number().int().min(-1080).max(1080).default(0),
 });
 
+export const LogoOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  position: PositionSchema.default('top-left'),
+  width: z.number().int().min(32).max(1024).default(160),
+  opacity: z.number().min(0).max(1).default(1),
+  margin: z.number().int().min(0).max(200).default(32),
+  offset_x: z.number().int().min(-1920).max(1920).default(0),
+  offset_y: z.number().int().min(-1080).max(1080).default(0),
+});
+
 export const OverlaysSchema = z.object({
   chat: ChatOverlaySchema.optional(),
   clock: ClockOverlaySchema.optional(),
   text: TextOverlaySchema.optional(),
+  logo: LogoOverlaySchema.optional(),
 });
 
 export const OverlaysSettingsSchema = z.object({
   chat: ChatOverlaySchema.default(ChatOverlaySchema.parse({})),
   clock: ClockOverlaySchema.default(ClockOverlaySchema.parse({})),
   text: TextOverlaySchema.default(TextOverlaySchema.parse({})),
+  logo: LogoOverlaySchema.default(LogoOverlaySchema.parse({})),
 });
 
 export const StreamerFieldsSchema = z

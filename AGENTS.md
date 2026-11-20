@@ -61,7 +61,8 @@ Wichtige Pfade:
 - `src/core/relay/` – MPEG-TS-Relay und DelayBuffer
 - `src/core/media/` – lokale Playlist-Videos (`data/media/`) und ffprobe-Metadaten
 - `src/api/routes/preview.ts` – MPEG-TS-Tap für die Live-Vorschau
-- `src/core/overlays/` – Canvas-Chat, drawtext, PauseScreen, Studio-Preview
+- `src/core/overlays/` – Canvas-Chat, Logo-Engine, drawtext, PauseScreen,
+  Studio-Preview
 - `src/core/earnings/` – TokTracker-kompatibler Einnahmen-Monitor
 - `src/core/telegram/` – Login-Bot und Token-Store
 - `src/core/youtube/` – Google-OAuth, Token-Store und YouTube-API-Client
@@ -142,7 +143,11 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   überschreibt `settings.yml` bei jedem Start.
 - `config/settings.yml` wird atomar mit Modus `0600` geschrieben.
 - Secrets werden in API-Antworten durch `api_key_set` ersetzt.
-- Overlays (`chat`, `clock`, `text`) sind **global** in `settings.yml`.
+- Overlays (`chat`, `clock`, `text`, `logo`) sind **global** in `settings.yml`.
+- Das Logo-Overlay (`settings.overlays.logo`) läuft als eigener Canvas-Stream
+  (zweite rawvideo-Pipe, fd 4) durch den Sink; Position/Breite/Deckkraft werden
+  im Overlay-Studio gesetzt. Das Asset ist `web/dist/logo.png` (aus
+  `src/web/public`); Änderungen starten den Sink neu.
 - Fehlt `settings.overlays`, werden beim ersten Start die Overlays des ersten
   Streamers mit aktivem Overlay übernommen und persistiert.
 - Per-Streamer-Overlays aus Alt-YAMLs werden beim Laden ignoriert und aus der

@@ -28,6 +28,7 @@ export interface SinkStartOptions {
   filters: string[];
   signature: string;
   overlayInput?: SinkOverlayInput;
+  logoInput?: SinkOverlayInput;
   delaySeconds: number;
   bufferedSeconds: number;
 }
@@ -48,6 +49,7 @@ export class SinkController {
   private currentKey = '';
   private currentFilters: string[] = [];
   private currentOverlayInput?: SinkOverlayInput;
+  private currentLogoInput?: SinkOverlayInput;
   private currentSignature = '';
   private delaySeconds = 0;
   private startTimer?: NodeJS.Timeout;
@@ -99,6 +101,14 @@ export class SinkController {
     this.currentOverlayInput = value;
   }
 
+  get logoInput(): SinkOverlayInput | undefined {
+    return this.currentLogoInput;
+  }
+
+  set logoInput(value: SinkOverlayInput | undefined) {
+    this.currentLogoInput = value;
+  }
+
   get signature(): string {
     return this.currentSignature;
   }
@@ -139,11 +149,16 @@ export class SinkController {
     return this.sink.overlayStream();
   }
 
+  logoStream(): NodeJS.WritableStream | null {
+    return this.sink.logoStream();
+  }
+
   startOrPrefill(options: SinkStartOptions): void {
     this.currentKey = options.key;
     this.currentFilters = options.filters;
     this.currentSignature = options.signature;
     this.currentOverlayInput = options.overlayInput;
+    this.currentLogoInput = options.logoInput;
     this.delaySeconds = options.delaySeconds;
     const remaining = Math.max(0, options.delaySeconds - options.bufferedSeconds);
     if (remaining <= 0) {
@@ -254,9 +269,9 @@ export class SinkController {
     const key = this.currentKey;
     const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
     this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
-    this.sink.start(key, this.currentFilters, this.currentOverlayInput);
+    this.sink.start(key, this.currentFilters, this.currentOverlayInput, this.currentLogoInput);
     this.scheduleYouTubeStarted(key);
-    if (this.currentOverlayInput) this.onStarted();
+    if (this.currentOverlayInput || this.currentLogoInput) this.onStarted();
   }
 
   private scheduleYouTubeStarted(key: string): void {

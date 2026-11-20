@@ -121,6 +121,37 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('-output_ts_offset 42.500');
   });
 
+  it('blends chat and logo rawvideo overlays in order', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'stream-key',
+      relay,
+      overlayInput: { width: 320, height: 180, x: 10, y: 20, fps: 10, fd: 3 },
+      logoInput: { width: 100, height: 50, x: 30, y: 40, fps: 10, fd: 4 },
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-i pipe:3');
+    expect(line).toContain('-i pipe:4');
+    expect(line).toContain('[base][1:v]overlay=10:20');
+    expect(line).toContain('[stage0][2:v]overlay=30:40');
+    expect(line).toContain('format=yuv420p[vout]');
+  });
+
+  it('overlays only the logo when the chat canvas is disabled', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'stream-key',
+      relay,
+      logoInput: { width: 100, height: 50, x: 30, y: 40, fps: 10, fd: 4 },
+    });
+    const line = args.join(' ');
+    expect(line).toContain('-i pipe:4');
+    expect(line).not.toContain('-i pipe:3');
+    expect(line).toContain('[base][1:v]overlay=30:40');
+  });
+
   it('builds a CBR sink for YouTube with the configured canvas', () => {
     const args = buildSinkCommand({
       media,

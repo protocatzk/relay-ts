@@ -2444,6 +2444,64 @@
                             "maximum": 1080
                           }
                         }
+                      },
+                      "logo": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "width": 160,
+                          "opacity": 1,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "width": {
+                            "default": 160,
+                            "type": "integer",
+                            "minimum": 32,
+                            "maximum": 1024
+                          },
+                          "opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
                       }
                     }
                   }
@@ -5098,6 +5156,15 @@
                 "margin": 32,
                 "offset_x": 0,
                 "offset_y": 0
+              },
+              "logo": {
+                "enabled": false,
+                "position": "top-left",
+                "width": 160,
+                "opacity": 1,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
               }
             },
             "type": "object",
@@ -5415,6 +5482,64 @@
                   "show_box": {
                     "default": true,
                     "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "logo": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-left",
+                  "width": 160,
+                  "opacity": 1,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "width": {
+                    "default": 160,
+                    "type": "integer",
+                    "minimum": 32,
+                    "maximum": 1024
+                  },
+                  "opacity": {
+                    "default": 1,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "margin": {
                     "default": 32,
@@ -6046,6 +6171,15 @@
                 "margin": 32,
                 "offset_x": 0,
                 "offset_y": 0
+              },
+              "logo": {
+                "enabled": false,
+                "position": "top-left",
+                "width": 160,
+                "opacity": 1,
+                "margin": 32,
+                "offset_x": 0,
+                "offset_y": 0
               }
             },
             "type": "object",
@@ -6363,6 +6497,64 @@
                   "show_box": {
                     "default": true,
                     "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "logo": {
+                "default": {
+                  "enabled": false,
+                  "position": "top-left",
+                  "width": 160,
+                  "opacity": 1,
+                  "margin": 32,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "width": {
+                    "default": 160,
+                    "type": "integer",
+                    "minimum": 32,
+                    "maximum": 1024
+                  },
+                  "opacity": {
+                    "default": 1,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "margin": {
                     "default": 32,

@@ -69,7 +69,12 @@ export class YouTubeSink {
     return this.lastError;
   }
 
-  start(key: string, overlayFilters: string[] = [], overlayInput?: SinkOverlayInput): void {
+  start(
+    key: string,
+    overlayFilters: string[] = [],
+    overlayInput?: SinkOverlayInput,
+    logoInput?: SinkOverlayInput,
+  ): void {
     if (!key.trim()) throw new Error('YouTube-Stream-Key ist leer');
     if (this.process?.running) {
       if (this.targetKey === key) return;
@@ -85,6 +90,7 @@ export class YouTubeSink {
       relay: this.options.relay,
       overlayFilters,
       overlayInput,
+      logoInput,
     });
     // Validate URLs early (before spawning) and keep keys out of logs.
     youtubeUrls(this.options.media, key);
@@ -94,7 +100,7 @@ export class YouTubeSink {
       args,
       logger: this.options.logger,
       redact: this.options.redact,
-      extraPipes: overlayInput ? 1 : 0,
+      extraPipes: overlayInput || logoInput ? 2 : 0,
       onLine: (line, stream) => {
         if (stream === 'stdout') {
           this.progress.push(line);
@@ -128,6 +134,10 @@ export class YouTubeSink {
 
   overlayStream(): NodeJS.WritableStream | null {
     return this.process?.extraStream(3) ?? null;
+  }
+
+  logoStream(): NodeJS.WritableStream | null {
+    return this.process?.extraStream(4) ?? null;
   }
 
   stats(): {

@@ -4,6 +4,7 @@ import { api, errorMessage } from '@/src/api/client';
 import type {
   ChatOverlay,
   ClockOverlay,
+  LogoOverlay,
   OverlayPosition,
   Settings,
   SettingsUpdate,
@@ -17,7 +18,7 @@ import ToggleField from '@/src/components/ToggleField.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 
-type Section = 'video' | 'chat' | 'clock' | 'text' | 'earnings';
+type Section = 'video' | 'chat' | 'clock' | 'text' | 'logo' | 'earnings';
 type PreviewAspect = '9:16' | '16:9' | '1:1';
 
 const SECTIONS: { id: Section; label: string }[] = [
@@ -25,6 +26,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'chat', label: 'Chat' },
   { id: 'clock', label: 'Uhrzeit' },
   { id: 'text', label: 'Text' },
+  { id: 'logo', label: 'Logo' },
   { id: 'earnings', label: 'Einnahmen' },
 ];
 
@@ -86,6 +88,7 @@ const chatStatus = computed(() => store.status?.chat ?? null);
 const chat = computed(() => draft.value?.chat ?? null);
 const clock = computed(() => draft.value?.clock ?? null);
 const text = computed(() => draft.value?.text ?? null);
+const logo = computed(() => draft.value?.logo ?? null);
 const earnings = computed(() => settings.value?.earnings ?? null);
 const videoLayout = computed<VideoLayout | null>(() => settings.value?.video.layout ?? null);
 const resolution = computed(() => settings.value?.video.resolution ?? '720x1280');
@@ -97,10 +100,13 @@ const dirty = computed(
       JSON.stringify(settings.value?.video.layout) !== initialLayoutSnapshot),
 );
 
-const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
+const activeConfig = computed<
+  ChatOverlay | ClockOverlay | TextOverlay | LogoOverlay | null
+>(() => {
   if (activeSection.value === 'chat') return chat.value;
   if (activeSection.value === 'clock') return clock.value;
   if (activeSection.value === 'text') return text.value;
+  if (activeSection.value === 'logo') return logo.value;
   return null;
 });
 
@@ -110,6 +116,7 @@ interface OverlayGeometry {
   offset_x: number;
   offset_y: number;
   margin: number;
+  width?: number;
 }
 
 const activeGeometry = computed<OverlayGeometry | null>(() => {
@@ -124,7 +131,19 @@ const activeGeometry = computed<OverlayGeometry | null>(() => {
       margin: config.overlay_margin,
     };
   }
-  const config = activeConfig.value;
+  if (activeSection.value === 'logo') {
+    const config = logo.value;
+    if (!config) return null;
+    return {
+      position: config.position,
+      font_size: config.width,
+      offset_x: config.offset_x,
+      offset_y: config.offset_y,
+      margin: config.margin,
+      width: config.width,
+    };
+  }
+  const config = activeConfig.value as ChatOverlay | ClockOverlay | TextOverlay | null;
   if (!config) return null;
   return {
     position: config.position,
@@ -151,21 +170,32 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
   const [width, height] = resolution.value.split('x').map(Number) as [number, number];
   const chatConfig = activeSection.value === 'chat' ? chat.value : null;
   const earningsConfig = activeSection.value === 'earnings' ? earnings.value : null;
-  const boxWidth = chatConfig
-    ? chatConfig.panel_width > 0
-      ? chatConfig.panel_width
-      : Math.round(width * (width >= height ? 0.6 : 0.92))
-    : earningsConfig
-      ? Math.round(width * 0.45)
-      : Math.round(width * 0.5);
+  const logoConfig = activeSection.value === 'logo' ? logo.value : null;
+  let boxWidth: number;
+  if (logoConfig) {
+    boxWidth = logoConfig.width;
+  } else if (chatConfig) {
+    boxWidth =
+      chatConfig.panel_width > 0
+        ? chatConfig.panel_width
+        : Math.round(width * (width >= height ? 0.6 : 0.92));
+  } else if (earningsConfig) {
+    boxWidth = Math.round(width * 0.45);
+  } else {
+    boxWidth = Math.round(width * 0.5);
+  }
   const earningsLines = earningsConfig
     ? Math.max(1, earningsConfig.overlay_template.replace(/\r\n?/g, '\n').split('\n').length)
     : 1;
-  const boxHeight = chatConfig
-    ? chatConfig.panel_height > 0
-      ? chatConfig.panel_height
-      : Math.round(height * 0.34)
-    : Math.round(geometry.font_size * 1.8 * earningsLines);
+  let boxHeight: number;
+  if (logoConfig) {
+    boxHeight = logoConfig.width;
+  } else if (chatConfig) {
+    boxHeight =
+      chatConfig.panel_height > 0 ? chatConfig.panel_height : Math.round(height * 0.34);
+  } else {
+    boxHeight = Math.round(geometry.font_size * 1.8 * earningsLines);
+  }
   const baseX = geometry.position.endsWith('left')
     ? geometry.margin
     : width - boxWidth - geometry.margin;
@@ -246,7 +276,18 @@ function setGeometry(patch: Partial<OverlayGeometry>): void {
     if (patch.margin !== undefined) config.overlay_margin = patch.margin;
     return;
   }
-  const config = activeConfig.value;
+  if (activeSection.value === 'logo') {
+    const config = logo.value;
+    if (!config) return;
+    if (patch.position !== undefined) config.position = patch.position;
+    if (patch.offset_x !== undefined) config.offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) config.offset_y = patch.offset_y;
+    if (patch.font_size !== undefined) {
+      config.width = Math.round(clamp(patch.font_size, 32, 1024));
+    }
+    return;
+  }
+  const config = activeConfig.value as ChatOverlay | ClockOverlay | TextOverlay | null;
   if (!config) return;
   if (patch.position !== undefined) config.position = patch.position;
   if (patch.font_size !== undefined) config.font_size = patch.font_size;
@@ -338,7 +379,12 @@ function onDragMove(event: PointerEvent): void {
       offset_y: Math.round(clamp(drag.baseY + dy, -1080, 1080)),
     });
   } else {
-    setGeometry({ font_size: Math.round(clamp(drag.baseSize + dy * 0.15, 8, 96)) });
+    const isLogo = activeSection.value === 'logo';
+    setGeometry({
+      font_size: Math.round(
+        clamp(drag.baseSize + dy * (isLogo ? 0.6 : 0.15), isLogo ? 32 : 8, isLogo ? 1024 : 96),
+      ),
+    });
   }
 }
 
@@ -430,9 +476,24 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function defaultLogo(): StreamerOverlays['logo'] {
+  return (
+    settings.value?.overlays.logo ?? {
+      enabled: false,
+      position: 'top-left',
+      width: 160,
+      opacity: 1,
+      margin: 32,
+      offset_x: 0,
+      offset_y: 0,
+    }
+  );
+}
+
 function normalizeOverlays(value: StreamerOverlays): StreamerOverlays {
   const result = clone(value);
-  for (const key of ['chat', 'clock', 'text'] as const) {
+  result.logo ??= clone(defaultLogo());
+  for (const key of ['chat', 'clock', 'text', 'logo'] as const) {
     result[key].offset_x ??= 0;
     result[key].offset_y ??= 0;
   }
@@ -447,6 +508,7 @@ function overlaysInput(): StreamerOverlaysInput {
     chat: chatClone,
     clock: clone(current.clock),
     text: clone(current.text),
+    logo: clone(current.logo),
   };
 }
 
@@ -1102,6 +1164,55 @@ onBeforeUnmount(() => {
           <div class="checkbox-grid studio-checks">
             <label class="checkbox"><input v-model="text.marquee" type="checkbox" /> Laufschrift</label>
             <label class="checkbox"><input v-model="text.show_box" type="checkbox" /> Hintergrundbox anzeigen</label>
+          </div>
+        </div>
+
+        <div v-else-if="activeSection === 'logo' && logo" class="studio-body">
+          <ToggleField
+            v-model="logo.enabled"
+            label="Logo-Overlay"
+            description="RELAY-Logo als Canvas-Overlay im Stream anzeigen."
+          />
+          <div class="studio-grid">
+            <div class="field">
+              <label for="studio-logo-position">Position</label>
+              <select id="studio-logo-position" v-model="logo.position">
+                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
+                  {{ position.label }}
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="studio-logo-width">Breite (px)</label>
+              <input
+                id="studio-logo-width"
+                v-model.number="logo.width"
+                type="number"
+                min="32"
+                max="1024"
+              />
+            </div>
+            <div class="field">
+              <label for="studio-logo-opacity">Deckkraft (0–1)</label>
+              <input
+                id="studio-logo-opacity"
+                v-model.number="logo.opacity"
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+              />
+            </div>
+            <div class="field">
+              <label for="studio-logo-margin">Rand (px)</label>
+              <input
+                id="studio-logo-margin"
+                v-model.number="logo.margin"
+                type="number"
+                min="0"
+                max="200"
+              />
+            </div>
           </div>
         </div>
 

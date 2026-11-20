@@ -1,4 +1,4 @@
-import { createCanvas, type SKRSContext2D } from '@napi-rs/canvas';
+import { createCanvas, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
 import type { Settings } from '../config/schema.js';
 import { ChatOverlayEngine, parseColor } from './chat-engine.js';
@@ -14,6 +14,7 @@ export interface StudioPreviewOptions {
   sample?: boolean;
   earningsText?: string;
   chatMessages?: ChatMessage[];
+  logoImage?: Image;
   maxDimension?: number;
   videoAspect?: PreviewAspect;
 }
@@ -214,6 +215,29 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     const panel = engine.panel;
     ctx.drawImage(engine.previewCanvas(sample), panel.x, panel.y);
     engine.stop();
+  }
+
+  const logo = overlays.logo;
+  if (logo?.enabled && options.logoImage) {
+    const logoWidth = Math.max(32, Math.min(logo.width, width));
+    const ratio =
+      options.logoImage.width > 0 && options.logoImage.height > 0
+        ? options.logoImage.height / options.logoImage.width
+        : 1;
+    const logoHeight = Math.max(1, Math.round(logoWidth * ratio));
+    const margin = Math.max(0, logo.margin);
+    const x = logo.position.endsWith('right') ? width - logoWidth - margin : margin;
+    const y = logo.position.startsWith('top') ? margin : height - logoHeight - margin;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, logo.opacity));
+    ctx.drawImage(
+      options.logoImage,
+      x + logo.offset_x,
+      y + logo.offset_y,
+      logoWidth,
+      logoHeight,
+    );
+    ctx.restore();
   }
 
   if (settings.earnings.overlay_enabled && options.earningsText) {

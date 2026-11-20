@@ -154,6 +154,7 @@ export interface SinkCommandOptions {
   relay: RelayEndpoint;
   overlayFilters?: string[];
   overlayInput?: SinkOverlayInput;
+  logoInput?: SinkOverlayInput;
 }
 
 function evenDimension(value: number): number {
@@ -236,8 +237,10 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '-i',
     playbackUrl(relay),
   ];
-  if (options.overlayInput) {
-    const overlay = options.overlayInput;
+  const overlayInputs: SinkOverlayInput[] = [];
+  if (options.overlayInput) overlayInputs.push(options.overlayInput);
+  if (options.logoInput) overlayInputs.push(options.logoInput);
+  for (const overlay of overlayInputs) {
     inputArgs.push(
       '-thread_queue_size',
       '512',
@@ -254,115 +257,78 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     );
   }
 
+  // Overlay inputs are blended in order (chat first, logo second) so the logo
+  // stays on top. Each input is a rawvideo RGBA pipe.
+  const graphParts: string[] = [];
+  if (overlayInputs.length > 0) {
+    graphParts.push(`[0:v]${filters.join(',')}[base]`);
+    overlayInputs.forEach((overlay, index) => {
+      const input = index + 1;
+      const isLast = index === overlayInputs.length - 1;
+      const source = index === 0 ? 'base' : `stage${index - 1}`;
+      const target = isLast ? 'vout' : `stage${index}`;
+      const tail = isLast ? ',format=yuv420p[vout]' : `[${target}]`;
+      graphParts.push(
+        `[${source}][${input}:v]overlay=${overlay.x}:${overlay.y}:` +
+          `format=auto:eof_action=repeat:repeatlast=1${tail}`,
+      );
+    });
+  }
+
+  const videoArgs =
+    overlayInputs.length > 0
+      ? ['-map', '[vout]', '-map', '0:a:0?', '-filter_complex', graphParts.join(';')]
+      : ['-map', '0:v:0?', '-map', '0:a:0?', '-vf', filters.join(',')];
+
   // Output options must be repeated for every output URL (primary + backup),
   // otherwise ffmpeg cannot infer the FLV muxer for the second output.
-  const outputArgs = options.overlayInput
-    ? [
-        '-map',
-        '[vout]',
-        '-map',
-        '0:a:0?',
-        '-filter_complex',
-        `[0:v]${filters.join(',')}[base];` +
-          `[base][1:v]overlay=${options.overlayInput.x}:${options.overlayInput.y}:` +
-          'format=auto:eof_action=repeat:repeatlast=1,format=yuv420p[vout]',
-        '-fps_mode',
-        'cfr',
-        '-c:v',
-        'libx264',
-        '-preset',
-        settings.video.preset,
-        '-tune',
-        'zerolatency',
-        '-profile:v',
-        'high',
-        '-level',
-        '4.0',
-        '-pix_fmt',
-        'yuv420p',
-        '-b:v',
-        `${bitrate}k`,
-        '-maxrate',
-        `${bitrate}k`,
-        '-bufsize',
-        `${bitrate * 2}k`,
-        '-x264-params',
-        'nal-hrd=cbr:filler=1',
-        '-g',
-        String(gop),
-        '-keyint_min',
-        String(gop),
-        '-sc_threshold',
-        '0',
-        '-af',
-        'aresample=async=1:osr=48000:osf=fltp:ochl=stereo',
-        '-c:a',
-        'aac',
-        '-b:a',
-        `${settings.video.audio_bitrate}k`,
-        '-ar',
-        '48000',
-        '-ac',
-        '2',
-        '-f',
-        'flv',
-        '-flvflags',
-        'no_duration_filesize',
-        '-max_muxing_queue_size',
-        '1024',
-      ]
-    : [
-        '-map',
-        '0:v:0?',
-        '-map',
-        '0:a:0?',
-        '-vf',
-        filters.join(','),
-        '-fps_mode',
-        'cfr',
-        '-c:v',
-        'libx264',
-        '-preset',
-        settings.video.preset,
-        '-tune',
-        'zerolatency',
-        '-profile:v',
-        'high',
-        '-level',
-        '4.0',
-        '-pix_fmt',
-        'yuv420p',
-        '-b:v',
-        `${bitrate}k`,
-        '-maxrate',
-        `${bitrate}k`,
-        '-bufsize',
-        `${bitrate * 2}k`,
-        '-x264-params',
-        'nal-hrd=cbr:filler=1',
-        '-g',
-        String(gop),
-        '-keyint_min',
-        String(gop),
-        '-sc_threshold',
-        '0',
-        '-af',
-        'aresample=async=1:osr=48000:osf=fltp:ochl=stereo',
-        '-c:a',
-        'aac',
-        '-b:a',
-        `${settings.video.audio_bitrate}k`,
-        '-ar',
-        '48000',
-        '-ac',
-        '2',
-        '-f',
-        'flv',
-        '-flvflags',
-        'no_duration_filesize',
-        '-max_muxing_queue_size',
-        '1024',
-      ];
+  const outputArgs = [
+    ...videoArgs,
+    '-fps_mode',
+    'cfr',
+    '-c:v',
+    'libx264',
+    '-preset',
+    settings.video.preset,
+    '-tune',
+    'zerolatency',
+    '-profile:v',
+    'high',
+    '-level',
+    '4.0',
+    '-pix_fmt',
+    'yuv420p',
+    '-b:v',
+    `${bitrate}k`,
+    '-maxrate',
+    `${bitrate}k`,
+    '-bufsize',
+    `${bitrate * 2}k`,
+    '-x264-params',
+    'nal-hrd=cbr:filler=1',
+    '-g',
+    String(gop),
+    '-keyint_min',
+    String(gop),
+    '-sc_threshold',
+    '0',
+    '-af',
+    'aresample=async=1:osr=48000:osf=fltp:ochl=stereo',
+    '-c:a',
+    'aac',
+    '-b:a',
+    `${settings.video.audio_bitrate}k`,
+    '-ar',
+    '48000',
+    '-ac',
+    '2',
+    '-f',
+    'flv',
+    '-flvflags',
+    'no_duration_filesize',
+    '-max_muxing_queue_size',
+    '1024',
+  ];
 
   const args = [...inputArgs];
   for (const url of youtubeUrls(media, options.key)) {

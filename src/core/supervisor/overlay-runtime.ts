@@ -1,9 +1,11 @@
 import type { Logger } from 'pino';
+import { loadImage, type Image } from '@napi-rs/canvas';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import type { StatusSnapshot } from '../events.js';
 import { isoOrNull } from '../../utils/format.js';
 import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatOverlayEngine } from '../overlays/chat-engine.js';
+import { LogoOverlayEngine } from '../overlays/logo-engine.js';
 import type { OverlayManager } from '../overlays/overlay-manager.js';
 import { renderStudioPreview, type PreviewAspect } from '../overlays/studio-preview.js';
 import {
@@ -17,11 +19,14 @@ export interface OverlayRuntimeDeps {
   overlays: OverlayManager;
   earnings: EarningsMonitor;
   logger: Logger;
+  logoPath: string;
 }
 
 export interface RebuiltOverlayEngine {
   engine?: ChatOverlayEngine;
+  logo?: LogoOverlayEngine;
   panel?: ChatOverlayEngine['panel'];
+  logoPanel?: LogoOverlayEngine['panel'];
   signature: string;
 }
 
@@ -31,9 +36,12 @@ export class OverlayRuntime {
   private readonly overlays: OverlayManager;
   private readonly earnings: EarningsMonitor;
   private readonly logger: Logger;
+  private readonly logoPath: string;
 
   private chat?: ChatService;
   private chatEngine?: ChatOverlayEngine;
+  private logoEngine?: LogoOverlayEngine;
+  private logoImage?: Image;
   private previewEngine?: ChatOverlayEngine;
   private previewSignature = '';
   private currentMessages: ChatMessage[] = [];
@@ -44,6 +52,16 @@ export class OverlayRuntime {
     this.overlays = deps.overlays;
     this.earnings = deps.earnings;
     this.logger = deps.logger;
+    this.logoPath = deps.logoPath;
+  }
+
+  /** Loads the built-in RELAY logo once; failures simply disable the overlay. */
+  async loadLogo(): Promise<void> {
+    try {
+      this.logoImage = await loadImage(this.logoPath);
+    } catch {
+      this.logoImage = undefined;
+    }
   }
 
   updateSettings(settings: Settings): void {
@@ -52,6 +70,10 @@ export class OverlayRuntime {
 
   get engine(): ChatOverlayEngine | undefined {
     return this.chatEngine;
+  }
+
+  get logo(): LogoOverlayEngine | undefined {
+    return this.logoEngine;
   }
 
   get chatRunning(): boolean {
@@ -68,47 +90,80 @@ export class OverlayRuntime {
     });
   }
 
-  signature(filters: string[], engine: ChatOverlayEngine | undefined): string {
+  createLogoEngine(): LogoOverlayEngine | undefined {
+    if (!this.settings.overlays.logo.enabled || !this.logoImage) return undefined;
+    return new LogoOverlayEngine({
+      settings: this.settings,
+      image: this.logoImage,
+      logger: this.logger,
+    });
+  }
+
+  signature(
+    filters: string[],
+    engine: ChatOverlayEngine | undefined,
+    logoEngine?: LogoOverlayEngine,
+  ): string {
     const chat = this.settings.overlays.chat;
     const engineSpec = engine ? JSON.stringify(engine.panel) : 'off';
-    return `${filters.join('|')}|chat:${chat.enabled ? chat.engine : 'off'}:${engineSpec}|style:${chat.style}`;
+    const logoSpec = logoEngine ? JSON.stringify(logoEngine.panel) : 'off';
+    return `${filters.join('|')}|chat:${chat.enabled ? chat.engine : 'off'}:${engineSpec}|logo:${logoSpec}|style:${chat.style}`;
   }
 
-  replaceEngine(engine?: ChatOverlayEngine): void {
+  replaceEngine(engine?: ChatOverlayEngine, logoEngine?: LogoOverlayEngine): void {
     this.chatEngine?.stop();
     this.chatEngine = engine;
+    this.logoEngine?.stop();
+    this.logoEngine = logoEngine;
   }
 
-  adoptEngine(engine: ChatOverlayEngine | undefined, stream: NodeJS.WritableStream | null): void {
+  adoptEngine(
+    engine: ChatOverlayEngine | undefined,
+    logoEngine: LogoOverlayEngine | undefined,
+    stream: NodeJS.WritableStream | null,
+    logoStream: NodeJS.WritableStream | null,
+  ): void {
     this.chatEngine = engine;
+    this.logoEngine = logoEngine;
     this.chatEngine?.attach(stream);
+    this.logoEngine?.attach(logoStream);
   }
 
-  rebuildEngine(filters: string[], hasActiveStreamer: boolean): RebuiltOverlayEngine | null {
-    if (!hasActiveStreamer) return null;
+  rebuildEngine(filters: string[], hasCarrier: boolean): RebuiltOverlayEngine | null {
     this.chatEngine?.detach();
-    this.chatEngine = this.createEngine();
+    this.logoEngine?.detach();
+    this.chatEngine = hasCarrier ? this.createEngine() : undefined;
+    this.logoEngine = this.createLogoEngine();
     if (this.chatEngine) this.chatEngine.setMessages(this.currentMessages);
+    if (!this.chatEngine && !this.logoEngine) return null;
     return {
       engine: this.chatEngine,
+      logo: this.logoEngine,
       panel: this.chatEngine?.panel,
-      signature: this.signature(filters, this.chatEngine),
+      logoPanel: this.logoEngine?.panel,
+      signature: this.signature(filters, this.chatEngine, this.logoEngine),
     };
   }
 
-  attachToSink(stream: NodeJS.WritableStream | null): void {
-    if (!this.chatEngine || !stream) return;
-    this.chatEngine.attach(stream);
-    this.chatEngine.setMessages(this.currentMessages);
+  attachToSink(
+    stream: NodeJS.WritableStream | null,
+    logoStream: NodeJS.WritableStream | null,
+  ): void {
+    this.chatEngine?.attach(stream);
+    this.chatEngine?.setMessages(this.currentMessages);
+    this.logoEngine?.attach(logoStream);
   }
 
   detachEngine(): void {
     this.chatEngine?.detach();
+    this.logoEngine?.detach();
   }
 
   stopEngine(): void {
     this.chatEngine?.stop();
     this.chatEngine = undefined;
+    this.logoEngine?.stop();
+    this.logoEngine = undefined;
   }
 
   resetMessages(resetLastMessageAt = true, updateOverlayText = true): void {
@@ -199,6 +254,7 @@ export class OverlayRuntime {
       logger: this.logger,
       sample,
       chatMessages,
+      logoImage: this.logoImage,
       earningsText: this.studioEarningsText(settings, sample),
       maxDimension,
       videoAspect,

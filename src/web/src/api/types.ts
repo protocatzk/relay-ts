@@ -75,6 +75,17 @@ export interface StreamerOverlays {
   chat: ChatOverlay;
   clock: ClockOverlay;
   text: TextOverlay;
+  logo: LogoOverlay;
+}
+
+export interface LogoOverlay {
+  enabled: boolean;
+  position: OverlayPosition;
+  width: number;
+  opacity: number;
+  margin: number;
+  offset_x: number;
+  offset_y: number;
 }
 
 export interface Streamer {
@@ -655,6 +666,7 @@ export interface StreamerOverlaysInput {
   };
   clock: ClockOverlay;
   text: TextOverlay;
+  logo: LogoOverlay;
 }
 
 export interface StreamerInput {
