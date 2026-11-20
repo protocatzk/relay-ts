@@ -46,6 +46,7 @@ import type {
   YouTubeBroadcastList,
   YouTubeBroadcastTransition,
   YouTubeBroadcastUpdate,
+  YouTubeLiveChatPage,
   YouTubeAutomationStatus,
   YouTubeStatus,
 } from './types';
@@ -647,6 +648,11 @@ export const api = {
       }),
     start: () => request<{ url: string }>('/api/youtube/oauth/start'),
     broadcasts: () => request<YouTubeBroadcastList>('/api/youtube/broadcasts'),
+    chat: (broadcastId: string, pageToken?: string) => {
+      const search = new URLSearchParams({ broadcast_id: broadcastId });
+      if (pageToken) search.set('page_token', pageToken);
+      return request<YouTubeLiveChatPage>(`/api/youtube/chat?${search.toString()}`);
+    },
     createBroadcast: (input: YouTubeBroadcastInput) =>
       request<YouTubeBroadcast>('/api/youtube/broadcasts', { method: 'POST', body: input }),
     updateBroadcast: (id: string, patch: YouTubeBroadcastUpdate) =>

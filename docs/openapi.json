@@ -4358,6 +4358,47 @@
         }
       }
     },
+    "/api/youtube/chat": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "YouTube Live-Chat-Nachrichten eines Broadcasts abrufen",
+        "parameters": [
+          {
+            "name": "broadcast_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/youtube/broadcasts/:id": {
       "put": {
         "tags": [

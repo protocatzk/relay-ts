@@ -45,6 +45,11 @@ const AutomationBody = z.object({
   auto_stop: z.boolean().optional(),
 });
 
+const ChatQuery = z.object({
+  broadcast_id: z.string().min(1).max(64),
+  page_token: z.string().max(512).optional(),
+});
+
 function streamerKey(ctx: ApiContext, id: string): string {
   const streamer = ctx.store.require(id);
   const { key } = resolveStreamKey(streamer);
@@ -96,6 +101,15 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
   });
 
   app.get('/api/youtube/broadcasts', async () => service.broadcasts());
+
+  app.get(
+    '/api/youtube/chat',
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (request) => {
+      const query = ChatQuery.parse(request.query ?? {});
+      return service.liveChatMessages(query.broadcast_id, query.page_token);
+    },
+  );
 
   app.post('/api/youtube/broadcasts', writeLimit, async (request) => {
     const body = CreateBroadcastBody.parse(request.body);

@@ -6,6 +6,7 @@ export type PendingAction =
   | { type: 'revoke-all-sessions' }
   | { type: 'youtube-transition'; id: string; status: 'live' | 'complete' }
   | { type: 'youtube-publish'; id: string }
+  | { type: 'youtube-title'; id: string; title: string }
   | { type: 'playlist-remove-channel'; id: string; index: number }
   | { type: 'media-delete'; filename: string }
   | { type: 'streamer-delete'; id: string }

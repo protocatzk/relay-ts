@@ -145,6 +145,8 @@ export interface TelegramControl {
   youtubeBroadcasts?(): Promise<TelegramYouTubeBroadcast[]>;
   youtubeTransition?(id: string, status: 'live' | 'complete'): Promise<unknown>;
   youtubePublish?(id: string): Promise<unknown>;
+  youtubeUpdateTitle?(id: string, title: string): Promise<unknown>;
+  titleTemplate?(): string;
   showScreen?(type: 'startup' | 'pause'): Promise<unknown>;
   hideScreen?(): Promise<unknown>;
   toggleOverlay?(key: 'chat' | 'clock' | 'text'): Promise<unknown>;
@@ -442,6 +444,9 @@ export class TelegramBot {
         return;
       case '/earnings':
         await this.sendEarnings(chatId, args[0]);
+        return;
+      case '/title':
+        await this.handleTitleCommand(chatId, user.id, text.slice('/title'.length).trim());
         return;
       case '/sessions':
         await this.sendSessions(chatId);
@@ -1170,6 +1175,70 @@ export class TelegramBot {
     );
   }
 
+  private async handleTitleCommand(chatId: number, userId: number, newTitle: string): Promise<void> {
+    const control = this.options.control;
+    if (!control) {
+      await this.sendMessage(chatId, '⚠️ Steuerung ist nicht verfügbar.');
+      return;
+    }
+    const ytStatus = control.youtubeStatus?.();
+    const template = control.titleTemplate?.() ?? '';
+    if (!ytStatus?.connected) {
+      const lines = ['🏷 <b>STREAM-TITEL</b>', '', 'YouTube ist nicht verbunden.'];
+      if (template) lines.push(`VORLAGE: <code>${escapeHtml(template)}</code>`);
+      await this.sendMessage(chatId, lines.join('\n'));
+      return;
+    }
+
+    let broadcasts: TelegramYouTubeBroadcast[] = [];
+    try {
+      broadcasts = (await control.youtubeBroadcasts?.()) ?? [];
+    } catch (error) {
+      await this.sendMessage(chatId, `⚠️ Broadcasts konnten nicht geladen werden: ${escapeHtml(errorName(error))}`);
+      return;
+    }
+
+    const priority = ['live', 'testing', 'ready', 'created'];
+    const target =
+      priority
+        .map((state) => broadcasts.find((item) => item.status === state))
+        .find((item): item is TelegramYouTubeBroadcast => Boolean(item)) ?? null;
+
+    if (!newTitle) {
+      const lines = ['🏷 <b>STREAM-TITEL</b>', ''];
+      if (target) {
+        lines.push(`AKTUELL: <b>${escapeHtml(target.title)}</b>`);
+        lines.push(`STATUS: ${escapeHtml(target.status.toUpperCase())}`);
+      } else {
+        lines.push('Kein aktiver oder geplanter Broadcast gefunden.');
+      }
+      if (template) lines.push(`VORLAGE: <code>${escapeHtml(template)}</code>`);
+      lines.push('', 'Ändern mit: <code>/title Neuer Stream-Titel</code>');
+      await this.sendMessage(chatId, lines.join('\n'));
+      return;
+    }
+
+    if (newTitle.length > 100) {
+      await this.sendMessage(chatId, '⚠️ Titel darf maximal 100 Zeichen lang sein.');
+      return;
+    }
+    if (!target) {
+      await this.sendMessage(chatId, '⚠️ Kein aktiver oder geplanter Broadcast gefunden.');
+      return;
+    }
+    if (!control.youtubeUpdateTitle) {
+      await this.sendMessage(chatId, '⚠️ Titel-Änderung ist nicht verfügbar.');
+      return;
+    }
+
+    await this.confirmAction(
+      chatId,
+      userId,
+      `Broadcast-Titel von „${truncate(target.title, 40)}“ ändern in „${newTitle}“?`,
+      { type: 'youtube-title', id: target.id, title: newTitle },
+    );
+  }
+
   private async sendEarnings(
     chatId: number,
     period?: string,
@@ -1182,7 +1251,12 @@ export class TelegramBot {
     }
     const periods = ['today', '24h', '7d', '30d', 'all'] as const;
     if (period && (periods as readonly string[]).includes(period)) {
-      await control.setEarningsPeriod?.(period as (typeof periods)[number]);
+      try {
+        await control.setEarningsPeriod?.(period as (typeof periods)[number]);
+      } catch (error) {
+        await this.sendMessage(chatId, `⚠️ ${escapeHtml(errorName(error))}`);
+        return;
+      }
     }
     const earnings = control.earnings();
     const active = period && (periods as readonly string[]).includes(period) ? period : null;
@@ -1457,6 +1531,9 @@ export class TelegramBot {
           break;
         case 'youtube-publish':
           await control.youtubePublish?.(action.id);
+          break;
+        case 'youtube-title':
+          await control.youtubeUpdateTitle?.(action.id, action.title);
           break;
         case 'media-delete':
           await control.mediaDelete?.(action.filename);

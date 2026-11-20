@@ -56,6 +56,31 @@ export interface LiveStreamResource {
   };
 }
 
+export interface LiveChatMessageResource {
+  id: string;
+  snippet?: {
+    type?: string;
+    displayMessage?: string;
+    publishedAt?: string;
+    textMessageDetails?: { messageText?: string };
+  };
+  authorDetails?: {
+    channelId?: string;
+    displayName?: string;
+    profileImageUrl?: string;
+    isChatModerator?: boolean;
+    isChatOwner?: boolean;
+    isChatSponsor?: boolean;
+  };
+}
+
+export interface LiveChatMessagesResponse {
+  nextPageToken?: string;
+  pollingIntervalMillis?: number;
+  offlineAt?: string;
+  items?: LiveChatMessageResource[];
+}
+
 export interface BroadcastInsertBody {
   snippet: {
     title: string;
@@ -261,4 +286,32 @@ export async function insertLiveStream(
       },
     },
   );
+}
+
+/** Resolves the active liveChatId for a YouTube video/broadcast ID. */
+export async function fetchActiveLiveChatId(
+  accessToken: string,
+  videoId: string,
+): Promise<string | null> {
+  const data = await request<{
+    items?: { liveStreamingDetails?: { activeLiveChatId?: string } }[];
+  }>(accessToken, '/videos', {
+    part: 'liveStreamingDetails',
+    id: videoId,
+  });
+  return data.items?.[0]?.liveStreamingDetails?.activeLiveChatId ?? null;
+}
+
+/** Fetches a single page of YouTube live chat messages. */
+export async function listLiveChatMessages(
+  accessToken: string,
+  liveChatId: string,
+  pageToken?: string,
+): Promise<LiveChatMessagesResponse> {
+  return request<LiveChatMessagesResponse>(accessToken, '/liveChat/messages', {
+    part: 'snippet,authorDetails',
+    liveChatId,
+    maxResults: 50,
+    pageToken,
+  });
 }

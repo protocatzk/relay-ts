@@ -12,11 +12,13 @@ import {
 import {
   bindBroadcast,
   deleteBroadcast,
+  fetchActiveLiveChatId,
   fetchChannelInfo,
   getBroadcast,
   insertBroadcast,
   insertLiveStream,
   listBroadcasts,
+  listLiveChatMessages,
   listLiveStreams,
   transitionBroadcast,
   updateBroadcast,
@@ -105,6 +107,28 @@ export interface UpdateBroadcastInput {
 
 export type BroadcastTransition = 'testing' | 'live' | 'complete';
 
+export interface YouTubeLiveChatMessage {
+  id: string;
+  author: string;
+  avatar_url: string | null;
+  is_moderator: boolean;
+  is_owner: boolean;
+  is_sponsor: boolean;
+  text: string;
+  published_at: string;
+}
+
+export interface YouTubeLiveChatPage {
+  broadcast_id: string;
+  live_chat_id: string | null;
+  next_page_token: string | null;
+  polling_interval_ms: number;
+  offline: boolean;
+  messages: YouTubeLiveChatMessage[];
+}
+
+const MIN_CHAT_POLLING_MS = 10_000;
+
 const BROADCAST_STATUS_ORDER: Record<string, number> = {
   live: 0,
   testing: 1,
@@ -140,6 +164,7 @@ export class YouTubeAuthService {
   private readonly pending = new Map<string, PendingAuthorization>();
   private refreshPromise: Promise<string> | null = null;
   private broadcastsCache: { at: number; data: BroadcastList } | null = null;
+  private readonly liveChatIdCache = new Map<string, string>();
   private readonly now: () => number;
 
   constructor(private readonly options: YouTubeAuthServiceOptions) {
@@ -304,6 +329,7 @@ export class YouTubeAuthService {
     this.options.store.clear();
     this.refreshPromise = null;
     this.broadcastsCache = null;
+    this.liveChatIdCache.clear();
     this.options.logger.info('YouTube-Konto getrennt');
   }
 
@@ -515,6 +541,64 @@ export class YouTubeAuthService {
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id, stream: stream.id }, 'YouTube-Broadcast zugeordnet');
     return { ok: true, stream_status: stream.status?.streamStatus ?? null };
+  }
+
+  /**
+   * Fetches a page of YouTube Live Chat messages for a broadcast.
+   * Caches `activeLiveChatId` per broadcast and enforces a minimum polling interval
+   * to keep YouTube Data API quota usage predictable.
+   */
+  async liveChatMessages(broadcastId: string, pageToken?: string): Promise<YouTubeLiveChatPage> {
+    const token = await this.accessToken();
+    let liveChatId: string | null = this.liveChatIdCache.get(broadcastId) ?? null;
+    if (!liveChatId) {
+      liveChatId = await fetchActiveLiveChatId(token, broadcastId);
+      if (liveChatId) {
+        this.liveChatIdCache.set(broadcastId, liveChatId);
+      }
+    }
+    if (!liveChatId) {
+      return {
+        broadcast_id: broadcastId,
+        live_chat_id: null,
+        next_page_token: null,
+        polling_interval_ms: 15_000,
+        offline: true,
+        messages: [],
+      };
+    }
+
+    const page = await listLiveChatMessages(token, liveChatId, pageToken);
+    const offline = Boolean(page.offlineAt);
+    if (offline) {
+      this.liveChatIdCache.delete(broadcastId);
+    }
+
+    const messages: YouTubeLiveChatMessage[] = [];
+    for (const item of page.items ?? []) {
+      const text =
+        item.snippet?.displayMessage ?? item.snippet?.textMessageDetails?.messageText ?? '';
+      if (!text) continue;
+      messages.push({
+        id: item.id,
+        author: item.authorDetails?.displayName ?? 'YouTube',
+        avatar_url: item.authorDetails?.profileImageUrl ?? null,
+        is_moderator: Boolean(item.authorDetails?.isChatModerator),
+        is_owner: Boolean(item.authorDetails?.isChatOwner),
+        is_sponsor: Boolean(item.authorDetails?.isChatSponsor),
+        text,
+        published_at: item.snippet?.publishedAt ?? new Date(this.now()).toISOString(),
+      });
+    }
+
+    return {
+      broadcast_id: broadcastId,
+      live_chat_id: liveChatId,
+      next_page_token: page.nextPageToken ?? null,
+      polling_interval_ms: Math.max(MIN_CHAT_POLLING_MS, page.pollingIntervalMillis ?? MIN_CHAT_POLLING_MS),
+      offline,
+      messages,
+    };
   }
 
   /** Best-effort: brings a RELAY-managed broadcast live. Never throws. */

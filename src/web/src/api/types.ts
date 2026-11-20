@@ -573,6 +573,26 @@ export type YouTubeBroadcastUpdate = Partial<Omit<YouTubeBroadcastInput, 'stream
 
 export type YouTubeBroadcastTransition = 'testing' | 'live' | 'complete';
 
+export interface YouTubeLiveChatMessage {
+  id: string;
+  author: string;
+  avatar_url: string | null;
+  is_moderator: boolean;
+  is_owner: boolean;
+  is_sponsor: boolean;
+  text: string;
+  published_at: string;
+}
+
+export interface YouTubeLiveChatPage {
+  broadcast_id: string;
+  live_chat_id: string | null;
+  next_page_token: string | null;
+  polling_interval_ms: number;
+  offline: boolean;
+  messages: YouTubeLiveChatMessage[];
+}
+
 export interface EarningsSettings {
   enabled: boolean;
   source_url: string;

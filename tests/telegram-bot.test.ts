@@ -200,6 +200,11 @@ function setup() {
       stopped.push(`youtube:publish:${id}`);
       return {};
     },
+    youtubeUpdateTitle: async (id, title) => {
+      stopped.push(`youtube:title:${id}:${title}`);
+      return {};
+    },
+    titleTemplate: () => '{streamer} LIVE',
     showScreen: async (type) => {
       stopped.push(`screen:${type}`);
       return {};
@@ -664,5 +669,51 @@ describe('Telegram bot control', () => {
     calls.length = 0;
     handler.handleStatusEvent(status({ state: 'reconnecting' }));
     expect(calls).toHaveLength(0);
+  });
+
+  it('shows current YouTube title and requires confirmation before updating (/title, #39)', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleMessage: (m: unknown) => Promise<void>;
+      handleCallback: (q: unknown) => Promise<void>;
+    };
+
+    await handler.handleMessage(message(42, '/title'));
+    expect(
+      calls.some(
+        (call) =>
+          call.method === 'sendMessage' &&
+          String(call.body.text).includes('Test Broadcast') &&
+          String(call.body.text).includes('{streamer} LIVE'),
+      ),
+    ).toBe(true);
+
+    calls.length = 0;
+    await handler.handleMessage(message(42, '/title Neuer Abendstream'));
+    expect(stopped).not.toContain('youtube:title:bc-1:Neuer Abendstream');
+
+    const confirm = findCallback(calls, 'Ja, ausführen');
+    await handler.handleCallback({
+      id: 'cb-title',
+      from: { id: 42, username: 'tester' },
+      data: confirm,
+      message: message(42, ''),
+    });
+    expect(stopped).toContain('youtube:title:bc-1:Neuer Abendstream');
+  });
+
+  it('rejects overly long /title values without calling YouTube', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleMessage: (m: unknown) => Promise<void>;
+    };
+    await handler.handleMessage(message(42, `/title ${'A'.repeat(105)}`));
+    expect(
+      calls.some(
+        (call) =>
+          call.method === 'sendMessage' && String(call.body.text).includes('maximal 100 Zeichen'),
+      ),
+    ).toBe(true);
+    expect(stopped.filter((s) => s.startsWith('youtube:title:'))).toHaveLength(0);
   });
 });

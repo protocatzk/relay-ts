@@ -12,6 +12,7 @@ import { sortStreamersByPriority } from '@/src/utils/sort-streamers';
 import { useToast } from '@/src/composables/useToast';
 import { useStore } from '@/src/composables/useStore';
 import YouTubeBroadcastEditor from '@/src/components/YouTubeBroadcastEditor.vue';
+import YouTubeLiveChat from '@/src/components/YouTubeLiveChat.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 
 const { pushToast } = useToast();
@@ -636,6 +637,8 @@ onMounted(async () => {
           </p>
         </div>
       </section>
+
+      <YouTubeLiveChat :broadcasts="broadcasts" />
     </template>
 
     <YouTubeBroadcastEditor

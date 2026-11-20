@@ -833,6 +833,16 @@ const routes: RouteDoc[] = [
   },
   { method: 'get', path: '/api/youtube/broadcasts', tag: 'youtube', summary: 'Broadcasts auflisten' },
   {
+    method: 'get',
+    path: '/api/youtube/chat',
+    tag: 'youtube',
+    summary: 'YouTube Live-Chat-Nachrichten eines Broadcasts abrufen',
+    query: [
+      { name: 'broadcast_id', in: 'query', required: true, schema: { type: 'string' } },
+      { name: 'page_token', in: 'query', required: false, schema: { type: 'string' } },
+    ],
+  },
+  {
     method: 'post',
     path: '/api/youtube/broadcasts',
     tag: 'youtube',

@@ -291,6 +291,9 @@ async function main(): Promise<void> {
           youtubeTransition: (id, status) =>
             youtubeAuth.transitionBroadcastById(id, status),
           youtubePublish: (id) => youtubeAuth.publishBroadcast(id),
+          youtubeUpdateTitle: (id, title) =>
+            auditTelegram('youtube.title', id, () => youtubeAuth.updateBroadcastById(id, { title })),
+          titleTemplate: () => settingsService.get().streaming.title_template,
           showScreen: (type) => auditTelegram('screen.start', type, () => supervisor.showScreen(type)),
           hideScreen: () => auditTelegram('screen.stop', null, () => supervisor.hideScreen()),
           toggleOverlay: async (key) => {
