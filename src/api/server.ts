@@ -93,17 +93,19 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
     const pathname = (request.url ?? '').split('?')[0] ?? '/';
+    const contentType = String(reply.getHeader('content-type') ?? '');
     if (pathname.startsWith('/api/')) {
       reply.header('cache-control', 'no-store');
     } else if (pathname.startsWith('/assets/')) {
       // Hashed build assets are immutable.
       reply.header('cache-control', 'public, max-age=31536000, immutable');
-    } else if (
-      pathname === '/sw.js' ||
-      pathname === '/manifest.webmanifest' ||
-      pathname === '/index.html'
-    ) {
+    } else if (pathname === '/manifest.webmanifest') {
       reply.header('cache-control', 'no-cache');
+    } else if (pathname === '/sw.js' || contentType.startsWith('text/html')) {
+      // The SPA shell (including not-found fallbacks) and the service worker
+      // must never be served stale; mobile browsers otherwise keep the old
+      // bundle after a deploy.
+      reply.header('cache-control', 'no-store, max-age=0, must-revalidate');
     }
     if (pathname === '/sw.js') {
       reply.header('service-worker-allowed', '/');
@@ -152,7 +154,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
           error: { code: 'method_not_allowed', message: 'Methode nicht erlaubt' },
         });
       }
-      reply.header('cache-control', 'no-cache');
+      reply.header('cache-control', 'no-store, max-age=0, must-revalidate');
       return reply.type('text/html').sendFile('index.html');
     });
   } else {

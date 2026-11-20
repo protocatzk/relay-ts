@@ -5,6 +5,7 @@ import AppHeader from '@/src/components/AppHeader.vue';
 import AppBottomNav from '@/src/components/AppBottomNav.vue';
 import ToastHost from '@/src/components/ToastHost.vue';
 import PwaPrompt from '@/src/components/PwaPrompt.vue';
+import { checkServerVersion } from '@/src/composables/usePwa';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
 
 const route = useRoute();
@@ -28,6 +29,13 @@ watch(
   (authenticated) => {
     if (authenticated) void bootstrap();
   },
+);
+
+// A newer server version means this bundle is stale; force a fresh load.
+watch(
+  () => store.status?.version,
+  (version) => checkServerVersion(version),
+  { immediate: true },
 );
 
 onBeforeUnmount(() => {

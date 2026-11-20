@@ -27,6 +27,54 @@ const state = reactive<PwaState>({
 
 let updateSW: ((reload?: boolean) => Promise<void>) | null = null;
 
+let swRegistration: ServiceWorkerRegistration | undefined;
+let updateTimer: number | null = null;
+let updateListenersBound = false;
+
+/** How often an open tab checks for a new service worker. */
+const UPDATE_CHECK_MS = 60_000;
+
+function sessionGet(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function sessionSet(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function checkForUpdate(): void {
+  void swRegistration?.update().catch(() => undefined);
+}
+
+function scheduleUpdateChecks(): void {
+  if (updateTimer !== null) return;
+  checkForUpdate();
+  updateTimer = window.setInterval(checkForUpdate, UPDATE_CHECK_MS);
+  if (updateListenersBound) return;
+  updateListenersBound = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+  window.addEventListener('focus', checkForUpdate);
+  window.addEventListener('online', checkForUpdate);
+}
+
+function reloadOnce(): void {
+  const now = Date.now();
+  const last = Number(sessionGet('relay:reload-at') ?? 0);
+  if (now - last < 10_000) return;
+  sessionSet('relay:reload-at', String(now));
+  window.location.reload();
+}
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -91,11 +139,17 @@ export function initPwa(): void {
         state.offlineReady = true;
       },
       onNeedRefresh() {
+        // Force the waiting worker to activate instead of waiting for a tap.
         state.needRefresh = true;
+        void refreshApp();
       },
-      onRegistered(registration) {
-        // Keep the precache fresh in the background.
-        void registration?.update().catch(() => undefined);
+      onNeedReload() {
+        // A new worker already took control; reload to run the new bundle.
+        reloadOnce();
+      },
+      onRegisteredSW(_swUrl, registration) {
+        swRegistration = registration;
+        scheduleUpdateChecks();
       },
       onRegisterError(error) {
         console.error('Service-Worker-Registrierung fehlgeschlagen:', error);
@@ -116,6 +170,35 @@ async function refreshApp(): Promise<void> {
 
 function dismissRefresh(): void {
   state.needRefresh = false;
+}
+
+/**
+ * Compares the running bundle version with the server version. If the server
+ * is newer, the client is stale: drop the service worker + caches and reload
+ * from the network. Guarded per version so a broken reload cannot loop.
+ */
+export function checkServerVersion(version: string | null | undefined): void {
+  if (!version || version === __APP_VERSION__) return;
+  const key = 'relay:forced-version';
+  if (sessionGet(key) === version) return;
+  sessionSet(key, version);
+  void forceFreshClient();
+}
+
+async function forceFreshClient(): Promise<void> {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((name) => caches.delete(name)));
+    }
+  } catch {
+    /* best effort – reload anyway */
+  }
+  window.location.reload();
 }
 
 export function usePwa() {

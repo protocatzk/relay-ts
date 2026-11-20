@@ -288,6 +288,19 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   `offset_x`/`offset_y` bzw. `font_size`; Presets sind JSON-Export/-Import.
   Ohne Beispielmodus liefert der Server die letzten echten Chat-Nachrichten.
 
+## PWA und Updates
+
+- Service Worker über `vite-plugin-pwa` (`registerType: 'prompt'`); Updates
+  werden automatisch angewendet (`onNeedRefresh` → `skipWaiting` + Reload).
+- Update-Prüfung: beim Registrieren, alle 60 s, bei `visibilitychange`
+  (sichtbar), `focus` und `online` – sonst prüfen mobile Browser eine
+  installierte PWA kaum auf neue Service Worker.
+- `index.html`/SPA-Fallback und `sw.js` werden mit
+  `Cache-Control: no-store` ausgeliefert; `/assets/*` bleibt immutable.
+- Versions-Mismatch: Der Client bäckt `__APP_VERSION__` (package.json) ein und
+  vergleicht ihn mit `status.version`. Ist der Server neuer, werden Service
+  Worker + Caches gelöscht und neu geladen (einmal pro Zielversion).
+
 ## Qualitätsregeln
 
 - Vor jedem Commit: `npm run check` und bei UI/Serveränderungen `npm run build`.
