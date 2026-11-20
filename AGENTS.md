@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.13.0**
+- Aktuelle Version: **0.13.1**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -148,6 +148,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   (zweite rawvideo-Pipe, fd 4) durch den Sink; Position/Breite/Deckkraft werden
   im Overlay-Studio gesetzt. Das Asset ist `web/dist/logo.png` (aus
   `src/web/public`); Änderungen starten den Sink neu.
+- Die Sink-Pipes sind fest verdrahtet: fd 3 für den Chat, fd 4 für das Logo.
+  Auch wenn nur eines der Overlays aktiv ist, bleiben beide Deskriptoren
+  stabil; sonst liest ffmpeg das Logo von fd 3, während die Engine auf fd 4
+  schreibt, und der Sink stallt.
 - Fehlt `settings.overlays`, werden beim ersten Start die Overlays des ersten
   Streamers mit aktivem Overlay übernommen und persistiert.
 - Per-Streamer-Overlays aus Alt-YAMLs werden beim Laden ignoriert und aus der
