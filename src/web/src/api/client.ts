@@ -21,6 +21,7 @@ import type {
   LogQueryParams,
   LogsResponse,
   MediaFile,
+  MediaListResponse,
   MediaUploadResult,
   Playlist,
   PlaylistInput,
@@ -211,6 +212,9 @@ export interface QueueApi {
   get(): Promise<QueueSnapshot>;
   add(channel: string): Promise<{ queue: QueueSnapshot }>;
   remove(id: string): Promise<{ queue: QueueSnapshot }>;
+  updateEntry(id: string, durationSeconds: number | null): Promise<{ queue: QueueSnapshot }>;
+  duplicate(id: string): Promise<{ queue: QueueSnapshot }>;
+  setLoop(loop: boolean): Promise<{ queue: QueueSnapshot }>;
   move(id: string, to: number): Promise<{ queue: QueueSnapshot }>;
   clear(): Promise<{ queue: QueueSnapshot }>;
   play(index?: number): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
@@ -325,7 +329,9 @@ export const api = {
   } satisfies SettingsApi,
 
   media: {
-    list: () => request<{ files: MediaFile[] }>('/api/media'),
+    list: () => request<MediaListResponse>('/api/media'),
+    thumbnailUrl: (filename: string): string =>
+      `/api/media/${encodeURIComponent(filename)}/thumbnail`,
     upload: (
       file: File,
       onProgress?: (percent: number) => void,
@@ -404,6 +410,21 @@ export const api = {
     remove: (id: string) =>
       request<{ queue: QueueSnapshot }>(`/api/queue/entries/${encodeURIComponent(id)}`, {
         method: 'DELETE',
+      }),
+    updateEntry: (id: string, durationSeconds: number | null) =>
+      request<{ queue: QueueSnapshot }>(`/api/queue/entries/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body: { duration_seconds: durationSeconds },
+      }),
+    duplicate: (id: string) =>
+      request<{ queue: QueueSnapshot }>(
+        `/api/queue/entries/${encodeURIComponent(id)}/duplicate`,
+        { method: 'POST' },
+      ),
+    setLoop: (loop: boolean) =>
+      request<{ queue: QueueSnapshot }>('/api/queue/loop', {
+        method: 'PUT',
+        body: { loop },
       }),
     move: (id: string, to: number) =>
       request<{ queue: QueueSnapshot }>('/api/queue/move', { method: 'POST', body: { id, to } }),

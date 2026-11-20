@@ -272,6 +272,41 @@ test.describe('accessibility smoke checks', () => {
     await expect(page.locator('#audit-action')).toBeVisible();
     await expectNoOverflow(page);
   });
+
+  test('playlist editor manages channels as a keyboard-reorderable list with duplicate badges', async ({
+    page,
+  }) => {
+    await page.goto('/#/playlists');
+    await page.getByRole('button', { name: 'Neue Playlist' }).click();
+    const modal = page.getByRole('dialog', { name: 'Neue Playlist' });
+    await expect(modal).toBeVisible();
+
+    const input = modal.locator('#playlist-channel-input');
+    await input.fill('first_handle');
+    await modal.getByRole('button', { name: 'Hinzufügen' }).click();
+    await input.fill('second_handle');
+    await modal.getByRole('button', { name: 'Hinzufügen' }).click();
+    await input.fill('first_handle');
+    await modal.getByRole('button', { name: 'Hinzufügen' }).click();
+
+    const list = modal.getByRole('list', { name: 'Playlist-Reihenfolge' });
+    await expect(list.locator('li')).toHaveCount(3);
+    await expect(list.getByText('Duplikat')).toHaveCount(1);
+
+    await list.getByRole('button', { name: 'second_handle nach oben' }).click();
+    await expect(list.locator('li').first()).toContainText('second_handle');
+  });
+
+  test('stream deck customizes action order and persists per device', async ({ page }) => {
+    await page.goto('/#/deck');
+    await page.getByRole('button', { name: 'Anpassen' }).click();
+    await expect(page.getByRole('region', { name: 'Aktionen anpassen' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Stop nach oben' }).click();
+    await page.reload();
+    const firstAction = page.locator('.deck-actions .deck-btn').first();
+    await expect(firstAction).toContainText('Stop');
+  });
 });
 
 async function expectNoOverflow(page: import('@playwright/test').Page): Promise<void> {

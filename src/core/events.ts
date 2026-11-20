@@ -80,6 +80,7 @@ export interface QueueViewEntry {
   channel: string;
   kind: QueueEntryKind;
   label: string;
+  duration_seconds: number | null;
 }
 
 /** Ephemeral-by-content, persisted "regie" queue of videos, streamers and screens. */
@@ -87,6 +88,7 @@ export interface QueueSnapshot {
   entries: QueueViewEntry[];
   playing: boolean;
   index: number | null;
+  loop: boolean;
 }
 
 export type SystemEvent =

@@ -18,6 +18,7 @@ const QUEUE_FILE_VERSION = 2;
 export interface QueueEntry {
   id: string;
   channel: string;
+  duration_seconds?: number | null;
 }
 
 /** Last known position of the active queue video, used to resume after restarts. */
@@ -32,6 +33,7 @@ interface QueueFile {
   version: number;
   entries: QueueEntry[];
   playback: QueuePlayback | null;
+  loop?: boolean;
 }
 
 export interface QueueControllerDeps {
@@ -51,6 +53,7 @@ export class QueueController {
   private readonly deps: QueueControllerDeps;
   private entries: QueueEntry[] = [];
   private playback: QueuePlayback | null = null;
+  private loop = false;
   private loaded = false;
 
   constructor(deps: QueueControllerDeps) {
@@ -60,6 +63,17 @@ export class QueueController {
   get(): QueueEntry[] {
     this.load();
     return [...this.entries];
+  }
+
+  isLoop(): boolean {
+    this.load();
+    return this.loop;
+  }
+
+  setLoop(enabled: boolean): void {
+    this.load();
+    this.loop = Boolean(enabled);
+    this.persist();
   }
 
   channels(): string[] {
@@ -73,7 +87,7 @@ export class QueueController {
       name: 'Regie-Queue',
       channels: this.channels(),
       auto_advance: true,
-      wrap: false,
+      wrap: this.isLoop(),
       advance_delay_seconds: 5,
     };
   }
@@ -85,33 +99,78 @@ export class QueueController {
         channel: entry.channel,
         kind: kindOf(entry.channel),
         label: this.labelOf(entry.channel),
+        duration_seconds: entry.duration_seconds ?? null,
       })),
       playing,
       index,
+      loop: this.isLoop(),
     };
   }
 
-  add(channel: string): QueueEntry {
+  add(channel: string, durationSeconds?: number | null): QueueEntry {
     this.load();
     if (this.entries.length >= MAX_QUEUE_ENTRIES) {
       throw new ValidationError(`Die Regie-Queue ist auf ${MAX_QUEUE_ENTRIES} Einträge begrenzt`);
     }
-    const entry: QueueEntry = { id: randomUUID(), channel: this.normalize(channel) };
+    const entry: QueueEntry = {
+      id: randomUUID(),
+      channel: this.normalize(channel),
+      ...(normalizeDuration(durationSeconds) !== null
+        ? { duration_seconds: normalizeDuration(durationSeconds) }
+        : {}),
+    };
     this.entries.push(entry);
     this.persist();
     return entry;
   }
 
-  insertAt(channel: string, index: number): QueueEntry {
+  insertAt(channel: string, index: number, durationSeconds?: number | null): QueueEntry {
     this.load();
     if (this.entries.length >= MAX_QUEUE_ENTRIES) {
       throw new ValidationError(`Die Regie-Queue ist auf ${MAX_QUEUE_ENTRIES} Einträge begrenzt`);
     }
-    const entry: QueueEntry = { id: randomUUID(), channel: this.normalize(channel) };
+    const entry: QueueEntry = {
+      id: randomUUID(),
+      channel: this.normalize(channel),
+      ...(normalizeDuration(durationSeconds) !== null
+        ? { duration_seconds: normalizeDuration(durationSeconds) }
+        : {}),
+    };
     const target = Math.max(0, Math.min(this.entries.length, Math.trunc(index)));
     this.entries.splice(target, 0, entry);
     this.persist();
     return entry;
+  }
+
+  updateEntry(id: string, patch: { duration_seconds?: number | null }): boolean {
+    this.load();
+    const entry = this.entries.find((item) => item.id === id);
+    if (!entry) return false;
+    if ('duration_seconds' in patch) {
+      const normalized = normalizeDuration(patch.duration_seconds);
+      if (normalized === null) delete entry.duration_seconds;
+      else entry.duration_seconds = normalized;
+    }
+    this.persist();
+    return true;
+  }
+
+  duplicate(id: string): QueueEntry | null {
+    this.load();
+    if (this.entries.length >= MAX_QUEUE_ENTRIES) {
+      throw new ValidationError(`Die Regie-Queue ist auf ${MAX_QUEUE_ENTRIES} Einträge begrenzt`);
+    }
+    const index = this.entries.findIndex((item) => item.id === id);
+    if (index < 0) return null;
+    const source = this.entries[index]!;
+    const copy: QueueEntry = {
+      id: randomUUID(),
+      channel: source.channel,
+      ...(source.duration_seconds !== undefined ? { duration_seconds: source.duration_seconds } : {}),
+    };
+    this.entries.splice(index + 1, 0, copy);
+    this.persist();
+    return copy;
   }
 
   remove(id: string): boolean {
@@ -207,7 +266,14 @@ export class QueueController {
           typeof entry.channel === 'string' &&
           entry.channel.trim().length > 0,
       )
-      .slice(0, MAX_QUEUE_ENTRIES);
+      .slice(0, MAX_QUEUE_ENTRIES)
+      .map((entry) => {
+        const duration = normalizeDuration(entry.duration_seconds);
+        return duration !== null
+          ? { id: entry.id, channel: entry.channel, duration_seconds: duration }
+          : { id: entry.id, channel: entry.channel };
+      });
+    this.loop = raw.loop === true;
     const playback = (raw as { playback?: QueuePlayback | null }).playback;
     if (
       playback &&
@@ -236,6 +302,7 @@ export class QueueController {
         version: QUEUE_FILE_VERSION,
         entries: this.entries,
         playback: this.playback,
+        loop: this.loop,
       } satisfies QueueFile);
     } catch (error) {
       this.deps.logger.warn(
@@ -250,4 +317,10 @@ function kindOf(channel: string): QueueEntryKind {
   if (channel.startsWith('file:')) return 'file';
   if (channel.startsWith('screen:')) return 'screen';
   return 'streamer';
+}
+
+function normalizeDuration(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.min(86_400, Math.round(value));
 }

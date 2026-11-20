@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
 import type { EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
@@ -10,6 +11,7 @@ import ModuleVital from '@/src/components/ModuleVital.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
+import { openStreamDeckWindow } from '@/src/utils/stream-deck';
 import {
   formatBitrate,
   formatFps,
@@ -19,6 +21,7 @@ import {
 } from '@/src/utils/format';
 import { sortStreamersByLive, sortStreamersByPriority } from '@/src/utils/sort-streamers';
 
+const router = useRouter();
 const { store, refreshStatus, refreshStreamers, refreshPlaylists, refreshEarnings: syncEarnings } = useStore();
 const { series } = useTelemetry();
 const { pushToast } = useToast();
@@ -371,7 +374,7 @@ onBeforeUnmount(() => {
         <RouterLink
           to="/deck"
           class="btn btn-ghost btn-sm"
-          title="Stream-Deck (Vollbild-Steuerung)"
+          title="Stream-Deck im selben Tab öffnen"
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8" />
@@ -379,6 +382,14 @@ onBeforeUnmount(() => {
           </svg>
           Stream-Deck
         </RouterLink>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          title="Stream-Deck in neuem maximiertem Fenster öffnen"
+          @click="openStreamDeckWindow(router)"
+        >
+          Neues Fenster
+        </button>
       </div>
     </div>
 

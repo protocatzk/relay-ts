@@ -6,13 +6,16 @@ import type { ApiContext } from '../context.js';
 import { ensureDir } from '../../utils/fs.js';
 import { NotFoundError, ValidationError } from '../../utils/errors.js';
 import {
-  listMediaFiles,
+  cleanupMediaThumbnails,
+  ensureMediaThumbnail,
+  listMediaFilesWithMeta,
   mediaDirectory,
   mediaFilePath,
   probeMediaFile,
   safeMediaNameFromOriginal,
   type MediaProbe,
 } from '../../core/media/media-files.js';
+import { filesystemUsage } from '../../core/diagnostics.js';
 
 const MAX_MEDIA_BYTES = 2 * 1024 * 1024 * 1024;
 
@@ -30,9 +33,18 @@ export async function registerMediaRoutes(app: FastifyInstance, ctx: ApiContext)
   ensureDir(dir);
   const writeLimit = { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } };
 
-  app.get('/api/media', async () => ({
-    files: listMediaFiles(ctx.config.paths.dataDir),
-  }));
+  app.get('/api/media', async () => {
+    const files = await listMediaFilesWithMeta(ctx.config.paths.dataDir, ctx.config.media.ffmpegBin);
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    return {
+      files,
+      storage: {
+        total_bytes: totalBytes,
+        file_count: files.length,
+        filesystem: filesystemUsage(dir),
+      },
+    };
+  });
 
   app.post('/api/media', writeLimit, async (request, reply) => {
     let upload;
@@ -81,12 +93,13 @@ export async function registerMediaRoutes(app: FastifyInstance, ctx: ApiContext)
     }
 
     const stat = statSync(filePath);
-    let probe: MediaProbe = { isH264: false, height: null, duration: null };
+    let probe: MediaProbe = { isH264: false, codec: null, width: null, height: null, duration: null };
     try {
       probe = await probeMediaFile(ctx.config.media.ffmpegBin, filePath);
     } catch {
       /* probe is best-effort; playback re-probes as needed */
     }
+    cleanupMediaThumbnails(ctx.config.paths.dataDir, filename);
 
     ctx.logger.info(
       { filename, size: stat.size, isH264: probe.isH264, height: probe.height },
@@ -98,9 +111,32 @@ export async function registerMediaRoutes(app: FastifyInstance, ctx: ApiContext)
         size: stat.size,
         modified_at: new Date(stat.mtimeMs).toISOString(),
         is_h264: probe.isH264,
+        codec: probe.codec,
+        width: probe.width,
         height: probe.height,
+        duration: probe.duration,
       },
     });
+  });
+
+  app.get('/api/media/:filename/thumbnail', async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    const path = mediaFilePath(ctx.config.paths.dataDir, filename);
+    if (!path) throw new ValidationError('Ungültiger Dateiname');
+    if (!existsSync(path)) throw new NotFoundError('Videodatei nicht gefunden');
+    const thumb = await ensureMediaThumbnail(
+      ctx.config.paths.dataDir,
+      ctx.config.media.ffmpegBin,
+      filename,
+    );
+    if (!thumb || !existsSync(thumb)) {
+      throw new NotFoundError('Vorschaubild konnte nicht erzeugt werden');
+    }
+    const stat = statSync(thumb);
+    reply.header('cache-control', 'private, max-age=86400');
+    reply.header('content-length', String(stat.size));
+    reply.type('image/jpeg');
+    return reply.send(createReadStream(thumb));
   });
 
   app.get('/api/media/:filename', async (request, reply) => {
@@ -121,6 +157,7 @@ export async function registerMediaRoutes(app: FastifyInstance, ctx: ApiContext)
     if (!path) throw new ValidationError('Ungültiger Dateiname');
     if (!existsSync(path)) throw new NotFoundError('Videodatei nicht gefunden');
     unlinkSync(path);
+    cleanupMediaThumbnails(ctx.config.paths.dataDir, filename);
     ctx.logger.info({ filename }, 'Video gelöscht');
     return { ok: true };
   });

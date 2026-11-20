@@ -1355,6 +1355,37 @@ export class Supervisor {
     });
   }
 
+  async queueDuplicate(id: string): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      const { isQueue, currentId } = this.queueEditState();
+      if (!this.queue.duplicate(id)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
+      await this.reindexQueueLocked(currentId, isQueue);
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queueUpdateEntry(
+    id: string,
+    patch: { duration_seconds?: number | null },
+  ): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      if (!this.queue.updateEntry(id, patch)) {
+        throw new NotFoundError('Queue-Eintrag nicht gefunden');
+      }
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
+  async queueSetLoop(loop: boolean): Promise<QueueSnapshot> {
+    return this.lock.run(async () => {
+      this.queue.setLoop(loop);
+      this.emitQueue();
+      return this.buildQueueSnapshot();
+    });
+  }
+
   async queueClear(): Promise<QueueSnapshot> {
     return this.lock.run(async () => {
       const { isQueue } = this.queueEditState();

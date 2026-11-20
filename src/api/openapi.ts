@@ -518,6 +518,36 @@ const routes: RouteDoc[] = [
     response: ref('QueueResponse'),
   },
   {
+    method: 'put',
+    path: '/api/queue/entries/:id',
+    tag: 'queue',
+    summary: 'Dauer eines Regie-Queue-Eintrags setzen oder zurücksetzen',
+    body: {
+      type: 'object',
+      properties: { duration_seconds: { type: ['number', 'null'] } },
+    },
+    response: ref('QueueResponse'),
+  },
+  {
+    method: 'post',
+    path: '/api/queue/entries/:id/duplicate',
+    tag: 'queue',
+    summary: 'Eintrag in der Regie-Queue duplizieren',
+    response: ref('QueueResponse'),
+  },
+  {
+    method: 'put',
+    path: '/api/queue/loop',
+    tag: 'queue',
+    summary: 'Loop-Modus der Regie-Queue umschalten',
+    body: {
+      type: 'object',
+      required: ['loop'],
+      properties: { loop: { type: 'boolean' } },
+    },
+    response: ref('QueueResponse'),
+  },
+  {
     method: 'post',
     path: '/api/queue/move',
     tag: 'queue',
@@ -738,6 +768,14 @@ const routes: RouteDoc[] = [
     bodyContentType: 'multipart/form-data',
     status: 201,
     responseDescription: 'Metadaten des hochgeladenen Videos',
+  },
+  {
+    method: 'get',
+    path: '/api/media/:filename/thumbnail',
+    tag: 'media',
+    summary: 'Vorschaubild (160 px JPEG) eines lokalen Videos',
+    responseType: 'image/jpeg',
+    response: { type: 'string' },
   },
   {
     method: 'get',

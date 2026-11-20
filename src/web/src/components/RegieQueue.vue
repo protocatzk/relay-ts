@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { MediaFile, QueueEntryKind, QueueSnapshot } from '@/src/api/types';
+import type { MediaFile, QueueEntryKind, QueueSnapshot, QueueViewEntry } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 
@@ -13,14 +13,28 @@ const selectedMedia = ref('');
 const selectedStreamer = ref('');
 const selectedScreen = ref<'pause' | 'startup'>('pause');
 const busy = ref(false);
+const editingDurationId = ref<string | null>(null);
+const editingDurationValue = ref('');
+const draggingId = ref<string | null>(null);
+const dragOverIndex = ref<number | null>(null);
+const listEl = ref<HTMLElement | null>(null);
 
 const queue = computed(() => store.queue);
 const entries = computed(() => queue.value?.entries ?? []);
 const activeIndex = computed(() => queue.value?.index ?? null);
+const loopEnabled = computed(() => Boolean(queue.value?.loop));
 const enabledStreamers = computed(() => store.streamers.filter((streamer) => streamer.enabled));
 const activeMedia = computed(() => store.status?.media ?? null);
 const seekValue = ref(0);
 const seeking = ref(false);
+
+const mediaDurations = computed(() => {
+  const map = new Map<string, number>();
+  for (const file of media.value) {
+    if (file.duration && file.duration > 0) map.set(`file:${file.filename}`, file.duration);
+  }
+  return map;
+});
 
 watch(
   activeMedia,
@@ -38,6 +52,36 @@ function formatClock(seconds: number): string {
   return hours > 0
     ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
     : `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
+function entryDuration(entry: QueueViewEntry): { seconds: number | null; overridden: boolean } {
+  if (entry.duration_seconds != null && entry.duration_seconds > 0) {
+    return { seconds: entry.duration_seconds, overridden: true };
+  }
+  const probed = mediaDurations.value.get(entry.channel) ?? null;
+  return { seconds: probed, overridden: false };
+}
+
+function startDurationEdit(entry: QueueViewEntry): void {
+  editingDurationId.value = entry.id;
+  const info = entryDuration(entry);
+  editingDurationValue.value = info.seconds ? String(Math.round(info.seconds)) : '';
+}
+
+function cancelDurationEdit(): void {
+  editingDurationId.value = null;
+  editingDurationValue.value = '';
+}
+
+async function saveDurationEdit(id: string): Promise<void> {
+  const raw = editingDurationValue.value.trim();
+  const value = raw === '' ? null : Math.max(1, Math.round(Number(raw)));
+  if (raw !== '' && !Number.isFinite(Number(raw))) {
+    pushToast('Bitte eine gültige Dauer in Sekunden eingeben.', 'error');
+    return;
+  }
+  editingDurationId.value = null;
+  await run(() => api.queue.updateEntry(id, value));
 }
 
 function seekTo(seconds: number): void {
@@ -102,10 +146,76 @@ function remove(id: string): void {
   void run(() => api.queue.remove(id));
 }
 
+function duplicate(id: string): void {
+  void run(() => api.queue.duplicate(id));
+}
+
+function toggleLoop(): void {
+  void run(() => api.queue.setLoop(!loopEnabled.value));
+}
+
 function move(id: string, direction: number): void {
   const index = entries.value.findIndex((entry) => entry.id === id);
   if (index < 0) return;
   void run(() => api.queue.move(id, index + direction));
+}
+
+function onDragStart(id: string, event: DragEvent): void {
+  draggingId.value = id;
+  event.dataTransfer?.setData('text/plain', id);
+}
+
+function onDragOver(index: number): void {
+  dragOverIndex.value = index;
+}
+
+function onDrop(targetIndex: number): void {
+  const id = draggingId.value;
+  draggingId.value = null;
+  dragOverIndex.value = null;
+  if (!id) return;
+  const from = entries.value.findIndex((entry) => entry.id === id);
+  if (from < 0 || from === targetIndex) return;
+  void run(() => api.queue.move(id, targetIndex));
+}
+
+function onDragEnd(): void {
+  draggingId.value = null;
+  dragOverIndex.value = null;
+}
+
+function onPointerDragStart(id: string, event: PointerEvent): void {
+  if (event.pointerType === 'mouse' || busy.value) return;
+  const target = event.currentTarget as HTMLElement | null;
+  target?.setPointerCapture?.(event.pointerId);
+  draggingId.value = id;
+  const from = entries.value.findIndex((entry) => entry.id === id);
+  dragOverIndex.value = from;
+}
+
+function onPointerDragMove(event: PointerEvent): void {
+  if (!draggingId.value || !listEl.value) return;
+  const items = Array.from(listEl.value.querySelectorAll<HTMLElement>('.regie-item'));
+  for (let i = 0; i < items.length; i += 1) {
+    const rect = items[i]!.getBoundingClientRect();
+    if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
+      dragOverIndex.value = i;
+      break;
+    }
+  }
+}
+
+function onPointerDragEnd(): void {
+  if (!draggingId.value) return;
+  const id = draggingId.value;
+  const targetIndex = dragOverIndex.value;
+  draggingId.value = null;
+  dragOverIndex.value = null;
+  if (targetIndex === null) return;
+  const from = entries.value.findIndex((entry) => entry.id === id);
+  if (from >= 0 && from !== targetIndex) {
+    void run(() => api.queue.move(id, targetIndex));
+  }
 }
 
 function play(index: number): void {
@@ -133,9 +243,20 @@ onMounted(() => void loadMedia());
     <div class="card-head">
       <div>
         <h2 id="regie-title" class="card-title">Regie-Queue</h2>
-        <p class="card-sub">Videos, Streamer und Screens.</p>
+        <p class="card-sub">Videos, Streamer und Screens per Drag sortieren.</p>
       </div>
       <div class="card-badges">
+        <button
+          type="button"
+          class="chip"
+          :class="{ 'is-active': loopEnabled }"
+          :aria-pressed="loopEnabled"
+          :disabled="busy"
+          title="Queue am Ende wieder von vorn starten"
+          @click="toggleLoop"
+        >
+          Loop {{ loopEnabled ? 'An' : 'Aus' }}
+        </button>
         <span v-if="queue?.playing" class="badge tone-success">Läuft</span>
         <span v-else class="badge tone-muted">Gestoppt</span>
         <span v-if="entries.length > 0" class="badge tone-neutral mono">
@@ -149,7 +270,7 @@ onMounted(() => void loadMedia());
         <select v-model="selectedMedia" aria-label="Video auswählen">
           <option value="" disabled>Video wählen …</option>
           <option v-for="file in media" :key="file.filename" :value="file.filename">
-            {{ file.filename }}
+            {{ file.filename }}{{ file.duration ? ` (${formatClock(file.duration)})` : '' }}
           </option>
         </select>
         <button
@@ -226,16 +347,75 @@ onMounted(() => void loadMedia());
       </div>
     </div>
 
-    <ol v-if="entries.length > 0" class="regie-list">
+    <ol v-if="entries.length > 0" ref="listEl" class="regie-list">
       <li
         v-for="(entry, index) in entries"
         :key="entry.id"
         class="regie-item"
-        :class="{ 'is-active': activeIndex === index }"
+        :class="{
+          'is-active': activeIndex === index,
+          'is-drag-over': dragOverIndex === index && draggingId !== entry.id,
+        }"
+        draggable="true"
+        @dragstart="onDragStart(entry.id, $event)"
+        @dragover.prevent="onDragOver(index)"
+        @drop.prevent="onDrop(index)"
+        @dragend="onDragEnd"
       >
+        <span
+          class="drag-handle mono"
+          title="Ziehen zum Verschieben"
+          @pointerdown="onPointerDragStart(entry.id, $event)"
+          @pointermove="onPointerDragMove"
+          @pointerup="onPointerDragEnd"
+          @pointercancel="onPointerDragEnd"
+        >
+          ⋮⋮
+        </span>
         <span class="regie-index mono">{{ index + 1 }}</span>
         <span class="regie-kind" :class="`is-${entry.kind}`">{{ kindLabel(entry.kind) }}</span>
-        <span class="regie-label" :title="entry.channel">{{ entry.label }}</span>
+        <span class="regie-label" :title="entry.channel">
+          {{ entry.label }}
+          <template v-if="editingDurationId === entry.id">
+            <span class="regie-duration-edit">
+              <input
+                v-model="editingDurationValue"
+                type="number"
+                min="1"
+                max="86400"
+                class="regie-duration-input"
+                placeholder="Sek."
+                aria-label="Dauer in Sekunden"
+                @keydown.enter.prevent="saveDurationEdit(entry.id)"
+                @keydown.escape.prevent="cancelDurationEdit"
+              />
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs"
+                @click="saveDurationEdit(entry.id)"
+              >
+                OK
+              </button>
+              <button type="button" class="btn btn-ghost btn-xs" @click="cancelDurationEdit">
+                ✕
+              </button>
+            </span>
+          </template>
+          <button
+            v-else-if="entry.kind === 'file' || entryDuration(entry).seconds !== null"
+            type="button"
+            class="regie-duration-pill mono"
+            :class="{ 'is-overridden': entryDuration(entry).overridden }"
+            title="Dauer anpassen (leer = automatisch)"
+            @click="startDurationEdit(entry)"
+          >
+            {{
+              entryDuration(entry).seconds !== null
+                ? formatClock(entryDuration(entry).seconds!)
+                : 'Dauer'
+            }}
+          </button>
+        </span>
         <span class="regie-item-actions">
           <button
             type="button"
@@ -254,6 +434,16 @@ onMounted(() => void loadMedia());
             @click="move(entry.id, 1)"
           >
             ↓
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="busy"
+            aria-label="Eintrag duplizieren"
+            title="Duplizieren"
+            @click="duplicate(entry.id)"
+          >
+            ⧉
           </button>
           <button
             type="button"

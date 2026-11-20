@@ -95,7 +95,15 @@ export function mapHttpAuditAction(method: string, url: string): MappedAuditActi
     return { action: 'queue.add', target: null };
   }
   if (path === '/api/queue/move' && method === 'POST') return { action: 'queue.move', target: null };
+  if (path === '/api/queue/loop' && method === 'PUT') return { action: 'queue.loop', target: null };
+  match = /^\/api\/queue\/entries\/([^/]+)\/duplicate$/.exec(path);
+  if (match && method === 'POST') {
+    return { action: 'queue.duplicate', target: decodeURIComponent(match[1]!) };
+  }
   match = /^\/api\/queue\/entries\/([^/]+)$/.exec(path);
+  if (match && method === 'PUT') {
+    return { action: 'queue.update_entry', target: decodeURIComponent(match[1]!) };
+  }
   if (match && method === 'DELETE') {
     return { action: 'queue.remove', target: decodeURIComponent(match[1]!) };
   }

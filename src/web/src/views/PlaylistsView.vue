@@ -21,7 +21,7 @@ const deleting = ref(false);
 const form = reactive({
   id: '',
   name: '',
-  channels: '',
+  channels: [] as string[],
   auto_advance: true,
   wrap: false,
   advance_delay_seconds: 5,
@@ -29,6 +29,11 @@ const form = reactive({
   end_time: '',
   youtube_key: '',
 });
+
+const newChannelInput = ref('');
+const selectedStreamer = ref('');
+const dragIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
 
 const activePlaylist = computed(() => store.status?.active_playlist ?? null);
 const mediaFiles = ref<MediaFile[]>([]);
@@ -44,16 +49,67 @@ function channelLabel(channel: string): string {
   return isMediaChannel(channel) ? channel.slice('file:'.length) : channel;
 }
 
+function isDuplicateChannel(channel: string, index: number): boolean {
+  const normalized = channel.trim().toLowerCase();
+  return form.channels.findIndex((entry) => entry.trim().toLowerCase() === normalized) !== index;
+}
+
+function addChannelInput(): void {
+  const parts = newChannelInput.value
+    .split(/[\n,]+/)
+    .map((item) => item.trim().replace(/^@+/, ''))
+    .filter(Boolean);
+  if (parts.length === 0) return;
+  for (const part of parts) {
+    form.channels.push(part);
+  }
+  newChannelInput.value = '';
+}
+
+function addStreamerEntry(): void {
+  if (!selectedStreamer.value) return;
+  form.channels.push(selectedStreamer.value);
+  selectedStreamer.value = '';
+}
+
 function addMediaEntry(): void {
   if (!selectedMedia.value) return;
-  const entry = `file:${selectedMedia.value}`;
-  const channels = form.channels
-    .split(/\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (!channels.includes(entry)) channels.push(entry);
-  form.channels = channels.join('\n');
+  form.channels.push(`file:${selectedMedia.value}`);
   selectedMedia.value = '';
+}
+
+function moveChannel(index: number, delta: number): void {
+  const target = index + delta;
+  if (target < 0 || target >= form.channels.length) return;
+  const [item] = form.channels.splice(index, 1);
+  if (item !== undefined) form.channels.splice(target, 0, item);
+}
+
+function removeChannel(index: number): void {
+  form.channels.splice(index, 1);
+}
+
+function onChannelDragStart(index: number, event: DragEvent): void {
+  dragIndex.value = index;
+  event.dataTransfer?.setData('text/plain', String(index));
+}
+
+function onChannelDragOver(index: number): void {
+  dragOverIndex.value = index;
+}
+
+function onChannelDrop(targetIndex: number): void {
+  const from = dragIndex.value;
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+  if (from === null || from === targetIndex || from < 0 || from >= form.channels.length) return;
+  const [item] = form.channels.splice(from, 1);
+  if (item !== undefined) form.channels.splice(targetIndex, 0, item);
+}
+
+function onChannelDragEnd(): void {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
 }
 
 async function loadMediaFiles(notify = false): Promise<void> {
@@ -95,13 +151,16 @@ function slugify(value: string): string {
 function resetForm(): void {
   form.id = '';
   form.name = '';
-  form.channels = '';
+  form.channels = [];
   form.auto_advance = true;
   form.wrap = false;
   form.advance_delay_seconds = 5;
   form.end_after_minutes = null;
   form.end_time = '';
   form.youtube_key = '';
+  newChannelInput.value = '';
+  selectedStreamer.value = '';
+  selectedMedia.value = '';
 }
 
 const editorInitialSnapshot = ref('');
@@ -138,13 +197,16 @@ function openEdit(playlist: Playlist): void {
   editingPlaylist.value = playlist;
   form.id = playlist.id;
   form.name = playlist.name;
-  form.channels = playlist.channels.join('\n');
+  form.channels = [...playlist.channels];
   form.auto_advance = playlist.auto_advance;
   form.wrap = playlist.wrap;
   form.advance_delay_seconds = playlist.advance_delay_seconds;
   form.end_after_minutes = playlist.end_after_minutes ?? null;
   form.end_time = playlist.end_time ?? '';
   form.youtube_key = '';
+  newChannelInput.value = '';
+  selectedStreamer.value = '';
+  selectedMedia.value = '';
   editorInitialSnapshot.value = formSnapshot();
   editorOpen.value = true;
   void loadMediaFiles();
@@ -157,8 +219,8 @@ async function closeEditor(): Promise<void> {
 }
 
 async function savePlaylist(): Promise<void> {
+  if (newChannelInput.value.trim()) addChannelInput();
   const channels = form.channels
-    .split(/[\n,]+/)
     .map((channel) => channel.trim().replace(/^@+/, ''))
     .filter(Boolean);
   if (!form.name.trim() || channels.length === 0) {
@@ -442,14 +504,102 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="field">
-          <label for="playlist-channels">Kanäle / Videos (eine pro Zeile oder kommagetrennt)</label>
-          <textarea id="playlist-channels" v-model="form.channels" rows="6" spellcheck="false"></textarea>
-          <p class="field-hint">
-            TikTok-Handles oder <code>file:dateiname.mp4</code> für lokale Videos.
-          </p>
+          <span class="field-label">Kanäle &amp; Videos ({{ form.channels.length }})</span>
+          <ol v-if="form.channels.length > 0" class="playlist-editor-list" aria-label="Playlist-Reihenfolge">
+            <li
+              v-for="(channel, index) in form.channels"
+              :key="`${index}-${channel}`"
+              class="playlist-editor-item"
+              :class="{ 'is-drag-over': dragOverIndex === index }"
+              draggable="true"
+              @dragstart="onChannelDragStart(index, $event)"
+              @dragover.prevent="onChannelDragOver(index)"
+              @drop.prevent="onChannelDrop(index)"
+              @dragend="onChannelDragEnd"
+            >
+              <span class="drag-handle mono" aria-hidden="true">⋮⋮</span>
+              <span class="channel-index mono">{{ index + 1 }}</span>
+              <span class="channel-name">
+                <span v-if="isMediaChannel(channel)" class="badge tone-info badge-xs">VIDEO</span>
+                {{ channelLabel(channel) }}
+                <span v-if="isDuplicateChannel(channel, index)" class="badge tone-warning badge-xs">
+                  Duplikat
+                </span>
+              </span>
+              <div class="playlist-editor-controls">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-touch"
+                  :disabled="index === 0"
+                  :aria-label="`${channelLabel(channel)} nach oben`"
+                  @click="moveChannel(index, -1)"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-touch"
+                  :disabled="index === form.channels.length - 1"
+                  :aria-label="`${channelLabel(channel)} nach unten`"
+                  @click="moveChannel(index, 1)"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-touch"
+                  :aria-label="`${channelLabel(channel)} entfernen`"
+                  @click="removeChannel(index)"
+                >
+                  ✕
+                </button>
+              </div>
+            </li>
+          </ol>
+          <p v-else class="field-hint">Noch keine Einträge. Unten Handle, Streamer oder Video hinzufügen.</p>
         </div>
+
         <div class="field">
-          <label for="playlist-media">Lokales Video einfügen</label>
+          <label for="playlist-channel-input">TikTok-Handle oder Streamer hinzufügen</label>
+          <div class="pause-upload-row">
+            <input
+              id="playlist-channel-input"
+              v-model="newChannelInput"
+              type="text"
+              placeholder="@handle oder file:video.mp4"
+              spellcheck="false"
+              @keydown.enter.prevent="addChannelInput"
+            />
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="!newChannelInput.trim()"
+              @click="addChannelInput"
+            >
+              Hinzufügen
+            </button>
+          </div>
+          <div v-if="store.streamers.length > 0" class="pause-upload-row">
+            <label class="sr-only" for="playlist-streamer-pick">Vorhandenen Streamer wählen</label>
+            <select id="playlist-streamer-pick" v-model="selectedStreamer">
+              <option value="">Streamer auswählen…</option>
+              <option v-for="streamer in store.streamers" :key="streamer.id" :value="streamer.id">
+                {{ streamer.name }} (@{{ streamer.tiktok.replace(/^@/, '') }})
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="!selectedStreamer"
+              @click="addStreamerEntry"
+            >
+              + Streamer
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="playlist-media">Lokales Video hinzufügen</label>
           <div class="pause-upload-row">
             <select id="playlist-media" v-model="selectedMedia">
               <option value="">Video aus data/media wählen…</option>
@@ -463,7 +613,7 @@ onBeforeUnmount(() => {
               :disabled="!selectedMedia"
               @click="addMediaEntry"
             >
-              Hinzufügen
+              + Video
             </button>
             <button
               type="button"

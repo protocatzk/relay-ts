@@ -8,6 +8,15 @@ import { useToast } from '@/src/composables/useToast';
 import { useWakeLock } from '@/src/composables/useWakeLock';
 import { formatUptime, stateLabel, stateTone } from '@/src/utils/format';
 import { sortStreamersByLive, sortStreamersByPriority } from '@/src/utils/sort-streamers';
+import {
+  DECK_ACTION_LABELS,
+  DEFAULT_DECK_ACTIONS,
+  loadDeckLayout,
+  openStreamDeckWindow,
+  saveDeckLayout,
+  type DeckActionConfig,
+  type DeckActionId,
+} from '@/src/utils/stream-deck';
 
 const router = useRouter();
 const { store } = useStore();
@@ -16,6 +25,45 @@ const { active: wakeLockActive, requestWakeLock } = useWakeLock();
 
 const busy = ref<string | null>(null);
 const isFullscreen = ref(false);
+const customizing = ref(false);
+const layout = ref<DeckActionConfig[]>(loadDeckLayout());
+
+const visibleActions = computed(() => layout.value.filter((item) => item.visible));
+
+function persistLayout(): void {
+  saveDeckLayout(layout.value);
+}
+
+function toggleActionVisibility(id: DeckActionId): void {
+  const item = layout.value.find((entry) => entry.id === id);
+  if (!item) return;
+  if (item.visible && visibleActions.value.length <= 1) {
+    pushToast('Mindestens eine Aktion muss sichtbar bleiben.', 'info');
+    return;
+  }
+  item.visible = !item.visible;
+  persistLayout();
+}
+
+function moveAction(index: number, delta: number): void {
+  const target = index + delta;
+  if (target < 0 || target >= layout.value.length) return;
+  const [moved] = layout.value.splice(index, 1);
+  if (moved) layout.value.splice(target, 0, moved);
+  persistLayout();
+}
+
+function resetLayout(): void {
+  layout.value = DEFAULT_DECK_ACTIONS.map((entry) => ({ ...entry }));
+  persistLayout();
+}
+
+function openInNewWindow(): void {
+  const opened = openStreamDeckWindow(router);
+  if (!opened) {
+    pushToast('Popup blockiert – Stream-Deck bleibt im aktuellen Tab.', 'info');
+  }
+}
 
 const status = computed(() => store.status);
 const state = computed(() => status.value?.state ?? null);
@@ -186,6 +234,22 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="btn btn-ghost btn-sm"
+          :aria-pressed="customizing"
+          @click="customizing = !customizing"
+        >
+          Anpassen
+        </button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          title="In neuem maximiertem Fenster öffnen"
+          @click="openInNewWindow"
+        >
+          Neues Fenster
+        </button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
           :aria-pressed="isFullscreen"
           :aria-label="isFullscreen ? 'Vollbild beenden' : 'Vollbild'"
           @click="toggleFullscreen"
@@ -214,6 +278,45 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
+    <section v-if="customizing" class="deck-section deck-config" aria-label="Aktionen anpassen">
+      <div class="deck-section-head">
+        <h2>Aktionen anpassen</h2>
+        <button type="button" class="btn btn-ghost btn-xs" @click="resetLayout">Zurücksetzen</button>
+      </div>
+      <ol class="deck-config-list">
+        <li v-for="(item, index) in layout" :key="item.id" class="deck-config-item">
+          <label class="checkbox">
+            <input
+              type="checkbox"
+              :checked="item.visible"
+              @change="toggleActionVisibility(item.id)"
+            />
+            <span>{{ DECK_ACTION_LABELS[item.id] }}</span>
+          </label>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs"
+              :disabled="index === 0"
+              :aria-label="`${DECK_ACTION_LABELS[item.id]} nach oben`"
+              @click="moveAction(index, -1)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs"
+              :disabled="index === layout.length - 1"
+              :aria-label="`${DECK_ACTION_LABELS[item.id]} nach unten`"
+              @click="moveAction(index, 1)"
+            >
+              ↓
+            </button>
+          </div>
+        </li>
+      </ol>
+    </section>
+
     <section class="deck-state" :class="`tone-${tone}`" aria-live="polite">
       <span class="deck-state-label mono">{{ stateLabel(state) }}</span>
       <span class="deck-state-name">{{ activeName }}</span>
@@ -223,65 +326,71 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="deck-actions" aria-label="Stream-Steuerung">
-      <button
-        type="button"
-        class="deck-btn deck-btn-start"
-        :disabled="!canStart || busy !== null"
-        @click="startGlobal"
-      >
-        <span v-if="busy === 'start'" class="spinner spinner-lg" aria-hidden="true"></span>
-        <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-          <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
-        </svg>
-        Start
-      </button>
-      <button
-        type="button"
-        class="deck-btn deck-btn-stop"
-        :disabled="!canStop || busy !== null"
-        @click="stopGlobal"
-      >
-        <span v-if="busy === 'stop' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
-        <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-          <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-        </svg>
-        Stop
-      </button>
-      <button
-        type="button"
-        class="deck-btn deck-btn-pause"
-        :disabled="!canPause || busy !== null"
-        @click="togglePause"
-      >
-        <span v-if="busy === 'pause' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
-        <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-          <path
-            :d="
-              manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')
-                ? 'm8 5 11 7-11 7V5Z'
-                : 'M8 5v14M16 5v14'
-            "
-            :fill="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'currentColor' : 'none'"
-            :stroke="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'none' : 'currentColor'"
-            stroke-width="2.6"
-            stroke-linecap="round"
-          />
-        </svg>
-        {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Resume' : 'Pause' }}
-      </button>
-      <button
-        type="button"
-        class="deck-btn deck-btn-startup"
-        :disabled="!canPause || busy !== null"
-        @click="toggleStartup"
-      >
-        <span v-if="busy === 'startup' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
-        <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
-          <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-        </svg>
-        {{ manualScreen === 'startup' ? 'Startbildschirm aus' : 'Startbildschirm' }}
-      </button>
+      <template v-for="action in visibleActions" :key="action.id">
+        <button
+          v-if="action.id === 'start'"
+          type="button"
+          class="deck-btn deck-btn-start"
+          :disabled="!canStart || busy !== null"
+          @click="startGlobal"
+        >
+          <span v-if="busy === 'start'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
+          </svg>
+          Start
+        </button>
+        <button
+          v-else-if="action.id === 'stop'"
+          type="button"
+          class="deck-btn deck-btn-stop"
+          :disabled="!canStop || busy !== null"
+          @click="stopGlobal"
+        >
+          <span v-if="busy === 'stop' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+          </svg>
+          Stop
+        </button>
+        <button
+          v-else-if="action.id === 'pause'"
+          type="button"
+          class="deck-btn deck-btn-pause"
+          :disabled="!canPause || busy !== null"
+          @click="togglePause"
+        >
+          <span v-if="busy === 'pause' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path
+              :d="
+                manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')
+                  ? 'm8 5 11 7-11 7V5Z'
+                  : 'M8 5v14M16 5v14'
+              "
+              :fill="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'currentColor' : 'none'"
+              :stroke="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'none' : 'currentColor'"
+              stroke-width="2.6"
+              stroke-linecap="round"
+            />
+          </svg>
+          {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Resume' : 'Pause' }}
+        </button>
+        <button
+          v-else-if="action.id === 'startup'"
+          type="button"
+          class="deck-btn deck-btn-startup"
+          :disabled="!canPause || busy !== null"
+          @click="toggleStartup"
+        >
+          <span v-if="busy === 'startup' || busy === 'screen-stop'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
+            <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+          {{ manualScreen === 'startup' ? 'Startbildschirm aus' : 'Startbildschirm' }}
+        </button>
+      </template>
     </section>
 
     <section class="deck-section" aria-labelledby="deck-live-title">

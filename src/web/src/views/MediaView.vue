@@ -1,29 +1,63 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { MediaFile } from '@/src/api/types';
+import type { MediaFile, MediaStorageSummary } from '@/src/api/types';
 import { useToast } from '@/src/composables/useToast';
-import { formatBytes, formatDateTime } from '@/src/utils/format';
+import { formatBytes, formatDateTime, formatUptime } from '@/src/utils/format';
 
 const { pushToast } = useToast();
 
 const files = ref<MediaFile[]>([]);
+const storage = ref<MediaStorageSummary | null>(null);
 const loading = ref(false);
 const uploading = ref(false);
 const progress = ref(0);
 const dragging = ref(false);
 const deleting = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const failedThumbs = reactive<Record<string, boolean>>({});
 
 const hasFiles = computed(() => files.value.length > 0);
+const totalBytes = computed(
+  () => storage.value?.total_bytes ?? files.value.reduce((sum, file) => sum + file.size, 0),
+);
 
 const ACCEPT = '.mp4,.webm,.mov,.mkv,.m4v,video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-m4v';
+
+function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return '–';
+  return formatUptime(seconds);
+}
+
+function formatResolution(file: MediaFile): string {
+  if (file.width && file.height) return `${file.width}×${file.height}`;
+  if (file.height) return `${file.height}p`;
+  return '–';
+}
+
+function codecLabel(file: MediaFile): string {
+  if (file.is_h264 === true) return 'H.264';
+  if (file.codec) return file.codec.toUpperCase();
+  if (file.is_h264 === false) return 'Nicht H.264';
+  return '–';
+}
+
+function thumbSrc(file: MediaFile): string {
+  const base = file.thumbnail_url ?? api.media.thumbnailUrl(file.filename);
+  return `${base}?v=${encodeURIComponent(file.modified_at)}`;
+}
+
+function markThumbFailed(filename: string): void {
+  failedThumbs[filename] = true;
+}
 
 async function load(): Promise<void> {
   loading.value = true;
   try {
     const response = await api.media.list();
     files.value = response.files;
+    storage.value = response.storage ?? null;
+    for (const key of Object.keys(failedThumbs)) delete failedThumbs[key];
   } catch (error) {
     pushToast(errorMessage(error), 'error');
   } finally {
@@ -150,7 +184,12 @@ onMounted(load);
       <div class="card-head">
         <div>
           <h2 id="media-list-title" class="card-title">Vorhandene Videos</h2>
-          <p class="card-sub">{{ files.length }} Dateien in <code>data/media/</code></p>
+          <p class="card-sub">
+            {{ files.length }} Dateien · {{ formatBytes(totalBytes) }} in <code>data/media/</code>
+            <template v-if="storage?.filesystem">
+              · {{ formatBytes(storage.filesystem.available_bytes) }} frei
+            </template>
+          </p>
         </div>
         <span v-if="loading" class="badge tone-neutral">Lädt…</span>
       </div>
@@ -165,6 +204,9 @@ onMounted(load);
           <thead>
             <tr role="row">
               <th scope="col" role="columnheader">Datei</th>
+              <th scope="col" role="columnheader">Dauer</th>
+              <th scope="col" role="columnheader">Auflösung</th>
+              <th scope="col" role="columnheader">Codec</th>
               <th scope="col" role="columnheader">Größe</th>
               <th scope="col" role="columnheader">Geändert</th>
               <th scope="col" role="columnheader">Aktionen</th>
@@ -173,9 +215,43 @@ onMounted(load);
           <tbody>
             <tr v-for="file in files" :key="file.filename" role="row">
               <td data-label="Datei" role="cell">
-                <span class="mono">{{ file.filename }}</span>
+                <div class="media-file-cell">
+                  <div class="media-thumb-box" aria-hidden="true">
+                    <img
+                      v-if="!failedThumbs[file.filename]"
+                      :src="thumbSrc(file)"
+                      alt=""
+                      class="media-thumb"
+                      loading="lazy"
+                      decoding="async"
+                      width="80"
+                      height="45"
+                      @error="markThumbFailed(file.filename)"
+                    />
+                    <span v-else class="media-thumb-fallback mono">MP4</span>
+                  </div>
+                  <span class="mono">{{ file.filename }}</span>
+                </div>
               </td>
-              <td data-label="Größe" role="cell">{{ formatBytes(file.size) }}</td>
+              <td data-label="Dauer" role="cell" class="mono">{{ formatDuration(file.duration) }}</td>
+              <td data-label="Auflösung" role="cell" class="mono">{{ formatResolution(file) }}</td>
+              <td data-label="Codec" role="cell">
+                <span
+                  v-if="file.is_h264 === true"
+                  class="badge tone-success badge-xs"
+                >
+                  H.264
+                </span>
+                <span
+                  v-else-if="file.is_h264 === false"
+                  class="badge tone-warning badge-xs"
+                  title="Wird beim Abspielen neu kodiert"
+                >
+                  {{ codecLabel(file) }}
+                </span>
+                <span v-else class="muted">–</span>
+              </td>
+              <td data-label="Größe" role="cell" class="mono">{{ formatBytes(file.size) }}</td>
               <td data-label="Geändert" role="cell">{{ formatDateTime(file.modified_at) }}</td>
               <td data-label="Aktionen" role="cell">
                 <button

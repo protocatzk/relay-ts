@@ -194,12 +194,14 @@ export interface QueueViewEntry {
   channel: string;
   kind: QueueEntryKind;
   label: string;
+  duration_seconds?: number | null;
 }
 
 export interface QueueSnapshot {
   entries: QueueViewEntry[];
   playing: boolean;
   index: number | null;
+  loop?: boolean;
 }
 
 export interface EarningsRates {
@@ -582,6 +584,27 @@ export interface MediaFile {
   path: string;
   size: number;
   modified_at: string;
+  duration?: number | null;
+  width?: number | null;
+  height?: number | null;
+  is_h264?: boolean | null;
+  codec?: string | null;
+  thumbnail_url?: string;
+}
+
+export interface MediaStorageSummary {
+  total_bytes: number;
+  file_count: number;
+  filesystem: {
+    total_bytes: number;
+    free_bytes: number;
+    available_bytes: number;
+  } | null;
+}
+
+export interface MediaListResponse {
+  files: MediaFile[];
+  storage?: MediaStorageSummary;
 }
 
 export interface MediaUploadResult {
@@ -590,7 +613,10 @@ export interface MediaUploadResult {
     size: number;
     modified_at: string;
     is_h264: boolean;
+    codec?: string | null;
+    width?: number | null;
     height: number | null;
+    duration?: number | null;
   };
 }
 
