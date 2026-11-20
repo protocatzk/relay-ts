@@ -11,6 +11,7 @@ import {
   mediaFilePath,
   probeMediaFile,
   safeMediaNameFromOriginal,
+  type MediaProbe,
 } from '../../core/media/media-files.js';
 
 const MAX_MEDIA_BYTES = 2 * 1024 * 1024 * 1024;
@@ -80,7 +81,7 @@ export async function registerMediaRoutes(app: FastifyInstance, ctx: ApiContext)
     }
 
     const stat = statSync(filePath);
-    let probe = { isH264: false, height: null as number | null };
+    let probe: MediaProbe = { isH264: false, height: null, duration: null };
     try {
       probe = await probeMediaFile(ctx.config.media.ffmpegBin, filePath);
     } catch {

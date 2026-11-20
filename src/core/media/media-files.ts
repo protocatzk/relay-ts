@@ -14,6 +14,7 @@ export interface MediaFileInfo {
 export interface MediaProbe {
   isH264: boolean;
   height: number | null;
+  duration: number | null;
 }
 
 export function mediaDirectory(dataDir: string): string {
@@ -83,23 +84,26 @@ export async function probeMediaFile(ffmpegBin: string, path: string): Promise<M
         '-select_streams',
         'v:0',
         '-show_entries',
-        'stream=codec_name,height',
+        'stream=codec_name,height:format=duration',
         '-of',
         'json',
         path,
       ],
       { timeoutMs: 15_000 },
     );
-    if (result.code !== 0) return { isH264: false, height: null };
+    if (result.code !== 0) return { isH264: false, height: null, duration: null };
     const parsed = JSON.parse(result.stdout) as {
       streams?: Array<{ codec_name?: string; height?: number }>;
+      format?: { duration?: string };
     };
     const stream = parsed.streams?.[0];
+    const rawDuration = Number(parsed.format?.duration);
     return {
       isH264: stream?.codec_name?.toLowerCase() === 'h264',
       height: typeof stream?.height === 'number' ? stream.height : null,
+      duration: Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : null,
     };
   } catch {
-    return { isH264: false, height: null };
+    return { isH264: false, height: null, duration: null };
   }
 }

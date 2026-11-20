@@ -5,6 +5,7 @@ import {
   clockFilter,
   earningsFilter,
   positionExpressions,
+  remainingTimeFilter,
   textFilter,
   wrapChatLine,
 } from '../src/core/overlays/drawtext.js';
@@ -96,6 +97,22 @@ describe('drawtext overlays', () => {
     expect(filter).toContain('line_spacing=6');
     expect(filter).toContain('x=w-tw-40+10:y=h-th-40-5');
     expect(earningsFilter({ ...settings, earnings: { ...settings.earnings, overlay_enabled: false } }, font, '/tmp/e.txt')).toBeNull();
+  });
+
+  it('builds a remaining-time countdown for local videos', () => {
+    const filter = remainingTimeFilter(DEFAULT_SETTINGS, font, 125.4);
+    expect(filter).toContain('drawtext=');
+    expect(filter).toContain("text='Noch ");
+    expect(filter).toContain('125.400');
+    expect(filter).toContain('%{eif\\:trunc(');
+    expect(filter).toContain('box=1');
+    expect(filter).toContain('x=w-tw-24:y=h-th-24');
+    expect(filter).not.toContain('/3600');
+
+    const long = remainingTimeFilter(DEFAULT_SETTINGS, font, 3661);
+    expect(long).toContain('/3600');
+
+    expect(remainingTimeFilter(DEFAULT_SETTINGS, font, 0)).toBeNull();
   });
 
   it('wraps long chat lines and hard-breaks long tokens', () => {

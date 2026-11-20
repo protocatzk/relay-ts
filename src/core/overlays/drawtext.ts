@@ -148,6 +148,38 @@ export function earningsFilter(
   );
 }
 
+/**
+ * Countdown for local videos (remaining time as MM:SS, or H:MM:SS for long
+ * files). The duration is baked into the expression because drawtext has no
+ * duration variable. Only used in the local-video start path, so streamers and
+ * screens never show it.
+ */
+export function remainingTimeFilter(
+  settings: Settings,
+  fontFile: string,
+  durationSeconds: number,
+): string | null {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+  const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
+  const fontsize = Math.max(18, Math.round(Math.max(width, height) / 40));
+  const duration = durationSeconds.toFixed(3);
+  const remaining = `max(0\\,${duration}-t)`;
+  const clock =
+    durationSeconds >= 3600
+      ? `%{eif\\:trunc(${remaining}/3600)\\:d}\\:` +
+        `%{eif\\:trunc(mod(trunc(${remaining}/60)\\,60))\\:d\\:2}\\:` +
+        `%{eif\\:trunc(mod(${remaining}\\,60))\\:d\\:2}`
+      : `%{eif\\:trunc(${remaining}/60)\\:d\\:2}\\:` +
+        `%{eif\\:trunc(mod(${remaining}\\,60))\\:d\\:2}`;
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `text='Noch ${clock}':` +
+    `fontsize=${fontsize}:fontcolor=white:` +
+    `box=1:boxcolor=black@0.45:boxborderw=10:` +
+    `x=w-tw-24:y=h-th-24`
+  );
+}
+
 export function wrapChatLine(line: string, maxChars: number): string[] {
   const clean = line.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (clean.length <= maxChars) return [clean];

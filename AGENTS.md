@@ -111,6 +111,10 @@ Wichtige Pfade:
   Sink-Key. Live-Änderungen halten den laufenden Eintrag fest; wird er
   entfernt, stoppt die Wiedergabe. Nach einem Neustart bleibt nur der Inhalt
   erhalten, nicht die Wiedergabe.
+- Lokale Videos zeigen im Sink einen drawtext-Countdown („Noch MM:SS", ab
+  einer Stunde H:MM:SS) aus der ffprobe-Dauer (`remainingTimeFilter`). Er wird
+  nur im `startFileLocked`-Pfad angehängt, also nie bei Streamern oder
+  Screens; fehlt die Dauer oder ein Font, entfällt der Countdown.
 - Die Live-Vorschau (`GET /api/preview.ts`) ist ein Read-only-Tap am Relay und
   darf den Sink nicht beeinflussen; pro Client wird bei Rückstau getrennt.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.

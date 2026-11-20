@@ -31,6 +31,7 @@ import { YouTubeSink } from '../sink/youtube-sink.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
 import type { ChatMessage } from '../overlays/chat-service.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
+import { remainingTimeFilter } from '../overlays/drawtext.js';
 import { OnlineMonitor } from '../online/monitor.js';
 import { EarningsMonitor } from '../earnings/monitor.js';
 import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
@@ -532,7 +533,12 @@ export class Supervisor {
     this.sinkController.clearStartTimer();
     const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
     const prepared = this.overlays.prepare();
-    const signature = this.overlayRuntime.signature(prepared.filters, undefined);
+    const filters = [...prepared.filters];
+    if (prepared.fontFile && probe.duration) {
+      const countdown = remainingTimeFilter(this.settings, prepared.fontFile, probe.duration);
+      if (countdown) filters.push(countdown);
+    }
+    const signature = this.overlayRuntime.signature(filters, undefined);
     await this.stopSourceAndChatLocked();
     if (this.sinkController.running) await this.stopSinkLocked();
     this.buffer.reset();
@@ -544,7 +550,7 @@ export class Supervisor {
     this.activeStreamer = null;
     this.activeMediaFile = file;
     this.sinkController.key = options.key;
-    this.sinkController.filters = prepared.filters;
+    this.sinkController.filters = filters;
     this.sinkController.overlayInput = undefined;
     this.sinkController.signature = signature;
     this.startedAt = new Date();
@@ -572,7 +578,7 @@ export class Supervisor {
     };
     const offset = 0;
     this.sourceSession.start(synthetic, resolved, false, offset);
-    this.startSinkOrPrefillLocked(options.key, prepared.filters, signature);
+    this.startSinkOrPrefillLocked(options.key, filters, signature);
     this.sourceSession.markProducerStarted(offset);
     this.markSinkGrace();
     this.earnings.setActive();
