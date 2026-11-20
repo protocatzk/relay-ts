@@ -8,7 +8,7 @@ import { usePwa } from '@/src/composables/usePwa';
 
 const router = useRouter();
 const { store } = useStore();
-const { theme, themeLabel, toggleTheme } = useTheme();
+const { theme, preference, themeLabel, toggleTheme } = useTheme();
 const { state: pwaState, promptInstall } = usePwa();
 
 async function handleInstall(): Promise<void> {
@@ -70,8 +70,14 @@ async function handleLogout(): Promise<void> {
         </svg>
         <span class="hide-xs">Installieren</span>
       </button>
-      <button type="button" class="theme-toggle" :aria-label="`Theme: ${theme}`" @click="toggleTheme">
-        <span aria-hidden="true">{{ theme === 'light' ? '☾' : '☀' }}</span>
+      <button
+        type="button"
+        class="theme-toggle"
+        :aria-label="`Theme: ${themeLabel} (${preference})`"
+        :title="`Theme wechseln (Auto → Neon → Amber) · aktuell: ${themeLabel}`"
+        @click="toggleTheme"
+      >
+        <span aria-hidden="true">{{ preference === 'auto' ? '◐' : theme === 'light' ? '☾' : '☀' }}</span>
         <span class="hide-xs">{{ themeLabel }}</span>
       </button>
       <button

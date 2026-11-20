@@ -40,6 +40,8 @@ export const ChatOverlaySchema = z.object({
   show_badges: z.boolean().default(true),
   show_tiers: z.boolean().default(true),
   show_stats: z.boolean().default(false),
+  show_earnings_card: z.boolean().default(false),
+  earnings_card_interval_seconds: z.number().int().min(10).max(3600).default(120),
   name_colors: z.boolean().default(true),
   offset_x: z.number().int().min(-1920).max(1920).default(0),
   offset_y: z.number().int().min(-1080).max(1080).default(0),
@@ -87,11 +89,27 @@ export const LogoOverlaySchema = z.object({
   offset_y: z.number().int().min(-1080).max(1080).default(0),
 });
 
+export const VersionOverlaySchema = z.object({
+  enabled: z.boolean().default(false),
+  position: PositionSchema.default('bottom-right'),
+  prefix: z.string().max(40).default('RELAY v'),
+  show_update_hint: z.boolean().default(false),
+  update_hint: z.string().max(60).default('Update verfügbar'),
+  font_size: z.number().int().min(8).max(72).default(16),
+  font_color: ColorSchema.default('white@0.75'),
+  box_color: ColorSchema.default('black@0.35'),
+  show_box: z.boolean().default(true),
+  margin: z.number().int().min(0).max(200).default(24),
+  offset_x: z.number().int().min(-1920).max(1920).default(0),
+  offset_y: z.number().int().min(-1080).max(1080).default(0),
+});
+
 export const OverlaysSchema = z.object({
   chat: ChatOverlaySchema.optional(),
   clock: ClockOverlaySchema.optional(),
   text: TextOverlaySchema.optional(),
   logo: LogoOverlaySchema.optional(),
+  version: VersionOverlaySchema.optional(),
 });
 
 export const OverlaysSettingsSchema = z.object({
@@ -99,6 +117,7 @@ export const OverlaysSettingsSchema = z.object({
   clock: ClockOverlaySchema.default(ClockOverlaySchema.parse({})),
   text: TextOverlaySchema.default(TextOverlaySchema.parse({})),
   logo: LogoOverlaySchema.default(LogoOverlaySchema.parse({})),
+  version: VersionOverlaySchema.default(VersionOverlaySchema.parse({})),
 });
 
 export const StreamerFieldsSchema = z

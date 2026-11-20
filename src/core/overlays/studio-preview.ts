@@ -1,9 +1,10 @@
 import { createCanvas, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
+import { VERSION } from '../../version.js';
 import type { Settings } from '../config/schema.js';
-import { ChatOverlayEngine, parseColor } from './chat-engine.js';
+import { ChatOverlayEngine, parseColor, type ChatEarningsCard } from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
-import type { OverlayPosition } from './drawtext.js';
+import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
 
 export type PreviewAspect = '9:16' | '16:9' | '1:1';
 
@@ -13,6 +14,7 @@ export interface StudioPreviewOptions {
   logger: Logger;
   sample?: boolean;
   earningsText?: string;
+  earningsCard?: ChatEarningsCard | null;
   chatMessages?: ChatMessage[];
   logoImage?: Image;
   maxDimension?: number;
@@ -212,6 +214,9 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     if (options.chatMessages && options.chatMessages.length > 0) {
       engine.setMessages(options.chatMessages);
     }
+    if (options.earningsCard !== undefined) {
+      engine.setEarningsCard(options.earningsCard);
+    }
     const panel = engine.panel;
     ctx.drawImage(engine.previewCanvas(sample), panel.x, panel.y);
     engine.stop();
@@ -256,6 +261,27 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
         alignTop: settings.earnings.overlay_position.startsWith('top'),
         offsetX: settings.earnings.overlay_offset_x,
         offsetY: settings.earnings.overlay_offset_y,
+      },
+    );
+  }
+
+  const version = overlays.version;
+  if (version?.enabled) {
+    drawBoxedText(
+      ctx,
+      formatVersionOverlayText(version, VERSION),
+      version.position,
+      {
+        width,
+        height,
+        fontSize: version.font_size,
+        fontColor: version.font_color,
+        boxColor: version.box_color,
+        showBox: version.show_box,
+        margin: version.margin,
+        alignTop: version.position.startsWith('top'),
+        offsetX: version.offset_x,
+        offsetY: version.offset_y,
       },
     );
   }

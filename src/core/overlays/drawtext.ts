@@ -148,6 +148,39 @@ export function earningsFilter(
   );
 }
 
+export function formatVersionOverlayText(
+  config: Settings['overlays']['version'],
+  version: string,
+): string {
+  const base = `${config.prefix}${version}`;
+  if (config.show_update_hint && config.update_hint.trim()) {
+    return `${base} · ${config.update_hint.trim()}`;
+  }
+  return base;
+}
+
+export function versionFilter(
+  settings: Settings,
+  fontFile: string,
+  versionFile: string,
+): string | null {
+  const config = settings.overlays.version;
+  if (!config?.enabled) return null;
+  const { x, y } = positionExpressions(
+    config.position,
+    config.margin,
+    config.offset_x,
+    config.offset_y,
+  );
+  return (
+    `drawtext=fontfile='${escapePath(fontFile)}':` +
+    `textfile='${escapePath(versionFile)}':reload=1:expansion=none:` +
+    `fontsize=${config.font_size}:fontcolor=${config.font_color}:` +
+    `box=${config.show_box ? 1 : 0}:boxcolor=${config.box_color}:boxborderw=8:` +
+    `x=${x}:y=${y}`
+  );
+}
+
 /**
  * Countdown for local videos (remaining time as MM:SS, or H:MM:SS for long
  * files). The duration is baked into the expression because drawtext has no

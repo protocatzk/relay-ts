@@ -3,7 +3,17 @@ import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
 import type { Settings } from '../config/schema.js';
 import { ensureDir, writeFileAtomic } from '../../utils/fs.js';
-import { chatFilter, clockFilter, earningsFilter, resolveFont, textFilter, wrapChatLine } from './drawtext.js';
+import { VERSION } from '../../version.js';
+import {
+  chatFilter,
+  clockFilter,
+  earningsFilter,
+  formatVersionOverlayText,
+  resolveFont,
+  textFilter,
+  versionFilter,
+  wrapChatLine,
+} from './drawtext.js';
 
 export interface OverlayManagerOptions {
   media: MediaConfig;
@@ -28,6 +38,7 @@ export class OverlayManager {
   private chatFile: string | null = null;
   private textFile: string | null = null;
   private earningsFile: string | null = null;
+  private versionFile: string | null = null;
   private lastEarningsText = '';
   private warnedFont = false;
   private settings: Settings;
@@ -56,9 +67,15 @@ export class OverlayManager {
     this.chatFile = join(this.directory, 'chat.txt');
     this.textFile = join(this.directory, 'text.txt');
     this.earningsFile = join(this.directory, 'earnings.txt');
+    this.versionFile = join(this.directory, 'version.txt');
     writeFileAtomic(this.chatFile, '', 0o600);
     writeFileAtomic(this.textFile, this.settings.overlays.text.text || '', 0o600);
     writeFileAtomic(this.earningsFile, this.lastEarningsText, 0o600);
+    writeFileAtomic(
+      this.versionFile,
+      formatVersionOverlayText(this.settings.overlays.version, VERSION),
+      0o600,
+    );
 
     const filters: string[] = [];
     const clock = clockFilter(this.settings, this.fontFile);
@@ -67,6 +84,8 @@ export class OverlayManager {
     if (text) filters.push(text);
     const earnings = earningsFilter(this.settings, this.fontFile, this.earningsFile);
     if (earnings) filters.push(earnings);
+    const version = versionFilter(this.settings, this.fontFile, this.versionFile);
+    if (version) filters.push(version);
     if (this.settings.overlays.chat.engine === 'drawtext') {
       const chat = chatFilter(this.settings, this.fontFile, this.chatFile);
       if (chat) filters.push(chat);

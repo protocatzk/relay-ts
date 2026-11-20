@@ -10,6 +10,7 @@ import type {
   StreamerOverlays,
   StreamerOverlaysInput,
   TextOverlay,
+  VersionOverlay,
   VideoLayout,
 } from '@/src/api/types';
 import ColorInput from '@/src/components/ColorInput.vue';
@@ -61,6 +62,7 @@ const chat = computed(() => draft.value?.chat ?? null);
 const clock = computed(() => draft.value?.clock ?? null);
 const text = computed(() => draft.value?.text ?? null);
 const logo = computed(() => draft.value?.logo ?? null);
+const versionOverlay = computed(() => draft.value?.version ?? null);
 const earnings = computed(() => settings.value?.earnings ?? null);
 const videoLayout = computed<VideoLayout | null>(() => settings.value?.video.layout ?? null);
 const resolution = computed(() => settings.value?.video.resolution ?? '720x1280');
@@ -124,10 +126,11 @@ function onTabKeydown(event: KeyboardEvent): void {
   if (target) selectSection(target.id, { focus: true, announce: true });
 }
 
-const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
+const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | VersionOverlay | null>(() => {
   if (activeSection.value === 'chat') return chat.value;
   if (activeSection.value === 'clock') return clock.value;
   if (activeSection.value === 'text') return text.value;
+  if (activeSection.value === 'version') return versionOverlay.value;
   return null;
 });
 
@@ -197,7 +200,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function overlayMargin(config: ChatOverlay | ClockOverlay | TextOverlay): number {
+function overlayMargin(config: ChatOverlay | ClockOverlay | TextOverlay | VersionOverlay): number {
   return 'margin' in config ? config.margin : 32;
 }
 
@@ -370,12 +373,32 @@ function defaultLogo(): StreamerOverlays['logo'] {
   );
 }
 
+function defaultVersion(): NonNullable<StreamerOverlays['version']> {
+  return (
+    settings.value?.overlays.version ?? {
+      enabled: false,
+      position: 'bottom-right',
+      prefix: 'RELAY v',
+      show_update_hint: false,
+      update_hint: 'Update verfügbar',
+      font_size: 16,
+      font_color: 'white@0.75',
+      box_color: 'black@0.35',
+      show_box: true,
+      margin: 24,
+      offset_x: 0,
+      offset_y: 0,
+    }
+  );
+}
+
 function normalizeOverlays(value: StreamerOverlays): StreamerOverlays {
   const result = clone(value);
   result.logo ??= clone(defaultLogo());
-  for (const key of ['chat', 'clock', 'text', 'logo'] as const) {
-    result[key].offset_x ??= 0;
-    result[key].offset_y ??= 0;
+  result.version ??= clone(defaultVersion());
+  for (const key of ['chat', 'clock', 'text', 'logo', 'version'] as const) {
+    result[key]!.offset_x ??= 0;
+    result[key]!.offset_y ??= 0;
   }
   return result;
 }
@@ -389,6 +412,7 @@ function overlaysInput(): StreamerOverlaysInput {
     clock: clone(current.clock),
     text: clone(current.text),
     logo: clone(current.logo),
+    version: clone(current.version ?? defaultVersion()),
   };
 }
 
@@ -841,7 +865,20 @@ onBeforeUnmount(() => {
             <label class="checkbox"><input v-model="chat.show_badges" type="checkbox" /> Badges</label>
             <label class="checkbox"><input v-model="chat.show_tiers" type="checkbox" /> Tier-Badges</label>
             <label class="checkbox"><input v-model="chat.show_stats" type="checkbox" /> Chat-Statistik</label>
+            <label class="checkbox"><input v-model="chat.show_earnings_card" type="checkbox" /> Einnahmen-Karte im Chat</label>
             <label class="checkbox"><input v-model="chat.name_colors" type="checkbox" /> Namensfarben</label>
+          </div>
+          <div v-if="chat.show_earnings_card" class="studio-grid">
+            <div class="field">
+              <label for="studio-chat-earnings-interval">Karten-Intervall (s)</label>
+              <input
+                id="studio-chat-earnings-interval"
+                v-model.number="chat.earnings_card_interval_seconds"
+                type="number"
+                min="10"
+                max="3600"
+              />
+            </div>
           </div>
           </StudioGroup>
 
@@ -1171,6 +1208,64 @@ onBeforeUnmount(() => {
             <RouterLink to="/settings">Einstellungen → Einnahmen</RouterLink> gepflegt.
           </p>
           </StudioGroup>
+        </div>
+
+        <div
+          v-else-if="activeSection === 'version' && versionOverlay"
+          :id="studioPanelId('version')"
+          role="tabpanel"
+          :aria-labelledby="studioTabId('version')"
+          tabindex="0"
+          class="studio-body"
+        >
+          <ToggleField
+            v-model="versionOverlay.enabled"
+            label="Versions-Overlay"
+          />
+          <div class="studio-grid">
+            <div class="field">
+              <label for="studio-version-prefix">Präfix</label>
+              <input id="studio-version-prefix" v-model="versionOverlay.prefix" type="text" maxlength="40" />
+            </div>
+            <div class="field">
+              <label for="studio-version-position">Position</label>
+              <select id="studio-version-position" v-model="versionOverlay.position">
+                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
+                  {{ position.label }}
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="studio-version-size">Schriftgröße (px)</label>
+              <input id="studio-version-size" v-model.number="versionOverlay.font_size" type="number" min="8" max="72" />
+            </div>
+            <div class="field">
+              <label for="studio-version-margin">Rand (px)</label>
+              <input id="studio-version-margin" v-model.number="versionOverlay.margin" type="number" min="0" max="200" />
+            </div>
+            <div class="field">
+              <label for="studio-version-font-color">Schriftfarbe</label>
+              <ColorInput id="studio-version-font-color" v-model="versionOverlay.font_color" alpha />
+            </div>
+            <div class="field">
+              <label for="studio-version-box-color">Boxfarbe</label>
+              <ColorInput id="studio-version-box-color" v-model="versionOverlay.box_color" alpha />
+            </div>
+            <div class="field">
+              <label for="studio-version-hint">Update-Hinweis</label>
+              <input
+                id="studio-version-hint"
+                v-model="versionOverlay.update_hint"
+                type="text"
+                maxlength="60"
+                :disabled="!versionOverlay.show_update_hint"
+              />
+            </div>
+          </div>
+          <div class="checkbox-grid studio-checks">
+            <label class="checkbox"><input v-model="versionOverlay.show_box" type="checkbox" /> Hintergrundbox anzeigen</label>
+            <label class="checkbox"><input v-model="versionOverlay.show_update_hint" type="checkbox" /> Update-Hinweis anhängen</label>
+          </div>
         </div>
       </section>
     </div>

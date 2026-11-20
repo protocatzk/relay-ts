@@ -2712,6 +2712,8 @@
                           "show_badges": true,
                           "show_tiers": true,
                           "show_stats": false,
+                          "show_earnings_card": false,
+                          "earnings_card_interval_seconds": 120,
                           "name_colors": true,
                           "offset_x": 0,
                           "offset_y": 0,
@@ -2826,6 +2828,16 @@
                           "show_stats": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "show_earnings_card": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "earnings_card_interval_seconds": {
+                            "default": 120,
+                            "type": "integer",
+                            "minimum": 10,
+                            "maximum": 3600
                           },
                           "name_colors": {
                             "default": true,
@@ -3066,6 +3078,91 @@
                           },
                           "margin": {
                             "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "version": {
+                        "default": {
+                          "enabled": false,
+                          "position": "bottom-right",
+                          "prefix": "RELAY v",
+                          "show_update_hint": false,
+                          "update_hint": "Update verfügbar",
+                          "font_size": 16,
+                          "font_color": "white@0.75",
+                          "box_color": "black@0.35",
+                          "show_box": true,
+                          "margin": 24,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "prefix": {
+                            "default": "RELAY v",
+                            "type": "string",
+                            "maxLength": 40
+                          },
+                          "show_update_hint": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "update_hint": {
+                            "default": "Update verfügbar",
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "font_size": {
+                            "default": 16,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 72
+                          },
+                          "font_color": {
+                            "default": "white@0.75",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.35",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 24,
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 200
@@ -5995,6 +6092,8 @@
                 "show_badges": true,
                 "show_tiers": true,
                 "show_stats": false,
+                "show_earnings_card": false,
+                "earnings_card_interval_seconds": 120,
                 "name_colors": true,
                 "offset_x": 0,
                 "offset_y": 0,
@@ -6037,6 +6136,20 @@
                 "margin": 32,
                 "offset_x": 0,
                 "offset_y": 0
+              },
+              "version": {
+                "enabled": false,
+                "position": "bottom-right",
+                "prefix": "RELAY v",
+                "show_update_hint": false,
+                "update_hint": "Update verfügbar",
+                "font_size": 16,
+                "font_color": "white@0.75",
+                "box_color": "black@0.35",
+                "show_box": true,
+                "margin": 24,
+                "offset_x": 0,
+                "offset_y": 0
               }
             },
             "type": "object",
@@ -6061,6 +6174,8 @@
                   "show_badges": true,
                   "show_tiers": true,
                   "show_stats": false,
+                  "show_earnings_card": false,
+                  "earnings_card_interval_seconds": 120,
                   "name_colors": true,
                   "offset_x": 0,
                   "offset_y": 0,
@@ -6175,6 +6290,16 @@
                   "show_stats": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "show_earnings_card": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "earnings_card_interval_seconds": {
+                    "default": 120,
+                    "type": "integer",
+                    "minimum": 10,
+                    "maximum": 3600
                   },
                   "name_colors": {
                     "default": true,
@@ -6415,6 +6540,91 @@
                   },
                   "margin": {
                     "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "version": {
+                "default": {
+                  "enabled": false,
+                  "position": "bottom-right",
+                  "prefix": "RELAY v",
+                  "show_update_hint": false,
+                  "update_hint": "Update verfügbar",
+                  "font_size": 16,
+                  "font_color": "white@0.75",
+                  "box_color": "black@0.35",
+                  "show_box": true,
+                  "margin": 24,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "bottom-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "prefix": {
+                    "default": "RELAY v",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "show_update_hint": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "update_hint": {
+                    "default": "Update verfügbar",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "font_size": {
+                    "default": 16,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 72
+                  },
+                  "font_color": {
+                    "default": "white@0.75",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.35",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 24,
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 200
@@ -7131,6 +7341,8 @@
                 "show_badges": true,
                 "show_tiers": true,
                 "show_stats": false,
+                "show_earnings_card": false,
+                "earnings_card_interval_seconds": 120,
                 "name_colors": true,
                 "offset_x": 0,
                 "offset_y": 0,
@@ -7173,6 +7385,20 @@
                 "margin": 32,
                 "offset_x": 0,
                 "offset_y": 0
+              },
+              "version": {
+                "enabled": false,
+                "position": "bottom-right",
+                "prefix": "RELAY v",
+                "show_update_hint": false,
+                "update_hint": "Update verfügbar",
+                "font_size": 16,
+                "font_color": "white@0.75",
+                "box_color": "black@0.35",
+                "show_box": true,
+                "margin": 24,
+                "offset_x": 0,
+                "offset_y": 0
               }
             },
             "type": "object",
@@ -7197,6 +7423,8 @@
                   "show_badges": true,
                   "show_tiers": true,
                   "show_stats": false,
+                  "show_earnings_card": false,
+                  "earnings_card_interval_seconds": 120,
                   "name_colors": true,
                   "offset_x": 0,
                   "offset_y": 0,
@@ -7311,6 +7539,16 @@
                   "show_stats": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "show_earnings_card": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "earnings_card_interval_seconds": {
+                    "default": 120,
+                    "type": "integer",
+                    "minimum": 10,
+                    "maximum": 3600
                   },
                   "name_colors": {
                     "default": true,
@@ -7551,6 +7789,91 @@
                   },
                   "margin": {
                     "default": 32,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200
+                  },
+                  "offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  }
+                }
+              },
+              "version": {
+                "default": {
+                  "enabled": false,
+                  "position": "bottom-right",
+                  "prefix": "RELAY v",
+                  "show_update_hint": false,
+                  "update_hint": "Update verfügbar",
+                  "font_size": 16,
+                  "font_color": "white@0.75",
+                  "box_color": "black@0.35",
+                  "show_box": true,
+                  "margin": 24,
+                  "offset_x": 0,
+                  "offset_y": 0
+                },
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "default": "bottom-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "prefix": {
+                    "default": "RELAY v",
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "show_update_hint": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "update_hint": {
+                    "default": "Update verfügbar",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "font_size": {
+                    "default": 16,
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 72
+                  },
+                  "font_color": {
+                    "default": "white@0.75",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "box_color": {
+                    "default": "black@0.35",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "margin": {
+                    "default": 24,
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 200

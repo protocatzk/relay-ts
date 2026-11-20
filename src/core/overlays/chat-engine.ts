@@ -229,6 +229,16 @@ export interface ChatPanelSpec {
   fd?: number;
 }
 
+export interface ChatEarningsCard {
+  periodLabel: string;
+  currency: 'EUR' | 'USD';
+  net: number | null;
+  gross: number | null;
+  coins: number | null;
+  goalAmount?: number;
+  goalLabel?: string;
+}
+
 export interface ChatOverlayEngineOptions {
   settings: Settings;
   overlays: Settings['overlays'];
@@ -246,6 +256,7 @@ export class ChatOverlayEngine {
   private readonly ctx: SKRSContext2D;
   private readonly spec: ChatPanelSpec;
   private messages: ChatMessage[] = [];
+  private earningsCard: ChatEarningsCard | null = null;
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
   private dirty = true;
@@ -299,6 +310,11 @@ export class ChatOverlayEngine {
 
   get currentMessages(): ChatMessage[] {
     return [...this.messages];
+  }
+
+  setEarningsCard(card: ChatEarningsCard | null): void {
+    this.earningsCard = card;
+    this.dirty = true;
   }
 
   setMessages(messages: ChatMessage[]): void {
@@ -423,7 +439,7 @@ export class ChatOverlayEngine {
     const canvas = createCanvas(this.spec.width, this.spec.height);
     const ctx = canvas.getContext('2d');
     const messages = sample || this.messages.length === 0 ? SAMPLE_MESSAGES : this.messages;
-    this.render(ctx, canvas.width, canvas.height, messages);
+    this.render(ctx, canvas.width, canvas.height, messages, sample);
     return canvas;
   }
 
@@ -432,9 +448,32 @@ export class ChatOverlayEngine {
   }
 
   private renderFrame(messages: ChatMessage[]): Buffer {
-    this.render(this.ctx, this.spec.width, this.spec.height, messages);
+    this.render(this.ctx, this.spec.width, this.spec.height, messages, false);
     const image = this.ctx.getImageData(0, 0, this.spec.width, this.spec.height);
     return Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
+  }
+
+  private shouldRenderEarningsCard(isPreviewSample: boolean): ChatEarningsCard | null {
+    const cfg = this.options.overlays.chat;
+    if (!cfg.show_earnings_card) return null;
+    if (isPreviewSample) {
+      return (
+        this.earningsCard ?? {
+          periodLabel: 'Heute',
+          currency: 'EUR',
+          net: 205.28,
+          gross: 410.64,
+          coins: 42505,
+          goalAmount: this.options.settings.earnings.goal_amount || 300,
+          goalLabel: this.options.settings.earnings.goal_label || 'Tagesziel',
+        }
+      );
+    }
+    if (!this.earningsCard) return null;
+    const intervalMs = Math.max(10, cfg.earnings_card_interval_seconds ?? 120) * 1000;
+    const windowMs = Math.min(20_000, Math.round(intervalMs * 0.4));
+    if (Date.now() % intervalMs >= windowMs) return null;
+    return this.earningsCard;
   }
 
   private render(
@@ -442,6 +481,7 @@ export class ChatOverlayEngine {
     width: number,
     height: number,
     messages: ChatMessage[],
+    isPreviewSample = false,
   ): void {
     const cfg = this.options.overlays.chat;
     ctx.clearRect(0, 0, width, height);
@@ -499,6 +539,55 @@ export class ChatOverlayEngine {
       ctx.fillStyle = 'rgba(255,255,255,0.72)';
       ctx.fillText(label.toUpperCase(), padding * 2, topLimit + 2, innerWidth - padding * 2);
       topLimit += nameLineHeight + 6;
+    }
+
+    const card = this.shouldRenderEarningsCard(isPreviewSample);
+    if (card) {
+      const symbol = card.currency === 'USD' ? '$' : '€';
+      const netText = card.net !== null ? `${card.net.toFixed(2)} ${symbol}` : '–';
+      const coinsText = card.coins !== null ? `${Math.round(card.coins).toLocaleString('de-DE')} Coins` : '';
+      const hasGoal = Boolean(card.goalAmount && card.goalAmount > 0 && card.net !== null);
+      const cardHeight = hasGoal ? nameLineHeight + textLineHeight + 22 : nameLineHeight + textLineHeight + 12;
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.75, opacity);
+      ctx.fillStyle = 'rgba(13, 21, 32, 0.9)';
+      roundedRect(ctx, padding, topLimit, innerWidth, cardHeight, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 211, 153, 0.65)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.textBaseline = 'top';
+      ctx.font = `700 ${Math.round(nameSize * 0.85)}px ${fontFamily}`;
+      ctx.fillStyle = '#38d399';
+      ctx.fillText(
+        `EINNAHMEN · ${card.periodLabel.toUpperCase()}`,
+        padding * 2,
+        topLimit + 7,
+        innerWidth - padding * 2,
+      );
+
+      ctx.font = `700 ${textSize}px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      const summary = coinsText ? `${netText} · ${coinsText}` : netText;
+      ctx.fillText(summary, padding * 2, topLimit + 7 + nameLineHeight, innerWidth - padding * 2);
+
+      if (hasGoal && card.goalAmount && card.net !== null) {
+        const ratio = Math.max(0, Math.min(1, card.net / card.goalAmount));
+        const barY = topLimit + cardHeight - 8;
+        const barW = innerWidth - padding * 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        roundedRect(ctx, padding * 2, barY, barW, 4, 2);
+        ctx.fill();
+        ctx.fillStyle = '#38d399';
+        if (ratio > 0) {
+          roundedRect(ctx, padding * 2, barY, Math.max(4, barW * ratio), 4, 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+      topLimit += cardHeight + gap;
     }
 
     let bottom = height - padding;

@@ -36,6 +36,8 @@ export interface ChatOverlay {
   show_badges: boolean;
   show_tiers: boolean;
   show_stats: boolean;
+  show_earnings_card?: boolean;
+  earnings_card_interval_seconds?: number;
   name_colors: boolean;
   offset_x: number;
   offset_y: number;
@@ -73,11 +75,27 @@ export interface TextOverlay {
   offset_y: number;
 }
 
+export interface VersionOverlay {
+  enabled: boolean;
+  position: OverlayPosition;
+  prefix: string;
+  show_update_hint: boolean;
+  update_hint: string;
+  font_size: number;
+  font_color: string;
+  box_color: string;
+  show_box: boolean;
+  margin: number;
+  offset_x: number;
+  offset_y: number;
+}
+
 export interface StreamerOverlays {
   chat: ChatOverlay;
   clock: ClockOverlay;
   text: TextOverlay;
   logo: LogoOverlay;
+  version?: VersionOverlay;
 }
 
 export interface LogoOverlay {
@@ -835,6 +853,7 @@ export interface StreamerOverlaysInput {
   clock: ClockOverlay;
   text: TextOverlay;
   logo: LogoOverlay;
+  version?: VersionOverlay;
 }
 
 export interface StreamerInput {

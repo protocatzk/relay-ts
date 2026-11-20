@@ -5,7 +5,7 @@ import type { StatusSnapshot } from '../events.js';
 import { isoOrNull } from '../../utils/format.js';
 import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatAnalytics, type ChatAnalyticsSnapshot } from '../overlays/chat-analytics.js';
-import { ChatOverlayEngine } from '../overlays/chat-engine.js';
+import { ChatOverlayEngine, type ChatEarningsCard } from '../overlays/chat-engine.js';
 import { LogoOverlayEngine } from '../overlays/logo-engine.js';
 import type { OverlayManager } from '../overlays/overlay-manager.js';
 import { renderStudioPreview, type PreviewAspect } from '../overlays/studio-preview.js';
@@ -85,11 +85,13 @@ export class OverlayRuntime {
   createEngine(): ChatOverlayEngine | undefined {
     const chat = this.settings.overlays.chat;
     if (!chat.enabled || chat.engine !== 'canvas') return undefined;
-    return new ChatOverlayEngine({
+    const engine = new ChatOverlayEngine({
       settings: this.settings,
       overlays: this.settings.overlays,
       logger: this.logger,
     });
+    engine.setEarningsCard(this.currentEarningsCard());
+    return engine;
   }
 
   createLogoEngine(): LogoOverlayEngine | undefined {
@@ -138,7 +140,10 @@ export class OverlayRuntime {
     this.logoEngine?.detach();
     this.chatEngine = hasCarrier ? this.createEngine() : undefined;
     this.logoEngine = this.createLogoEngine();
-    if (this.chatEngine) this.chatEngine.setMessages(this.currentMessages);
+    if (this.chatEngine) {
+      this.chatEngine.setMessages(this.currentMessages);
+      this.chatEngine.setEarningsCard(this.currentEarningsCard());
+    }
     if (!this.chatEngine && !this.logoEngine) return null;
     return {
       engine: this.chatEngine,
@@ -268,17 +273,39 @@ export class OverlayRuntime {
       chatMessages,
       logoImage: this.logoImage,
       earningsText: this.studioEarningsText(settings, sample),
+      earningsCard: this.currentEarningsCard(),
       maxDimension,
       videoAspect,
     });
   }
 
   earningsOverlayText(): string {
+    const snapshot = this.earnings.get();
+    this.chatEngine?.setEarningsCard(this.buildEarningsCard(snapshot));
     return formatEarningsOverlay(
       this.settings.earnings.overlay_template,
-      this.earnings.get(),
+      snapshot,
       this.settings.earnings,
     );
+  }
+
+  private currentEarningsCard(): ChatEarningsCard | null {
+    return this.buildEarningsCard(this.earnings.get());
+  }
+
+  private buildEarningsCard(snapshot: EarningsSnapshot | null): ChatEarningsCard | null {
+    if (!snapshot || (snapshot.net === null && snapshot.gross === null && snapshot.coins === null)) {
+      return null;
+    }
+    return {
+      periodLabel: snapshot.period_label || snapshot.period || 'Heute',
+      currency: snapshot.currency,
+      net: snapshot.net,
+      gross: snapshot.gross,
+      coins: snapshot.coins,
+      goalAmount: this.settings.earnings.goal_amount,
+      goalLabel: this.settings.earnings.goal_label,
+    };
   }
 
   chatStatus(): StatusSnapshot['chat'] {

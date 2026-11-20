@@ -21,10 +21,10 @@ import { FfmpegProgress } from '../src/utils/ffmpeg-progress.js';
 const settings = {
   ...DEFAULT_SETTINGS,
   overlays: {
+    ...DEFAULT_SETTINGS.overlays,
     chat: { ...DEFAULT_SETTINGS.overlays.chat, enabled: true, max_lines: 5 },
     clock: { ...DEFAULT_SETTINGS.overlays.clock, enabled: true, format: '%H:%M:%S' },
     text: { ...DEFAULT_SETTINGS.overlays.text, enabled: true, text: 'Hallo', marquee: true },
-    logo: DEFAULT_SETTINGS.overlays.logo,
   },
 };
 const font = '/usr/share/fonts/dejavu/DejaVuSans.ttf';
