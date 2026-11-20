@@ -31,6 +31,7 @@ interface StreamerForm {
   quality: StreamQuality;
   auto_start: boolean;
   preferred: boolean;
+  priority: number;
   enabled: boolean;
   own_stream: boolean;
 }
@@ -45,6 +46,7 @@ const form = reactive<StreamerForm>({
   quality: source?.quality ?? 'best',
   auto_start: source?.auto_start ?? false,
   preferred: source?.preferred ?? false,
+  priority: source?.priority ?? 0,
   enabled: source?.enabled ?? true,
   own_stream: source?.own_stream ?? false,
 });
@@ -94,6 +96,9 @@ function buildBody(): StreamerInput {
     quality: form.quality,
     auto_start: form.auto_start,
     preferred: form.preferred,
+    priority: Number.isFinite(form.priority)
+      ? Math.min(999, Math.max(0, Math.trunc(form.priority)))
+      : 0,
     enabled: form.enabled,
     own_stream: form.own_stream,
   };
@@ -207,6 +212,23 @@ function submit(): void {
               {{ option.label }}
             </option>
           </select>
+        </div>
+
+        <div class="field">
+          <label for="streamer-priority">Priorität</label>
+          <input
+            id="streamer-priority"
+            v-model.number="form.priority"
+            type="number"
+            min="0"
+            max="999"
+            step="1"
+            inputmode="numeric"
+          />
+          <p class="field-hint">
+            Kleinere Zahl = höhere Priorität. Gilt für bevorzugte Streamer (automatischer Wechsel)
+            und für Auto-Start.
+          </p>
         </div>
 
         <div class="field field-span-2">

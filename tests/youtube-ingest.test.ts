@@ -32,6 +32,14 @@ describe('resolveRelayIngestKey', () => {
     expect(resolveRelayIngestKey(store, null)).toBe('key-beta');
   });
 
+  it('orders preferred streamers by priority', () => {
+    const store = storeOf([
+      makeStreamer({ id: 'alpha', youtube_key: 'key-alpha', preferred: true, priority: 20 }),
+      makeStreamer({ id: 'beta', youtube_key: 'key-beta', preferred: true, priority: 5 }),
+    ]);
+    expect(resolveRelayIngestKey(store, null)).toBe('key-beta');
+  });
+
   it('skips disabled and keyless streamers', () => {
     const store = storeOf([
       makeStreamer({ id: 'alpha', youtube_key: 'key-alpha', enabled: false }),

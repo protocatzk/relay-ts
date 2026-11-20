@@ -1,4 +1,5 @@
 import { resolveStreamKey } from '../config/schema.js';
+import { sortStreamersByPriority } from '../streamer-order.js';
 import type { StreamerStore } from '../store/streamer-store.js';
 import { ValidationError } from '../../utils/errors.js';
 
@@ -7,19 +8,22 @@ import { ValidationError } from '../../utils/errors.js';
  * actually sending to. Otherwise YouTube Studio shows a fresh, idle ingest and
  * rejects the transition to live even though RELAY is streaming.
  *
- * Order: active streamer, preferred streamer, first enabled streamer with a
- * key, then YOUTUBE_STREAM_KEY.
+ * Order: active streamer, preferred streamer (by priority), first enabled
+ * streamer with a key (by priority), then YOUTUBE_STREAM_KEY.
  */
 export function resolveRelayIngestKey(
   store: Pick<StreamerStore, 'list'>,
   activeStreamerId: string | null,
 ): string {
-  const rank = (streamer: { id: string; preferred: boolean }): number =>
-    streamer.id === activeStreamerId ? 0 : streamer.preferred ? 1 : 2;
-  const candidates = store
-    .list()
-    .filter((streamer) => streamer.enabled)
-    .sort((a, b) => rank(a) - rank(b));
+  const active = store.list().find((streamer) => streamer.id === activeStreamerId);
+  if (active?.enabled) {
+    const { key } = resolveStreamKey(active);
+    if (key) return key;
+  }
+
+  const candidates = sortStreamersByPriority(
+    store.list().filter((streamer) => streamer.enabled),
+  );
 
   for (const streamer of candidates) {
     const { key } = resolveStreamKey(streamer);

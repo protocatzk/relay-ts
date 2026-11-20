@@ -54,6 +54,7 @@ import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
+import { sortStreamersByPriority } from '../streamer-order.js';
 
 export interface SupervisorDeps {
   config: LoadedConfig;
@@ -93,6 +94,17 @@ interface StartOptions {
   forceReencode?: boolean;
   allowOfflineWait?: boolean;
   intro?: boolean;
+  /** Internal: keep the return target when taking over for a preferred streamer. */
+  preservePreferredReturn?: boolean;
+}
+
+interface PreferredReturnTarget {
+  kind: 'streamer' | 'file';
+  streamer?: StreamerConfig;
+  file?: string;
+  key: string;
+  playlist: PlaylistRunState | null;
+  seekSeconds?: number;
 }
 
 /**
@@ -123,6 +135,10 @@ export class Supervisor {
   private activeMediaOffset = 0;
   private activeMediaStartedAt: number | null = null;
   private activeMediaDuration: number | null = null;
+  /** Where to return when an automatically preferred streamer ends. */
+  private preferredReturn: PreferredReturnTarget | null = null;
+  /** Preferred streamers that ended and must go offline before a new takeover. */
+  private readonly endedPreferred = new Map<string, number>();
   private statusTicks = 0;
   private resumeTimer?: NodeJS.Timeout;
   private readonly playlistController: PlaylistController;
@@ -349,8 +365,7 @@ export class Supervisor {
       settings: this.settings,
       logger,
       onStatuses: () => {
-        this.emitStreamers();
-        void this.maybeAutoSwitchPreferred();
+        this.handleOnlineStatuses();
       },
     });
     this.online.start();
@@ -450,50 +465,74 @@ export class Supervisor {
   }
 
   /**
-   * Optional parity feature: when a preferred streamer goes live, take it over
-   * automatically (e.g. the main channel returns).
+   * Preferred-streamer takeover. A preferred streamer that comes online may
+   * interrupt a running streamer or playlist. The previous target is captured
+   * so it can be restored once the preferred stream ends.
    */
   private async maybeAutoSwitchPreferred(): Promise<void> {
     if (
       this.shuttingDown ||
       !this.settings.online.enabled ||
       !this.settings.online.auto_switch_preferred ||
-      this.playlistController.current ||
+      this.playlistController.isAdvancePending ||
       this.state === 'stopping'
     ) {
       return;
     }
     if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
-    if (this.activeStreamer?.preferred && this.state === 'live') return;
 
-    const candidate = this.deps.store
-      .list()
-      .find(
+    const active = this.activeStreamer;
+    const candidates = sortStreamersByPriority(
+      this.deps.store.list().filter(
         (streamer) =>
           streamer.enabled &&
           streamer.preferred &&
-          streamer.id !== this.activeStreamer?.id &&
+          streamer.id !== active?.id &&
           this.online.isOnline(streamer) === true &&
-          Boolean(resolveStreamKey(streamer).key),
-      );
-    if (!candidate) return;
+          Boolean(resolveStreamKey(streamer).key) &&
+          !this.isPreferredSuppressed(streamer.id),
+      ),
+    );
+    if (candidates.length === 0) return;
+
+    const candidate = candidates[0]!;
+    if (active?.preferred) {
+      // A manually selected preferred streamer is never replaced. After an
+      // automatic takeover only a strictly better priority may take over.
+      if (!this.preferredReturn) return;
+      if (candidate.priority >= active.priority) return;
+    }
 
     await this.lock.run(async () => {
       if (
         this.shuttingDown ||
-        this.playlistController.current ||
-        this.activeStreamer?.id === candidate.id
-      )
+        this.playlistController.isAdvancePending ||
+        this.activeStreamer?.id === candidate.id ||
+        this.isPreferredSuppressed(candidate.id)
+      ) {
         return;
+      }
       const key = resolveStreamKey(candidate).key;
       if (!key) return;
+
+      const previousTarget = this.preferredReturn;
+      if (!this.preferredReturn) {
+        this.preferredReturn = this.capturePreferredReturnTarget();
+      }
       this.deps.logger.info(
-        { streamer: candidate.id },
+        { streamer: candidate.id, priority: candidate.priority },
         'Bevorzugter Streamer ist online – automatischer Wechsel',
       );
       try {
-        await this.startStreamerLocked(candidate, { key, allowOfflineWait: true });
+        await this.startStreamerLocked(candidate, {
+          key,
+          allowOfflineWait: true,
+          preservePreferredReturn: true,
+        });
       } catch (error) {
+        if (!previousTarget && this.activeStreamer?.id !== candidate.id) {
+          this.preferredReturn = null;
+        }
         this.deps.logger.warn(
           { streamer: candidate.id, err: toErrorMessage(error) },
           'Automatischer Wechsel zum bevorzugten Streamer fehlgeschlagen',
@@ -502,15 +541,126 @@ export class Supervisor {
     });
   }
 
+  private handleOnlineStatuses(): void {
+    const now = Date.now();
+    for (const [id, endedAt] of this.endedPreferred) {
+      const streamer = this.deps.store.get(id);
+      if (!streamer || this.online.isOnline(streamer) === false || now - endedAt > 300_000) {
+        this.endedPreferred.delete(id);
+      }
+    }
+    this.emitStreamers();
+    void this.maybeAutoSwitchPreferred();
+  }
+
+  private isPreferredSuppressed(id: string): boolean {
+    const endedAt = this.endedPreferred.get(id);
+    if (!endedAt) return false;
+    if (Date.now() - endedAt > 300_000) {
+      this.endedPreferred.delete(id);
+      return false;
+    }
+    return true;
+  }
+
+  /** Snapshot of what was playing before a preferred takeover. */
+  private capturePreferredReturnTarget(): PreferredReturnTarget | null {
+    if (!this.sinkController.key) return null;
+    if (this.activeMediaFile) {
+      const playlist = this.playlistController.current;
+      if (!playlist) return null;
+      return {
+        kind: 'file',
+        file: this.activeMediaFile,
+        key: this.sinkController.key,
+        playlist,
+        seekSeconds: this.currentMediaPosition(),
+      };
+    }
+    if (this.activeStreamer) {
+      return {
+        kind: 'streamer',
+        streamer: this.activeStreamer,
+        key: this.sinkController.key,
+        playlist: this.playlistController.current,
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Restore the streamer/playlist that was active before the automatic
+   * takeover. Returns false when there is nothing to restore.
+   */
+  private async returnToPreferredOriginLocked(reason: string): Promise<boolean> {
+    const target = this.preferredReturn;
+    if (!target) return false;
+    this.preferredReturn = null;
+    this.pauseController.clearOfflinePauseTimer();
+    const ended = this.activeStreamer;
+    const endedId = ended?.preferred ? ended.id : undefined;
+    if (endedId) this.endedPreferred.set(endedId, Date.now());
+
+    this.deps.logger.info(
+      {
+        from: endedId ?? null,
+        to: target.kind === 'streamer' ? target.streamer?.id : target.file,
+        reason,
+      },
+      'Bevorzugter Streamer beendet – Rückkehr zum vorherigen Ziel',
+    );
+    try {
+      if (target.kind === 'streamer' && target.streamer) {
+        const streamer = this.deps.store.get(target.streamer.id) ?? target.streamer;
+        await this.startStreamerLocked(streamer, {
+          key: target.key,
+          playlist: target.playlist
+            ? this.refreshReturnPlaylist(target.playlist)
+            : undefined,
+          allowOfflineWait: true,
+          intro: false,
+          preservePreferredReturn: true,
+        });
+      } else if (target.kind === 'file' && target.file && target.playlist) {
+        await this.startFileLocked(target.file, {
+          key: target.key,
+          playlist: this.refreshReturnPlaylist(target.playlist),
+          seekSeconds: target.seekSeconds,
+        });
+      }
+      return true;
+    } catch (error) {
+      this.lastError = toErrorMessage(error);
+      this.deps.logger.warn(
+        { err: this.lastError },
+        'Rückkehr zum vorherigen Streamer ist fehlgeschlagen',
+      );
+      if (this.settings.pause.enabled && this.sinkController.running) {
+        if (!this.pauseController.pauseRunning) await this.startPauseLocked();
+      } else {
+        await this.stopInternalLocked();
+      }
+      return true;
+    }
+  }
+
+  private refreshReturnPlaylist(state: PlaylistRunState): PlaylistRunState {
+    const playlist = this.resolvePlaylist(state.playlist.id) ?? state.playlist;
+    const maxIndex = Math.max(0, playlist.channels.length - 1);
+    return { playlist, index: Math.min(Math.max(0, state.index), maxIndex) };
+  }
+
   private async autoStart(): Promise<void> {
-    const candidates = this.deps.store
-      .list()
-      .filter((streamer) => streamer.enabled && streamer.auto_start)
-      .sort((left, right) => Number(right.preferred) - Number(left.preferred));
+    const candidates = sortStreamersByPriority(
+      this.deps.store.list().filter((streamer) => streamer.enabled && streamer.auto_start),
+    );
     if (candidates.length === 0) return;
     for (const candidate of candidates) {
       try {
-        this.deps.logger.info({ streamer: candidate.id }, 'Auto-Start');
+        this.deps.logger.info(
+          { streamer: candidate.id, priority: candidate.priority },
+          'Auto-Start',
+        );
         await this.start(candidate.id);
         return;
       } catch (error) {
@@ -552,6 +702,7 @@ export class Supervisor {
     options: PlaylistStartOptions,
   ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
+    this.preferredReturn = null;
     const path = mediaFilePath(this.deps.config.paths.dataDir, file);
     if (!path || !existsSync(path)) {
       throw new ValidationError(`Lokales Video "${file}" wurde nicht gefunden`);
@@ -643,6 +794,7 @@ export class Supervisor {
     options: StartOptions,
   ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
+    if (!options.preservePreferredReturn) this.preferredReturn = null;
     this.sinkController.clearStartTimer();
     const key = options.key ?? resolveStreamKey(streamer).key;
     if (!key) throw new MissingStreamKeyError();
@@ -953,6 +1105,8 @@ export class Supervisor {
     this.activeMediaStartedAt = null;
     this.activeMediaDuration = null;
     this.playlistController.detach();
+    this.preferredReturn = null;
+    this.endedPreferred.clear();
     this.sinkController.key = '';
     this.sinkController.filters = [];
     this.sinkController.overlayInput = undefined;
@@ -998,9 +1152,9 @@ export class Supervisor {
     }
     const streamers = this.deps.store.list();
     const ordered = [
-      ...streamers.filter((item) => item.enabled && item.preferred),
-      ...streamers.filter((item) => item.enabled && !item.preferred),
-      ...streamers.filter((item) => !item.enabled),
+      ...sortStreamersByPriority(streamers.filter((item) => item.enabled && item.preferred)),
+      ...sortStreamersByPriority(streamers.filter((item) => item.enabled && !item.preferred)),
+      ...sortStreamersByPriority(streamers.filter((item) => !item.enabled)),
     ];
     for (const streamer of ordered) {
       const { key } = resolveStreamKey(streamer);
@@ -1133,6 +1287,7 @@ export class Supervisor {
         playlist: this.playlistController.current ?? undefined,
         allowOfflineWait: true,
         intro: false,
+        preservePreferredReturn: Boolean(this.preferredReturn),
       });
     });
   }
@@ -1356,6 +1511,13 @@ export class Supervisor {
     this.lastError = 'Stream-Quelle beendet';
     this.pauseController.scheduleOfflinePause();
     if (!this.settings.watchdog.auto_reconnect) {
+      if (this.preferredReturn) {
+        void this.lock.run(async () => {
+          await this.returnToPreferredOriginLocked('preferred source ended without reconnect');
+          this.emitAll();
+        });
+        return;
+      }
       this.transitionTo('error');
       this.emitAll();
       return;
@@ -1436,6 +1598,11 @@ export class Supervisor {
           { streamer: this.activeStreamer.id, err: message },
           'Neuverbindung fehlgeschlagen',
         );
+        if (error instanceof StreamerOfflineError && this.preferredReturn) {
+          await this.returnToPreferredOriginLocked('preferred streamer offline');
+          this.emitAll();
+          return;
+        }
         const playlist = this.playlistController.current;
         if (error instanceof StreamerOfflineError && playlist) {
           if (playlist.playlist.auto_advance) {
@@ -1531,6 +1698,10 @@ export class Supervisor {
       } catch (error) {
         this.lastError = toErrorMessage(error);
         this.emitStatus();
+        if (error instanceof StreamerOfflineError && this.preferredReturn) {
+          await this.returnToPreferredOriginLocked('preferred streamer offline');
+          return;
+        }
         if (!this.sourceSession.running && this.state === 'live') {
           this.scheduleReconnect(3000);
         }

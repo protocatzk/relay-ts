@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { sortStreamersByLive } from '../src/web/src/utils/sort-streamers.js';
+import {
+  sortStreamersByLive,
+  sortStreamersByPriority,
+} from '../src/web/src/utils/sort-streamers.js';
 
 function streamer(
   name: string,
@@ -7,11 +10,13 @@ function streamer(
   active = false,
   preferred = false,
   enabled = true,
+  priority = 0,
 ) {
   return {
     name,
     enabled,
     preferred,
+    priority,
     status: { online, active },
   };
 }
@@ -34,5 +39,25 @@ describe('sortStreamersByLive', () => {
       streamer('Disabled', false, false, true, false),
     ]);
     expect(sorted.map((item) => item.name)).toEqual(['Alpha', 'Disabled', 'Zulu']);
+  });
+
+  it('orders by priority inside the same live group', () => {
+    const sorted = sortStreamersByLive([
+      streamer('Low', false, false, true, true, 50),
+      streamer('High', false, false, false, true, 5),
+      streamer('Default', false, false, true, true, 100),
+    ]);
+    expect(sorted.map((item) => item.name)).toEqual(['High', 'Low', 'Default']);
+  });
+});
+
+describe('sortStreamersByPriority', () => {
+  it('sorts by numeric priority, then preferred, then name', () => {
+    const sorted = sortStreamersByPriority([
+      streamer('Beta', false, false, false, true, 10),
+      streamer('Alpha', false, false, true, true, 10),
+      streamer('Gamma', false, false, false, true, 0),
+    ]);
+    expect(sorted.map((item) => item.name)).toEqual(['Gamma', 'Alpha', 'Beta']);
   });
 });

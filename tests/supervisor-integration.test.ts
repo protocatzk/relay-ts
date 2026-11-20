@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pino from 'pino';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/core/config/loader.js';
 import { PlaylistSchema, StreamerSchema } from '../src/core/config/schema.js';
 import { EventBus } from '../src/core/events.js';
@@ -77,6 +77,7 @@ let supervisor: Supervisor | null = null;
 let temp: string | null = null;
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   if (supervisor) {
     await supervisor.shutdown().catch(() => undefined);
     supervisor = null;
@@ -546,6 +547,137 @@ describe('Supervisor integration', () => {
     },
     25_000,
   );
+  it(
+    'returns to the previous streamer when a preferred takeover ends',
+    async () => {
+      temp = mkdtempSync(join(tmpdir(), 'relay-supervisor-'));
+      const bin = fakeScripts(temp);
+      const relayPort = 20400 + Math.floor(Math.random() * 100);
+      const config = loadConfig({
+        cwd: temp,
+        env: {
+          RELAY_PORT: String(relayPort),
+          FFMPEG_BIN: bin.ffmpeg,
+          YTDLP_BIN: bin.ytdlp,
+          DELAY_BUFFER_ENABLED: 'false',
+          AUTO_REFRESH: 'false',
+          ONLINE_CHECK_ENABLED: 'true',
+          ONLINE_SOURCE_URL: 'https://online.test/overview',
+          ONLINE_AUTO_SWITCH_PREFERRED: 'true',
+          ONLINE_CHECK_INTERVAL_SECONDS: '3600',
+          PAUSE_GRACE_SECONDS: '0',
+          MIN_BITRATE: '0',
+          SOURCE_MIN_RATE_PERCENT: '0',
+          AUTO_START: 'false',
+          LOG_LEVEL: 'silent',
+        },
+      });
+      const store = new StreamerStore(
+        config.paths.streamersFile,
+        {
+          streamers: [
+            StreamerSchema.parse({
+              id: 'alpha',
+              name: 'Alpha',
+              tiktok: 'alpha',
+              youtube_key: 'test-key',
+            }),
+            StreamerSchema.parse({
+              id: 'beta',
+              name: 'Beta',
+              tiktok: 'beta',
+              youtube_key: 'test-key',
+              preferred: true,
+            }),
+          ],
+          playlists: [
+            PlaylistSchema.parse({
+              id: 'mix',
+              name: 'Mix',
+              channels: ['alpha'],
+              auto_advance: true,
+              advance_delay_seconds: 0,
+              youtube_key: 'test-key',
+            }),
+          ],
+        },
+        logger,
+      );
+      const settingsService = new SettingsService(
+        config.paths.settingsFile,
+        config.settings,
+        logger,
+      );
+      let betaLive = false;
+      let betaEnded = false;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              streamers: [{ username: 'beta', is_live: betaLive }],
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        ),
+      );
+      const resolver = {
+        resolve: async (streamer: { id: string }) => {
+          if (streamer.id === 'beta' && betaEnded) {
+            throw new StreamerOfflineError('@beta ist aktuell nicht live');
+          }
+          return {
+            url: 'http://fake/stream.flv',
+            vcodec: 'avc1',
+            height: 720,
+            formatId: 'fake',
+            isH264: true,
+            title: 'Integration Test',
+            resolvedAt: new Date(),
+          };
+        },
+      };
+      supervisor = new Supervisor({
+        config,
+        settingsService,
+        store,
+        logger,
+        bus: new EventBus(),
+        redact: (text) => text,
+        registerSecret: () => undefined,
+        resolver,
+      });
+      await supervisor.init();
+      const initial = await supervisor.playPlaylist('mix');
+      expect(initial).toMatchObject({
+        state: 'live',
+        active_streamer_id: 'alpha',
+        active_playlist: { id: 'mix', index: 0 },
+      });
+
+      betaLive = true;
+      await supervisor.checkOnlineNow();
+      await waitFor(
+        () => supervisor!.buildStatus().active_streamer_id === 'beta',
+        6000,
+      );
+
+      betaEnded = true;
+      const sourcePid = supervisor.buildStatus().source.pid;
+      expect(sourcePid).toBeTruthy();
+      process.kill(sourcePid!, 'SIGTERM');
+
+      await waitFor(() => {
+        const status = supervisor!.buildStatus();
+        return status.state === 'live' && status.active_streamer_id === 'alpha';
+      }, 15_000);
+      const returned = supervisor.buildStatus();
+      expect(returned.sink.running).toBe(true);
+      expect(returned.active_playlist).toMatchObject({ id: 'mix', index: 0 });
+    },
+    30_000,
+  );
+
   it(
     'restarts the sink when the video layout changes',
     async () => {

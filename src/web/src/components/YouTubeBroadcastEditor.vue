@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import ModalDialog from './ModalDialog.vue';
 import ToggleField from './ToggleField.vue';
+import { sortStreamersByPriority } from '@/src/utils/sort-streamers';
 import type {
   Streamer,
   YouTubeBroadcast,
@@ -33,7 +34,9 @@ const isCreate = computed(() => props.broadcast === null);
 const modalTitle = computed(() => (isCreate.value ? 'Broadcast anlegen' : 'Broadcast bearbeiten'));
 
 const relayIngest = computed(() => {
-  const candidates = props.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set);
+  const candidates = sortStreamersByPriority(
+    props.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set),
+  );
   return (
     candidates.find((streamer) => streamer.status.active) ??
     candidates.find((streamer) => streamer.preferred) ??

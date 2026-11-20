@@ -8,6 +8,7 @@ import type {
   YouTubeStatus,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
+import { sortStreamersByPriority } from '@/src/utils/sort-streamers';
 import { useToast } from '@/src/composables/useToast';
 import { useStore } from '@/src/composables/useStore';
 import YouTubeBroadcastEditor from '@/src/components/YouTubeBroadcastEditor.vue';
@@ -96,7 +97,9 @@ const CALLBACK_ERRORS: Record<string, string> = {
 
 const connected = computed(() => status.value?.connected ?? false);
 const relayIngestStreamer = computed(() => {
-  const candidates = store.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set);
+  const candidates = sortStreamersByPriority(
+    store.streamers.filter((streamer) => streamer.enabled && streamer.youtube_key_set),
+  );
   return (
     candidates.find((streamer) => streamer.status.active) ??
     candidates.find((streamer) => streamer.preferred) ??

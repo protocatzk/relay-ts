@@ -97,6 +97,7 @@ export interface Streamer {
   quality: StreamQuality;
   auto_start: boolean;
   preferred: boolean;
+  priority: number;
   enabled: boolean;
   own_stream: boolean;
   video_mode: 'copy' | 'reencode';
@@ -682,6 +683,7 @@ export interface StreamerInput {
   quality: StreamQuality;
   auto_start: boolean;
   preferred: boolean;
+  priority: number;
   enabled: boolean;
   own_stream: boolean;
 }

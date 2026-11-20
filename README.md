@@ -644,7 +644,13 @@ ONLINE_AUTO_SWITCH_PREFERRED=false
 Ausgewertet wird `is_live` der Einträge im `streamers`-Array. Der Status ist
 eine Planungshilfe; ob wirklich live, entscheidet beim Start weiterhin
 `yt-dlp`. Mit `auto_switch_preferred` wird ein bevorzugter Streamer automatisch
-übernommen.
+übernommen. Endet dieser Stream, kehrt RELAY zur vorherigen Playlist bzw. zum
+vorherigen Streamer an derselben Position zurück.
+
+Mehrere bevorzugte oder zum Auto-Start markierte Streamer werden über das Feld
+`priority` geordnet (kleinere Zahl = höhere Priorität). Ohne gesetzte Priorität
+gelten bevorzugte Streamer vor anderen und danach der Name als stabiler
+Tie-Breaker.
 
 ---
 

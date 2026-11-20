@@ -110,6 +110,8 @@ export const StreamerFieldsSchema = z
     quality: z.enum(QUALITIES).default('best'),
     auto_start: z.boolean().default(false),
     preferred: z.boolean().default(false),
+    /** Lower values win for auto-start and preferred-streamer takeover. */
+    priority: z.number().int().min(0).max(999).default(0),
     enabled: z.boolean().default(true),
     own_stream: z.boolean().default(false),
     // Kept for compatibility with the Python restreamer configuration.
@@ -128,6 +130,7 @@ export const StreamerUpdateSchema = z
     quality: z.enum(QUALITIES).optional(),
     auto_start: z.boolean().optional(),
     preferred: z.boolean().optional(),
+    priority: z.number().int().min(0).max(999).optional(),
     enabled: z.boolean().optional(),
     own_stream: z.boolean().optional(),
     video_mode: z.enum(['copy', 'reencode']).optional(),

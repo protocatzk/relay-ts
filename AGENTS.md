@@ -92,6 +92,12 @@ Wichtige Pfade:
   auch ohne aktiven Streamer (Idle-Zustand). Dann wird der Stream-Key des
   bevorzugten/ersten aktivierten Streamers genutzt, sonst `YOUTUBE_STREAM_KEY`;
   `pause.max_minutes` gilt nur für automatische Offline-Pausen.
+- Bevorzugte Streamer (`preferred`) und Auto-Start-Kandidaten werden über
+  `priority` geordnet (kleinere Zahl gewinnt). Ein automatischer Wechsel zum
+  bevorzugten Streamer merkt sich den vorherigen Streamer bzw. die Playlist
+  inklusive Index; endet der bevorzugte Stream, wird das vorherige Ziel
+  wiederhergestellt. Solange der Streamer weiter live ist, laufen normale
+  Reconnects weiter.
 - Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
   `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
   Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.
@@ -362,5 +368,4 @@ npm version 0.2.0 --no-git-tag-version
 - Telegram-Bot: weitere Komfortbefehle (z. B. Titel/Einnahmen)
 - ASR/Vosk-Wort-Tracker
 - Per-Streamer-Log-Ansicht mit Seitenblättern
-- Bevorzugter Streamer: Rückkehr zur vorherigen Playlist/Quelle
 - Versions-Overlay und Chat-interne Einnahmenkarte

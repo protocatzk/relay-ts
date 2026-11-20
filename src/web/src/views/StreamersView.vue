@@ -296,6 +296,12 @@ onMounted(() => {
                   {{ streamer.name }}
                   <span v-if="streamer.preferred" class="badge tone-info badge-xs">Bevorzugt</span>
                   <span v-if="streamer.auto_start" class="badge tone-neutral badge-xs">Auto-Start</span>
+                  <span
+                    v-if="streamer.preferred || streamer.auto_start"
+                    class="badge tone-neutral badge-xs"
+                  >
+                    Prio {{ streamer.priority }}
+                  </span>
                   <span v-if="!streamer.enabled" class="badge tone-muted badge-xs">Deaktiviert</span>
                 </div>
                 <div class="cell-sub mono">{{ streamer.id }} · @{{ streamer.tiktok.replace(/^@/, '') }}</div>

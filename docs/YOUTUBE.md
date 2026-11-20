@@ -91,10 +91,10 @@ eine lokale Ausnahme-Datei ergänzen, ohne die Automatik umzubauen.
 ## Broadcasts anlegen und planen
 
 - **Anlegen** bindet den Broadcast immer an den RELAY-Ingest: aktiver
-  Streamer, sonst bevorzugter, sonst erster aktivierter mit Key. Ein neuer
-  YouTube-Ingest wird nicht mehr still erzeugt. Fehlt ein Key, schlägt das
-  Anlegen mit einer klaren Meldung fehl; der Key wird nie übertragen oder
-  angezeigt.
+  Streamer, sonst bevorzugter (nach `priority`), sonst erster aktivierter mit
+  Key. Ein neuer YouTube-Ingest wird nicht mehr still erzeugt. Fehlt ein Key,
+  schlägt das Anlegen mit einer klaren Meldung fehl; der Key wird nie
+  übertragen oder angezeigt.
 - **Sichtbarkeit** ist standardmäßig `unlisted`. Ein späteres
   **Veröffentlichen** setzt `privacyStatus=public` mit einem einzigen
   `liveBroadcasts.update` – ca. 50 Quota-Einheiten, kein Polling.

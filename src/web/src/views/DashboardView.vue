@@ -17,7 +17,7 @@ import {
   formatSeconds,
   formatUptime,
 } from '@/src/utils/format';
-import { sortStreamersByLive } from '@/src/utils/sort-streamers';
+import { sortStreamersByLive, sortStreamersByPriority } from '@/src/utils/sort-streamers';
 
 const { store, refreshStatus, refreshStreamers, refreshPlaylists, refreshEarnings: syncEarnings } = useStore();
 const { series } = useTelemetry();
@@ -75,7 +75,7 @@ const canPause = computed(
 );
 
 const startCandidate = computed<Streamer | null>(() => {
-  const enabled = store.streamers.filter((streamer) => streamer.enabled);
+  const enabled = sortStreamersByPriority(store.streamers.filter((streamer) => streamer.enabled));
   return (
     enabled.find((streamer) => streamer.preferred && streamer.status.online === true) ??
     enabled.find((streamer) => streamer.status.online === true) ??

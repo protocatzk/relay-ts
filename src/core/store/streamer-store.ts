@@ -28,6 +28,7 @@ export interface StreamerView {
   quality: StreamerConfig['quality'];
   auto_start: boolean;
   preferred: boolean;
+  priority: number;
   enabled: boolean;
   own_stream: boolean;
   video_mode: StreamerConfig['video_mode'];
@@ -274,6 +275,7 @@ export class StreamerStore {
       quality: streamer.quality,
       auto_start: streamer.auto_start,
       preferred: streamer.preferred,
+      priority: streamer.priority,
       enabled: streamer.enabled,
       own_stream: streamer.own_stream,
       video_mode: streamer.video_mode,

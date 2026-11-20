@@ -7,7 +7,7 @@ import { refreshStatus, refreshStreamers, useStore } from '@/src/composables/use
 import { useToast } from '@/src/composables/useToast';
 import { useWakeLock } from '@/src/composables/useWakeLock';
 import { formatUptime, stateLabel, stateTone } from '@/src/utils/format';
-import { sortStreamersByLive } from '@/src/utils/sort-streamers';
+import { sortStreamersByLive, sortStreamersByPriority } from '@/src/utils/sort-streamers';
 
 const router = useRouter();
 const { store } = useStore();
@@ -54,7 +54,7 @@ const canPause = computed(() =>
 );
 
 const startCandidate = computed<Streamer | null>(() => {
-  const enabled = store.streamers.filter((streamer) => streamer.enabled);
+  const enabled = sortStreamersByPriority(store.streamers.filter((streamer) => streamer.enabled));
   return (
     enabled.find((streamer) => streamer.preferred && streamer.status.online === true) ??
     enabled.find((streamer) => streamer.status.online === true) ??
