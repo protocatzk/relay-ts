@@ -4,7 +4,6 @@ import { api, errorMessage } from '@/src/api/client';
 import type {
   ChatOverlay,
   ClockOverlay,
-  LogoOverlay,
   OverlayPosition,
   Settings,
   SettingsUpdate,
@@ -14,34 +13,15 @@ import type {
   VideoLayout,
 } from '@/src/api/types';
 import ColorInput from '@/src/components/ColorInput.vue';
+import OverlayStudioPreview from '@/src/components/OverlayStudioPreview.vue';
+import StudioGroup from '@/src/components/StudioGroup.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
+import { useMediaQuery } from '@/src/composables/useMediaQuery';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { POSITIONS, PREVIEW_ASPECTS, SECTIONS } from '@/src/overlay-studio';
+import type { OverlayGeometry, PreviewAspect, Section } from '@/src/overlay-studio';
 
-type Section = 'video' | 'chat' | 'clock' | 'text' | 'logo' | 'earnings';
-type PreviewAspect = '9:16' | '16:9' | '1:1';
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'video', label: 'Video' },
-  { id: 'chat', label: 'Chat' },
-  { id: 'clock', label: 'Uhrzeit' },
-  { id: 'text', label: 'Text' },
-  { id: 'logo', label: 'Logo' },
-  { id: 'earnings', label: 'Einnahmen' },
-];
-
-const PREVIEW_ASPECTS: { value: PreviewAspect; label: string }[] = [
-  { value: '9:16', label: '9:16 (TikTok)' },
-  { value: '16:9', label: '16:9' },
-  { value: '1:1', label: '1:1' },
-];
-
-const POSITIONS: { value: OverlayPosition; label: string }[] = [
-  { value: 'top-left', label: 'Oben links' },
-  { value: 'top-right', label: 'Oben rechts' },
-  { value: 'bottom-left', label: 'Unten links' },
-  { value: 'bottom-right', label: 'Unten rechts' },
-];
 
 const { store, refreshStatus } = useStore();
 const { pushToast } = useToast();
@@ -57,25 +37,18 @@ const previewAspect = ref<PreviewAspect>('9:16');
 const sample = ref(true);
 const previewUrl = ref('');
 const previewError = ref('');
-const previewLoading = ref(false);
 const sendingTest = ref(false);
-const stageRef = ref<HTMLDivElement | null>(null);
-const presetInput = ref<HTMLInputElement | null>(null);
-const showGuides = ref(true);
+const positioning = ref(false);
+const compact = useMediaQuery('(max-width: 1100px)');
+const pageHeadRef = ref<HTMLElement | null>(null);
+const previewCollapsed = ref(false);
+const previewOverride = ref(false);
 const history = ref<string[]>([]);
 const historyIndex = ref(-1);
 const canUndo = computed(() => historyIndex.value > 0);
 const canRedo = computed(() => historyIndex.value < history.value.length - 1);
+const groupState = reactive<Record<string, boolean>>({});
 let historyTimer: number | null = null;
-let drag: {
-  target: 'overlay' | 'video';
-  mode: 'move' | 'resize';
-  startX: number;
-  startY: number;
-  baseX: number;
-  baseY: number;
-  baseSize: number;
-} | null = null;
 const chatTest = reactive({ username: 'Testuser', text: 'Das Overlay sieht gut aus! 🔥' });
 let initialSnapshot = '';
 let initialEarningsSnapshot = '';
@@ -83,6 +56,7 @@ let initialLayoutSnapshot = '';
 let previewTimer: number | null = null;
 let previewController: AbortController | null = null;
 let previewObjectUrl = '';
+let headObserver: IntersectionObserver | null = null;
 
 const chatStatus = computed(() => store.status?.chat ?? null);
 const chat = computed(() => draft.value?.chat ?? null);
@@ -100,24 +74,12 @@ const dirty = computed(
       JSON.stringify(settings.value?.video.layout) !== initialLayoutSnapshot),
 );
 
-const activeConfig = computed<
-  ChatOverlay | ClockOverlay | TextOverlay | LogoOverlay | null
->(() => {
+const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | null>(() => {
   if (activeSection.value === 'chat') return chat.value;
   if (activeSection.value === 'clock') return clock.value;
   if (activeSection.value === 'text') return text.value;
-  if (activeSection.value === 'logo') return logo.value;
   return null;
 });
-
-interface OverlayGeometry {
-  position: OverlayPosition;
-  font_size: number;
-  offset_x: number;
-  offset_y: number;
-  margin: number;
-  width?: number;
-}
 
 const activeGeometry = computed<OverlayGeometry | null>(() => {
   if (activeSection.value === 'earnings') {
@@ -154,7 +116,33 @@ const activeGeometry = computed<OverlayGeometry | null>(() => {
   };
 });
 
-const activePosition = computed(() => activeGeometry.value?.position ?? null);
+const overlayLabel = computed(() => {
+  const section = activeSection.value;
+  if (section === 'logo') return `Logo · ${logo.value?.width ?? 0} px`;
+  if (section === 'earnings') return `Einnahmen · ${earnings.value?.overlay_font_size ?? 0} px`;
+  const config = activeConfig.value;
+  if (!config) return 'Overlay';
+  const label = SECTIONS.find((entry) => entry.id === section)?.label ?? 'Overlay';
+  return `${label} · ${config.font_size} px`;
+});
+
+function groupOpen(section: Section, id: string, index: number): boolean {
+  const value = groupState[`${section}:${id}`];
+  return value === undefined ? !compact.value || index === 0 : value;
+}
+
+function setGroupOpen(section: Section, id: string, open: boolean): void {
+  groupState[`${section}:${id}`] = open;
+}
+
+function commitDrag(): void {
+  pushHistory();
+}
+
+function togglePreviewCollapsed(value: boolean): void {
+  previewOverride.value = true;
+  previewCollapsed.value = value;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -209,49 +197,6 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
     top: `${(y / height) * 100}%`,
     width: `${(boxWidth / width) * 100}%`,
     height: `${(boxHeight / height) * 100}%`,
-  };
-});
-
-interface VideoRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-const videoRect = computed<VideoRect | null>(() => {
-  const layout = videoLayout.value;
-  if (!layout) return null;
-  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
-  const [aspectWidth, aspectHeight] = previewAspect.value.split(':').map(Number) as [
-    number,
-    number,
-  ];
-  const ratio = aspectWidth / aspectHeight;
-  const baseWidth = width / height > ratio ? height * ratio : width;
-  const baseHeight = width / height > ratio ? height : width / ratio;
-  const scale = (layout.enabled ? layout.scale : 100) / 100;
-  const positionX = layout.enabled ? layout.position_x : 50;
-  const positionY = layout.enabled ? layout.position_y : 50;
-  const videoWidth = baseWidth * scale;
-  const videoHeight = baseHeight * scale;
-  return {
-    x: ((width - videoWidth) * positionX) / 100,
-    y: ((height - videoHeight) * positionY) / 100,
-    width: videoWidth,
-    height: videoHeight,
-  };
-});
-
-const videoBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
-  const rect = videoRect.value;
-  if (!rect) return {};
-  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
-  return {
-    left: `${(Math.max(0, rect.x) / width) * 100}%`,
-    top: `${(Math.max(0, rect.y) / height) * 100}%`,
-    right: `${(Math.max(0, width - (rect.x + rect.width)) / width) * 100}%`,
-    bottom: `${(Math.max(0, height - (rect.y + rect.height)) / height) * 100}%`,
   };
 });
 
@@ -332,116 +277,6 @@ function redo(): void {
   schedulePreview(true);
 }
 
-function nudge(dx: number, dy: number): void {
-  const geometry = activeGeometry.value;
-  if (!geometry) return;
-  setGeometry({
-    offset_x: clamp(geometry.offset_x + dx, -1920, 1920),
-    offset_y: clamp(geometry.offset_y + dy, -1080, 1080),
-  });
-}
-
-function onDragMove(event: PointerEvent): void {
-  const stage = stageRef.value;
-  if (!drag || !stage) return;
-  const rect = stage.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
-  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
-  const dx = ((event.clientX - drag.startX) / rect.width) * width;
-  const dy = ((event.clientY - drag.startY) / rect.height) * height;
-
-  if (drag.target === 'video') {
-    if (drag.mode === 'resize') {
-      setVideoLayout({ scale: Math.round(clamp(drag.baseSize + dy * 0.25, 50, 400)) });
-      return;
-    }
-    const video = videoRect.value;
-    if (!video) return;
-    const rangeX = width - video.width;
-    const rangeY = height - video.height;
-    setVideoLayout({
-      position_x:
-        Math.abs(rangeX) < 1
-          ? drag.baseX
-          : Math.round(clamp(drag.baseX + (dx * 100) / rangeX, 0, 100)),
-      position_y:
-        Math.abs(rangeY) < 1
-          ? drag.baseY
-          : Math.round(clamp(drag.baseY + (dy * 100) / rangeY, 0, 100)),
-    });
-    return;
-  }
-
-  if (!activeGeometry.value) return;
-  if (drag.mode === 'move') {
-    setGeometry({
-      offset_x: Math.round(clamp(drag.baseX + dx, -1920, 1920)),
-      offset_y: Math.round(clamp(drag.baseY + dy, -1080, 1080)),
-    });
-  } else {
-    const isLogo = activeSection.value === 'logo';
-    setGeometry({
-      font_size: Math.round(
-        clamp(drag.baseSize + dy * (isLogo ? 0.6 : 0.15), isLogo ? 32 : 8, isLogo ? 1024 : 96),
-      ),
-    });
-  }
-}
-
-function endDrag(): void {
-  if (!drag) return;
-  const wasVideo = drag.target === 'video';
-  drag = null;
-  window.removeEventListener('pointermove', onDragMove);
-  if (!wasVideo) pushHistory();
-}
-
-function startDrag(
-  event: PointerEvent,
-  mode: 'move' | 'resize',
-  target: 'overlay' | 'video' = 'overlay',
-): void {
-  if (target === 'video') {
-    const layout = videoLayout.value;
-    if (!layout || !layout.enabled) return;
-    event.preventDefault();
-    drag = {
-      target: 'video',
-      mode,
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: layout.position_x,
-      baseY: layout.position_y,
-      baseSize: layout.scale,
-    };
-  } else {
-    const geometry = activeGeometry.value;
-    if (!geometry) return;
-    event.preventDefault();
-    drag = {
-      target: 'overlay',
-      mode,
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: geometry.offset_x,
-      baseY: geometry.offset_y,
-      baseSize: geometry.font_size,
-    };
-  }
-  window.addEventListener('pointermove', onDragMove);
-  window.addEventListener('pointerup', endDrag, { once: true });
-  window.addEventListener('pointercancel', endDrag, { once: true });
-}
-
-function nudgeVideo(dx: number, dy: number): void {
-  const layout = videoLayout.value;
-  if (!layout || !layout.enabled) return;
-  setVideoLayout({
-    position_x: Math.round(clamp(layout.position_x + dx, 0, 100)),
-    position_y: Math.round(clamp(layout.position_y + dy, 0, 100)),
-  });
-}
-
 function exportPreset(): void {
   if (!draft.value) return;
   const blob = new Blob([JSON.stringify(draft.value, null, 2)], { type: 'application/json' });
@@ -453,11 +288,7 @@ function exportPreset(): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function importPreset(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
+async function importFile(file: File): Promise<void> {
   try {
     const parsed = JSON.parse(await file.text()) as Partial<StreamerOverlays>;
     if (!parsed || typeof parsed !== 'object' || !parsed.chat || !parsed.clock || !parsed.text) {
@@ -527,7 +358,6 @@ async function renderPreview(): Promise<void> {
   previewController?.abort();
   const controller = new AbortController();
   previewController = controller;
-  previewLoading.value = true;
   try {
     const blob = await api.overlays.studioPreview(
       {
@@ -548,7 +378,6 @@ async function renderPreview(): Promise<void> {
     if (error instanceof DOMException && error.name === 'AbortError') return;
     previewError.value = errorMessage(error);
   } finally {
-    if (previewController === controller) previewLoading.value = false;
   }
 }
 
@@ -640,7 +469,25 @@ watch(
 watch(previewAspect, () => schedulePreview(true));
 watch(sample, () => schedulePreview(true));
 
+watch(compact, (isCompact) => {
+  if (!isCompact) positioning.value = false;
+});
+
+watch(
+  positioning,
+  (active) => {
+    document.body.classList.toggle('studio-positioning', active);
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
+  if (pageHeadRef.value) {
+    headObserver = new IntersectionObserver(([entry]) => {
+      if (!previewOverride.value && entry) previewCollapsed.value = !entry.isIntersecting;
+    });
+    headObserver.observe(pageHeadRef.value);
+  }
   loading.value = true;
   try {
     await refreshStatus().catch(() => undefined);
@@ -662,19 +509,20 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (previewTimer !== null) window.clearTimeout(previewTimer);
   if (historyTimer !== null) window.clearTimeout(historyTimer);
-  window.removeEventListener('pointermove', onDragMove);
+  document.body.classList.remove('studio-positioning');
+  headObserver?.disconnect();
   previewController?.abort();
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
 });
 </script>
 
 <template>
-  <div class="page">
-    <div class="page-head">
+  <div class="page overlay-studio-page" :class="{ 'is-positioning': positioning }">
+    <div ref="pageHeadRef" class="page-head">
       <div>
         <h1>Overlay-Studio</h1>
       </div>
-      <div class="page-actions">
+      <div class="page-actions studio-page-actions">
         <span class="badge tone-info">Global</span>
         <span v-if="dirty" class="badge tone-warning">Ungespeichert</span>
         <span v-if="dirty" class="badge tone-info">Speichern: kurzer Sink-Neustart</span>
@@ -701,150 +549,34 @@ onBeforeUnmount(() => {
     <div v-else-if="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
 
     <div v-else-if="draft" class="overlay-studio-layout">
-      <section class="card overlay-preview-card">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Live-Vorschau</h2>
-            <p class="card-sub mono">{{ resolution }}</p>
-          </div>
-          <div class="studio-preview-tools">
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="!canUndo"
-              aria-label="Rückgängig"
-              @click="undo"
-            >
-              ↶
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="!canRedo"
-              aria-label="Wiederholen"
-              @click="redo"
-            >
-              ↷
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :class="{ 'is-active': showGuides }"
-              :aria-pressed="showGuides"
-              @click="showGuides = !showGuides"
-            >
-              Hilfslinien
-            </button>
-            <button type="button" class="btn btn-ghost btn-sm" @click="exportPreset">
-              Export
-            </button>
-            <button type="button" class="btn btn-ghost btn-sm" @click="presetInput?.click()">
-              Import
-            </button>
-            <input
-              ref="presetInput"
-              class="sr-only"
-              type="file"
-              accept="application/json,.json"
-              @change="importPreset"
-            />
-            <label class="checkbox">
-              <input v-model="sample" type="checkbox" />
-              Beispielnachrichten
-            </label>
-            <span v-if="previewLoading" class="badge tone-info">Rendert…</span>
-          </div>
-        </div>
-
-        <div ref="stageRef" class="overlay-preview-stage studio-stage">
-          <img v-if="previewUrl" :src="previewUrl" alt="Overlay-Vorschau" />
-          <div v-else class="studio-preview-empty">
-            <span class="spinner" aria-hidden="true"></span>
-            Vorschau wird gerendert…
-          </div>
-          <div v-if="activeGeometry" class="studio-hotzones" aria-label="Overlay-Position">
-            <button
-              v-for="position in POSITIONS"
-              :key="position.value"
-              type="button"
-              class="studio-hotzone"
-              :class="[`is-${position.value}`, { 'is-active': activePosition === position.value }]"
-              :aria-label="position.label"
-              @click="setPosition(position.value)"
-            >
-              <span>{{ position.label }}</span>
-            </button>
-          </div>
-          <div v-if="showGuides" class="studio-guides" aria-hidden="true">
-            <span class="studio-guide-safe"></span>
-            <span class="studio-guide-v1"></span>
-            <span class="studio-guide-v2"></span>
-            <span class="studio-guide-h1"></span>
-            <span class="studio-guide-h2"></span>
-          </div>
-          <div
-            v-if="activeSection === 'video' && videoLayout"
-            class="studio-drag-box studio-video-box"
-            :class="{ 'is-disabled': !videoLayout.enabled }"
-            :style="videoBoxStyle"
-            role="group"
-            tabindex="0"
-            aria-label="Video positionieren"
-            @pointerdown="startDrag($event, 'move', 'video')"
-            @keydown.left.prevent="nudgeVideo(-2, 0)"
-            @keydown.right.prevent="nudgeVideo(2, 0)"
-            @keydown.up.prevent="nudgeVideo(0, -2)"
-            @keydown.down.prevent="nudgeVideo(0, 2)"
-          >
-            <span class="studio-drag-label">
-              Video · {{ videoLayout.enabled ? `${videoLayout.scale} %` : 'Vollbild' }}
-            </span>
-            <button
-              v-if="videoLayout.enabled"
-              type="button"
-              class="studio-resize-handle"
-              aria-label="Video skalieren"
-              @pointerdown.stop="startDrag($event, 'resize', 'video')"
-            ></button>
-          </div>
-          <div
-            v-if="activeGeometry"
-            class="studio-drag-box"
-            :style="stageBoxStyle"
-            role="group"
-            tabindex="0"
-            :aria-label="`${activeSection}-Overlay positionieren`"
-            @pointerdown="startDrag($event, 'move')"
-            @keydown.left.prevent="nudge(-5, 0)"
-            @keydown.right.prevent="nudge(5, 0)"
-            @keydown.up.prevent="nudge(0, -5)"
-            @keydown.down.prevent="nudge(0, 5)"
-          >
-            <span class="studio-drag-label">
-              {{ activeSection }} · {{ activeGeometry?.font_size }} px
-            </span>
-            <button
-              type="button"
-              class="studio-resize-handle"
-              aria-label="Schriftgröße ändern"
-              @pointerdown.stop="startDrag($event, 'resize')"
-            ></button>
-          </div>
-          <p v-if="previewError" class="studio-preview-error">{{ previewError }}</p>
-        </div>
-
-        <div class="studio-preview-foot">
-          <p class="muted small">
-            Rahmen ziehen, am Griff skalieren oder Pfeiltasten nutzen. Speichern startet den Sink
-            neu; die Vorschau nutzt ungespeicherte Werte.
-          </p>
-          <span class="badge tone-neutral">
-            {{ sample ? 'Beispieldaten' : `${chatStatus?.messages ?? 0} Live-Nachrichten` }}
-          </span>
-          <span v-if="chatStatus?.canvas_active" class="badge tone-success">Canvas live</span>
-          <span v-else class="badge tone-neutral">Canvas inaktiv</span>
-        </div>
-      </section>
+      <OverlayStudioPreview
+        :image-url="previewUrl"
+        :error="previewError"
+        :resolution="resolution"
+        :section="activeSection"
+        :geometry="activeGeometry"
+        :overlay-label="overlayLabel"
+        :overlay-style="stageBoxStyle"
+        :video-layout="videoLayout"
+        :preview-aspect="previewAspect"
+        :messages="chatStatus?.messages ?? 0"
+        :canvas-active="chatStatus?.canvas_active ?? false"
+        :can-undo="canUndo"
+        :can-redo="canRedo"
+        :compact="compact"
+        :collapsed="previewCollapsed"
+        @update:collapsed="togglePreviewCollapsed"
+        v-model:sample="sample"
+        v-model:positioning="positioning"
+        @overlay-patch="setGeometry"
+        @video-patch="setVideoLayout"
+        @position="setPosition"
+        @undo="undo"
+        @redo="redo"
+        @export="exportPreset"
+        @import="importFile"
+        @commit="commitDrag"
+      />
 
       <section class="card overlay-settings-card">
         <div class="studio-tabs" role="tablist" aria-label="Overlay-Bereich">
@@ -940,6 +672,11 @@ onBeforeUnmount(() => {
 
         <div v-else-if="activeSection === 'chat' && chat" class="studio-body">
           <ToggleField v-model="chat.enabled" label="Chat-Overlay" />
+          <StudioGroup
+            title="Darstellung"
+            :open="groupOpen('chat', 'look', 0)"
+            @update:open="setGroupOpen('chat', 'look', $event)"
+          >
           <div class="studio-grid">
             <div class="field">
               <label for="studio-chat-engine">Engine</label>
@@ -969,8 +706,13 @@ onBeforeUnmount(() => {
               <input id="studio-chat-font-size" v-model.number="chat.font_size" type="number" min="8" max="96" />
             </div>
           </div>
+          </StudioGroup>
 
-          <div class="studio-subhead">Layout</div>
+          <StudioGroup
+            title="Layout"
+            :open="groupOpen('chat', 'layout', 1)"
+            @update:open="setGroupOpen('chat', 'layout', $event)"
+          >
           <div class="studio-grid">
             <div class="field">
               <label for="studio-chat-lines">Sichtbare Nachrichten</label>
@@ -1008,8 +750,13 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
+          </StudioGroup>
 
-          <div class="studio-subhead">Darstellung</div>
+          <StudioGroup
+            title="Farben & Extras"
+            :open="groupOpen('chat', 'colors', 2)"
+            @update:open="setGroupOpen('chat', 'colors', $event)"
+          >
           <div class="studio-grid">
             <div class="field">
               <label for="studio-chat-font-color">Schriftfarbe</label>
@@ -1027,8 +774,13 @@ onBeforeUnmount(() => {
             <label class="checkbox"><input v-model="chat.show_stats" type="checkbox" /> Chat-Statistik</label>
             <label class="checkbox"><input v-model="chat.name_colors" type="checkbox" /> Namensfarben</label>
           </div>
+          </StudioGroup>
 
-          <div class="studio-subhead">Quelle</div>
+          <StudioGroup
+            title="Quelle"
+            :open="groupOpen('chat', 'source', 3)"
+            @update:open="setGroupOpen('chat', 'source', $event)"
+          >
           <div class="studio-grid">
             <div class="field">
               <label for="studio-chat-api">Chat-API-URL</label>
@@ -1047,8 +799,13 @@ onBeforeUnmount(() => {
             Der API-Key wird aus Sicherheitsgründen im Streamer-Editor oder in den Einstellungen gepflegt.
             <RouterLink to="/settings">Zu den Einstellungen</RouterLink>
           </p>
+          </StudioGroup>
 
-          <div class="studio-subhead">Testnachricht</div>
+          <StudioGroup
+            title="Testnachricht"
+            :open="groupOpen('chat', 'test', 4)"
+            @update:open="setGroupOpen('chat', 'test', $event)"
+          >
           <form class="studio-test-form" @submit.prevent="sendTest">
             <div class="field">
               <label for="studio-test-user">Benutzername</label>
@@ -1064,6 +821,7 @@ onBeforeUnmount(() => {
             </button>
           </form>
           <p class="field-hint">Sendet an den aktiven Stream, nicht an die Studio-Vorschau.</p>
+          </StudioGroup>
         </div>
 
         <div v-else-if="activeSection === 'clock' && clock" class="studio-body">
@@ -1114,6 +872,11 @@ onBeforeUnmount(() => {
             v-model="text.enabled"
             label="Text-Overlay"
           />
+          <StudioGroup
+            title="Inhalt & Position"
+            :open="groupOpen('text', 'content', 0)"
+            @update:open="setGroupOpen('text', 'content', $event)"
+          >
           <div class="field">
             <label for="studio-text-content">Text</label>
             <input id="studio-text-content" v-model="text.text" type="text" maxlength="500" />
@@ -1135,6 +898,15 @@ onBeforeUnmount(() => {
               <label for="studio-text-margin">Rand (px)</label>
               <input id="studio-text-margin" v-model.number="text.margin" type="number" min="0" max="200" />
             </div>
+          </div>
+          </StudioGroup>
+
+          <StudioGroup
+            title="Darstellung"
+            :open="groupOpen('text', 'look', 1)"
+            @update:open="setGroupOpen('text', 'look', $event)"
+          >
+          <div class="studio-grid">
             <div class="field">
               <label for="studio-text-speed">Geschwindigkeit (px/s)</label>
               <input id="studio-text-speed" v-model.number="text.speed" type="number" min="10" max="1000" :disabled="!text.marquee" />
@@ -1152,6 +924,7 @@ onBeforeUnmount(() => {
             <label class="checkbox"><input v-model="text.marquee" type="checkbox" /> Laufschrift</label>
             <label class="checkbox"><input v-model="text.show_box" type="checkbox" /> Hintergrundbox anzeigen</label>
           </div>
+          </StudioGroup>
         </div>
 
         <div v-else-if="activeSection === 'logo' && logo" class="studio-body">
@@ -1207,6 +980,11 @@ onBeforeUnmount(() => {
             v-model="earnings.overlay_enabled"
             label="Einnahmen-Overlay"
           />
+          <StudioGroup
+            title="Template & Stil"
+            :open="groupOpen('earnings', 'all', 0)"
+            @update:open="setGroupOpen('earnings', 'all', $event)"
+          >
           <div class="field">
             <label for="studio-earnings-template">Template</label>
             <textarea
@@ -1268,8 +1046,25 @@ onBeforeUnmount(() => {
             Quelle, Zeitraum und Anzeige-Ansicht werden unter
             <RouterLink to="/settings">Einstellungen → Einnahmen</RouterLink> gepflegt.
           </p>
+          </StudioGroup>
         </div>
       </section>
+    </div>
+
+    <div v-if="draft && dirty" class="studio-savebar" role="region" aria-label="Ungespeicherte Änderungen">
+      <span class="studio-savebar-label"><span class="dot" aria-hidden="true"></span>Ungespeichert</span>
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        :disabled="saving"
+        @click="resetDraft"
+      >
+        Verwerfen
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" :disabled="saving" @click="save">
+        <span v-if="saving" class="spinner" aria-hidden="true"></span>
+        Speichern
+      </button>
     </div>
   </div>
 </template>

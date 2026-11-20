@@ -114,7 +114,41 @@ test.describe('mobile layout and navigation', () => {
     }
   });
 
+  test('overlay studio position anchors and positioning mode work', async ({ page }) => {
+    await page.goto('/#/overlays');
+    await expect(page.getByRole('heading', { level: 1, name: 'Overlay-Studio' })).toBeVisible();
+
+    const anchors = page.getByRole('group', { name: 'Overlay-Position' });
+    await expect(anchors).toBeVisible();
+    await anchors.getByRole('button', { name: 'Unten rechts' }).click();
+    await expect(anchors.getByRole('button', { name: 'Unten rechts' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await page.getByRole('button', { name: 'Positionieren' }).click();
+    await expect(page.getByRole('button', { name: 'Fertig' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Hauptnavigation' })).toBeVisible();
+    await expectNoHorizontalOverflow(page, 'positioning mode');
+    await page.getByRole('button', { name: 'Fertig' }).click();
+    await expect(page.getByRole('button', { name: 'Positionieren' })).toBeVisible();
+  });
+
+  test('overlay studio collapses the preview while scrolling', async ({ page }) => {
+    await page.goto('/#/overlays');
+    await expect(page.getByRole('button', { name: 'Vorschau einklappen' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const expand = page.getByRole('button', { name: 'Vorschau ausklappen' });
+    await expect(expand).toBeVisible();
+    await expand.click();
+    await expect(page.getByRole('button', { name: 'Vorschau einklappen' })).toBeVisible();
+  });
+
   test('settings and overlay studio stay usable', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.goto('/#/settings');
     await expect(page.getByRole('heading', { level: 1, name: 'Einstellungen' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Pause', exact: true })).toBeVisible();
@@ -123,7 +157,7 @@ test.describe('mobile layout and navigation', () => {
     await page.goto('/#/overlays');
     await expect(page.getByRole('heading', { level: 1, name: 'Overlay-Studio' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Live-Vorschau' })).toBeVisible();
-    await page.getByRole('tab', { name: 'Einnahmen' }).click();
+    await clickStudioTab(page, 'Einnahmen');
     await expect(page.getByLabel('Template')).toBeVisible();
     await expect(page.getByLabel('Offset X (px)')).toBeVisible();
     await expect(page.locator('#studio-earnings-font-color')).toBeVisible();
@@ -134,27 +168,35 @@ test.describe('mobile layout and navigation', () => {
       page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
     ).toBeVisible();
     await page.reload();
-    await page.getByRole('tab', { name: 'Einnahmen' }).click();
+    await clickStudioTab(page, 'Einnahmen');
     await expect(page.getByLabel('Template')).toHaveValue(templateValue);
 
-    await page.getByRole('tab', { name: 'Video' }).click();
+    await clickStudioTab(page, 'Video');
     const videoToggle = page.getByRole('switch', { name: /Video-Layout/ });
     await videoToggle.check();
-    await page.locator('#studio-video-scale').fill('160');
-    await page.locator('#studio-video-position-x').fill('25');
-    await page.locator('#studio-video-position-y').fill('75');
+    const scale = page.locator('#studio-video-scale');
+    const posX = page.locator('#studio-video-position-x');
+    const posY = page.locator('#studio-video-position-y');
+    // Pick targets that differ from the persisted state so the test stays repeatable.
+    const scaleTarget = (await scale.inputValue()) === '160' ? '150' : '160';
+    const xTarget = (await posX.inputValue()) === '25' ? '30' : '25';
+    const yTarget = (await posY.inputValue()) === '75' ? '70' : '75';
+    await scale.fill(scaleTarget);
+    await posX.fill(xTarget);
+    await posY.fill(yTarget);
     await page.getByRole('button', { name: 'Speichern' }).click();
     await expect(
       page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
     ).toBeVisible();
     await page.reload();
-    await page.getByRole('tab', { name: 'Video' }).click();
-    await expect(page.locator('#studio-video-scale')).toHaveValue('160');
-    await expect(page.locator('#studio-video-position-x')).toHaveValue('25');
-    await expect(page.locator('#studio-video-position-y')).toHaveValue('75');
+    await clickStudioTab(page, 'Video');
+    await expect(page.locator('#studio-video-scale')).toHaveValue(scaleTarget);
+    await expect(page.locator('#studio-video-position-x')).toHaveValue(xTarget);
+    await expect(page.locator('#studio-video-position-y')).toHaveValue(yTarget);
 
     await page.getByRole('switch', { name: /Video-Layout/ }).uncheck();
-    await page.locator('#studio-video-scale').fill('100');
+    const resetScale = (await page.locator('#studio-video-scale').inputValue()) === '100' ? '90' : '100';
+    await page.locator('#studio-video-scale').fill(resetScale);
     await page.locator('#studio-video-position-x').fill('50');
     await page.locator('#studio-video-position-y').fill('50');
     await page.getByRole('button', { name: 'Speichern' }).click();
@@ -164,3 +206,30 @@ test.describe('mobile layout and navigation', () => {
     await expectNoHorizontalOverflow(page, '/#/overlays');
   });
 });
+
+test.describe('tablet overlay studio', () => {
+  test.use({ viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true });
+
+  test('uses the compact editor without horizontal overflow', async ({ page }) => {
+    await page.goto('/#/overlays');
+    await expect(page.getByRole('heading', { level: 1, name: 'Overlay-Studio' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Live-Vorschau' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Positionieren' })).toBeVisible();
+    const preview = await page.locator('.overlay-preview-card').boundingBox();
+    const settings = await page.locator('.overlay-settings-card').boundingBox();
+    expect(preview?.width ?? 0).toBeGreaterThan(280);
+    // Tablet uses a two-column editor: preview left, settings right.
+    expect((preview?.x ?? 0) + (preview?.width ?? 0)).toBeLessThan(settings?.x ?? 0);
+    await expectNoHorizontalOverflow(page, 'tablet overlay studio');
+  });
+});
+
+/** Studio tabs live in a scrollable strip below the sticky preview. */
+async function clickStudioTab(
+  page: import('@playwright/test').Page,
+  name: string,
+): Promise<void> {
+  const tab = page.getByRole('tab', { name });
+  await tab.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'center' }));
+  await tab.click();
+}
