@@ -1,7 +1,9 @@
 import { PassThrough } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 import { ChatOverlayEngine, parseColor } from '../src/core/overlays/chat-engine.js';
+import { OverlayManager } from '../src/core/overlays/overlay-manager.js';
+import { OverlayRuntime } from '../src/core/supervisor/overlay-runtime.js';
 import { DEFAULT_SETTINGS } from '../src/core/config/schema.js';
 
 const settings = {
@@ -64,5 +66,70 @@ describe('Canvas chat overlay', () => {
     engine.attach(stream);
     expect(() => stream.emit('error', new Error('read ECONNRESET'))).not.toThrow();
     engine.detach();
+  });
+
+  it('measures max_age_seconds from firstSeenAt so delayed messages stay visible', () => {
+    const agedSettings = {
+      ...settings,
+      overlays: {
+        ...settings.overlays,
+        chat: {
+          ...settings.overlays.chat,
+          max_age_seconds: 15,
+        },
+      },
+    };
+    const engine = new ChatOverlayEngine({
+      settings: agedSettings,
+      overlays: agedSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    const now = Date.now();
+    // Message timestamp is 60s old (e.g. due to delay buffer), but just appeared on screen.
+    engine.setMessages(
+      [
+        {
+          id: 'delayed-1',
+          username: 'alice',
+          text: 'Hello after delay',
+          receivedAt: new Date(now - 60_000),
+          timestamp: new Date(now - 60_000),
+        },
+      ],
+      now,
+    );
+    expect(engine.currentMessages).toHaveLength(1);
+    engine.stop();
+  });
+
+  it('does not end an active chat pipe when adoptEngine is called with logo disabled', () => {
+    const logger = pino({ level: 'silent' });
+    const runtime = new OverlayRuntime({
+      settings,
+      overlays: new OverlayManager(
+        {
+          media: { overlayFont: '' } as never,
+          overlaysDir: '/tmp',
+          logger,
+        },
+        settings,
+      ),
+      earnings: {
+        get: () => null,
+      } as never,
+      logger,
+      logoPath: '',
+    });
+    const initial = runtime.createEngine()!;
+    const pipe = new PassThrough();
+    const endSpy = vi.spyOn(pipe, 'end');
+    runtime.adoptEngine(initial, undefined, pipe, null);
+
+    // Calling adoptEngine again on sink reuse when logo is disabled must NOT end fd 3.
+    const candidate = runtime.createEngine()!;
+    runtime.adoptEngine(candidate, undefined, pipe, null);
+    expect(endSpy).not.toHaveBeenCalled();
+    expect(runtime.engine).toBe(initial);
+    runtime.stopEngine();
   });
 });

@@ -127,15 +127,21 @@ export class OverlayRuntime {
     stream: NodeJS.WritableStream | null,
     logoStream: NodeJS.WritableStream | null,
   ): void {
-    if (this.chatEngine && this.chatEngine !== engine) this.chatEngine.stop();
-    if (this.logoEngine && this.logoEngine !== logoEngine) this.logoEngine.stop();
-    this.chatEngine = engine;
-    this.logoEngine = logoEngine;
-    this.chatEngine?.attach(stream);
-    this.logoEngine?.attach(logoStream);
+    // Never stop/detach an already-attached engine on a reused sink: detach()
+    // calls stream.end() on fd 3 / fd 4, which would permanently close the
+    // running ffmpeg pipe. Only adopt engines that were missing.
+    if (!this.chatEngine && engine) {
+      this.chatEngine = engine;
+      this.chatEngine.setMessages(this.currentMessages);
+      this.chatEngine.attach(stream);
+    }
+    if (!this.logoEngine && logoEngine) {
+      this.logoEngine = logoEngine;
+      this.logoEngine.attach(logoStream);
+    }
   }
 
-  rebuildEngine(filters: string[], hasCarrier: boolean): RebuiltOverlayEngine | null {
+  rebuildEngine(filters: string[], hasCarrier: boolean): RebuiltOverlayEngine {
     this.chatEngine?.detach();
     this.logoEngine?.detach();
     this.chatEngine = hasCarrier ? this.createEngine() : undefined;
@@ -144,7 +150,6 @@ export class OverlayRuntime {
       this.chatEngine.setMessages(this.currentMessages);
       this.chatEngine.setEarningsCard(this.currentEarningsCard());
     }
-    if (!this.chatEngine && !this.logoEngine) return null;
     return {
       engine: this.chatEngine,
       logo: this.logoEngine,

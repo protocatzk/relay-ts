@@ -717,7 +717,6 @@ export class Supervisor {
       this.sinkController.filters,
       Boolean(this.activeStreamer),
     );
-    if (!rebuilt) return;
     this.sinkController.overlayInput = rebuilt.panel;
     this.sinkController.logoInput = rebuilt.logoPanel;
     this.sinkController.signature = rebuilt.signature;
@@ -889,7 +888,10 @@ export class Supervisor {
       if (previousKey && previousKey !== key) this.sinkController.notifyStopped(previousKey);
       if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
-    } else if (!this.overlayRuntime.engine || !this.overlayRuntime.logo) {
+    } else if (
+      (!this.overlayRuntime.engine && candidateEngine) ||
+      (!this.overlayRuntime.logo && candidateLogo)
+    ) {
       this.overlayRuntime.adoptEngine(
         candidateEngine,
         candidateLogo,
@@ -1022,7 +1024,10 @@ export class Supervisor {
       this.sourceSession.resetTimeline();
       if (this.sinkController.running) await this.stopSinkLocked();
       this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
-    } else if (!this.overlayRuntime.engine || !this.overlayRuntime.logo) {
+    } else if (
+      (!this.overlayRuntime.engine && candidateEngine) ||
+      (!this.overlayRuntime.logo && candidateLogo)
+    ) {
       this.overlayRuntime.adoptEngine(
         candidateEngine,
         candidateLogo,

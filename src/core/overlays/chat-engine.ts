@@ -256,7 +256,9 @@ export class ChatOverlayEngine {
   private readonly ctx: SKRSContext2D;
   private readonly spec: ChatPanelSpec;
   private messages: ChatMessage[] = [];
+  private readonly firstSeenAt = new Map<string, number>();
   private earningsCard: ChatEarningsCard | null = null;
+  private lastEarningsCardKey = '';
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
   private dirty = true;
@@ -317,18 +319,32 @@ export class ChatOverlayEngine {
     this.dirty = true;
   }
 
-  setMessages(messages: ChatMessage[]): void {
+  setMessages(messages: ChatMessage[], now = Date.now()): void {
     const cfg = this.options.overlays.chat;
-    const cutoff =
-      cfg.max_age_seconds > 0 ? Date.now() - cfg.max_age_seconds * 1000 : 0;
-    const recent = cutoff
-      ? messages.filter((message) => {
-          const at = (message.timestamp ?? message.receivedAt).getTime();
-          return Number.isFinite(at) ? at >= cutoff : true;
-        })
-      : messages;
-    this.messages = recent.slice(-Math.max(cfg.max_messages, cfg.max_lines));
+    for (const message of messages) {
+      if (!this.firstSeenAt.has(message.id)) {
+        this.firstSeenAt.set(message.id, now);
+      }
+    }
+    const maxItems = Math.max(cfg.max_messages, cfg.max_lines);
+    const activeIds = new Set(messages.map((m) => m.id));
+    for (const id of this.firstSeenAt.keys()) {
+      if (!activeIds.has(id)) this.firstSeenAt.delete(id);
+    }
+    this.messages = this.filterByAge(messages, now).slice(-maxItems);
     this.dirty = true;
+  }
+
+  private filterByAge(messages: ChatMessage[], now = Date.now()): ChatMessage[] {
+    const maxAge = this.options.overlays.chat.max_age_seconds;
+    if (maxAge <= 0) return messages;
+    const cutoff = now - maxAge * 1000;
+    return messages.filter((message) => {
+      const seenAt = this.firstSeenAt.get(message.id);
+      if (seenAt !== undefined) return seenAt >= cutoff;
+      const at = (message.timestamp ?? message.receivedAt).getTime();
+      return Number.isFinite(at) ? at >= cutoff : true;
+    });
   }
 
   addLocalMessage(username: string, text: string): ChatMessage[] {
@@ -412,11 +428,26 @@ export class ChatOverlayEngine {
     this.stopped = true;
     this.detach();
     this.messages = [];
+    this.firstSeenAt.clear();
     this.dirty = true;
   }
 
   private tick(): void {
     if (this.stopped || !this.stream || this.blocked) return;
+    const now = Date.now();
+    if (this.options.overlays.chat.max_age_seconds > 0 && this.messages.length > 0) {
+      const filtered = this.filterByAge(this.messages, now);
+      if (filtered.length !== this.messages.length) {
+        this.messages = filtered;
+        this.dirty = true;
+      }
+    }
+    const card = this.shouldRenderEarningsCard(false, now);
+    const cardKey = card ? `${card.net}:${card.coins}:${card.periodLabel}` : '';
+    if (cardKey !== this.lastEarningsCardKey) {
+      this.lastEarningsCardKey = cardKey;
+      this.dirty = true;
+    }
     if (this.dirty || !this.lastFrame) {
       this.lastFrame = this.renderFrame(this.messages);
       this.dirty = false;
@@ -453,7 +484,7 @@ export class ChatOverlayEngine {
     return Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
   }
 
-  private shouldRenderEarningsCard(isPreviewSample: boolean): ChatEarningsCard | null {
+  private shouldRenderEarningsCard(isPreviewSample: boolean, now = Date.now()): ChatEarningsCard | null {
     const cfg = this.options.overlays.chat;
     if (!cfg.show_earnings_card) return null;
     if (isPreviewSample) {
@@ -472,7 +503,7 @@ export class ChatOverlayEngine {
     if (!this.earningsCard) return null;
     const intervalMs = Math.max(10, cfg.earnings_card_interval_seconds ?? 120) * 1000;
     const windowMs = Math.min(20_000, Math.round(intervalMs * 0.4));
-    if (Date.now() % intervalMs >= windowMs) return null;
+    if (now % intervalMs >= windowMs) return null;
     return this.earningsCard;
   }
 
