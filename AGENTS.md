@@ -379,18 +379,23 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 
 ## Version bumpen
 
-Drei Stellen:
+Am einfachsten über das Release-Skript:
+
+```bash
+./scripts/tag.sh 0.21.0 --push    # oder patch | minor | major
+./scripts/tag.sh patch --dry-run  # Vorschau
+```
+
+Das Skript aktualisiert alle vier Stellen (`package.json`, `package-lock.json`,
+`src/version.ts`, `docs/openapi.json`), führt `npm run check && npm run build`
+aus, erstellt Commit + annotierten Tag `v<version>` und pusht mit `--push`.
+
+Manuell (falls nötig):
 
 1. `package.json`
 2. `package-lock.json` (Root-Paket)
 3. `src/version.ts`
-
-Am einfachsten:
-
-```bash
-npm version 0.2.0 --no-git-tag-version
-# danach src/version.ts anpassen
-```
+4. `npm run openapi:generate` (`docs/openapi.json`)
 
 ## Bekannte offene Punkte
 
