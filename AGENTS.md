@@ -374,10 +374,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 
 ## Frontend-Konventionen
 
-- `src/web/src/style.css` ist die Basis.
-- `src/web/src/toktracker.css` wird **danach** geladen und überschreibt das
-  Design. Responsive Fixes deshalb in `toktracker.css` ergänzen, sonst können
-  sie von dessen Desktop-Regeln überschrieben werden.
+- Design-System in `src/web/src/styles/` (`tokens.css`, `base.css`, `layout.css`,
+  `components.css`, `effects.css`) über `index.css`.
+- TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
+  Neon-Grün/Cyan (`--success`, `--accent`), Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
 - Mobile: Tab-Leiste unten, Tabellen werden zu Karten, Touch-Ziele ≥ 38 px,
   Eingaben 16 px gegen iOS-Zoom, Safe-Area-Insets.
 - Hauptnavigation: vier Bereiche (`Live`, `Inhalte`, `Studio`, `System`) in

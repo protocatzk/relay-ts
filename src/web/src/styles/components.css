@@ -1467,7 +1467,7 @@ select {
 }
 
 .recommendation-item.rec-info {
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--success);
 }
 
 .rec-content {

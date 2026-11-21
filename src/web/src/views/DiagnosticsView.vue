@@ -203,10 +203,10 @@ onBeforeUnmount(() => {
             <div class="rec-content">
               <div class="rec-header">
                 <span
-                  class="badge"
+                  class="badge mono"
                   :class="rec.level === 'warning' ? 'tone-danger' : rec.level === 'recommendation' ? 'tone-warning' : 'tone-success'"
                 >
-                  {{ rec.level === 'warning' ? 'Warnung' : rec.level === 'recommendation' ? 'Empfehlung' : 'Optimal' }}
+                  {{ rec.level === 'warning' ? 'WARNUNG' : rec.level === 'recommendation' ? 'EMPFEHLUNG' : 'OPTIMAL' }}
                 </span>
                 <strong class="rec-title">{{ rec.title }}</strong>
               </div>
