@@ -181,4 +181,19 @@ describe('DelayBuffer', () => {
     expect(stats.pacingMultiplier).toBe(1.01);
     client.close();
   });
+
+  it('handles thousands of burst chunks with constant-time ticks', async () => {
+    const { buffer } = await setup(2, { autoTick: false });
+    const chunk = Buffer.alloc(100, 1);
+    const start = 5_000_000;
+    for (let i = 0; i < 5000; i += 1) {
+      buffer.enqueue(chunk, start + (i % 60) * 1000);
+    }
+    const t0 = performance.now();
+    for (let i = 0; i < 50; i += 1) {
+      buffer.tick(start + 65_000 + i * 10);
+    }
+    const elapsed = performance.now() - t0;
+    expect(elapsed).toBeLessThan(100);
+  });
 });

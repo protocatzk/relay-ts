@@ -250,8 +250,8 @@ export interface VideoEncoderArgsOptions {
   bitrateKbps: number;
   fps: number;
   preset: VideoPreset;
-  /** libx264 latency/still-image tuning; hardware encoders use their own flags. */
-  tune?: 'zerolatency' | 'stillimage';
+  /** libx264 latency/film/animation/still-image tuning; hardware encoders use their own flags. */
+  tune?: 'zerolatency' | 'film' | 'animation' | 'stillimage';
   /** libx264 HRD filler keeps YouTube's CBR stream from running dry. */
   filler?: boolean;
   profile?: 'high';

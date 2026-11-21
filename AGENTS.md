@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.18.0**
+- Aktuelle Version: **0.22.0**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -87,6 +87,9 @@ Wichtige Pfade:
   (Treiber, Gerät, Optionssupport). `auto` wählt NVENC → QSV → AMF; ein nicht
   verfügbarer Encoder fällt auf `libx264` zurück (Warnung im Log). Presets
   werden auf die jeweilige Encoder-Skala abgebildet, Bitrate/GOP bleiben gleich.
+- `video.tune` (`zerolatency`/`film`/`animation`/`off`, Default `zerolatency`)
+  steuert den H.264-Tune des Sink-Encoders. `off` schaltet den Tune ab und erlaubt
+  Lookahead und B-Frames für bessere Kompressionseffizienz bei gleicher Bitrate.
 - `source.reencode` (`off`/`always`/`on_reconnect`, Default `on_reconnect`)
   steuert, ob die TikTok-Quelle re-encodiert statt `-c copy` läuft. Re-Encoding
   erzeugt bei jedem Verbindungsstart einen IDR-Keyframe, sodass der Sink keinen
@@ -139,10 +142,28 @@ Wichtige Pfade:
 - Die Live-Vorschau (`GET /api/preview.ts`) ist ein Read-only-Tap am Relay und
   darf den Sink nicht beeinflussen; pro Client wird bei Rückstau getrennt.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
-- Der `DelayBuffer` glättet Bursts auf ~150 ms und baut überschüssige Puffer-Latenz
+- Der `DelayBuffer` glättet Bursts auf ~150 ms, aggregiert Durchsatzmessungen auf
+  1-Sekunden-Buckets in O(60) statt per-Entry-Iteration und baut überschüssige Puffer-Latenz
   (ab >0,5 s über Ziel-Delay bzw. >0,25 s bei `delay=0`) mit `delay_buffer.catchup_rate`
-  (Default `1.01`, Env `DELAY_CATCHUP_RATE`) ab; Chat- und Logo-Canvas-Pipes laufen
-  mit +5 % Taktreserve, damit ffmpeg beim Catch-Up nicht blockiert.
+  (Default `1.01`, Env `DELAY_CATCHUP_RATE`) ab; Chat-Canvas läuft mit +5 % Taktreserve.
+  Das Logo-Overlay (`settings.overlays.logo`) schreibt seine statischen Frames einmalig
+  und schließt die Pipe, da ffmpeg `eof_action=repeat:repeatlast=1` nutzt und keine dauerhaften
+  Pipe-Writes erfordert.
+- Status-Snapshot-Optimierung: Der 2-s-Status-Timer baut und emittiert Snapshots nur,
+  wenn mindestens ein Dashboard verbunden ist (`bus.hasObservers()`); bei Verbindungsaufbau
+  sendet die Route sofort einen initialen Snapshot.
+- Tab-Pausierung & Preview-Caching: Dashboard-Timer (Preview, Chat-Analytics, Media, Diagnose)
+  pausieren bei `document.hidden` und aktualisieren sofort bei Rückkehr (`visibilitychange`).
+  `/api/overlays/preview.png` liefert `ETag` und antwortet bei unverändertem Stand mit `304 Not Modified`.
+- Haupt-Logfile-Rotation: Das primäre Logfile (`logs/relay.log`) wird im Code per
+  `RotatingFileStream` bei Überschreitung von `settings.logging.log_file_mb` (Default 20 MB,
+  Env `LOG_FILE_MB`) zu `relay-<n>.log` rotiert (begrenzt auf `settings.logging.log_files`,
+  Default 5, Env `LOG_FILES`). Re-Open wird zusätzlich per `SIGUSR1` unterstützt.
+  `readLogFileEntries` liest bei Bedarf über Rotationsgrenzen hinweg.
+- Request-Pfad & Async-I/O: Recordings-API (`listRecordingsAsync`, `stat`, `unlink`) und
+  Audit-Log laufen vollständig asynchron über Promises; Audit-Log garantiert strikte
+  FIFO-Reihenfolge. Im Canvas-Modus entfällt das Schreiben von `chat.txt`. Disk-Checks
+  (`statfs`) werden 15 s gecacht.
 - YouTube-Sink-Stabilisierung: striktes CFR (`-fps_mode cfr`), 2-s-IDR-Keyframes
   (`-force_key_frames "expr:gte(t,n_forced*2)"`, NVENC `-forced-idr`/`-strict_gop`,
   x264 `nal-hrd=cbr:filler=1:force-cfr=1:aud=1`), weiches Audio-Resampling

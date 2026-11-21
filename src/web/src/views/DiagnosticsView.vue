@@ -111,12 +111,30 @@ async function executeRestore(): Promise<void> {
   }
 }
 
+function onVisibilityChange(): void {
+  if (document.hidden) {
+    if (pollTimer !== null) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  } else {
+    void loadDiagnostics(false, true);
+    if (pollTimer === null) {
+      pollTimer = window.setInterval(() => void loadDiagnostics(false, true), 15_000);
+    }
+  }
+}
+
 onMounted(() => {
-  void loadDiagnostics(false, false);
-  pollTimer = window.setInterval(() => void loadDiagnostics(false, true), 15_000);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  if (!document.hidden) {
+    void loadDiagnostics(false, false);
+    pollTimer = window.setInterval(() => void loadDiagnostics(false, true), 15_000);
+  }
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange);
   if (pollTimer !== null) window.clearInterval(pollTimer);
 });
 </script>
@@ -281,9 +299,12 @@ onBeforeUnmount(() => {
             <span class="muted small">{{ formatNumber(diagnostics.storage.media.files) }} Dateien</span>
           </div>
           <div class="diag-stat">
-            <span class="diag-stat-label">logs</span>
+            <span class="diag-stat-label">logs (rotiert)</span>
             <strong class="mono">{{ formatBytes(diagnostics.storage.logs.bytes) }}</strong>
             <span class="muted small">{{ formatNumber(diagnostics.storage.logs.files) }} Dateien</span>
+            <span v-if="diagnostics.storage.logs.bytes > 80 * 1024 * 1024" class="text-warning small">
+              Hohe Log-Belegung
+            </span>
           </div>
           <div class="diag-stat">
             <span class="diag-stat-label">backups</span>

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ServerResponse } from 'node:http';
@@ -289,17 +290,37 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         actions: [],
       };
     }
+    await ctx.audit.flush();
     return ctx.audit.query(query);
   });
+
+  let cachedPreview: { sample: boolean; etag: string; buffer: Buffer; expiresAt: number } | null = null;
 
   app.get('/api/overlays/preview.png', async (request, reply) => {
     const query = request.query as Record<string, unknown>;
     const sample = query.sample === '1' || query.sample === 'true';
-    const png = ctx.supervisor.overlayPreviewPng(sample);
+    const now = Date.now();
+
+    let entry = cachedPreview;
+    if (!entry || entry.sample !== sample || entry.expiresAt <= now) {
+      const buffer = ctx.supervisor.overlayPreviewPng(sample);
+      const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
+      const etag = `"${hash}"`;
+      entry = { sample, etag, buffer, expiresAt: now + 1500 };
+      cachedPreview = entry;
+    }
+
+    reply.header('cache-control', 'no-cache');
+    reply.header('etag', entry.etag);
+
+    const clientEtag = request.headers['if-none-match'];
+    if (clientEtag && clientEtag === entry.etag) {
+      return reply.code(304).send();
+    }
+
     return reply
-      .header('cache-control', 'no-store')
       .type('image/png')
-      .send(png);
+      .send(entry.buffer);
   });
 
   app.post('/api/pause/preview.png', async (request, reply) => {

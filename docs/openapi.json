@@ -7618,6 +7618,7 @@
               "video_bitrate": 4000,
               "audio_bitrate": 128,
               "preset": "veryfast",
+              "tune": "zerolatency",
               "encoder": "auto",
               "layout": {
                 "enabled": false,
@@ -7666,6 +7667,16 @@
                   "faster",
                   "fast",
                   "medium"
+                ]
+              },
+              "tune": {
+                "default": "zerolatency",
+                "type": "string",
+                "enum": [
+                  "zerolatency",
+                  "film",
+                  "animation",
+                  "off"
                 ]
               },
               "encoder": {
@@ -8945,6 +8956,39 @@
                     "audio_silence"
                   ]
                 }
+              }
+            }
+          },
+          "logging": {
+            "default": {
+              "log_level": "info",
+              "log_file_mb": 20,
+              "log_files": 5
+            },
+            "type": "object",
+            "properties": {
+              "log_level": {
+                "default": "info",
+                "type": "string",
+                "enum": [
+                  "debug",
+                  "info",
+                  "warn",
+                  "error",
+                  "silent"
+                ]
+              },
+              "log_file_mb": {
+                "default": 20,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "log_files": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
               }
             }
           }
@@ -8993,6 +9037,7 @@
               "video_bitrate": 4000,
               "audio_bitrate": 128,
               "preset": "veryfast",
+              "tune": "zerolatency",
               "encoder": "auto",
               "layout": {
                 "enabled": false,
@@ -9041,6 +9086,16 @@
                   "faster",
                   "fast",
                   "medium"
+                ]
+              },
+              "tune": {
+                "default": "zerolatency",
+                "type": "string",
+                "enum": [
+                  "zerolatency",
+                  "film",
+                  "animation",
+                  "off"
                 ]
               },
               "encoder": {
@@ -10320,6 +10375,39 @@
                     "audio_silence"
                   ]
                 }
+              }
+            }
+          },
+          "logging": {
+            "default": {
+              "log_level": "info",
+              "log_file_mb": 20,
+              "log_files": 5
+            },
+            "type": "object",
+            "properties": {
+              "log_level": {
+                "default": "info",
+                "type": "string",
+                "enum": [
+                  "debug",
+                  "info",
+                  "warn",
+                  "error",
+                  "silent"
+                ]
+              },
+              "log_file_mb": {
+                "default": 20,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "log_files": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50
               }
             }
           }

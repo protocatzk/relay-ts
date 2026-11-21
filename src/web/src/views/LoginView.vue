@@ -137,7 +137,14 @@ async function submit(): Promise<void> {
   }
 }
 
+function onVisibilityChange(): void {
+  if (!document.hidden && telegram.value.token) {
+    void pollTelegram();
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('visibilitychange', onVisibilityChange);
   try {
     methods.value = await api.auth.methods();
     if (methods.value.telegram_auth) void requestTelegram();
@@ -146,7 +153,10 @@ onMounted(async () => {
   }
 });
 
-onBeforeUnmount(stopPolling);
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  stopPolling();
+});
 </script>
 
 <template>

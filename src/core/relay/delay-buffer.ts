@@ -18,8 +18,8 @@ interface BufferEntry {
   data: Buffer;
 }
 
-const PACING_WINDOW_MS = 60_000;
-const PACING_MIN_WINDOW_MS = 3_000;
+const PACING_WINDOW_SEC = 60;
+const PACING_MIN_WINDOW_SEC = 3;
 const MAX_BURST_BYTES = 512 * 1024;
 const MIN_STEADY_BURST_BYTES = 64 * 1024;
 const STEADY_BURST_MS = 150;
@@ -52,8 +52,8 @@ export class DelayBuffer {
   private totalBytes = 0;
   private droppedBytes = 0;
   private forwardedBytes = 0;
-  private arrivals: { at: number; bytes: number }[] = [];
-  private forwarded: { at: number; bytes: number }[] = [];
+  private arrivalBuckets = new Map<number, number>();
+  private forwardedBuckets = new Map<number, number>();
   private tokens = MAX_BURST_BYTES;
   private lastTick: number | null = null;
   private server?: Server;
@@ -91,6 +91,7 @@ export class DelayBuffer {
     });
     if (this.options.autoTick !== false) {
       this.timer = setInterval(() => this.tick(), TICK_MS);
+      this.timer.unref();
     }
     this.options.logger.info(
       {
@@ -141,7 +142,8 @@ export class DelayBuffer {
     this.queue.push({ at: now, data });
     this.bytes += data.length;
     this.totalBytes += data.length;
-    this.arrivals.push({ at: now, bytes: data.length });
+    const sec = Math.floor(now / 1000);
+    this.arrivalBuckets.set(sec, (this.arrivalBuckets.get(sec) ?? 0) + data.length);
     this.trim(now);
   }
 
@@ -152,8 +154,8 @@ export class DelayBuffer {
     this.queue.length = 0;
     this.head = 0;
     this.bytes = 0;
-    this.arrivals = [];
-    this.forwarded = [];
+    this.arrivalBuckets.clear();
+    this.forwardedBuckets.clear();
     this.catchingUp = false;
     this.lastTick = null;
     this.initialBurstPending = false;
@@ -198,20 +200,30 @@ export class DelayBuffer {
   }
 
   private measureRate(now: number): number {
-    const cutoff = now - PACING_WINDOW_MS;
-    while (this.arrivals.length > 0 && this.arrivals[0]!.at < cutoff) this.arrivals.shift();
-    while (this.forwarded.length > 0 && this.forwarded[0]!.at < cutoff) this.forwarded.shift();
-    if (this.arrivals.length >= 2) {
-      const span = this.arrivals[this.arrivals.length - 1]!.at - this.arrivals[0]!.at;
-      if (span >= PACING_MIN_WINDOW_MS) {
-        let total = 0;
-        for (let i = 1; i < this.arrivals.length; i += 1) {
-          total += this.arrivals[i]!.bytes;
-        }
-        if (total > 0) return (total / span) * 1000;
+    const currentSec = Math.floor(now / 1000);
+    const cutoffSec = currentSec - PACING_WINDOW_SEC;
+    for (const sec of this.arrivalBuckets.keys()) {
+      if (sec < cutoffSec) this.arrivalBuckets.delete(sec);
+    }
+    for (const sec of this.forwardedBuckets.keys()) {
+      if (sec < cutoffSec) this.forwardedBuckets.delete(sec);
+    }
+
+    if (this.arrivalBuckets.size >= 2) {
+      let minSec = Infinity;
+      let maxSec = -Infinity;
+      let totalBytes = 0;
+      for (const [sec, bytes] of this.arrivalBuckets) {
+        if (sec < minSec) minSec = sec;
+        if (sec > maxSec) maxSec = sec;
+        totalBytes += bytes;
+      }
+      const spanSec = maxSec - minSec;
+      if (spanSec >= PACING_MIN_WINDOW_SEC && totalBytes > 0) {
+        return totalBytes / spanSec;
       }
     }
-    return (this.options.fallbackBitrateKbps ?? 6000) * 1000 / 8;
+    return ((this.options.fallbackBitrateKbps ?? 6000) * 1000) / 8;
   }
 
   /** Exposed for deterministic tests. */
@@ -257,7 +269,8 @@ export class DelayBuffer {
       this.initialBurstPending = false;
       this.tokens -= entry.data.length;
       this.forwardedBytes += entry.data.length;
-      this.forwarded.push({ at: now, bytes: entry.data.length });
+      const sec = Math.floor(now / 1000);
+      this.forwardedBuckets.set(sec, (this.forwardedBuckets.get(sec) ?? 0) + entry.data.length);
       this.bytes -= entry.data.length;
       this.head += 1;
     }
@@ -272,16 +285,19 @@ export class DelayBuffer {
     }
   }
 
-  private rateFrom(entries: { at: number; bytes: number }[]): number | null {
-    if (entries.length < 2) return null;
-    const span = entries[entries.length - 1]!.at - entries[0]!.at;
-    if (span < 1000) return null;
-    let total = 0;
-    for (let i = 1; i < entries.length; i += 1) {
-      total += entries[i]!.bytes;
+  private rateFromBuckets(buckets: Map<number, number>): number | null {
+    if (buckets.size < 2) return null;
+    let minSec = Infinity;
+    let maxSec = -Infinity;
+    let totalBytes = 0;
+    for (const [sec, bytes] of buckets) {
+      if (sec < minSec) minSec = sec;
+      if (sec > maxSec) maxSec = sec;
+      totalBytes += bytes;
     }
-    if (total <= 0) return null;
-    return (total / span) * 8 / 1000;
+    const spanSec = maxSec - minSec;
+    if (spanSec < 1 || totalBytes <= 0) return null;
+    return (totalBytes / spanSec) * 8 / 1000;
   }
 
   stats(now = Date.now()): {
@@ -311,7 +327,7 @@ export class DelayBuffer {
       catchupRate: this.catchupRate,
       droppedBytes: this.droppedBytes,
       delaySeconds: this.delaySeconds,
-      pacingKbps: this.rateFrom(this.forwarded) ?? this.rateFrom(this.arrivals),
+      pacingKbps: this.rateFromBuckets(this.forwardedBuckets) ?? this.rateFromBuckets(this.arrivalBuckets),
       totalBytes: this.totalBytes,
       forwardedBytes: this.forwardedBytes,
     };

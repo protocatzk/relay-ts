@@ -132,4 +132,35 @@ describe('Canvas chat overlay', () => {
     expect(runtime.engine).toBe(initial);
     runtime.stopEngine();
   });
+
+  it('does not mark dirty when setMessages is called with identical messages (#56)', () => {
+    const engine = new ChatOverlayEngine({
+      settings,
+      overlays: settings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    const msgs = [
+      { id: '1', username: 'bob', text: 'Hi', receivedAt: new Date(), timestamp: new Date() },
+    ];
+    engine.setMessages(msgs);
+    expect(engine.isDirty).toBe(true);
+
+    // Simulate tick clearing dirty
+    const stream = new PassThrough();
+    engine.attach(stream);
+    // After attach and first tick, dirty is cleared
+    expect(engine.isDirty).toBe(false);
+
+    // Calling setMessages with identical array must NOT trigger dirty
+    engine.setMessages([...msgs]);
+    expect(engine.isDirty).toBe(false);
+
+    // Adding a new message MUST trigger dirty
+    engine.setMessages([
+      ...msgs,
+      { id: '2', username: 'alice', text: 'Hey', receivedAt: new Date(), timestamp: new Date() },
+    ]);
+    expect(engine.isDirty).toBe(true);
+    engine.stop();
+  });
 });

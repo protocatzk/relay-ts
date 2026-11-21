@@ -19,10 +19,11 @@ function record(id: string) {
 }
 
 describe('YouTubeBroadcastStore', () => {
-  it('persists records with mode 0600 and reloads them', () => {
+  it('persists records with mode 0600 and reloads them', async () => {
     const path = join(mkdtempSync(join(tmpdir(), 'relay-youtube-store-')), 'broadcasts.json');
     const store = new YouTubeBroadcastStore(path, logger);
     store.upsert(record('bc-1'));
+    await store.flush();
 
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(path, 'utf8')).broadcasts).toHaveLength(1);
@@ -33,12 +34,14 @@ describe('YouTubeBroadcastStore', () => {
 
     reloaded.updateStatus('bc-1', 'live');
     reloaded.updateStream('bc-1', 'stream-2');
+    await reloaded.flush();
     expect(new YouTubeBroadcastStore(path, logger).get('bc-1')).toMatchObject({
       status: 'live',
       stream_id: 'stream-2',
     });
 
     reloaded.remove('bc-1');
+    await reloaded.flush();
     expect(new YouTubeBroadcastStore(path, logger).list()).toEqual([]);
   });
 

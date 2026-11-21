@@ -46,6 +46,8 @@ async function main(): Promise<void> {
   const { logger, ring, flush } = createLogger({
     level: config.server.logLevel,
     logFile: config.paths.logFile,
+    maxFileMb: config.settings.logging.log_file_mb,
+    maxFiles: config.settings.logging.log_files,
     onEntry: (entry: LogEntry) => bus.emit({ type: 'log', data: entry }),
   });
 

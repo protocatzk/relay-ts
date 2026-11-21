@@ -10,10 +10,12 @@ export const RESOLUTIONS = [
   '1600x900',
 ] as const;
 export const PRESETS = ['ultrafast', 'veryfast', 'faster', 'fast', 'medium'] as const;
+export const VIDEO_TUNES = ['zerolatency', 'film', 'animation', 'off'] as const;
 /** Video encoders selectable in the dashboard; `auto` probes at startup. */
 export const VIDEO_ENCODERS = ['auto', 'libx264', 'h264_qsv', 'h264_nvenc', 'h264_amf'] as const;
 
 export type VideoPreset = (typeof PRESETS)[number];
+export type VideoTuneSetting = (typeof VIDEO_TUNES)[number];
 export type VideoEncoderSetting = (typeof VIDEO_ENCODERS)[number];
 
 const PositionSchema = z.enum(POSITIONS);
@@ -230,6 +232,7 @@ export const VideoSettingsSchema = z.object({
   video_bitrate: z.number().int().min(500).max(50_000).default(4000),
   audio_bitrate: z.number().int().min(32).max(320).default(128),
   preset: z.enum(PRESETS).default('veryfast'),
+  tune: z.enum(VIDEO_TUNES).default('zerolatency'),
   encoder: z.enum(VIDEO_ENCODERS).default('auto'),
   layout: VideoLayoutSchema.default(VideoLayoutSchema.parse({})),
 });
@@ -373,6 +376,12 @@ export const WebhooksSettingsSchema = z.object({
     .default(['stream_error', 'pause_limit', 'reconnect_failed', 'youtube_auth_required', 'disk_warning']),
 });
 
+export const LoggingSettingsSchema = z.object({
+  log_level: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
+  log_file_mb: z.number().int().min(1).max(1000).default(20),
+  log_files: z.number().int().min(1).max(50).default(5),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -391,6 +400,7 @@ export const SettingsSchema = z.object({
   secondary_sink: SecondarySinkSettingsSchema.default(SecondarySinkSettingsSchema.parse({})),
   recording: RecordingSettingsSchema.default(RecordingSettingsSchema.parse({})),
   webhooks: WebhooksSettingsSchema.default(WebhooksSettingsSchema.parse({})),
+  logging: LoggingSettingsSchema.default(LoggingSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -409,6 +419,7 @@ export type WebhooksSettings = z.infer<typeof WebhooksSettingsSchema>;
 export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettingsSchema>;
 export type SecondarySinkSettings = z.infer<typeof SecondarySinkSettingsSchema>;
 export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;
+export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

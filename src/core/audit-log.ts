@@ -1,12 +1,8 @@
 import {
-  appendFileSync,
-  chmodSync,
   existsSync,
   readFileSync,
-  renameSync,
-  statSync,
-  unlinkSync,
 } from 'node:fs';
+import { appendFile, chmod, rename, stat, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ensureDir } from '../utils/fs.js';
 
@@ -61,6 +57,8 @@ export class AuditLogStore {
   private readonly maxFiles: number;
   private readonly redact: (text: string) => string;
   private readonly memory: AuditEntry[] = [];
+  private readonly writeQueue: AuditEntry[] = [];
+  private writePromise: Promise<void> = Promise.resolve();
 
   constructor(path?: string, options: AuditStoreOptions = {}) {
     this.path = path;
@@ -88,20 +86,31 @@ export class AuditLogStore {
       return entry;
     }
 
-    try {
-      ensureDir(dirname(this.path));
-      this.rotateIfNeeded();
-      appendFileSync(this.path, `${JSON.stringify(entry)}\n`, { encoding: 'utf8', mode: 0o600 });
+    this.writeQueue.push(entry);
+    this.writePromise = this.writePromise.then(async () => {
+      if (!this.path) return;
       try {
-        chmodSync(this.path, 0o600);
+        ensureDir(dirname(this.path));
+        await this.rotateIfNeededAsync();
+        await appendFile(this.path, `${JSON.stringify(entry)}\n`, { encoding: 'utf8', mode: 0o600 });
+        try {
+          await chmod(this.path, 0o600);
+        } catch {
+          /* best effort on non-POSIX mounts */
+        }
       } catch {
-        /* best effort on non-POSIX mounts */
+        /* audit write failures must never break stream control */
+        this.memory.push(entry);
+      } finally {
+        const idx = this.writeQueue.indexOf(entry);
+        if (idx !== -1) this.writeQueue.splice(idx, 1);
       }
-    } catch {
-      /* audit write failures must never break stream control */
-      this.memory.push(entry);
-    }
+    });
     return entry;
+  }
+
+  async flush(): Promise<void> {
+    await this.writePromise;
   }
 
   query(filter: AuditQuery = {}): AuditQueryResult {
@@ -144,11 +153,12 @@ export class AuditLogStore {
     return this.redact(value).replace(/[\r\n]+/g, ' ').trim().slice(0, maxLen);
   }
 
-  private rotateIfNeeded(): void {
+  private async rotateIfNeededAsync(): Promise<void> {
     if (!this.path || !existsSync(this.path)) return;
     let size: number;
     try {
-      size = statSync(this.path).size;
+      const s = await stat(this.path);
+      size = s.size;
     } catch {
       return;
     }
@@ -160,13 +170,13 @@ export class AuditLogStore {
       if (!existsSync(source)) continue;
       if (index === this.maxFiles && existsSync(target)) {
         try {
-          unlinkSync(target);
+          await unlink(target);
         } catch {
           /* ignore */
         }
       }
       try {
-        renameSync(source, target);
+        await rename(source, target);
       } catch {
         /* ignore */
       }
@@ -175,7 +185,7 @@ export class AuditLogStore {
 
   private loadAllNewestFirst(): AuditEntry[] {
     if (!this.path) {
-      return [...this.memory].reverse();
+      return [...this.memory, ...this.writeQueue].reverse();
     }
     const files: string[] = [];
     for (let index = this.maxFiles; index >= 1; index -= 1) {
@@ -216,6 +226,9 @@ export class AuditLogStore {
       } catch {
         /* ignore unreadable rotated file */
       }
+    }
+    for (const queued of this.writeQueue) {
+      parsed.push(queued);
     }
     return parsed.reverse();
   }

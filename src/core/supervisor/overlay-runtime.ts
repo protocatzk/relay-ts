@@ -44,7 +44,7 @@ export class OverlayRuntime {
   private logoEngine?: LogoOverlayEngine;
   private logoImage?: Image;
   private previewEngine?: ChatOverlayEngine;
-  private previewSignature = '';
+  private previewEngineDirty = true;
   private currentMessages: ChatMessage[] = [];
   private lastMessageAt: Date | null = null;
   private lastValidEarningsCard: ChatEarningsCard | null = null;
@@ -68,7 +68,13 @@ export class OverlayRuntime {
   }
 
   updateSettings(settings: Settings): void {
+    const chatChanged =
+      this.settings.overlays.chat !== settings.overlays.chat ||
+      this.settings.video.resolution !== settings.video.resolution;
     this.settings = settings;
+    if (chatChanged) {
+      this.previewEngineDirty = true;
+    }
     this.chatEngine?.setEarningsCard(this.currentEarningsCard());
   }
 
@@ -338,17 +344,13 @@ export class OverlayRuntime {
   }
 
   private getPreviewEngine(): ChatOverlayEngine {
-    const signature = JSON.stringify({
-      chat: this.settings.overlays.chat,
-      resolution: this.settings.video.resolution,
-    });
-    if (!this.previewEngine || this.previewSignature !== signature) {
+    if (!this.previewEngine || this.previewEngineDirty) {
       this.previewEngine = new ChatOverlayEngine({
         settings: this.settings,
         overlays: this.settings.overlays,
         logger: this.logger,
       });
-      this.previewSignature = signature;
+      this.previewEngineDirty = false;
     }
     return this.previewEngine;
   }

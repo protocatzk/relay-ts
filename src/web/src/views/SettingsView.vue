@@ -8,6 +8,7 @@ import type {
   Settings,
   VideoEncoderSetting,
   VideoPreset,
+  VideoTuneSetting,
   WebhookEventType,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
@@ -43,6 +44,13 @@ const PRESETS: { value: VideoPreset; label: string }[] = [
   { value: 'faster', label: 'Faster' },
   { value: 'fast', label: 'Fast' },
   { value: 'medium', label: 'Medium' },
+];
+
+const TUNES: { value: VideoTuneSetting; label: string }[] = [
+  { value: 'zerolatency', label: 'Zero-Latency (Standard)' },
+  { value: 'film', label: 'Film (für reale Videos)' },
+  { value: 'animation', label: 'Animation (für Anime/Cartoons)' },
+  { value: 'off', label: 'Aus (B-Frames & Lookahead aktiv)' },
 ];
 
 const ENCODERS: { value: VideoEncoderSetting; label: string }[] = [
@@ -659,6 +667,17 @@ onBeforeUnmount(() => {
                 </option>
               </select>
               <p class="field-hint">Schnellere Presets reduzieren die CPU-Last.</p>
+            </div>
+            <div class="field">
+              <label for="video-tune">H.264 Tune</label>
+              <select id="video-tune" v-model="form.video.tune">
+                <option v-for="tune in TUNES" :key="tune.value" :value="tune.value">
+                  {{ tune.label }}
+                </option>
+              </select>
+              <p class="field-hint">
+                „Aus“ ermöglicht B-Frames und Lookahead für bessere Kompressionseffizienz bei gleicher Bitrate.
+              </p>
             </div>
             <div class="field">
               <label for="video-encoder">Video-Encoder</label>

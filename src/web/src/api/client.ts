@@ -564,7 +564,7 @@ export const api = {
 
   overlays: {
     previewUrl: (sample = false): string =>
-      `/api/overlays/preview.png${sample ? '?sample=1&' : '?'}t=${Date.now()}`,
+      `/api/overlays/preview.png${sample ? '?sample=1' : ''}`,
     save: (overlays: StreamerOverlaysInput) =>
       request<Settings>('/api/overlays', { method: 'PUT', body: { overlays } }),
     studioPreview: async (body: StudioPreviewInput, signal?: AbortSignal): Promise<Blob> => {

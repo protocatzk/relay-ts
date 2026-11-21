@@ -98,7 +98,9 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     );
     const pathname = (request.url ?? '').split('?')[0] ?? '/';
     const contentType = String(reply.getHeader('content-type') ?? '');
-    if (pathname.startsWith('/api/')) {
+    if (pathname === '/api/overlays/preview.png') {
+      reply.header('cache-control', 'no-cache');
+    } else if (pathname.startsWith('/api/')) {
       reply.header('cache-control', 'no-store');
     } else if (pathname.startsWith('/assets/')) {
       // Hashed build assets are immutable.

@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
@@ -106,6 +107,40 @@ export function listRecordings(dataDir: string, activeFilename: string | null = 
     .sort((a, b) => Date.parse(b.modified_at) - Date.parse(a.modified_at));
 }
 
+export async function listRecordingsAsync(
+  dataDir: string,
+  activeFilename: string | null = null,
+): Promise<RecordingFileInfo[]> {
+  const dir = recordingsDirectory(dataDir);
+  if (!existsSync(dir)) return [];
+  try {
+    const names = await readdir(dir);
+    const safeNames = names.filter((name) => isSafeRecordingFilename(name));
+    const files = await Promise.all(
+      safeNames.map(async (filename) => {
+        try {
+          const s = await stat(join(dir, filename));
+          const markers = readRecordingMarkers(dataDir, filename);
+          return {
+            filename,
+            size: s.size,
+            modified_at: new Date(s.mtimeMs).toISOString(),
+            active: filename === activeFilename,
+            markers_count: markers.length,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return files
+      .filter((file): file is RecordingFileInfo => file !== null)
+      .sort((a, b) => Date.parse(b.modified_at) - Date.parse(a.modified_at));
+  } catch {
+    return [];
+  }
+}
+
 export function evaluateRecordingStorage(
   dataDir: string,
   config: RecordingSettings,
@@ -114,6 +149,34 @@ export function evaluateRecordingStorage(
   const dir = recordingsDirectory(dataDir);
   ensureDir(dir);
   const files = listRecordings(dataDir, activeFilename);
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  const fs = filesystemUsage(dir);
+
+  let warning: string | null = null;
+  if (fs && config.min_free_mb > 0 && fs.available_bytes < config.min_free_mb * 1024 * 1024) {
+    warning = `Wenig freier Speicherplatz (< ${config.min_free_mb} MB verfügbar)`;
+  } else if (config.max_total_mb > 0 && totalBytes >= config.max_total_mb * 1024 * 1024) {
+    warning = `Aufzeichnungs-Limit erreicht (${config.max_total_mb} MB)`;
+  }
+
+  return {
+    total_bytes: totalBytes,
+    file_count: files.length,
+    max_total_mb: config.max_total_mb,
+    min_free_mb: config.min_free_mb,
+    disk_warning: warning,
+    filesystem: fs,
+  };
+}
+
+export async function evaluateRecordingStorageAsync(
+  dataDir: string,
+  config: RecordingSettings,
+  activeFilename: string | null = null,
+): Promise<RecordingStorageSummary> {
+  const dir = recordingsDirectory(dataDir);
+  ensureDir(dir);
+  const files = await listRecordingsAsync(dataDir, activeFilename);
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   const fs = filesystemUsage(dir);
 
@@ -208,6 +271,7 @@ export class RecordingController {
   private currentFilename: string | null = null;
   private startedAt: string | null = null;
   private lastError: string | null = null;
+  private cachedStorageSummary: { storage: RecordingStorageSummary; expiresAt: number } | null = null;
 
   constructor(options: RecordingControllerOptions) {
     this.options = options;
@@ -215,6 +279,7 @@ export class RecordingController {
 
   updateSettings(settings: Settings): void {
     this.options.settings = settings;
+    this.cachedStorageSummary = null;
   }
 
   get active(): boolean {
@@ -321,11 +386,13 @@ export class RecordingController {
       }
     }, 30_000);
     this.diskTimer.unref?.();
+    this.cachedStorageSummary = null;
     this.options.logger.info({ filename }, 'MKV-Aufzeichnung gestartet');
   }
 
   async stop(): Promise<void> {
     this.detach();
+    this.cachedStorageSummary = null;
     const proc = this.process;
     const filename = this.currentFilename;
     this.process = undefined;
@@ -363,7 +430,14 @@ export class RecordingController {
         }
       }
     }
-    const storage = evaluateRecordingStorage(this.options.dataDir, cfg, this.currentFilename);
+    const now = Date.now();
+    let storage: RecordingStorageSummary;
+    if (this.cachedStorageSummary && this.cachedStorageSummary.expiresAt > now) {
+      storage = this.cachedStorageSummary.storage;
+    } else {
+      storage = evaluateRecordingStorage(this.options.dataDir, cfg, this.currentFilename);
+      this.cachedStorageSummary = { storage, expiresAt: now + 15_000 };
+    }
     return {
       enabled: cfg.enabled,
       active: this.active,

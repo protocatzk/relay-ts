@@ -100,7 +100,15 @@ function resolvePath(cwd: string, value: string | undefined, fallback: string): 
 }
 
 function parseLogLevel(value: string | undefined): LogLevel {
-  if (value === 'debug' || value === 'info' || value === 'warn' || value === 'error') return value;
+  if (
+    value === 'debug' ||
+    value === 'info' ||
+    value === 'warn' ||
+    value === 'error' ||
+    value === 'silent'
+  ) {
+    return value;
+  }
   return 'info';
 }
 
@@ -477,6 +485,9 @@ export function applyEnvSettings(
   set(['webhooks', 'url'], env.WEBHOOK_URL?.trim() || undefined);
   set(['webhooks', 'format'], env.WEBHOOK_FORMAT?.trim() || undefined);
   set(['webhooks', 'secret'], env.WEBHOOK_SECRET?.trim() || undefined);
+  set(['logging', 'log_level'], env.LOG_LEVEL?.trim() || undefined);
+  set(['logging', 'log_file_mb'], parseNumber(env.LOG_FILE_MB));
+  set(['logging', 'log_files'], parseNumber(env.LOG_FILES));
 }
 
 /** Validates a single streamer for CRUD operations. */

@@ -101,16 +101,41 @@ export function measureDirectory(dir: string, maxDepth = 4): DirectoryStorageSta
   return { exists: true, bytes, files };
 }
 
-export function filesystemUsage(path: string): FilesystemStorageStats | null {
+const FS_CACHE_TTL_MS = 15_000;
+interface FsCacheEntry {
+  expiresAt: number;
+  stats: FilesystemStorageStats | null;
+}
+const fsCache = new Map<string, FsCacheEntry>();
+
+export function clearFilesystemUsageCache(): void {
+  fsCache.clear();
+}
+
+export function filesystemUsage(
+  path: string,
+  options?: { maxAgeMs?: number; force?: boolean },
+): FilesystemStorageStats | null {
+  const maxAge = options?.maxAgeMs ?? FS_CACHE_TTL_MS;
+  const now = Date.now();
+  if (!options?.force) {
+    const cached = fsCache.get(path);
+    if (cached && cached.expiresAt > now) {
+      return cached.stats;
+    }
+  }
   try {
     const stat = statfsSync(path);
     const blockSize = Number(stat.bsize);
-    return {
+    const result: FilesystemStorageStats = {
       total_bytes: Number(stat.blocks) * blockSize,
       free_bytes: Number(stat.bfree) * blockSize,
       available_bytes: Number(stat.bavail) * blockSize,
     };
+    fsCache.set(path, { expiresAt: now + maxAge, stats: result });
+    return result;
   } catch {
+    fsCache.set(path, { expiresAt: now + maxAge, stats: null });
     return null;
   }
 }

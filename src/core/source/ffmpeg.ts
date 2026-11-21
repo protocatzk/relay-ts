@@ -325,7 +325,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
       bitrateKbps: bitrate,
       fps,
       preset: settings.video.preset,
-      tune: 'zerolatency',
+      tune: settings.video.tune === 'off' ? undefined : (settings.video.tune ?? 'zerolatency'),
       filler: true,
       profile: 'high',
       level: '4.0',

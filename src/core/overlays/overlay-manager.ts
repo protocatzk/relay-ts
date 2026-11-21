@@ -101,7 +101,7 @@ export class OverlayManager {
   updateChat(messages: string[]): void {
     if (!this.chatFile) return;
     const config = this.settings.overlays.chat;
-    if (!config.enabled) return;
+    if (!config.enabled || config.engine !== 'drawtext') return;
     const [width] = this.settings.video.resolution.split('x').map(Number) as [number, number];
     const maxChars = Math.max(12, Math.floor((width * 0.9) / (config.font_size * 0.56)));
     const lines: string[] = [];

@@ -31,7 +31,7 @@ describe('Diagnostics, Logs and Audit Trail', () => {
     });
   });
 
-  it('writes 0600 JSONL audit logs, redacts secrets, filters and rotates', () => {
+  it('writes 0600 JSONL audit logs, redacts secrets, filters and rotates', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'relay-audit-store-'));
     const file = join(dir, 'audit.jsonl');
     const store = new AuditLogStore(file, {
@@ -62,6 +62,7 @@ describe('Diagnostics, Logs and Audit Trail', () => {
       target: 'pause',
       result: 'ok',
     });
+    await store.flush();
 
     expect(statSync(file).mode & 0o777).toBe(0o600);
     expect(existsSync(`${file}.1`)).toBe(true);

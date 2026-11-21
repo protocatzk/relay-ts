@@ -322,16 +322,34 @@ function refreshMediaList(): void {
   void loadMediaFiles(true);
 }
 
+function onVisibilityChange(): void {
+  if (document.hidden) {
+    if (mediaTimer !== null) {
+      window.clearInterval(mediaTimer);
+      mediaTimer = null;
+    }
+  } else {
+    void loadMediaFiles();
+    if (mediaTimer === null) {
+      mediaTimer = window.setInterval(() => void loadMediaFiles(), 5000);
+    }
+  }
+}
+
 onMounted(() => {
   refreshPlaylists().catch((error) => pushToast(errorMessage(error), 'error'));
   refreshStatus().catch(() => undefined);
-  void loadMediaFiles();
-  // data/media can be filled from outside the dashboard (scp, mounts, scripts).
-  mediaTimer = window.setInterval(() => void loadMediaFiles(), 5000);
+  document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('focus', refreshMediaList);
+  if (!document.hidden) {
+    void loadMediaFiles();
+    // data/media can be filled from outside the dashboard (scp, mounts, scripts).
+    mediaTimer = window.setInterval(() => void loadMediaFiles(), 5000);
+  }
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange);
   if (mediaTimer !== null) window.clearInterval(mediaTimer);
   window.removeEventListener('focus', refreshMediaList);
 });

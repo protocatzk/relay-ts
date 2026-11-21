@@ -1,11 +1,23 @@
 import { Writable } from 'node:stream';
-import { closeSync, existsSync, mkdirSync, openSync, readSync, statSync } from 'node:fs';
-import { dirname } from 'node:path';
+import {
+  close,
+  closeSync,
+  existsSync,
+  fsync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  write,
+} from 'node:fs';
+import { basename, dirname, extname, join } from 'node:path';
 import pino, { type Logger } from 'pino';
 
 export type { Logger };
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 export interface LogEntry {
   time: string;
@@ -109,16 +121,15 @@ export function parseRawLogLine(line: string): LogEntry | null {
   }
 }
 
-/** Read up to the trailing `maxBytes` of a JSONL pino log file for historical search/pagination. */
-export function readLogFileEntries(logFile: string, maxBytes = 2 * 1024 * 1024): LogEntry[] {
-  if (!logFile || !existsSync(logFile)) return [];
+function readFileTailLines(filePath: string, maxBytes: number): string[] {
+  if (!filePath || !existsSync(filePath)) return [];
   try {
-    const size = statSync(logFile).size;
+    const size = statSync(filePath).size;
     if (size === 0) return [];
     const readLength = Math.min(size, maxBytes);
     const start = size - readLength;
     const buffer = Buffer.alloc(readLength);
-    const fd = openSync(logFile, 'r');
+    const fd = openSync(filePath, 'r');
     try {
       readSync(fd, buffer, 0, readLength, start);
     } finally {
@@ -126,17 +137,51 @@ export function readLogFileEntries(logFile: string, maxBytes = 2 * 1024 * 1024):
     }
     const text = buffer.toString('utf8');
     const lines = text.split('\n');
-    // Drop possibly truncated leading line when we started mid-file.
     if (start > 0) lines.shift();
-    const entries: LogEntry[] = [];
+    return lines;
+  } catch {
+    return [];
+  }
+}
+
+/** Read up to the trailing `maxBytes` of a JSONL pino log file (and its rotated predecessors) for historical search/pagination. */
+export function readLogFileEntries(logFile: string, maxBytes = 2 * 1024 * 1024): LogEntry[] {
+  if (!logFile || !existsSync(logFile)) return [];
+  const ext = extname(logFile);
+  const base = basename(logFile, ext);
+  const dir = dirname(logFile);
+
+  const filesToRead: string[] = [logFile];
+  let remainingBytes = maxBytes;
+  try {
+    remainingBytes -= statSync(logFile).size;
+  } catch {
+    /* ignore */
+  }
+
+  let index = 1;
+  while (remainingBytes > 0 && index <= 10) {
+    const candidate = join(dir, `${base}-${index}${ext}`);
+    if (existsSync(candidate)) {
+      filesToRead.unshift(candidate);
+      try {
+        remainingBytes -= statSync(candidate).size;
+      } catch {
+        /* ignore */
+      }
+    }
+    index += 1;
+  }
+
+  const entries: LogEntry[] = [];
+  for (const file of filesToRead) {
+    const lines = readFileTailLines(file, maxBytes);
     for (const line of lines) {
       const entry = parseRawLogLine(line);
       if (entry) entries.push(entry);
     }
-    return entries;
-  } catch {
-    return [];
   }
+  return entries;
 }
 
 export function formatLogsAsText(entries: readonly LogEntry[]): string {
@@ -222,7 +267,7 @@ export class LogRing {
 }
 
 function levelWeight(level: LogLevel): number {
-  return { debug: 0, info: 1, warn: 2, error: 3 }[level];
+  return { debug: 0, info: 1, warn: 2, error: 3, silent: 4 }[level];
 }
 
 class RingStream extends Writable {
@@ -258,9 +303,122 @@ class RingStream extends Writable {
   }
 }
 
+export interface RotatingFileStreamOptions {
+  filePath: string;
+  maxBytes?: number;
+  maxFiles?: number;
+}
+
+export class RotatingFileStream extends Writable {
+  private currentBytes = 0;
+  private readonly maxBytes: number;
+  private readonly maxFiles: number;
+  private fd: number | null = null;
+  private rotating = false;
+
+  constructor(private readonly options: RotatingFileStreamOptions) {
+    super({ objectMode: false });
+    this.maxBytes = options.maxBytes ?? 20 * 1024 * 1024;
+    this.maxFiles = options.maxFiles ?? 5;
+    this.init();
+  }
+
+  private init(): void {
+    mkdirSync(dirname(this.options.filePath), { recursive: true });
+    if (existsSync(this.options.filePath)) {
+      try {
+        this.currentBytes = statSync(this.options.filePath).size;
+      } catch {
+        this.currentBytes = 0;
+      }
+    } else {
+      this.currentBytes = 0;
+    }
+    this.fd = openSync(this.options.filePath, 'a', 0o600);
+  }
+
+  rotate(): void {
+    if (this.rotating) return;
+    this.rotating = true;
+    try {
+      if (this.fd !== null) {
+        closeSync(this.fd);
+        this.fd = null;
+      }
+      const filePath = this.options.filePath;
+      const ext = extname(filePath);
+      const base = basename(filePath, ext);
+      const dir = dirname(filePath);
+
+      for (let i = this.maxFiles; i >= 1; i -= 1) {
+        const target = join(dir, `${base}-${i}${ext}`);
+        const source = i === 1 ? filePath : join(dir, `${base}-${i - 1}${ext}`);
+        if (!existsSync(source)) continue;
+        if (existsSync(target)) {
+          try {
+            unlinkSync(target);
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          renameSync(source, target);
+        } catch {
+          /* ignore */
+        }
+      }
+    } finally {
+      this.fd = openSync(this.options.filePath, 'a', 0o600);
+      this.currentBytes = 0;
+      this.rotating = false;
+    }
+  }
+
+  override _write(
+    chunk: Buffer | string,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
+    if (this.currentBytes + buf.length >= this.maxBytes) {
+      this.rotate();
+    }
+    if (this.fd === null) {
+      this.fd = openSync(this.options.filePath, 'a', 0o600);
+    }
+    write(this.fd, buf, 0, buf.length, null, (err, bytesWritten) => {
+      if (!err && bytesWritten) {
+        this.currentBytes += bytesWritten;
+      }
+      callback(err);
+    });
+  }
+
+  override _final(callback: (error?: Error | null) => void): void {
+    if (this.fd !== null) {
+      close(this.fd, (err) => {
+        this.fd = null;
+        callback(err);
+      });
+    } else {
+      callback();
+    }
+  }
+
+  flush(callback?: () => void): void {
+    if (this.fd !== null) {
+      fsync(this.fd, () => callback?.());
+    } else {
+      callback?.();
+    }
+  }
+}
+
 export interface LoggerOptions {
   level?: LogLevel;
   logFile?: string;
+  maxFileMb?: number;
+  maxFiles?: number;
   redact?: string[];
   ring?: LogRing;
   onEntry?: (entry: LogEntry) => void;
@@ -271,21 +429,32 @@ export interface LoggerBundle {
   logger: Logger;
   ring: LogRing;
   flush: () => Promise<void>;
+  rotatingStream?: RotatingFileStream;
 }
 
 export function createLogger(options: LoggerOptions = {}): LoggerBundle {
   const ring = options.ring ?? new LogRing();
   const level = options.level ?? 'info';
-  const streams: pino.StreamEntry[] = [
+  const streams: pino.StreamEntry<pino.LevelWithSilentOrString>[] = [
     { level, stream: process.stdout },
     { level, stream: new RingStream(ring, options.onEntry) },
   ];
 
-  let fileDestination: pino.DestinationStream | undefined;
+  let rotatingStream: RotatingFileStream | undefined;
   if (options.logFile) {
-    mkdirSync(dirname(options.logFile), { recursive: true });
-    fileDestination = pino.destination({ dest: options.logFile, sync: false, mkdir: true });
-    streams.push({ level, stream: fileDestination });
+    const maxBytes = (options.maxFileMb ?? 20) * 1024 * 1024;
+    const maxFiles = options.maxFiles ?? 5;
+    rotatingStream = new RotatingFileStream({
+      filePath: options.logFile,
+      maxBytes,
+      maxFiles,
+    });
+    streams.push({ level, stream: rotatingStream });
+
+    const onSigusr1 = () => {
+      rotatingStream?.rotate();
+    };
+    process.on('SIGUSR1', onSigusr1);
   }
 
   const logger = pino(
@@ -325,12 +494,11 @@ export function createLogger(options: LoggerOptions = {}): LoggerBundle {
   return {
     logger,
     ring,
+    rotatingStream,
     flush: async () => {
       await new Promise<void>((resolve) => {
-        if (!fileDestination) return resolve();
-        const destination = fileDestination as unknown as { flush?: (callback: () => void) => void };
-        if (destination.flush) destination.flush(() => resolve());
-        else resolve();
+        if (!rotatingStream) return resolve();
+        rotatingStream.flush(() => resolve());
         setTimeout(resolve, 500);
       });
     },

@@ -2299,17 +2299,19 @@ export class Supervisor {
     });
   }
 
-  emitAll(): void {
-    this.emitStatus();
-    this.emitStreamers();
-    this.emitQueue();
+  emitAll(force = false): void {
+    this.emitStatus(force);
+    this.emitStreamers(force);
+    this.emitQueue(force);
   }
 
-  emitStatus(): void {
+  emitStatus(force = false): void {
+    if (!force && !this.deps.bus.hasObservers()) return;
     this.deps.bus.emit({ type: 'status', data: this.buildStatus() });
   }
 
-  emitQueue(): void {
+  emitQueue(force = false): void {
+    if (!force && !this.deps.bus.hasObservers()) return;
     try {
       this.deps.bus.emit({ type: 'queue', data: this.buildQueueSnapshot() });
     } catch (error) {
@@ -2320,7 +2322,8 @@ export class Supervisor {
     }
   }
 
-  emitStreamers(): void {
+  emitStreamers(force = false): void {
+    if (!force && !this.deps.bus.hasObservers()) return;
     try {
       this.deps.bus.emit({ type: 'streamers', data: this.streamersView() });
     } catch (error) {

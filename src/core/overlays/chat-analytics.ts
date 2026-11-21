@@ -41,11 +41,23 @@ export class ChatAnalytics {
       }
       const at = msg.timestamp?.getTime() ?? msg.receivedAt.getTime();
       const clampedAt = Number.isFinite(at) ? at : now;
-      this.events.push({
+      const event: RecordedEvent = {
         at: clampedAt,
         username: msg.displayName || msg.username || 'Chat',
         badges: Array.isArray(msg.badges) ? msg.badges.filter(Boolean) : [],
-      });
+      };
+      if (this.events.length === 0 || clampedAt >= this.events[this.events.length - 1]!.at) {
+        this.events.push(event);
+      } else {
+        let low = 0;
+        let high = this.events.length;
+        while (low < high) {
+          const mid = (low + high) >>> 1;
+          if (this.events[mid]!.at <= clampedAt) low = mid + 1;
+          else high = mid;
+        }
+        this.events.splice(low, 0, event);
+      }
     }
     this.prune(now);
   }
@@ -107,7 +119,12 @@ export class ChatAnalytics {
 
   private prune(now: number): void {
     const cutoff = now - WINDOW_MS;
-    if (this.events.length === 0) return;
-    this.events = this.events.filter((ev) => ev.at >= cutoff);
+    let cutoffIdx = 0;
+    while (cutoffIdx < this.events.length && this.events[cutoffIdx]!.at < cutoff) {
+      cutoffIdx += 1;
+    }
+    if (cutoffIdx > 0) {
+      this.events.splice(0, cutoffIdx);
+    }
   }
 }

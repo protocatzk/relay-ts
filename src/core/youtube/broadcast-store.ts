@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Logger } from 'pino';
 import { ensureDir } from '../../utils/fs.js';
@@ -99,21 +100,29 @@ export class YouTubeBroadcastStore {
     }
   }
 
+  private savePromise: Promise<void> = Promise.resolve();
+
   private save(): void {
     const document: BroadcastDocument = {
       version: 1,
       broadcasts: this.list(),
     };
-    try {
-      ensureDir(dirname(this.path));
-      const temporary = `${this.path}.tmp`;
-      writeFileSync(temporary, JSON.stringify(document, null, 2), { mode: 0o600 });
-      renameSync(temporary, this.path);
-    } catch (error) {
-      this.logger.warn(
-        { err: error instanceof Error ? error.message : String(error) },
-        'YouTube-Broadcast-Registry konnte nicht geschrieben werden',
-      );
-    }
+    this.savePromise = this.savePromise.then(async () => {
+      try {
+        ensureDir(dirname(this.path));
+        const temporary = `${this.path}.tmp`;
+        await writeFile(temporary, JSON.stringify(document, null, 2), { mode: 0o600 });
+        await rename(temporary, this.path);
+      } catch (error) {
+        this.logger.warn(
+          { err: error instanceof Error ? error.message : String(error) },
+          'YouTube-Broadcast-Registry konnte nicht geschrieben werden',
+        );
+      }
+    });
+  }
+
+  async flush(): Promise<void> {
+    await this.savePromise;
   }
 }

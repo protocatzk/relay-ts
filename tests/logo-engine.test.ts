@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import { loadImage } from '@napi-rs/canvas';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
@@ -54,6 +55,30 @@ describe('LogoOverlayEngine', () => {
       fps: 10,
       fd: 4,
     });
+    engine.stop();
+  });
+
+  it('streams exactly 3 static frames and ends the pipe (#55)', async () => {
+    const image = await loadImage(logoPath);
+    const engine = new LogoOverlayEngine({
+      settings: withLogo({ width: 64 }),
+      image,
+      logger,
+    });
+    const sink = new PassThrough();
+    const chunks: Buffer[] = [];
+    let ended = false;
+    sink.on('data', (chunk) => chunks.push(chunk));
+    sink.on('end', () => {
+      ended = true;
+    });
+
+    engine.attach(sink);
+    // Allow timer / ticks to run
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(chunks.length).toBe(3);
+    expect(ended).toBe(true);
     engine.stop();
   });
 });

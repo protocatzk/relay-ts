@@ -138,4 +138,12 @@ export class EventBus {
   observe(): Observable<SystemEvent> {
     return this.subject.asObservable();
   }
+
+  hasObservers(): boolean {
+    return this.subject.observed;
+  }
+
+  get observerCount(): number {
+    return this.subject.observers.length;
+  }
 }

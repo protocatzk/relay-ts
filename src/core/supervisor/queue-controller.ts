@@ -208,6 +208,16 @@ export class QueueController {
 
   setPlayback(playback: QueuePlayback | null): void {
     this.load();
+    if (!playback && !this.playback) return;
+    if (
+      playback &&
+      this.playback &&
+      playback.channel === this.playback.channel &&
+      playback.duration_seconds === this.playback.duration_seconds &&
+      Math.abs(playback.position_seconds - this.playback.position_seconds) < 2
+    ) {
+      return;
+    }
     this.playback = playback;
     this.persist();
   }

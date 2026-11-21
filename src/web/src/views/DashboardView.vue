@@ -104,15 +104,47 @@ const chatTest = reactive({ username: 'Testuser', text: '' });
 const sendingChat = ref(false);
 const titlePreview = ref<TitlePreview | null>(null);
 let previewTimer: number | null = null;
+let lastPreviewEtag: string | null = null;
+let previewObjectUrl: string | null = null;
 
-function refreshPreview(): void {
-  previewUrl.value = api.overlays.previewUrl(false);
+async function refreshPreview(): Promise<void> {
   void api.chat
     .analytics()
     .then((data) => {
       chatAnalytics.value = data;
     })
     .catch(() => undefined);
+
+  try {
+    const res = await fetch(api.overlays.previewUrl(false), {
+      headers: lastPreviewEtag ? { 'If-None-Match': lastPreviewEtag } : {},
+    });
+    if (res.status === 200) {
+      const etag = res.headers.get('etag');
+      if (etag) lastPreviewEtag = etag;
+      const blob = await res.blob();
+      const nextUrl = URL.createObjectURL(blob);
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = nextUrl;
+      previewUrl.value = nextUrl;
+    }
+  } catch {
+    // Keep current preview if fetch failed
+  }
+}
+
+function onVisibilityChange(): void {
+  if (document.hidden) {
+    if (previewTimer !== null) {
+      window.clearInterval(previewTimer);
+      previewTimer = null;
+    }
+  } else {
+    void refreshPreview();
+    if (previewTimer === null) {
+      previewTimer = window.setInterval(() => void refreshPreview(), 5000);
+    }
+  }
 }
 
 async function sendChatTest(): Promise<void> {
@@ -370,12 +402,17 @@ watch(
 
 onMounted(() => {
   void Promise.allSettled([refreshStatus(), refreshStreamers(), refreshPlaylists()]);
-  refreshPreview();
-  previewTimer = window.setInterval(refreshPreview, 5000);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  if (!document.hidden) {
+    void refreshPreview();
+    previewTimer = window.setInterval(() => void refreshPreview(), 5000);
+  }
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange);
   if (previewTimer !== null) window.clearInterval(previewTimer);
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
 });
 </script>
 

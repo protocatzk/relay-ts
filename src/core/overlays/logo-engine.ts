@@ -9,6 +9,8 @@ export interface LogoOverlayEngineOptions {
   logger: Logger;
 }
 
+const STATIC_FRAMES_COUNT = 3;
+
 /**
  * Canvas-based logo overlay. Renders the RELAY logo once at its configured
  * size/opacity and streams it as RGBA frames over a dedicated pipe. Position,
@@ -21,6 +23,7 @@ export class LogoOverlayEngine {
   private readonly frame: Buffer;
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
+  private framesSent = 0;
   private blocked = false;
   private stopped = false;
 
@@ -59,6 +62,7 @@ export class LogoOverlayEngine {
     if (!stream || this.stream === stream) return;
     this.detach();
     this.stopped = false;
+    this.framesSent = 0;
     this.stream = stream;
     const guarded = stream as NodeJS.WritableStream & {
       destroyed?: boolean;
@@ -116,6 +120,17 @@ export class LogoOverlayEngine {
     if (this.stopped || !this.stream || this.blocked) return;
     try {
       const ok = this.stream.write(this.frame);
+      this.framesSent += 1;
+      if (this.framesSent >= STATIC_FRAMES_COUNT) {
+        if (this.timer) clearInterval(this.timer);
+        this.timer = undefined;
+        try {
+          this.stream.end();
+        } catch {
+          // already closed
+        }
+        return;
+      }
       if (!ok) {
         this.blocked = true;
         this.stream.once('drain', () => {

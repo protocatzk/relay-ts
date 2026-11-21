@@ -262,6 +262,7 @@ export class ChatOverlayEngine {
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
   private dirty = true;
+  private cachedStatsLabel: string | null = null;
   private lastFrame?: Buffer;
   private blocked = false;
   private stopped = false;
@@ -310,13 +311,21 @@ export class ChatOverlayEngine {
     return { ...this.spec };
   }
 
+  get isDirty(): boolean {
+    return this.dirty;
+  }
+
   get currentMessages(): ChatMessage[] {
     return [...this.messages];
   }
 
   setEarningsCard(card: ChatEarningsCard | null): void {
-    this.earningsCard = card;
-    this.dirty = true;
+    const key = card ? `${card.net}:${card.coins}:${card.periodLabel}:${card.goalAmount ?? ''}` : '';
+    if (key !== this.lastEarningsCardKey) {
+      this.earningsCard = card;
+      this.lastEarningsCardKey = key;
+      this.dirty = true;
+    }
   }
 
   setMessages(messages: ChatMessage[], now = Date.now()): void {
@@ -331,8 +340,20 @@ export class ChatOverlayEngine {
     for (const id of this.firstSeenAt.keys()) {
       if (!activeIds.has(id)) this.firstSeenAt.delete(id);
     }
-    this.messages = this.filterByAge(messages, now).slice(-maxItems);
-    this.dirty = true;
+    const nextMessages = this.filterByAge(messages, now).slice(-maxItems);
+    const unchanged =
+      nextMessages.length === this.messages.length &&
+      nextMessages.every(
+        (msg, idx) =>
+          msg.id === this.messages[idx]?.id &&
+          msg.text === this.messages[idx]?.text &&
+          msg.displayName === this.messages[idx]?.displayName,
+      );
+    if (!unchanged) {
+      this.messages = nextMessages;
+      this.cachedStatsLabel = null;
+      this.dirty = true;
+    }
   }
 
   private filterByAge(messages: ChatMessage[], now = Date.now()): ChatMessage[] {
@@ -359,6 +380,7 @@ export class ChatOverlayEngine {
     const cfg = this.options.overlays.chat;
     const limit = Math.max(1, cfg.max_messages);
     if (this.messages.length > limit) this.messages = this.messages.slice(-limit);
+    this.cachedStatsLabel = null;
     this.dirty = true;
     return [...this.messages];
   }
@@ -440,6 +462,7 @@ export class ChatOverlayEngine {
       const filtered = this.filterByAge(this.messages, now);
       if (filtered.length !== this.messages.length) {
         this.messages = filtered;
+        this.cachedStatsLabel = null;
         this.dirty = true;
       }
     }
@@ -546,27 +569,29 @@ export class ChatOverlayEngine {
     }
 
     if (cfg.show_stats && visible.length > 0) {
-      const cutoff = Date.now() - 10 * 60_000;
-      const recent = messages.filter((message) => {
-        const at = (message.timestamp ?? message.receivedAt).getTime();
-        return Number.isFinite(at) ? at >= cutoff : true;
-      });
-      const counts = new Map<string, number>();
-      for (const message of recent) {
-        const name = message.displayName || message.username || 'Chat';
-        counts.set(name, (counts.get(name) ?? 0) + 1);
+      if (!this.cachedStatsLabel) {
+        const cutoff = Date.now() - 10 * 60_000;
+        const recent = messages.filter((message) => {
+          const at = (message.timestamp ?? message.receivedAt).getTime();
+          return Number.isFinite(at) ? at >= cutoff : true;
+        });
+        const counts = new Map<string, number>();
+        for (const message of recent) {
+          const name = message.displayName || message.username || 'Chat';
+          counts.set(name, (counts.get(name) ?? 0) + 1);
+        }
+        const topChatter = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        this.cachedStatsLabel = [
+          `${recent.length} MSG`,
+          `${counts.size} CHATTER`,
+          `${(recent.length / 10).toFixed(1)}/MIN`,
+          ...(topChatter ? [`TOP ${topChatter}`] : []),
+        ].join(' · ').toUpperCase();
       }
-      const topChatter = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-      const label = [
-        `${recent.length} MSG`,
-        `${counts.size} CHATTER`,
-        `${(recent.length / 10).toFixed(1)}/MIN`,
-        ...(topChatter ? [`TOP ${topChatter}`] : []),
-      ].join(' · ');
       ctx.textBaseline = 'top';
       ctx.font = `600 ${Math.round(nameSize * 0.85)}px ${fontFamily}`;
       ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.fillText(label.toUpperCase(), padding * 2, topLimit + 2, innerWidth - padding * 2);
+      ctx.fillText(this.cachedStatsLabel, padding * 2, topLimit + 2, innerWidth - padding * 2);
       topLimit += nameLineHeight + 6;
     }
 

@@ -1,11 +1,12 @@
-import { createReadStream, existsSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
+import { stat, unlink } from 'node:fs/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { ApiContext } from '../context.js';
 import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors.js';
 import {
-  evaluateRecordingStorage,
-  listRecordings,
+  evaluateRecordingStorageAsync,
+  listRecordingsAsync,
   recordingFilePath,
   recordingsDirectory,
   remuxRecordingClip,
@@ -38,9 +39,13 @@ export async function registerRecordingRoutes(app: FastifyInstance, ctx: ApiCont
   app.get('/api/recordings', async () => {
     const active = ctx.supervisor.recordingFilename?.() ?? null;
     const settings = ctx.settingsService.get().recording;
+    const [files, storage] = await Promise.all([
+      listRecordingsAsync(ctx.config.paths.dataDir, active),
+      evaluateRecordingStorageAsync(ctx.config.paths.dataDir, settings, active),
+    ]);
     return {
-      files: listRecordings(ctx.config.paths.dataDir, active),
-      storage: evaluateRecordingStorage(ctx.config.paths.dataDir, settings, active),
+      files,
+      storage,
       active,
     };
   });
@@ -50,10 +55,10 @@ export async function registerRecordingRoutes(app: FastifyInstance, ctx: ApiCont
     const path = recordingFilePath(ctx.config.paths.dataDir, filename);
     if (!path) throw new ValidationError('Ungültiger Dateiname');
     if (!existsSync(path)) throw new NotFoundError('Aufzeichnung nicht gefunden');
-    const stat = statSync(path);
+    const s = await stat(path);
     reply.header('cache-control', 'no-store');
     reply.header('content-disposition', `attachment; filename="${filename}"`);
-    reply.header('content-length', String(stat.size));
+    reply.header('content-length', String(s.size));
     reply.type('video/x-matroska');
     return reply.send(createReadStream(path));
   });
@@ -66,7 +71,7 @@ export async function registerRecordingRoutes(app: FastifyInstance, ctx: ApiCont
     if (ctx.supervisor.recordingFilename?.() === filename) {
       throw new ConflictError('Laufende Aufzeichnung kann nicht gelöscht werden');
     }
-    unlinkSync(path);
+    await unlink(path);
     removeMarkersFile(ctx.config.paths.dataDir, filename);
     ctx.logger.info({ filename }, 'Aufzeichnung gelöscht');
     return { ok: true };

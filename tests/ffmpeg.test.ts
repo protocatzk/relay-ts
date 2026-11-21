@@ -233,6 +233,43 @@ describe('ffmpeg command builders', () => {
     expect(line).not.toContain('nal-hrd=cbr:filler=1');
   });
 
+  it('configures h264 tune on the sink command (#58)', () => {
+    const defaultArgs = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'abc-def',
+      relay,
+      encoder: 'libx264',
+    });
+    expect(defaultArgs.join(' ')).toContain('-tune zerolatency');
+
+    const filmSettings = {
+      ...DEFAULT_SETTINGS,
+      video: { ...DEFAULT_SETTINGS.video, tune: 'film' as const },
+    };
+    const filmArgs = buildSinkCommand({
+      media,
+      settings: filmSettings,
+      key: 'abc-def',
+      relay,
+      encoder: 'libx264',
+    });
+    expect(filmArgs.join(' ')).toContain('-tune film');
+
+    const offSettings = {
+      ...DEFAULT_SETTINGS,
+      video: { ...DEFAULT_SETTINGS.video, tune: 'off' as const },
+    };
+    const offArgs = buildSinkCommand({
+      media,
+      settings: offSettings,
+      key: 'abc-def',
+      relay,
+      encoder: 'libx264',
+    });
+    expect(offArgs.join(' ')).not.toContain('-tune');
+  });
+
   it('uses the encoder override for source re-encodes', () => {
     const args = buildSourceCommand({
       media,

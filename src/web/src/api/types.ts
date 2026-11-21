@@ -14,6 +14,7 @@ export type StreamState =
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export type VideoPreset = 'ultrafast' | 'veryfast' | 'faster' | 'fast' | 'medium';
+export type VideoTuneSetting = 'zerolatency' | 'film' | 'animation' | 'off';
 
 export type VideoEncoderSetting = 'auto' | 'libx264' | 'h264_qsv' | 'h264_nvenc' | 'h264_amf';
 
@@ -405,6 +406,7 @@ export interface VideoSettings {
   video_bitrate: number;
   audio_bitrate: number;
   preset: VideoPreset;
+  tune?: VideoTuneSetting;
   encoder: VideoEncoderSetting;
   layout: VideoLayout;
 }
@@ -634,6 +636,12 @@ export interface RecordingsListResponse {
   active: string | null;
 }
 
+export interface LoggingSettings {
+  log_level: 'debug' | 'info' | 'warn' | 'error' | 'silent';
+  log_file_mb: number;
+  log_files: number;
+}
+
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
@@ -651,6 +659,7 @@ export interface Settings {
   secondary_sink?: SecondarySinkSettings;
   recording?: RecordingSettings;
   webhooks?: WebhooksSettings;
+  logging?: LoggingSettings;
 }
 
 export interface StreamingSettings {
@@ -830,6 +839,7 @@ export interface SettingsUpdate {
     period: 'today' | '24h' | '7d' | '30d' | 'all';
     api_key?: string;
   };
+  logging?: Partial<LoggingSettings>;
 }
 
 export interface MediaFile {
