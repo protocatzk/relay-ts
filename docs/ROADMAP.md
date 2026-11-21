@@ -109,6 +109,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) (#62) | P1 | Reliability/Ops | geplant |
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
+| Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie) (#71) | P2 | Overlay/Performance | geplant |
 
 ## Definition of Done
 
