@@ -3,6 +3,7 @@ import type { Settings, SettingsUpdate } from '../api/types.js';
 export type EditableSettingsSectionId =
   | 'delay'
   | 'video'
+  | 'audio'
   | 'watchdog'
   | 'refresh'
   | 'startup'
@@ -10,7 +11,8 @@ export type EditableSettingsSectionId =
   | 'monitor'
   | 'earnings'
   | 'chat'
-  | 'title';
+  | 'title'
+  | 'webhooks';
 
 export type SettingsSectionId = EditableSettingsSectionId | 'totp' | 'sessions';
 
@@ -25,6 +27,7 @@ export interface SettingsSectionMeta {
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'delay', domId: 'settings-delay', label: 'Verzögerung', editable: true, restartRequired: true },
   { id: 'video', domId: 'settings-video', label: 'Video', editable: true, restartRequired: true },
+  { id: 'audio', domId: 'settings-audio', label: 'Audio', editable: true, restartRequired: true },
   { id: 'watchdog', domId: 'settings-watchdog', label: 'Watchdog', editable: true },
   { id: 'refresh', domId: 'settings-refresh', label: 'Auto-Refresh', editable: true },
   { id: 'startup', domId: 'settings-startup', label: 'Startbildschirm', editable: true },
@@ -33,6 +36,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'earnings', domId: 'settings-earnings', label: 'Einnahmen', editable: true },
   { id: 'chat', domId: 'settings-chat', label: 'Chat-Overlay', editable: true },
   { id: 'title', domId: 'settings-title', label: 'YouTube-Titel', editable: true },
+  { id: 'webhooks', domId: 'settings-webhooks', label: 'Webhooks', editable: true },
   { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
   { id: 'sessions', domId: 'settings-sessions', label: 'Sessions', editable: false },
 ];
@@ -40,6 +44,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
 export const EDITABLE_SETTINGS_SECTIONS: readonly EditableSettingsSectionId[] = [
   'delay',
   'video',
+  'audio',
   'watchdog',
   'refresh',
   'startup',
@@ -48,12 +53,15 @@ export const EDITABLE_SETTINGS_SECTIONS: readonly EditableSettingsSectionId[] = 
   'earnings',
   'chat',
   'title',
+  'webhooks',
 ];
 
 export interface SettingsSecretsDraft {
   onlineApiKey: string;
   chatApiKey: string;
   earningsApiKey: string;
+  webhookUrl?: string;
+  webhookSecret?: string;
 }
 
 function clone<T>(value: T): T {
@@ -95,6 +103,26 @@ export function buildSectionPayload(
           reencode: current.source.reencode,
         },
       };
+    case 'audio': {
+      const audio = current.audio ?? {
+        normalize: 'off',
+        target_lufs: -16,
+        gain_db: 0,
+        silence_detect: false,
+        silence_threshold_db: -50,
+        silence_seconds: 15,
+      };
+      return {
+        audio: {
+          normalize: audio.normalize,
+          target_lufs: toNumber(audio.target_lufs, -16),
+          gain_db: toNumber(audio.gain_db, 0),
+          silence_detect: audio.silence_detect,
+          silence_threshold_db: toNumber(audio.silence_threshold_db, -50),
+          silence_seconds: toNumber(audio.silence_seconds, 15),
+        },
+      };
+    }
     case 'watchdog':
       return {
         watchdog: {
@@ -185,6 +213,29 @@ export function buildSectionPayload(
           title_template: current.streaming.title_template,
         },
       };
+    case 'webhooks': {
+      const hooks = current.webhooks ?? {
+        enabled: false,
+        url_set: false,
+        url_host: '',
+        format: 'generic',
+        secret_set: false,
+        cooldown_seconds: 60,
+        events: ['stream_error', 'pause_limit', 'reconnect_failed', 'youtube_auth_required', 'disk_warning'],
+      };
+      const nextUrl = secrets.webhookUrl?.trim() ?? '';
+      const nextSecret = secrets.webhookSecret?.trim() ?? '';
+      return {
+        webhooks: {
+          enabled: hooks.enabled,
+          format: hooks.format,
+          cooldown_seconds: toNumber(hooks.cooldown_seconds, 60),
+          events: clone(hooks.events),
+          ...(nextUrl ? { url: nextUrl } : {}),
+          ...(nextSecret ? { secret: nextSecret } : {}),
+        },
+      };
+    }
   }
 }
 
@@ -215,6 +266,8 @@ export function isSectionDirty(
         JSON.stringify(current.video) !== JSON.stringify(baseline.video) ||
         JSON.stringify(current.source) !== JSON.stringify(baseline.source)
       );
+    case 'audio':
+      return JSON.stringify(current.audio ?? null) !== JSON.stringify(baseline.audio ?? null);
     case 'watchdog':
       return JSON.stringify(current.watchdog) !== JSON.stringify(baseline.watchdog);
     case 'refresh':
@@ -240,6 +293,12 @@ export function isSectionDirty(
       );
     case 'title':
       return JSON.stringify(current.streaming) !== JSON.stringify(baseline.streaming);
+    case 'webhooks':
+      return (
+        (secrets.webhookUrl?.length ?? 0) > 0 ||
+        (secrets.webhookSecret?.length ?? 0) > 0 ||
+        JSON.stringify(current.webhooks ?? null) !== JSON.stringify(baseline.webhooks ?? null)
+      );
   }
 }
 
@@ -256,6 +315,9 @@ export function applySavedSection(
     case 'video':
       target.video = clone(saved.video);
       target.source = clone(saved.source);
+      return;
+    case 'audio':
+      if (saved.audio) target.audio = clone(saved.audio);
       return;
     case 'watchdog':
       target.watchdog = clone(saved.watchdog);
@@ -280,6 +342,9 @@ export function applySavedSection(
       return;
     case 'title':
       target.streaming = clone(saved.streaming);
+      return;
+    case 'webhooks':
+      if (saved.webhooks) target.webhooks = clone(saved.webhooks);
       return;
   }
 }

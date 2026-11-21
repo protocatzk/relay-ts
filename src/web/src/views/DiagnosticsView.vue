@@ -212,10 +212,15 @@ onBeforeUnmount(() => {
               <dd class="mono diag-wrap">
                 {{ formatNumber(store.status.sink.dropped_frames) }} Dropped ·
                 {{ formatNumber(store.status.sink.dts_errors ?? 0) }} DTS-Fehler
+                <span v-if="store.status.sink.silence_active" class="badge tone-warning">Audio-Stille</span>
                 <span v-if="store.status.sink.last_error" class="muted">
                   ({{ store.status.sink.last_error }})
                 </span>
               </dd>
+            </div>
+            <div class="diag-row">
+              <dt>Prometheus-Metriken</dt>
+              <dd class="mono diag-wrap">/api/metrics?format=prometheus</dd>
             </div>
           </dl>
         </section>

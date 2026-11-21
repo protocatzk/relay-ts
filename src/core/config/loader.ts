@@ -421,6 +421,10 @@ export function applyEnvSettings(
   set(['video', 'audio_bitrate'], parseBitrate(env.AUDIO_BITRATE));
   set(['video', 'preset'], env.X264_PRESET?.trim() || undefined);
   set(['video', 'encoder'], env.VIDEO_ENCODER?.trim() || undefined);
+  set(['audio', 'normalize'], env.AUDIO_NORMALIZE?.trim() || undefined);
+  set(['audio', 'target_lufs'], parseNumber(env.AUDIO_TARGET_LUFS));
+  set(['audio', 'gain_db'], parseNumber(env.AUDIO_GAIN_DB));
+  set(['audio', 'silence_detect'], parseBoolean(env.AUDIO_SILENCE_DETECT));
   set(['watchdog', 'stall_timeout'], parseNumber(env.STALL_TIMEOUT));
   set(['watchdog', 'min_bitrate'], parseBitrate(env.MIN_BITRATE));
   set(['watchdog', 'min_source_rate_percent'], parseNumber(env.SOURCE_MIN_RATE_PERCENT));
@@ -469,6 +473,10 @@ export function applyEnvSettings(
   set(['youtube', 'auto_stop'], parseBoolean(env.YOUTUBE_AUTO_STOP));
   set(['youtube', 'default_privacy'], env.YOUTUBE_DEFAULT_PRIVACY?.trim() || undefined);
   set(['youtube', 'default_dvr'], parseBoolean(env.YOUTUBE_DEFAULT_DVR));
+  set(['webhooks', 'enabled'], parseBoolean(env.WEBHOOK_ENABLED));
+  set(['webhooks', 'url'], env.WEBHOOK_URL?.trim() || undefined);
+  set(['webhooks', 'format'], env.WEBHOOK_FORMAT?.trim() || undefined);
+  set(['webhooks', 'secret'], env.WEBHOOK_SECRET?.trim() || undefined);
 }
 
 /** Validates a single streamer for CRUD operations. */

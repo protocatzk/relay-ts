@@ -66,6 +66,23 @@ function makeSettings(): Settings {
     streaming: {
       title_template: '{name} live',
     },
+    audio: {
+      normalize: 'off',
+      target_lufs: -14,
+      gain_db: 0,
+      silence_detect: false,
+      silence_threshold_db: -50,
+      silence_seconds: 10,
+    },
+    webhooks: {
+      enabled: false,
+      url_set: false,
+      url_host: '',
+      format: 'generic',
+      secret_set: false,
+      events: ['stream_error', 'reconnect_failed', 'pause_limit'],
+      cooldown_seconds: 300,
+    },
     earnings: {
       enabled: false,
       source_url: 'https://example.test/earnings',
@@ -155,6 +172,8 @@ const emptySecrets: SettingsSecretsDraft = {
   onlineApiKey: '',
   chatApiKey: '',
   earningsApiKey: '',
+  webhookUrl: '',
+  webhookSecret: '',
 };
 
 describe('settings sections partial updates', () => {
@@ -201,6 +220,23 @@ describe('settings sections partial updates', () => {
       earningsApiKey: 'earnings-secret',
     });
     expect(withEarningsSecret.earnings?.api_key).toBe('earnings-secret');
+
+    const audioPayload = buildSectionPayload('audio', settings, emptySecrets);
+    expect(audioPayload.audio).toEqual(settings.audio);
+
+    const webhooksPayload = buildSectionPayload('webhooks', settings, {
+      ...emptySecrets,
+      webhookUrl: ' https://hooks.example.test/relay ',
+      webhookSecret: ' top-secret ',
+    });
+    expect(webhooksPayload.webhooks).toEqual({
+      enabled: false,
+      format: 'generic',
+      events: ['stream_error', 'reconnect_failed', 'pause_limit'],
+      cooldown_seconds: 300,
+      url: 'https://hooks.example.test/relay',
+      secret: 'top-secret',
+    });
   });
 
   it('tracks dirty state per section independently', () => {
@@ -217,6 +253,12 @@ describe('settings sections partial updates', () => {
       isSectionDirty('monitor', current, baseline, {
         ...emptySecrets,
         onlineApiKey: 'typed-key',
+      }),
+    ).toBe(true);
+    expect(
+      isSectionDirty('webhooks', current, baseline, {
+        ...emptySecrets,
+        webhookUrl: 'https://hooks.example.test/relay',
       }),
     ).toBe(true);
   });
@@ -240,6 +282,7 @@ describe('settings sections partial updates', () => {
     const settings = makeSettings();
     const payload = buildAllSectionsPayload(settings, emptySecrets);
     expect(Object.keys(payload).sort()).toEqual([
+      'audio',
       'auto_refresh',
       'chat',
       'delay_buffer',
@@ -251,6 +294,7 @@ describe('settings sections partial updates', () => {
       'streaming',
       'video',
       'watchdog',
+      'webhooks',
     ]);
   });
 });

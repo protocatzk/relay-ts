@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { LoadedConfig } from '../src/core/config/loader.js';
 import { DEFAULT_SETTINGS, StreamerSchema } from '../src/core/config/schema.js';
 import {
+  buildAudioFilter,
   buildPauseCommand,
   buildPausePreviewArgs,
   buildSlateFilters,
@@ -601,5 +602,58 @@ describe('runCommand', () => {
 
   it('rejects a missing binary', async () => {
     await expect(runCommand('definitely-not-a-binary', [])).rejects.toThrow(/konnte nicht gestartet/);
+  });
+});
+
+describe('buildAudioFilter', () => {
+  it('uses async resampling only when normalization, gain, and silence detection are off', () => {
+    expect(buildAudioFilter(DEFAULT_SETTINGS)).toBe(
+      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
+    );
+  });
+
+  it('adds gain, loudnorm with dcshift + trailing aresample, dynaudnorm, and silencedetect', () => {
+    const loud = buildAudioFilter({
+      ...DEFAULT_SETTINGS,
+      audio: {
+        ...DEFAULT_SETTINGS.audio,
+        normalize: 'loudnorm',
+        target_lufs: -16,
+        gain_db: 2.5,
+        silence_detect: true,
+        silence_threshold_db: -45,
+        silence_seconds: 12,
+      },
+    });
+    expect(loud).toContain('volume=2.5dB');
+    expect(loud).toContain('dcshift=0.00001');
+    expect(loud).toContain('loudnorm=I=-16:TP=-1.5:LRA=11');
+    expect(loud.indexOf('dcshift=0.00001')).toBeLessThan(loud.indexOf('loudnorm='));
+    expect(loud.indexOf('loudnorm=')).toBeLessThan(
+      loud.lastIndexOf('aresample=osr=48000:osf=fltp:ochl=stereo'),
+    );
+    expect(loud).toContain('silencedetect=noise=-45dB:d=12');
+
+    const dyn = buildAudioFilter({
+      ...DEFAULT_SETTINGS,
+      audio: { ...DEFAULT_SETTINGS.audio, normalize: 'dynaudnorm' },
+    });
+    expect(dyn).toContain('dynaudnorm=f=150:g=15');
+    expect(dyn).not.toContain('dcshift');
+  });
+
+  it('promotes sink loglevel to info when silence detection is enabled', () => {
+    const args = buildSinkCommand({
+      media,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        audio: { ...DEFAULT_SETTINGS.audio, silence_detect: true },
+      },
+      key: 'abc-def',
+      relay,
+    });
+    const loglevelIndex = args.indexOf('-loglevel');
+    expect(loglevelIndex).toBeGreaterThan(-1);
+    expect(args[loglevelIndex + 1]).toBe('info');
   });
 });

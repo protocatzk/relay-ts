@@ -197,6 +197,7 @@ describe('Frontend & Studio preview regression helpers (#43)', () => {
           chat: { ...defaults.overlays.chat, api_key_set: false },
         },
         secondary_sink: { ...defaults.secondary_sink, stream_key_set: false },
+        webhooks: { ...defaults.webhooks, url_set: false, url_host: '', secret_set: false },
       },
       { onlineApiKey: '', chatApiKey: '', earningsApiKey: '' },
     );

@@ -166,6 +166,8 @@ export interface TelegramControl {
     streamer_id?: string;
   }): Promise<unknown>;
   youtubeAssign?(id: string, streamerId: string): Promise<unknown>;
+  scenes?(): { id: string; name: string; active: boolean }[];
+  activateScene?(id: string): Promise<unknown>;
 }
 
 export interface TelegramBotOptions {
@@ -369,6 +371,7 @@ export class TelegramBot {
             { command: 'youtube', description: 'Streams und Broadcasts' },
             { command: 'screens', description: 'Start-/Pausenscreen' },
             { command: 'overlays', description: 'Overlays umschalten' },
+            { command: 'scene', description: 'Overlay-Szene wechseln' },
             { command: 'notify', description: 'Benachrichtigungen' },
             { command: 'id', description: 'Telegram-ID anzeigen' },
           ],
@@ -462,6 +465,9 @@ export class TelegramBot {
         return;
       case '/overlays':
         await this.sendOverlays(chatId);
+        return;
+      case '/scene':
+        await this.handleSceneCommand(chatId, text.slice('/scene'.length).trim());
         return;
       case '/notify':
         await this.handleNotifyCommand(chatId, args);
@@ -1559,6 +1565,63 @@ export class TelegramBot {
     }
   }
 
+  private async handleSceneCommand(
+    chatId: number,
+    arg: string,
+    query: TelegramCallbackQuery | null = null,
+  ): Promise<void> {
+    const control = this.options.control;
+    if (!control?.scenes || !control.activateScene) {
+      await this.sendMessage(chatId, '⚠️ Szenen sind nicht verfügbar.');
+      return;
+    }
+    const items = control.scenes();
+    const trimmed = arg.trim();
+    if (trimmed) {
+      const match =
+        items.find((item) => item.id.toLowerCase() === trimmed.toLowerCase()) ??
+        items.find((item) => item.name.toLowerCase() === trimmed.toLowerCase()) ??
+        items.find((item) => item.name.toLowerCase().includes(trimmed.toLowerCase()));
+      if (!match) {
+        await this.sendMessage(chatId, `⚠️ Keine passende Szene für „${escapeHtml(trimmed)}“ gefunden.`);
+        return;
+      }
+      await control.activateScene(match.id);
+      await this.sendMessage(chatId, `🎬 Szene <b>${escapeHtml(match.name)}</b> aktiviert.`);
+      return;
+    }
+    if (items.length === 0) {
+      await this.sendMessage(
+        chatId,
+        '🎬 <b>SZENEN</b>\n\nNoch keine Szenen gespeichert. Lege Profile im Overlay-Studio an.',
+      );
+      return;
+    }
+    const rows: Record<string, unknown>[][] = [];
+    for (let i = 0; i < items.length; i += 2) {
+      rows.push(
+        items.slice(i, i + 2).map((item) => {
+          const ref = this.refs.get('scene', item.id);
+          return {
+            text: `${item.active ? '✅ ' : ''}${truncate(item.name, 22)}`,
+            callback_data: `scn:${ref}`,
+          };
+        }),
+      );
+    }
+    rows.push(this.backRow());
+    await this.showView(
+      chatId,
+      query,
+      [
+        '🎬 <b>OVERLAY-SZENEN</b>',
+        '',
+        'Tippe auf eine Szene zum Aktivieren (inkl. Video-Layout):',
+      ].join('\n'),
+      { inline_keyboard: rows },
+    );
+  }
+
   private async handleNotifyCommand(chatId: number, args: string[]): Promise<void> {
     const store = this.options.notify?.store;
     if (!store) {
@@ -2084,6 +2147,21 @@ export class TelegramBot {
     if (action === 'earn' && first) {
       await this.answerCallback(query.id, 'Zeitraum gesetzt');
       await this.sendEarnings(chatId, first);
+      return;
+    }
+    if (action === 'scn' && first) {
+      const sceneId = this.refs.resolve(first, 'scene');
+      if (!sceneId || !this.options.control?.activateScene) {
+        await this.answerCallback(query.id, 'Nicht gefunden');
+        return;
+      }
+      try {
+        await this.options.control.activateScene(sceneId);
+        await this.answerCallback(query.id, 'Szene aktiviert');
+        await this.handleSceneCommand(chatId, '', query);
+      } catch (error) {
+        await this.answerCallback(query.id, errorName(error));
+      }
       return;
     }
     if (action === 'screen' && first && second) {

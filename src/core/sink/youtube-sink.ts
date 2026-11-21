@@ -14,6 +14,7 @@ export interface YouTubeSinkOptions {
   redact?: (text: string) => string;
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
   onUnhealthy?: (reason: string) => void;
+  onSilenceChange?: (active: boolean, since: Date | null) => void;
 }
 
 const DTS_ERROR_WINDOW_MS = 15_000;
@@ -49,6 +50,9 @@ export class YouTubeSink {
   private recentDtsErrors: number[] = [];
   private unhealthyTriggered = false;
   private bitrateSamples: number[] = [];
+  private silenceActive = false;
+  private silenceSince: Date | null = null;
+  private silenceCount = 0;
 
   constructor(options: YouTubeSinkOptions) {
     this.options = options;
@@ -101,6 +105,9 @@ export class YouTubeSink {
     this.recentDtsErrors = [];
     this.unhealthyTriggered = false;
     this.bitrateSamples = [];
+    this.silenceActive = false;
+    this.silenceSince = null;
+    this.silenceCount = 0;
     const args = buildSinkCommand({
       media: this.options.media,
       settings: this.options.settings,
@@ -139,6 +146,23 @@ export class YouTubeSink {
           this.options.logger.warn({ sink: true, line }, 'YouTube-Sink meldet ein Problem');
         } else {
           this.options.logger.debug({ sink: true, line }, 'ffmpeg sink');
+        }
+        if (lower.includes('silence_start:')) {
+          if (!this.silenceActive) {
+            this.silenceActive = true;
+            this.silenceSince = new Date();
+            this.silenceCount += 1;
+            incMetric('sink_silence_events_total');
+            this.options.logger.warn({ line }, 'Audio-Stille am YouTube-Sink erkannt');
+            this.options.onSilenceChange?.(true, this.silenceSince);
+          }
+        } else if (lower.includes('silence_end:')) {
+          if (this.silenceActive) {
+            this.silenceActive = false;
+            this.silenceSince = null;
+            this.options.logger.info({ line }, 'Audio-Signal am YouTube-Sink wieder vorhanden');
+            this.options.onSilenceChange?.(false, null);
+          }
         }
         if (lower.includes('non-monotonous') || lower.includes('non monotonically')) {
           const now = Date.now();
@@ -193,6 +217,9 @@ export class YouTubeSink {
     restarts: number;
     dtsErrors: number;
     bitrateDriftPercent: number | null;
+    silenceActive: boolean;
+    silenceSince: Date | null;
+    silenceCount: number;
     lastError: string | null;
   } {
     const targetBitrateKbps = this.options.settings.video.video_bitrate;
@@ -214,6 +241,9 @@ export class YouTubeSink {
       restarts: Math.max(0, this.startCount - 1),
       dtsErrors: this.dtsErrors,
       bitrateDriftPercent,
+      silenceActive: this.silenceActive,
+      silenceSince: this.silenceSince,
+      silenceCount: this.silenceCount,
       lastError: this.lastError,
     };
   }

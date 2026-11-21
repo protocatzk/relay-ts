@@ -6,7 +6,7 @@ import { deepMerge } from '../../utils/format.js';
 
 export type SanitizedSettings = Omit<
   Settings,
-  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink'
+  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink' | 'webhooks'
 > & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
@@ -15,7 +15,22 @@ export type SanitizedSettings = Omit<
     chat: Omit<Settings['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
   };
   secondary_sink: Omit<Settings['secondary_sink'], 'stream_key'> & { stream_key_set: boolean };
+  webhooks: Omit<Settings['webhooks'], 'url' | 'secret'> & {
+    url_set: boolean;
+    url_host: string;
+    secret_set: boolean;
+  };
 };
+
+function safeUrlHost(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed).host;
+  } catch {
+    return '';
+  }
+}
 
 export class SettingsService {
   private readonly path: string;
@@ -57,6 +72,14 @@ export class SettingsService {
         stream_key: undefined,
         stream_key_set: Boolean(settings.secondary_sink.stream_key),
       },
+      webhooks: {
+        ...settings.webhooks,
+        url: undefined,
+        secret: undefined,
+        url_set: Boolean(settings.webhooks.url),
+        url_host: safeUrlHost(settings.webhooks.url),
+        secret_set: Boolean(settings.webhooks.secret),
+      },
     } as SanitizedSettings;
   }
 
@@ -75,6 +98,10 @@ export class SettingsService {
     }
     if (raw.secondary_sink && !('stream_key' in raw.secondary_sink)) {
       merged.secondary_sink.stream_key = this.current.secondary_sink.stream_key;
+    }
+    if (raw.webhooks) {
+      if (!('url' in raw.webhooks)) merged.webhooks.url = this.current.webhooks.url;
+      if (!('secret' in raw.webhooks)) merged.webhooks.secret = this.current.webhooks.secret;
     }
     const parsed = SettingsSchema.safeParse(merged);
     if (!parsed.success) {
@@ -110,6 +137,12 @@ function stripSecretFlags(input: Record<string, unknown>): Record<string, unknow
   const secondary = result.secondary_sink;
   if (secondary && typeof secondary === 'object' && !Array.isArray(secondary)) {
     delete (secondary as Record<string, unknown>).stream_key_set;
+  }
+  const webhooks = result.webhooks;
+  if (webhooks && typeof webhooks === 'object' && !Array.isArray(webhooks)) {
+    delete (webhooks as Record<string, unknown>).url_set;
+    delete (webhooks as Record<string, unknown>).url_host;
+    delete (webhooks as Record<string, unknown>).secret_set;
   }
   return result;
 }

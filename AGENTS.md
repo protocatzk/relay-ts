@@ -62,7 +62,9 @@ Wichtige Pfade:
 - `src/core/media/` – lokale Playlist-Videos (`data/media/`) und ffprobe-Metadaten
 - `src/api/routes/preview.ts` – MPEG-TS-Tap für die Live-Vorschau
 - `src/core/overlays/` – Canvas-Chat, Logo-Engine, drawtext, PauseScreen,
-  Studio-Preview
+  Studio-Preview, Overlay-Szenen (`data/scenes.json`)
+- `src/core/scheduler/` – Zeitplan-Scheduler (`data/schedules.json`)
+- `src/core/notifications/` – Alerting-Webhooks (`settings.webhooks`)
 - `src/core/earnings/` – TokTracker-kompatibler Einnahmen-Monitor
 - `src/core/telegram/` – Login-Bot und Token-Store
 - `src/core/youtube/` – Google-OAuth, Token-Store und YouTube-API-Client
@@ -158,6 +160,27 @@ Wichtige Pfade:
   über 100 % wird gezoomt und beschnitten. Es gilt global für Live-Quelle,
   Pause-/Startbildschirm und lokale Videos; Änderungen starten den Sink neu.
   Das Overlay-Studio zeigt dafür ein schematisches Quellformat (9:16/16:9/1:1).
+- Audio-Verarbeitung im Sink (`settings.audio`): `normalize` (`off`/
+  `dynaudnorm`/`loudnorm`), `gain_db` und optional `silencedetect`
+  (`silence_detect`, Schwelle/Dauer). Bei `loudnorm` verhindert ein
+  vorgeschaltetes `dcshift=0.00001` samt nachgelagertem `aresample` AAC-NaN-
+  Fehler auf digitaler Stille; bei aktivem `silence_detect` hebt `buildSinkCommand`
+  `-loglevel` auf `info`, damit `[silencedetect]`-Events geloggt und gezählt
+  werden (`sink_silence_events_total`).
+- Overlay-Szenen (`data/scenes.json`, Modus `0600`) speichern komplette
+  `overlays`- und `video.layout`-Snapshots unter einem Namen (ohne
+  `overlays.chat.api_key`). Aktivierung (`/api/scenes/:id/activate` oder
+  Telegram `/scene`) übernimmt Overlays + Layout atomar; direkte Änderungen an
+  Overlays oder Video-Layout lösen `active_scene_id` auf.
+- Der Zeitplan-Scheduler (`data/schedules.json`, Modus `0600`) wertet aktive
+  Regeln (`days`, `HH:MM`, IANA-Zeitzone wie `Europe/Berlin`) minütlich einmalig
+  aus (`start_streamer`, `start_playlist`, `start_queue`, `start_screen`, `stop`).
+- `GET /api/metrics?format=prometheus` (oder `Accept: text/plain`) liefert alle
+  Zähler plus Live-Status im Prometheus-/OpenMetrics-Textformat.
+- Alerting-Webhooks (`settings.webhooks`, `POST /api/webhooks/test`) versenden
+  Discord-, Slack- oder Generic-JSON-Payloads mit 5-s-Timeout, optionaler
+  HMAC-Signatur (`x-relay-signature`) und Event-Cooldown völlig fehlerisoliert
+  (`webhook_errors_total`).
 
 ## Konfiguration und Persistenz
 

@@ -11,9 +11,10 @@ import {
 import { ValidationError } from '../../utils/errors.js';
 import { join } from 'node:path';
 import { renderPausePreview } from '../../core/overlays/pause-preview.js';
-import { metricsSnapshot } from '../../core/metrics.js';
+import { formatPrometheusMetrics, metricsSnapshot } from '../../core/metrics.js';
 import { collectDiagnostics } from '../../core/diagnostics.js';
 import { formatLogsAsText } from '../../utils/logger.js';
+import { AppError } from '../../utils/errors.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
@@ -108,6 +109,7 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         speed: status.sink.speed,
         restarts: status.sink.restarts,
         dts_errors: status.sink.dts_errors,
+        silence_active: status.sink.silence_active,
         last_error: status.sink.last_error,
       },
       ...(status.secondary_sink ? { secondary_sink: status.secondary_sink } : {}),
@@ -119,7 +121,30 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     };
   });
 
-  app.get('/api/metrics', async () => metricsSnapshot());
+  app.get('/api/metrics', async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const accept = String(request.headers.accept ?? '').toLowerCase();
+    const wantsPrometheus =
+      query.format === 'prometheus' ||
+      (query.format !== 'json' &&
+        (accept.includes('application/openmetrics-text') || accept.includes('text/plain')));
+    const snapshot = metricsSnapshot();
+    if (wantsPrometheus) {
+      const status = ctx.supervisor.buildStatus();
+      const queueLen = ctx.supervisor.buildQueueSnapshot().entries.length;
+      return reply
+        .type('text/plain; version=0.0.4; charset=utf-8')
+        .send(formatPrometheusMetrics(snapshot, status, queueLen));
+    }
+    return snapshot;
+  });
+
+  app.post('/api/webhooks/test', async () => {
+    if (!ctx.webhooks) {
+      throw new AppError('webhooks_unavailable', 'Webhook-Dispatcher nicht verfügbar', 503);
+    }
+    return ctx.webhooks.sendTest();
+  });
 
   app.get('/api/system/diagnostics', async (request) => {
     const query = request.query as Record<string, unknown>;

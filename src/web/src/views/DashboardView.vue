@@ -46,7 +46,13 @@ const sourceTone = computed(() => {
 const sinkTone = computed(() => {
   if (state.value === 'error') return 'danger';
   if (state.value === 'reconnecting') return 'warning';
-  if (status.value?.sink.last_error || (status.value?.sink.dts_errors ?? 0) > 0) return 'warning';
+  if (
+    status.value?.sink.last_error ||
+    (status.value?.sink.dts_errors ?? 0) > 0 ||
+    status.value?.sink.silence_active
+  ) {
+    return 'warning';
+  }
   if (state.value === 'live' && status.value?.sink.running) return 'success';
   return undefined;
 });
@@ -438,6 +444,9 @@ onBeforeUnmount(() => {
               {{ status.source.online === false ? 'Quelle offline.' : 'Bereit.' }}
             </template>
             <template v-else>Keine Statusdaten empfangen.</template>
+            <span v-if="status?.active_scene_name" class="badge tone-info" style="margin-left: 8px">
+              Szene: {{ status.active_scene_name }}
+            </span>
           </p>
         </div>
         <div class="quick-actions">
@@ -567,7 +576,7 @@ onBeforeUnmount(() => {
       <ModuleVital
         label="Sink"
         :value="formatBitrate(status?.sink.bitrate_kbps)"
-        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}${(status?.sink.dts_errors ?? 0) > 0 ? ` · ${formatNumber(status?.sink.dts_errors)} DTS-Fehler` : ''}`"
+        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}${(status?.sink.dts_errors ?? 0) > 0 ? ` · ${formatNumber(status?.sink.dts_errors)} DTS-Fehler` : ''}${status?.sink.silence_active ? ' · Stille' : ''}`"
         module="sink"
         :series="series('sink_kbps')"
         :tone="sinkTone"

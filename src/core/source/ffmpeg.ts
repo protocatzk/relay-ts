@@ -203,18 +203,47 @@ export function buildVideoFilters(
   return filters;
 }
 
+/** Builds the sink audio filter chain (smooth resample, optional gain/loudnorm/silence detect). */
+export function buildAudioFilter(settings: Settings): string {
+  const audio = settings.audio;
+  const filters = ['aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo'];
+  if (audio.gain_db !== 0) {
+    filters.push(`volume=${audio.gain_db.toFixed(1)}dB`);
+  }
+  if (audio.normalize === 'loudnorm') {
+    // Pure digital silence (anullsrc on PauseScreen) can cause loudnorm to emit
+    // NaN frames and abort AAC encoding; a -100 dB DC shift guards against it.
+    filters.push(
+      'dcshift=0.00001',
+      `loudnorm=I=${audio.target_lufs}:TP=-1.5:LRA=11`,
+      'aresample=osr=48000:osf=fltp:ochl=stereo',
+    );
+  } else if (audio.normalize === 'dynaudnorm') {
+    filters.push('dynaudnorm=f=150:g=15');
+  }
+  if (audio.silence_detect) {
+    filters.push(`silencedetect=noise=${audio.silence_threshold_db}dB:d=${audio.silence_seconds}`);
+  }
+  return filters.join(',');
+}
+
 export function buildSinkCommand(options: SinkCommandOptions): string[] {
   const { media, settings, relay } = options;
   const [width, height] = settings.video.resolution.split('x').map(Number) as [number, number];
   const fps = settings.video.fps;
   const bitrate = settings.video.video_bitrate;
   const filters = buildVideoFilters(settings, width, height, options.overlayFilters);
+  const sinkLogLevel =
+    settings.audio.silence_detect &&
+    (media.ffmpegLogLevel === 'warning' || media.ffmpegLogLevel === 'error')
+      ? 'info'
+      : media.ffmpegLogLevel;
 
   const inputArgs = [
     '-hide_banner',
     '-nostdin',
     '-loglevel',
-    media.ffmpegLogLevel,
+    sinkLogLevel,
     '-progress',
     'pipe:1',
     '-nostats',
@@ -305,7 +334,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '-force_key_frames',
     'expr:gte(t,n_forced*2)',
     '-af',
-    'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
+    buildAudioFilter(settings),
     '-c:a',
     'aac',
     '-b:a',

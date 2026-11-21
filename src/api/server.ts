@@ -28,6 +28,8 @@ import { registerRecordingRoutes } from './routes/recordings.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerYouTubeRoutes } from './routes/youtube.js';
 import { registerOpenApiRoutes } from './routes/openapi.js';
+import { registerSceneRoutes } from './routes/scenes.js';
+import { registerScheduleRoutes } from './routes/schedules.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -144,6 +146,8 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerRecordingRoutes(app, ctx);
   await registerPreviewRoutes(app, ctx);
   await registerYouTubeRoutes(app, ctx);
+  await registerSceneRoutes(app, ctx);
+  await registerScheduleRoutes(app, ctx);
   await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;

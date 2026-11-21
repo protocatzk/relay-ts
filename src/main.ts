@@ -10,6 +10,9 @@ import { buildServer } from './api/server.js';
 import { AuthSessionStore } from './api/session-store.js';
 import { TotpStore } from './api/totp-store.js';
 import { AuditLogStore } from './core/audit-log.js';
+import { SceneStore } from './core/overlays/scene-store.js';
+import { StreamScheduler } from './core/scheduler/scheduler.js';
+import { WebhookDispatcher } from './core/notifications/webhooks.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
@@ -65,6 +68,8 @@ async function main(): Promise<void> {
   redactor.add(config.media.tiktokSessionId);
   redactor.add(config.settings.online.api_key);
   redactor.add(config.settings.chat.api_key);
+  redactor.add(config.settings.webhooks.url);
+  redactor.add(config.settings.webhooks.secret);
 
   const store = new StreamerStore(
     config.paths.streamersFile,
@@ -79,6 +84,12 @@ async function main(): Promise<void> {
   }
 
   const settingsService = new SettingsService(config.paths.settingsFile, config.settings, logger);
+  const scenes = new SceneStore(join(config.paths.dataDir, 'scenes.json'));
+  const webhooks = new WebhookDispatcher({
+    getSettings: () => settingsService.get().webhooks,
+    logger,
+    version: VERSION,
+  });
   const authSessions = new AuthSessionStore(join(config.paths.dataDir, 'sessions.json'));
   const totp = new TotpStore(join(config.paths.dataDir, 'totp.json'), {
     onSecret: (secret) => redactor.add(secret),
@@ -96,6 +107,13 @@ async function main(): Promise<void> {
     ),
     logger,
     automation: () => settingsService.get().youtube,
+    onReconnectRequired: () => {
+      webhooks.notify(
+        'youtube_auth_required',
+        'YouTube-Verbindung abgelaufen',
+        'Das Google-Refresh-Token wurde widerrufen oder ist abgelaufen. Bitte im Dashboard neu verbinden.',
+      );
+    },
   });
   if (config.youtube.clientId) {
     logger.info(
@@ -111,9 +129,39 @@ async function main(): Promise<void> {
     bus,
     redact: redactor.apply,
     registerSecret: (secret) => redactor.add(secret),
+    scenes,
+    webhooks,
     youtube: {
       streamStarted: (key) => youtubeAuth.onStreamStarted(key),
       streamStopped: (key) => youtubeAuth.onStreamStopped(key),
+    },
+  });
+  const scheduler = new StreamScheduler({
+    path: join(config.paths.dataDir, 'schedules.json'),
+    logger,
+    audit,
+    executor: {
+      execute: async (rule) => {
+        switch (rule.action) {
+          case 'start_streamer':
+            if (!rule.target_id) throw new ValidationError('Streamer-ID fehlt');
+            await supervisor.start(rule.target_id);
+            break;
+          case 'start_playlist':
+            if (!rule.target_id) throw new ValidationError('Playlist-ID fehlt');
+            await supervisor.playPlaylist(rule.target_id);
+            break;
+          case 'start_queue':
+            await supervisor.queuePlay(0);
+            break;
+          case 'start_screen':
+            await supervisor.showScreen(rule.target_id === 'startup' ? 'startup' : 'pause');
+            break;
+          case 'stop':
+            await supervisor.stop();
+            break;
+        }
+      },
     },
   });
   const auditTelegram = async <T>(
@@ -307,6 +355,15 @@ async function main(): Promise<void> {
             const { previous, next } = settingsService.update({ earnings: { period } });
             await supervisor.applySettings(next, previous);
           },
+          scenes: () => {
+            const activeId = scenes.activeId();
+            return scenes.list().map((scene) => ({
+              id: scene.id,
+              name: scene.name,
+              active: scene.id === activeId,
+            }));
+          },
+          activateScene: (id) => auditTelegram('scene.activate', id, () => supervisor.activateScene(id)),
         },
         notify: {
           chatId: config.telegram.notifyChatId,
@@ -348,8 +405,12 @@ async function main(): Promise<void> {
     telegramAuth,
     telegramBot,
     youtubeAuth,
+    scenes,
+    scheduler,
+    webhooks,
   });
 
+  scheduler.start();
   telegramBot?.start();
 
   try {
@@ -386,6 +447,7 @@ async function main(): Promise<void> {
     }, 20_000);
     try {
       await app.close();
+      scheduler.stop();
       await telegramBot?.stop();
       await supervisor.shutdown();
       await flush();

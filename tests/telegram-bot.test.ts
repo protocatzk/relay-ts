@@ -13,6 +13,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     active_streamer_id: 'alpha',
     active_streamer_name: 'Alpha',
     active_playlist: null,
+    active_scene_id: null,
+    active_scene_name: null,
     manual_screen: null,
     started_at: new Date().toISOString(),
     uptime_seconds: 125,
@@ -49,6 +51,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
       last_progress_at: new Date().toISOString(),
       restarts: 0,
       dts_errors: 0,
+      silence_active: false,
+      silence_since: null,
       last_error: null,
     },
     watchdog: {
@@ -275,6 +279,11 @@ function setup() {
     },
     youtubeAssign: async (id, streamerId) => {
       stopped.push(`yt-assign:${id}:${streamerId}`);
+      return {};
+    },
+    scenes: () => [{ id: 'gaming', name: 'Gaming 16:9', active: false }],
+    activateScene: async (id) => {
+      stopped.push(`scene:${id}`);
       return {};
     },
   };
@@ -720,5 +729,29 @@ describe('Telegram bot control', () => {
       ),
     ).toBe(true);
     expect(stopped.filter((s) => s.startsWith('youtube:title:'))).toHaveLength(0);
+  });
+
+  it('lists overlay scenes via /scene and activates one by callback or name', async () => {
+    const { bot, calls, stopped } = setup();
+    const handler = bot as unknown as {
+      handleMessage: (m: unknown) => Promise<void>;
+      handleCallback: (q: unknown) => Promise<void>;
+    };
+
+    await handler.handleMessage(message(42, '/scene'));
+    const cbData = findCallback(calls, 'Gaming 16:9');
+    expect(cbData).toMatch(/^scn:/);
+
+    await handler.handleCallback({
+      id: 'cb-scene',
+      from: { id: 42, username: 'tester' },
+      data: cbData,
+      message: message(42, ''),
+    });
+    expect(stopped).toContain('scene:gaming');
+
+    stopped.length = 0;
+    await handler.handleMessage(message(42, '/scene Gaming 16:9'));
+    expect(stopped).toContain('scene:gaming');
   });
 });

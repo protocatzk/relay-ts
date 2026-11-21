@@ -125,6 +125,41 @@ export function mapHttpAuditAction(method: string, url: string): MappedAuditActi
   if (path === '/api/overlays' && method === 'PUT') {
     return { action: 'overlays.update', target: 'overlays' };
   }
+  if (path === '/api/webhooks/test' && method === 'POST') {
+    return { action: 'webhooks.test', target: 'webhooks' };
+  }
+
+  // Overlay scenes
+  if (path === '/api/scenes' && method === 'POST') {
+    return { action: 'scene.create', target: null };
+  }
+  match = /^\/api\/scenes\/([^/]+)\/activate$/.exec(path);
+  if (match && method === 'POST') {
+    return { action: 'scene.activate', target: decodeURIComponent(match[1]!) };
+  }
+  match = /^\/api\/scenes\/([^/]+)$/.exec(path);
+  if (match && method === 'PUT') {
+    return { action: 'scene.update', target: decodeURIComponent(match[1]!) };
+  }
+  if (match && method === 'DELETE') {
+    return { action: 'scene.delete', target: decodeURIComponent(match[1]!) };
+  }
+
+  // Stream schedules
+  if (path === '/api/schedules' && method === 'POST') {
+    return { action: 'schedule.create', target: null };
+  }
+  match = /^\/api\/schedules\/([^/]+)\/run$/.exec(path);
+  if (match && method === 'POST') {
+    return { action: 'schedule.run', target: decodeURIComponent(match[1]!) };
+  }
+  match = /^\/api\/schedules\/([^/]+)$/.exec(path);
+  if (match && method === 'PUT') {
+    return { action: 'schedule.update', target: decodeURIComponent(match[1]!) };
+  }
+  if (match && method === 'DELETE') {
+    return { action: 'schedule.delete', target: decodeURIComponent(match[1]!) };
+  }
 
   // Auth & security
   if (path === '/api/auth/totp/enable' && method === 'POST') {

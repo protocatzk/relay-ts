@@ -8,6 +8,7 @@ import type {
   Settings,
   VideoEncoderSetting,
   VideoPreset,
+  WebhookEventType,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
 import {
@@ -68,6 +69,18 @@ const loadError = ref('');
 const apiKey = ref('');
 const chatApiKey = ref('');
 const earningsApiKey = ref('');
+const webhookUrl = ref('');
+const webhookSecret = ref('');
+const testingWebhook = ref(false);
+
+const WEBHOOK_EVENT_OPTIONS: { value: WebhookEventType; label: string }[] = [
+  { value: 'stream_error', label: 'Stream-/Sink-Fehler' },
+  { value: 'pause_limit', label: 'Pausen-Limit erreicht' },
+  { value: 'reconnect_failed', label: 'Reconnect fehlgeschlagen' },
+  { value: 'youtube_auth_required', label: 'YouTube-Auth abgelaufen' },
+  { value: 'disk_warning', label: 'Speicher-Warnung' },
+  { value: 'audio_silence', label: 'Audio-Stille' },
+];
 const checkingOnline = ref(false);
 const pauseUploading = ref<'background' | 'font' | null>(null);
 const pauseAsset = ref<PauseAsset | null>(null);
@@ -93,6 +106,8 @@ const secretsDraft = computed<SettingsSecretsDraft>(() => ({
   onlineApiKey: apiKey.value,
   chatApiKey: chatApiKey.value,
   earningsApiKey: earningsApiKey.value,
+  webhookUrl: webhookUrl.value,
+  webhookSecret: webhookSecret.value,
 }));
 
 function sectionDirty(section: EditableSettingsSectionId): boolean {
@@ -100,7 +115,9 @@ function sectionDirty(section: EditableSettingsSectionId): boolean {
   return isSectionDirty(section, form.value, baseline.value, secretsDraft.value);
 }
 
-const restartRequired = computed(() => sectionDirty('delay') || sectionDirty('video'));
+const restartRequired = computed(
+  () => sectionDirty('delay') || sectionDirty('video') || sectionDirty('audio'),
+);
 
 const dirty = computed(() => EDITABLE_SETTINGS_SECTIONS.some((section) => sectionDirty(section)));
 
@@ -353,21 +370,64 @@ async function revokeAllSessions(): Promise<void> {
   }
 }
 
+function normalizeSettingsDefaults(settings: Settings): Settings {
+  settings.delay_buffer.catchup_rate ??= 1.01;
+  settings.audio ??= {
+    normalize: 'off',
+    target_lufs: -16,
+    gain_db: 0,
+    silence_detect: false,
+    silence_threshold_db: -50,
+    silence_seconds: 15,
+  };
+  settings.webhooks ??= {
+    enabled: false,
+    url_set: false,
+    url_host: '',
+    format: 'generic',
+    secret_set: false,
+    cooldown_seconds: 60,
+    events: ['stream_error', 'pause_limit', 'reconnect_failed', 'youtube_auth_required', 'disk_warning'],
+  };
+  return settings;
+}
+
 async function loadSettings(silent = false): Promise<void> {
   if (!silent) loading.value = true;
   loadError.value = '';
   try {
-    const settings = await api.settings.get();
-    settings.delay_buffer.catchup_rate ??= 1.01;
+    const settings = normalizeSettingsDefaults(await api.settings.get());
     form.value = clone(settings);
     baseline.value = clone(settings);
     apiKey.value = '';
     chatApiKey.value = '';
     earningsApiKey.value = '';
+    webhookUrl.value = '';
+    webhookSecret.value = '';
   } catch (error) {
     loadError.value = errorMessage(error);
   } finally {
     loading.value = false;
+  }
+}
+
+function toggleWebhookEvent(event: WebhookEventType): void {
+  const hooks = form.value?.webhooks;
+  if (!hooks) return;
+  const idx = hooks.events.indexOf(event);
+  if (idx >= 0) hooks.events.splice(idx, 1);
+  else hooks.events.push(event);
+}
+
+async function sendTestWebhook(): Promise<void> {
+  testingWebhook.value = true;
+  try {
+    const result = await api.webhooks.test();
+    pushToast(`Test-Webhook gesendet (HTTP ${result.status}).`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    testingWebhook.value = false;
   }
 }
 
@@ -397,6 +457,10 @@ async function saveSection(section: EditableSettingsSectionId): Promise<void> {
     if (section === 'monitor') apiKey.value = '';
     if (section === 'chat') chatApiKey.value = '';
     if (section === 'earnings') earningsApiKey.value = '';
+    if (section === 'webhooks') {
+      webhookUrl.value = '';
+      webhookSecret.value = '';
+    }
     pushToast(`Bereich „${sectionLabel(section)}“ gespeichert.`, 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -412,12 +476,14 @@ async function save(): Promise<void> {
 
   saving.value = true;
   try {
-    const saved = await api.settings.update(payload);
+    const saved = normalizeSettingsDefaults(await api.settings.update(payload));
     form.value = clone(saved);
     baseline.value = clone(saved);
     apiKey.value = '';
     chatApiKey.value = '';
     earningsApiKey.value = '';
+    webhookUrl.value = '';
+    webhookSecret.value = '';
     pushToast('Einstellungen gespeichert.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -614,6 +680,90 @@ onBeforeUnmount(() => {
                 <option value="off">Nie (Copy)</option>
               </select>
               <p class="field-hint">Verhindert Mid-GOP-Ruckler beim Neustart der TikTok-Quelle.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="form.audio" id="settings-audio" class="card settings-section" tabindex="-1">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Audio</h2>
+          </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('audio')" class="badge tone-warning">Ungespeichert</span>
+            <span class="badge tone-warning">Sink-Neustart erforderlich</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Audio speichern"
+              :disabled="!sectionDirty('audio') || busySaving"
+              @click="saveSection('audio')"
+            >
+              <span v-if="savingSection === 'audio'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
+        </div>
+        <div class="settings-body">
+          <div class="settings-grid">
+            <div class="field">
+              <label for="audio-normalize">Lautheits-Normalisierung</label>
+              <select id="audio-normalize" v-model="form.audio.normalize">
+                <option value="off">Aus</option>
+                <option value="loudnorm">EBU R128 (loudnorm)</option>
+                <option value="dynaudnorm">Dynamisch (dynaudnorm)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="audio-target-lufs">Ziel-Lautheit (LUFS)</label>
+              <input
+                id="audio-target-lufs"
+                v-model.number="form.audio.target_lufs"
+                type="number"
+                min="-30"
+                max="-6"
+                step="0.5"
+              />
+              <p class="field-hint">−16 LUFS empfohlen für YouTube Live (nur bei loudnorm).</p>
+            </div>
+            <div class="field">
+              <label for="audio-gain">Pegel-Anpassung (dB)</label>
+              <input
+                id="audio-gain"
+                v-model.number="form.audio.gain_db"
+                type="number"
+                min="-24"
+                max="24"
+                step="0.5"
+              />
+            </div>
+          </div>
+          <ToggleField
+            v-model="form.audio.silence_detect"
+            label="Audio-Stille erkennen"
+            description="Meldet anhaltende Stille im Status, auf dem Dashboard und per Webhook (startet den Sink nicht neu)."
+          />
+          <div class="settings-grid">
+            <div class="field">
+              <label for="audio-silence-threshold">Stille-Schwelle (dB)</label>
+              <input
+                id="audio-silence-threshold"
+                v-model.number="form.audio.silence_threshold_db"
+                type="number"
+                min="-80"
+                max="-10"
+              />
+            </div>
+            <div class="field">
+              <label for="audio-silence-seconds">Stille-Dauer (Sekunden)</label>
+              <input
+                id="audio-silence-seconds"
+                v-model.number="form.audio.silence_seconds"
+                type="number"
+                min="2"
+                max="300"
+              />
             </div>
           </div>
         </div>
@@ -1204,6 +1354,108 @@ onBeforeUnmount(() => {
               <code>{date}</code>, <code>{time}</code>. Nur lokal, wird nicht an YouTube gesendet.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section v-if="form.webhooks" id="settings-webhooks" class="card settings-section" tabindex="-1">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Webhooks</h2>
+          </div>
+          <div class="settings-section-actions">
+            <span v-if="sectionDirty('webhooks')" class="badge tone-warning">Ungespeichert</span>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="testingWebhook || !form.webhooks.url_set"
+              @click="sendTestWebhook"
+            >
+              Test-Webhook senden
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              aria-label="Webhooks speichern"
+              :disabled="!sectionDirty('webhooks') || busySaving"
+              @click="saveSection('webhooks')"
+            >
+              <span v-if="savingSection === 'webhooks'" class="spinner" aria-hidden="true"></span>
+              Speichern
+            </button>
+          </div>
+        </div>
+        <div class="settings-body">
+          <ToggleField
+            v-model="form.webhooks.enabled"
+            label="Alerting-Webhooks aktiviert"
+            description="Sendet Störungs- und Statusmeldungen asynchron an Discord, Slack oder einen HTTP-Endpunkt."
+          />
+          <div class="settings-grid">
+            <div class="field">
+              <label for="webhook-format">Format</label>
+              <select id="webhook-format" v-model="form.webhooks.format">
+                <option value="generic">Generisches JSON</option>
+                <option value="discord">Discord Embed</option>
+                <option value="slack">Slack Webhook</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="webhook-url">Webhook-URL</label>
+              <input
+                id="webhook-url"
+                v-model="webhookUrl"
+                type="url"
+                :placeholder="
+                  form.webhooks.url_set
+                    ? `•••••••• (${form.webhooks.url_host || 'gesetzt'} – leer lassen zum Behalten)`
+                    : 'https://discord.com/api/webhooks/...'
+                "
+                spellcheck="false"
+                autocomplete="off"
+              />
+            </div>
+            <div class="field">
+              <label for="webhook-secret">Signatur-Secret (optional)</label>
+              <input
+                id="webhook-secret"
+                v-model="webhookSecret"
+                type="password"
+                :placeholder="
+                  form.webhooks.secret_set
+                    ? '•••••••• (gesetzt – leer lassen zum Behalten)'
+                    : 'HMAC-SHA256 Secret'
+                "
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="field">
+              <label for="webhook-cooldown">Cooldown (Sekunden)</label>
+              <input
+                id="webhook-cooldown"
+                v-model.number="form.webhooks.cooldown_seconds"
+                type="number"
+                min="0"
+                max="3600"
+              />
+            </div>
+          </div>
+          <fieldset class="field" style="border: 0; padding: 0; margin: 0">
+            <legend style="font-size: 13px; margin-bottom: 6px">Ereignisse</legend>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px">
+              <label
+                v-for="ev in WEBHOOK_EVENT_OPTIONS"
+                :key="ev.value"
+                style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px"
+              >
+                <input
+                  type="checkbox"
+                  :checked="form.webhooks.events.includes(ev.value)"
+                  @change="toggleWebhookEvent(ev.value)"
+                />
+                {{ ev.label }}
+              </label>
+            </div>
+          </fieldset>
         </div>
       </section>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { Streamer } from '@/src/api/types';
+import type { OverlayScene, Streamer } from '@/src/api/types';
 import { refreshStatus, refreshStreamers, useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import { formatUptime, stateLabel, stateTone } from '@/src/utils/format';
@@ -12,6 +12,8 @@ const { pushToast } = useToast();
 
 const open = ref(false);
 const busy = ref<string | null>(null);
+const scenes = ref<OverlayScene[]>([]);
+const activeSceneId = ref<string | null>(null);
 const root = ref<HTMLElement | null>(null);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
@@ -72,8 +74,28 @@ function tiktokHandle(streamer: Streamer): string {
   return `@${streamer.tiktok.replace(/^@/, '')}`;
 }
 
+async function loadScenes(): Promise<void> {
+  try {
+    const res = await api.scenes.list();
+    scenes.value = res.scenes;
+    activeSceneId.value = res.active_scene_id;
+  } catch {
+    /* scenes optional */
+  }
+}
+
+async function activateScene(scene: OverlayScene): Promise<void> {
+  await run(
+    `scene:${scene.id}`,
+    () => api.scenes.activate(scene.id),
+    `Szene „${scene.name}“ aktiviert.`,
+  );
+  activeSceneId.value = scene.id;
+}
+
 async function openMenu(): Promise<void> {
   open.value = true;
+  void loadScenes();
   await nextTick();
   panel.value?.querySelector<HTMLElement>('button, a[href]')?.focus();
 }
@@ -292,6 +314,26 @@ async function activate(streamer: Streamer): Promise<void> {
           </li>
         </ul>
         <p v-else class="live-menu-empty">Kein Streamer ist live.</p>
+      </section>
+
+      <section v-if="scenes.length > 0" class="live-menu-section" aria-labelledby="live-menu-scenes-title">
+        <div class="live-menu-label-row">
+          <h3 id="live-menu-scenes-title" class="live-menu-label">Overlay-Szenen</h3>
+          <span class="badge tone-neutral">{{ scenes.length }}</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <button
+            v-for="scene in scenes"
+            :key="scene.id"
+            type="button"
+            class="btn btn-sm"
+            :class="scene.id === (store.status?.active_scene_id ?? activeSceneId) ? 'btn-primary' : 'btn-ghost'"
+            :disabled="busy !== null"
+            @click="activateScene(scene)"
+          >
+            {{ scene.name }}
+          </button>
+        </div>
       </section>
 
       <footer class="live-menu-foot">

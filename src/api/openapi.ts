@@ -7,6 +7,8 @@ import {
   StreamerSchema,
   StreamerUpdateSchema,
 } from '../core/config/schema.js';
+import { OverlaySceneCreateSchema, OverlaySceneUpdateSchema } from '../core/overlays/scene-store.js';
+import { ScheduleRuleCreateSchema, ScheduleRuleUpdateSchema } from '../core/scheduler/scheduler.js';
 import { VERSION } from '../version.js';
 
 type Schema = Record<string, unknown>;
@@ -291,7 +293,19 @@ const routes: RouteDoc[] = [
     response: ref('Health'),
   },
   { method: 'get', path: '/api/status', tag: 'system', summary: 'Vollständiger Stream-Status', response: 'Status' },
-  { method: 'get', path: '/api/metrics', tag: 'system', summary: 'JSON-Metriken' },
+  {
+    method: 'get',
+    path: '/api/metrics',
+    tag: 'system',
+    summary: 'Metriken als JSON oder Prometheus/OpenMetrics-Text',
+    query: [{ name: 'format', in: 'query', required: false, schema: { type: 'string', enum: ['json', 'prometheus'] } }],
+  },
+  {
+    method: 'post',
+    path: '/api/webhooks/test',
+    tag: 'system',
+    summary: 'Test-Webhook an das konfigurierte Ziel senden',
+  },
   {
     method: 'get',
     path: '/api/events',
@@ -760,6 +774,76 @@ const routes: RouteDoc[] = [
     summary: 'Testnachricht an das Chat-Overlay senden',
     body: schemaOf(ChatTestBody),
   },
+  {
+    method: 'get',
+    path: '/api/scenes',
+    tag: 'overlays',
+    summary: 'Benannte Overlay-Szenen auflisten',
+  },
+  {
+    method: 'post',
+    path: '/api/scenes',
+    tag: 'overlays',
+    summary: 'Overlay-Szene anlegen',
+    body: schemaOf(OverlaySceneCreateSchema),
+    status: 201,
+  },
+  {
+    method: 'put',
+    path: '/api/scenes/:id',
+    tag: 'overlays',
+    summary: 'Overlay-Szene aktualisieren oder aktuellen Stand übernehmen',
+    body: schemaOf(OverlaySceneUpdateSchema),
+  },
+  {
+    method: 'delete',
+    path: '/api/scenes/:id',
+    tag: 'overlays',
+    summary: 'Overlay-Szene löschen',
+    response: 'Ok',
+  },
+  {
+    method: 'post',
+    path: '/api/scenes/:id/activate',
+    tag: 'overlays',
+    summary: 'Overlay-Szene live aktivieren',
+    response: ref('StatusEnvelope'),
+  },
+  {
+    method: 'get',
+    path: '/api/schedules',
+    tag: 'schedules',
+    summary: 'Zeitpläne auflisten',
+  },
+  {
+    method: 'post',
+    path: '/api/schedules',
+    tag: 'schedules',
+    summary: 'Zeitplan anlegen',
+    body: schemaOf(ScheduleRuleCreateSchema),
+    status: 201,
+  },
+  {
+    method: 'put',
+    path: '/api/schedules/:id',
+    tag: 'schedules',
+    summary: 'Zeitplan aktualisieren',
+    body: schemaOf(ScheduleRuleUpdateSchema),
+  },
+  {
+    method: 'delete',
+    path: '/api/schedules/:id',
+    tag: 'schedules',
+    summary: 'Zeitplan löschen',
+    response: 'Ok',
+  },
+  {
+    method: 'post',
+    path: '/api/schedules/:id/run',
+    tag: 'schedules',
+    summary: 'Zeitplan sofort ausführen',
+    response: ref('StatusEnvelope'),
+  },
   { method: 'get', path: '/api/media', tag: 'media', summary: 'Lokale Videos in data/media auflisten' },
   {
     method: 'post',
@@ -976,6 +1060,8 @@ const components = {
         state: { type: 'string', enum: [...STATUS_STATES] },
         active_streamer_id: { type: ['string', 'null'] },
         active_streamer_name: { type: ['string', 'null'] },
+        active_scene_id: { type: ['string', 'null'] },
+        active_scene_name: { type: ['string', 'null'] },
         manual_screen: { type: ['string', 'null'], enum: ['startup', 'pause', null] },
         uptime_seconds: { type: 'number' },
         started_at: { type: ['string', 'null'], format: 'date-time' },
@@ -1153,7 +1239,8 @@ export const openApiDocument = {
     { name: 'streamers', description: 'Streamer-Verwaltung und Steuerung' },
     { name: 'playlists', description: 'Playlist-Verwaltung und Steuerung' },
     { name: 'settings', description: 'Globale Einstellungen' },
-    { name: 'overlays', description: 'Overlays, Vorschauen und Chat-Test' },
+    { name: 'overlays', description: 'Overlays, Szenen, Vorschauen und Chat-Test' },
+    { name: 'schedules', description: 'Zeitplan-Automatik' },
     { name: 'screens', description: 'Pause-/Startbildschirme und Assets' },
     { name: 'earnings', description: 'Einnahmen und Verlauf' },
     { name: 'media', description: 'Lokale Videos' },

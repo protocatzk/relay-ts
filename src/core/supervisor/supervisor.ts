@@ -62,6 +62,8 @@ import type { SinkOverlayInput } from '../source/ffmpeg.js';
 import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
 import { sortStreamersByPriority } from '../streamer-order.js';
+import { SceneStore, type OverlayScene } from '../overlays/scene-store.js';
+import type { WebhookDispatcher } from '../notifications/webhooks.js';
 
 export interface SupervisorDeps {
   config: LoadedConfig;
@@ -78,6 +80,8 @@ export interface SupervisorDeps {
     streamStarted?: (streamKey: string) => void | Promise<void>;
     streamStopped?: (streamKey: string) => void | Promise<void>;
   };
+  scenes?: SceneStore;
+  webhooks?: WebhookDispatcher;
 }
 
 export interface PlaylistView {
@@ -160,10 +164,14 @@ export class Supervisor {
   private shuttingDown = false;
   private forceReencodeNext = false;
   private consecutiveQuickSinkExits = 0;
+  private readonly scenes: SceneStore;
+  private applyingScene = false;
+  private lastDiskWarning: string | null = null;
 
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
     this.settings = deps.settingsService.get();
+    this.scenes = deps.scenes ?? new SceneStore(join(deps.config.paths.dataDir, 'scenes.json'));
     this.stateMachine = new SupervisorStateMachine('idle', deps.logger);
     this.queue = new QueueController({
       path: join(deps.config.paths.dataDir, 'queue.json'),
@@ -274,6 +282,17 @@ export class Supervisor {
       redact: this.deps.redact,
       onExit: () => this.handleSinkExit(),
       onUnhealthy: (reason) => void this.handleSinkUnhealthy(reason),
+      onSilenceChange: (active, since) => {
+        this.emitAll();
+        if (active) {
+          this.deps.webhooks?.notify(
+            'audio_silence',
+            'Audio-Stille erkannt',
+            'Am YouTube-Sink wurde anhaltende Audio-Stille erkannt.',
+            { since: since?.toISOString() ?? null },
+          );
+        }
+      },
     });
     this.sinkController = new SinkController({
       sink,
@@ -310,6 +329,12 @@ export class Supervisor {
     });
     if (this.settings.secondary_sink.stream_key) {
       this.deps.registerSecret?.(this.settings.secondary_sink.stream_key);
+    }
+    if (this.settings.webhooks.url) {
+      this.deps.registerSecret?.(this.settings.webhooks.url);
+    }
+    if (this.settings.webhooks.secret) {
+      this.deps.registerSecret?.(this.settings.webhooks.secret);
     }
     this.overlays = new OverlayManager(
       { media: config.media, overlaysDir: config.paths.overlaysDir, logger },
@@ -358,6 +383,12 @@ export class Supervisor {
         startOfflinePause: () => this.startPauseLocked(),
         onPauseLimit: async () => {
           incMetric('pause_limit_hits_total');
+          this.deps.webhooks?.notify(
+            'pause_limit',
+            'Pausen-Limit erreicht',
+            `Stream wurde nach ${this.settings.pause.max_minutes} Minuten Pause gestoppt.`,
+            { streamer: this.activeStreamer?.id ?? null },
+          );
           await this.stopInternalLocked();
         },
       },
@@ -427,6 +458,11 @@ export class Supervisor {
       this.emitStatus();
       this.statusTicks += 1;
       if (this.statusTicks % 5 === 0) this.persistMediaProgress();
+      const warning = this.recording?.status().disk_warning ?? null;
+      if (warning && warning !== this.lastDiskWarning) {
+        this.deps.webhooks?.notify('disk_warning', 'Speicher-Warnung (Aufzeichnung)', warning);
+      }
+      this.lastDiskWarning = warning;
     }, 2000);
     this.emitAll();
     void this.checkBinaries();
@@ -1665,6 +1701,12 @@ export class Supervisor {
         const message = toErrorMessage(error);
         this.lastError = message;
         incMetric('reconnect_failures_total');
+        if (this.sourceSession.reconnectAttempts >= 3) {
+          this.deps.webhooks?.notify('reconnect_failed', 'Neuverbindung fehlgeschlagen', message, {
+            streamer: this.activeStreamer?.id ?? null,
+            attempts: this.sourceSession.reconnectAttempts,
+          });
+        }
         this.deps.logger.warn(
           { streamer: this.activeStreamer.id, err: message },
           'Neuverbindung fehlgeschlagen',
@@ -1828,6 +1870,9 @@ export class Supervisor {
       this.lastError = reason;
       incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ reason }, 'YouTube-Sink instabil – kontrollierter Neustart');
+      this.deps.webhooks?.notify('stream_error', 'YouTube-Sink instabil', reason, {
+        streamer: this.activeStreamer?.id ?? null,
+      });
       await this.restartSinkLocked();
     });
   }
@@ -1915,7 +1960,37 @@ export class Supervisor {
   }
 
   async applySettings(next: Settings, previous: Settings): Promise<StatusSnapshot> {
+    return this.lock.run(async () => this.applySettingsLocked(next, previous));
+  }
+
+  async activateScene(id: string): Promise<{ scene: OverlayScene; status: StatusSnapshot }> {
     return this.lock.run(async () => {
+      const scene = this.scenes.require(id);
+      const current = this.deps.settingsService.get();
+      const overlays = structuredClone(scene.overlays);
+      // Preserve live chat API key so activating a sanitized scene never wipes it.
+      overlays.chat.api_key = current.overlays.chat.api_key;
+      const { previous, next } = this.deps.settingsService.update({
+        overlays,
+        video: { ...current.video, layout: structuredClone(scene.video_layout) },
+      });
+      this.applyingScene = true;
+      let status: StatusSnapshot;
+      try {
+        this.scenes.setActiveId(scene.id);
+        status = await this.applySettingsLocked(next, previous);
+      } finally {
+        this.applyingScene = false;
+      }
+      this.deps.bus.emit({
+        type: 'scene',
+        data: { active_scene_id: scene.id, active_scene_name: scene.name },
+      });
+      return { scene, status: this.buildStatus() ?? status };
+    });
+  }
+
+  private async applySettingsLocked(next: Settings, previous: Settings): Promise<StatusSnapshot> {
       this.settings = next;
       if (previous.video.encoder !== next.video.encoder) {
         // Probe lazily so switching to a hardware encoder in the dashboard
@@ -1944,6 +2019,12 @@ export class Supervisor {
       this.recording.updateSettings(next);
       if (next.secondary_sink.stream_key) {
         this.deps.registerSecret?.(next.secondary_sink.stream_key);
+      }
+      if (next.webhooks.url) {
+        this.deps.registerSecret?.(next.webhooks.url);
+      }
+      if (next.webhooks.secret) {
+        this.deps.registerSecret?.(next.webhooks.secret);
       }
       const sessionActive = this.sinkController.running || this.sinkController.starting;
       if (JSON.stringify(previous.secondary_sink) !== JSON.stringify(next.secondary_sink)) {
@@ -1996,6 +2077,11 @@ export class Supervisor {
       const videoLayoutChanged =
         JSON.stringify(previous.video.layout) !== JSON.stringify(next.video.layout);
       if (videoLayoutChanged) needsSinkRestart = true;
+      const audioChanged = JSON.stringify(previous.audio) !== JSON.stringify(next.audio);
+      if (audioChanged) needsSinkRestart = true;
+      if ((overlaysChanged || videoLayoutChanged) && !this.applyingScene) {
+        this.scenes.setActiveId(null);
+      }
 
       const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
       if (chatChanged && this.activeStreamer) {
@@ -2054,7 +2140,6 @@ export class Supervisor {
       }
       this.emitAll();
       return this.buildStatus();
-    });
   }
 
   async restartSink(): Promise<StatusSnapshot> {
@@ -2246,11 +2331,14 @@ export class Supervisor {
   }
 
   buildStatus(): StatusSnapshot {
+    const activeSceneId = this.scenes?.activeId() ?? null;
+    const activeScene = activeSceneId ? (this.scenes.get(activeSceneId) ?? null) : null;
     return buildStatusSnapshot({
       state: this.state,
       settings: this.settings,
       activeStreamer: this.activeStreamer,
       activePlaylist: this.playlistController.current,
+      activeScene: activeScene ? { id: activeScene.id, name: activeScene.name } : null,
       manualScreen: this.pauseController.manualScreen,
       startedAt: this.startedAt,
       resolving: this.sourceSession.resolving,

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
-import type { Streamer } from '@/src/api/types';
+import type { OverlayScene, Streamer } from '@/src/api/types';
 import { refreshStatus, refreshStreamers, useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import { useWakeLock } from '@/src/composables/useWakeLock';
@@ -27,6 +27,7 @@ const busy = ref<string | null>(null);
 const isFullscreen = ref(false);
 const customizing = ref(false);
 const layout = ref<DeckActionConfig[]>(loadDeckLayout());
+const scenes = ref<OverlayScene[]>([]);
 
 const visibleActions = computed(() => layout.value.filter((item) => item.visible));
 
@@ -212,9 +213,23 @@ function exit(): void {
   void router.push('/');
 }
 
+async function activateScene(scene: OverlayScene): Promise<void> {
+  await run(
+    `scene:${scene.id}`,
+    () => api.scenes.activate(scene.id),
+    `Szene „${scene.name}“ aktiviert.`,
+  );
+}
+
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange);
   isFullscreen.value = Boolean(document.fullscreenElement);
+  void api.scenes
+    .list()
+    .then((res) => {
+      scenes.value = res.scenes;
+    })
+    .catch(() => undefined);
 });
 
 onBeforeUnmount(() => {
@@ -417,6 +432,28 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <p v-else class="empty compact">Kein Streamer ist gerade live.</p>
+    </section>
+
+    <section v-if="scenes.length > 0" class="deck-section" aria-labelledby="deck-scenes-title">
+      <div class="deck-section-head">
+        <h2 id="deck-scenes-title">Szenen</h2>
+        <span class="badge tone-neutral">{{ scenes.length }}</span>
+      </div>
+      <div class="deck-streamers">
+        <button
+          v-for="scene in scenes"
+          :key="scene.id"
+          type="button"
+          class="deck-streamer"
+          :class="{ 'is-active': scene.id === status?.active_scene_id }"
+          :disabled="busy !== null"
+          @click="activateScene(scene)"
+        >
+          <span class="deck-streamer-name">{{ scene.name }}</span>
+          <span v-if="scene.id === status?.active_scene_id" class="badge tone-success">Aktiv</span>
+          <span v-else class="deck-streamer-action">Wechseln</span>
+        </button>
+      </div>
     </section>
 
     <section v-if="activePlaylist" class="deck-section" aria-labelledby="deck-playlist-title">

@@ -342,9 +342,41 @@ export const RecordingSettingsSchema = z.object({
   auto_delete: z.boolean().default(false),
 });
 
+export const AudioSettingsSchema = z.object({
+  normalize: z.enum(['off', 'loudnorm', 'dynaudnorm']).default('off'),
+  target_lufs: z.number().min(-30).max(-6).default(-16),
+  gain_db: z.number().min(-24).max(24).default(0),
+  silence_detect: z.boolean().default(false),
+  silence_threshold_db: z.number().min(-80).max(-10).default(-50),
+  silence_seconds: z.number().int().min(2).max(300).default(15),
+});
+
+export const WEBHOOK_EVENTS = [
+  'stream_error',
+  'pause_limit',
+  'reconnect_failed',
+  'youtube_auth_required',
+  'disk_warning',
+  'audio_silence',
+] as const;
+
+export type WebhookEventType = (typeof WEBHOOK_EVENTS)[number];
+
+export const WebhooksSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  url: z.string().max(1000).default(''),
+  format: z.enum(['generic', 'discord', 'slack']).default('generic'),
+  secret: z.string().max(256).default(''),
+  cooldown_seconds: z.number().int().min(0).max(3600).default(60),
+  events: z
+    .array(z.enum(WEBHOOK_EVENTS))
+    .default(['stream_error', 'pause_limit', 'reconnect_failed', 'youtube_auth_required', 'disk_warning']),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
+  audio: AudioSettingsSchema.default(AudioSettingsSchema.parse({})),
   source: SourceSettingsSchema.default(SourceSettingsSchema.parse({})),
   watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
   auto_refresh: AutoRefreshSettingsSchema.default(AutoRefreshSettingsSchema.parse({})),
@@ -358,6 +390,7 @@ export const SettingsSchema = z.object({
   youtube: YouTubeAutomationSettingsSchema.default(YouTubeAutomationSettingsSchema.parse({})),
   secondary_sink: SecondarySinkSettingsSchema.default(SecondarySinkSettingsSchema.parse({})),
   recording: RecordingSettingsSchema.default(RecordingSettingsSchema.parse({})),
+  webhooks: WebhooksSettingsSchema.default(WebhooksSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -371,6 +404,8 @@ export const StreamersFileSchema = z
 export type StreamerConfig = z.infer<typeof StreamerSchema>;
 export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
+export type AudioSettings = z.infer<typeof AudioSettingsSchema>;
+export type WebhooksSettings = z.infer<typeof WebhooksSettingsSchema>;
 export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettingsSchema>;
 export type SecondarySinkSettings = z.infer<typeof SecondarySinkSettingsSchema>;
 export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;

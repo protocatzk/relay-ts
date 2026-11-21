@@ -10,6 +10,8 @@ export interface StatusSnapshot {
   active_streamer_id: string | null;
   active_streamer_name: string | null;
   active_playlist: { id: string; name: string; index: number; total: number } | null;
+  active_scene_id: string | null;
+  active_scene_name: string | null;
   manual_screen: 'startup' | 'pause' | null;
   started_at: string | null;
   uptime_seconds: number;
@@ -46,6 +48,8 @@ export interface StatusSnapshot {
     last_progress_at: string | null;
     restarts: number;
     dts_errors: number;
+    silence_active: boolean;
+    silence_since: string | null;
     last_error: string | null;
   };
   watchdog: {
@@ -121,7 +125,8 @@ export type SystemEvent =
   | { type: 'streamers'; data: StreamerView[] }
   | { type: 'log'; data: LogEntry }
   | { type: 'earnings'; data: EarningsSnapshot }
-  | { type: 'queue'; data: QueueSnapshot };
+  | { type: 'queue'; data: QueueSnapshot }
+  | { type: 'scene'; data: { active_scene_id: string | null; active_scene_name: string | null } };
 
 export class EventBus {
   private readonly subject = new Subject<SystemEvent>();

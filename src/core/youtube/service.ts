@@ -153,6 +153,8 @@ export interface YouTubeAuthServiceOptions {
   automation?: () => AutomationSettings;
   /** Registry of broadcasts created through RELAY. */
   broadcasts?: YouTubeBroadcastStore;
+  /** Invoked when a revoked refresh token clears the stored auth. */
+  onReconnectRequired?: () => void;
 }
 
 /**
@@ -725,6 +727,7 @@ export class YouTubeAuthService {
       if (isRevokedGrant(error)) {
         this.options.store.clear();
         this.options.logger.warn('YouTube-Verbindung ist abgelaufen; erneutes Verbinden nötig');
+        this.options.onReconnectRequired?.();
         throw new AppError(
           'youtube_reconnect_required',
           'Die YouTube-Verbindung ist abgelaufen. Bitte das Konto erneut verbinden.',

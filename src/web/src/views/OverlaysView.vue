@@ -5,6 +5,7 @@ import type {
   ChatOverlay,
   ClockOverlay,
   OverlayPosition,
+  OverlayScene,
   Settings,
   SettingsUpdate,
   StreamerOverlays,
@@ -17,6 +18,7 @@ import ColorInput from '@/src/components/ColorInput.vue';
 import OverlayStudioPreview from '@/src/components/OverlayStudioPreview.vue';
 import StudioGroup from '@/src/components/StudioGroup.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
@@ -31,6 +33,11 @@ const { pushToast } = useToast();
 const loading = ref(true);
 const loadError = ref('');
 const saving = ref(false);
+const scenes = ref<OverlayScene[]>([]);
+const activeSceneId = ref<string | null>(null);
+const selectedSceneId = ref('');
+const newSceneName = ref('');
+const sceneBusy = ref(false);
 const draft = ref<StreamerOverlays | null>(null);
 const settings = ref<Settings | null>(null);
 const settingsBaseline = ref<Settings | null>(null);
@@ -554,11 +561,105 @@ watch(
   { immediate: true },
 );
 
+async function loadScenes(): Promise<void> {
+  try {
+    const res = await api.scenes.list();
+    scenes.value = res.scenes;
+    activeSceneId.value = res.active_scene_id;
+    if (!selectedSceneId.value || !res.scenes.some((s) => s.id === selectedSceneId.value)) {
+      selectedSceneId.value = res.active_scene_id ?? res.scenes[0]?.id ?? '';
+    }
+  } catch {
+    /* scene list is optional if endpoint unavailable */
+  }
+}
+
+async function createScene(): Promise<void> {
+  const name = newSceneName.value.trim();
+  if (!name) return;
+  sceneBusy.value = true;
+  try {
+    if (dirty.value) await save();
+    const res = await api.scenes.create({ name });
+    newSceneName.value = '';
+    await loadScenes();
+    selectedSceneId.value = res.scene.id;
+    pushToast(`Szene „${res.scene.name}“ gespeichert.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    sceneBusy.value = false;
+  }
+}
+
+async function activateScene(id: string): Promise<void> {
+  if (!id) return;
+  sceneBusy.value = true;
+  try {
+    const res = await api.scenes.activate(id);
+    activeSceneId.value = res.scene.id;
+    selectedSceneId.value = res.scene.id;
+    settings.value = await api.settings.get();
+    settingsBaseline.value = clone(settings.value);
+    draft.value = normalizeOverlays(settings.value.overlays);
+    initialSnapshot = JSON.stringify(draft.value);
+    initialEarningsSnapshot = JSON.stringify(settings.value.earnings);
+    initialLayoutSnapshot = JSON.stringify(settings.value.video.layout);
+    resetHistory();
+    await refreshStatus();
+    schedulePreview(true);
+    pushToast(`Szene „${res.scene.name}“ aktiviert.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    sceneBusy.value = false;
+  }
+}
+
+async function overwriteSelectedScene(): Promise<void> {
+  const id = selectedSceneId.value;
+  if (!id) return;
+  sceneBusy.value = true;
+  try {
+    if (dirty.value) await save();
+    await api.scenes.update(id, { capture_current: true });
+    await loadScenes();
+    pushToast('Szene mit aktuellem Stand überschrieben.', 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    sceneBusy.value = false;
+  }
+}
+
+async function removeSelectedScene(): Promise<void> {
+  const scene = scenes.value.find((s) => s.id === selectedSceneId.value);
+  if (!scene) return;
+  const ok = await confirmAction(`Szene „${scene.name}“ löschen?`, {
+    title: 'Szene löschen',
+    confirmLabel: 'Löschen',
+    tone: 'danger',
+  });
+  if (!ok) return;
+  sceneBusy.value = true;
+  try {
+    await api.scenes.remove(scene.id);
+    selectedSceneId.value = '';
+    await loadScenes();
+    pushToast(`Szene „${scene.name}“ gelöscht.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    sceneBusy.value = false;
+  }
+}
+
 onMounted(async () => {
   loading.value = true;
   try {
     await refreshStatus().catch(() => undefined);
-    settings.value = await api.settings.get();
+    const [, loadedSettings] = await Promise.all([loadScenes(), api.settings.get()]);
+    settings.value = loadedSettings;
     settingsBaseline.value = clone(settings.value);
     draft.value = normalizeOverlays(settings.value.overlays);
     initialSnapshot = JSON.stringify(draft.value);
@@ -614,7 +715,63 @@ onBeforeUnmount(() => {
 
     <div v-else-if="loadError" class="alert alert-error" role="alert">{{ loadError }}</div>
 
-    <div v-else-if="draft" class="overlay-studio-layout">
+    <template v-else-if="draft">
+      <section class="card" style="padding: 12px 14px; margin-bottom: 12px">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end">
+          <div class="field" style="flex: 1 1 180px; margin: 0">
+            <label for="studio-scene-select">Gespeicherte Szene</label>
+            <select id="studio-scene-select" v-model="selectedSceneId" :disabled="sceneBusy || scenes.length === 0">
+              <option value="" disabled>{{ scenes.length ? 'Szene wählen…' : 'Noch keine Szenen' }}</option>
+              <option v-for="scene in scenes" :key="scene.id" :value="scene.id">
+                {{ scene.name }}{{ scene.id === activeSceneId ? ' (aktiv)' : '' }}
+              </option>
+            </select>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              :disabled="sceneBusy || !selectedSceneId"
+              @click="activateScene(selectedSceneId)"
+            >
+              Aktivieren
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="sceneBusy || !selectedSceneId"
+              @click="overwriteSelectedScene"
+            >
+              Überschreiben
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="sceneBusy || !selectedSceneId"
+              @click="removeSelectedScene"
+            >
+              Löschen
+            </button>
+          </div>
+          <form style="display: flex; flex: 1 1 220px; gap: 6px; align-items: flex-end" @submit.prevent="createScene">
+            <div class="field" style="flex: 1; margin: 0">
+              <label for="studio-scene-name">Neue Szene</label>
+              <input
+                id="studio-scene-name"
+                v-model="newSceneName"
+                type="text"
+                maxlength="80"
+                placeholder="z. B. Gaming 16:9"
+              />
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm" :disabled="sceneBusy || !newSceneName.trim()">
+              Als Szene speichern
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <div class="overlay-studio-layout">
       <OverlayStudioPreview
         :image-url="previewUrl"
         :error="previewError"
@@ -1269,6 +1426,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
+    </template>
 
     <div v-if="draft && dirty" class="studio-savebar" role="region" aria-label="Ungespeicherte Änderungen">
       <span class="studio-savebar-label"><span class="dot" aria-hidden="true"></span>Ungespeichert</span>

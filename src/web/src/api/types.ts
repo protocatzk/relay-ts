@@ -162,6 +162,8 @@ export interface SinkStatus {
   last_progress_at: string | null;
   restarts: number;
   dts_errors?: number;
+  silence_active?: boolean;
+  silence_since?: string | null;
   last_error?: string | null;
 }
 
@@ -193,6 +195,8 @@ export interface StatusPayload {
   active_streamer_id: string | null;
   active_streamer_name: string | null;
   active_playlist: ActivePlaylist | null;
+  active_scene_id?: string | null;
+  active_scene_name?: string | null;
   manual_screen: 'startup' | 'pause' | null;
   started_at: string | null;
   uptime_seconds: number;
@@ -405,6 +409,73 @@ export interface VideoSettings {
   layout: VideoLayout;
 }
 
+export interface AudioSettings {
+  normalize: 'off' | 'loudnorm' | 'dynaudnorm';
+  target_lufs: number;
+  gain_db: number;
+  silence_detect: boolean;
+  silence_threshold_db: number;
+  silence_seconds: number;
+}
+
+export type WebhookEventType =
+  | 'stream_error'
+  | 'pause_limit'
+  | 'reconnect_failed'
+  | 'youtube_auth_required'
+  | 'disk_warning'
+  | 'audio_silence';
+
+export interface WebhooksSettings {
+  enabled: boolean;
+  url_set: boolean;
+  url_host: string;
+  format: 'generic' | 'discord' | 'slack';
+  secret_set: boolean;
+  cooldown_seconds: number;
+  events: WebhookEventType[];
+}
+
+export interface OverlayScene {
+  id: string;
+  name: string;
+  overlays: StreamerOverlays;
+  video_layout: VideoLayout;
+  updated_at: string;
+}
+
+export type ScheduleAction =
+  | 'start_streamer'
+  | 'start_playlist'
+  | 'start_queue'
+  | 'start_screen'
+  | 'stop';
+
+export interface ScheduleRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  days: number[];
+  time: string;
+  timezone: string;
+  action: ScheduleAction;
+  target_id: string | null;
+  last_run_at: string | null;
+  last_run_key: string | null;
+  last_error: string | null;
+  next_run_at: string | null;
+}
+
+export interface ScheduleRuleInput {
+  name: string;
+  enabled: boolean;
+  days: number[];
+  time: string;
+  timezone: string;
+  action: ScheduleAction;
+  target_id: string | null;
+}
+
 export interface WatchdogSettings {
   stall_timeout: number;
   min_bitrate: number;
@@ -522,6 +593,7 @@ export interface RecordingsListResponse {
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  audio?: AudioSettings;
   source: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
@@ -534,6 +606,7 @@ export interface Settings {
   overlays: StreamerOverlays;
   secondary_sink?: SecondarySinkSettings;
   recording?: RecordingSettings;
+  webhooks?: WebhooksSettings;
 }
 
 export interface StreamingSettings {
@@ -658,6 +731,7 @@ export interface ChatSettings {
 export interface SettingsUpdate {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  audio?: AudioSettings;
   source?: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
@@ -686,6 +760,14 @@ export interface SettingsUpdate {
     mode: 'copy' | 'reencode';
   };
   recording?: RecordingSettings;
+  webhooks?: {
+    enabled: boolean;
+    format: 'generic' | 'discord' | 'slack';
+    cooldown_seconds: number;
+    events: WebhookEventType[];
+    url?: string;
+    secret?: string;
+  };
   earnings: {
     enabled: boolean;
     source_url: string;

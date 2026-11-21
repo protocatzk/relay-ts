@@ -15,6 +15,7 @@ export interface StatusBuilderContext {
   settings: Settings;
   activeStreamer: StreamerConfig | null;
   activePlaylist: PlaylistRunState | null;
+  activeScene?: { id: string; name: string } | null;
   manualScreen: 'startup' | 'pause' | null;
   startedAt: Date | null;
   resolving: boolean;
@@ -41,6 +42,7 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     settings,
     activeStreamer,
     activePlaylist,
+    activeScene,
     manualScreen,
     startedAt,
     resolving,
@@ -72,6 +74,8 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
           total: activePlaylist.playlist.channels.length,
         }
       : null,
+    active_scene_id: activeScene?.id ?? null,
+    active_scene_name: activeScene?.name ?? null,
     manual_screen: manualScreen,
     started_at: isoOrNull(startedAt),
     uptime_seconds: startedAt ? Math.round((now - startedAt.getTime()) / 1000) : 0,
@@ -108,6 +112,8 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
       last_progress_at: isoOrNull(sink?.lastProgressAt ?? null),
       restarts: sink?.restarts ?? 0,
       dts_errors: sink?.dtsErrors ?? 0,
+      silence_active: sink?.silenceActive ?? false,
+      silence_since: isoOrNull(sink?.silenceSince ?? null),
       last_error: sink?.lastError ?? null,
     },
     watchdog: {

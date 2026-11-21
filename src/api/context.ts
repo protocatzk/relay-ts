@@ -10,6 +10,9 @@ import type { YouTubeAuthService } from '../core/youtube/service.js';
 import type { AuthSessionStore } from './session-store.js';
 import type { TotpStore } from './totp-store.js';
 import type { AuditLogStore } from '../core/audit-log.js';
+import type { SceneStore } from '../core/overlays/scene-store.js';
+import type { StreamScheduler } from '../core/scheduler/scheduler.js';
+import type { WebhookDispatcher } from '../core/notifications/webhooks.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -26,4 +29,7 @@ export interface ApiContext {
   telegramAuth?: TelegramAuthStore;
   telegramBot?: TelegramBot | null;
   youtubeAuth?: YouTubeAuthService;
+  scenes?: SceneStore;
+  scheduler?: StreamScheduler;
+  webhooks?: WebhookDispatcher;
 }

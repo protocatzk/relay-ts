@@ -34,7 +34,11 @@
     },
     {
       "name": "overlays",
-      "description": "Overlays, Vorschauen und Chat-Test"
+      "description": "Overlays, Szenen, Vorschauen und Chat-Test"
+    },
+    {
+      "name": "schedules",
+      "description": "Zeitplan-Automatik"
     },
     {
       "name": "screens",
@@ -566,7 +570,44 @@
         "tags": [
           "system"
         ],
-        "summary": "JSON-Metriken",
+        "summary": "Metriken als JSON oder Prometheus/OpenMetrics-Text",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "prometheus"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/test": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Test-Webhook an das konfigurierte Ziel senden",
         "parameters": [],
         "responses": {
           "200": {
@@ -3961,6 +4002,1578 @@
         }
       }
     },
+    "/api/scenes": {
+      "get": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Benannte Overlay-Szenen auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Overlay-Szene anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "overlays": {
+                    "type": "object",
+                    "properties": {
+                      "chat": {
+                        "default": {
+                          "enabled": false,
+                          "engine": "canvas",
+                          "position": "bottom-left",
+                          "style": "bubbles",
+                          "max_lines": 8,
+                          "max_messages": 30,
+                          "max_age_seconds": 0,
+                          "panel_height": 0,
+                          "font_size": 22,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "bubble_opacity": 1,
+                          "panel_width": 0,
+                          "render_fps": 10,
+                          "show_timestamps": false,
+                          "show_badges": true,
+                          "show_tiers": true,
+                          "show_stats": false,
+                          "show_earnings_card": false,
+                          "earnings_card_interval_seconds": 120,
+                          "name_colors": true,
+                          "offset_x": 0,
+                          "offset_y": 0,
+                          "api_url": "",
+                          "api_key": "",
+                          "poll_interval": 3,
+                          "delay": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "engine": {
+                            "default": "canvas",
+                            "type": "string",
+                            "enum": [
+                              "canvas",
+                              "drawtext"
+                            ]
+                          },
+                          "position": {
+                            "default": "bottom-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "style": {
+                            "default": "bubbles",
+                            "type": "string",
+                            "enum": [
+                              "bubbles",
+                              "panel",
+                              "minimal"
+                            ]
+                          },
+                          "max_lines": {
+                            "default": 8,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "max_messages": {
+                            "default": 30,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                          },
+                          "max_age_seconds": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3600
+                          },
+                          "panel_height": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "font_size": {
+                            "default": 22,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "bubble_opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "panel_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "render_fps": {
+                            "default": 10,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "show_timestamps": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "show_badges": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_tiers": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_stats": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "show_earnings_card": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "earnings_card_interval_seconds": {
+                            "default": 120,
+                            "type": "integer",
+                            "minimum": 10,
+                            "maximum": 3600
+                          },
+                          "name_colors": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "api_url": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "api_key": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "poll_interval": {
+                            "default": 3,
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 60
+                          },
+                          "delay": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 300
+                          }
+                        }
+                      },
+                      "clock": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-right",
+                          "format": "%H:%M:%S",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "format": {
+                            "default": "%H:%M:%S",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "text": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "text": "",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "marquee": false,
+                          "speed": 120,
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "text": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "marquee": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "speed": {
+                            "default": 120,
+                            "type": "number",
+                            "minimum": 10,
+                            "maximum": 1000
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "logo": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "width": 160,
+                          "opacity": 1,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "width": {
+                            "default": 160,
+                            "type": "integer",
+                            "minimum": 32,
+                            "maximum": 1024
+                          },
+                          "opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "version": {
+                        "default": {
+                          "enabled": false,
+                          "position": "bottom-right",
+                          "prefix": "RELAY v",
+                          "show_update_hint": false,
+                          "update_hint": "Update verfügbar",
+                          "font_size": 16,
+                          "font_color": "white@0.75",
+                          "box_color": "black@0.35",
+                          "show_box": true,
+                          "margin": 24,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "prefix": {
+                            "default": "RELAY v",
+                            "type": "string",
+                            "maxLength": 40
+                          },
+                          "show_update_hint": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "update_hint": {
+                            "default": "Update verfügbar",
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "font_size": {
+                            "default": 16,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 72
+                          },
+                          "font_color": {
+                            "default": "white@0.75",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.35",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 24,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "video_layout": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "scale": {
+                        "default": 100,
+                        "type": "integer",
+                        "minimum": 50,
+                        "maximum": 400
+                      },
+                      "position_x": {
+                        "default": 50,
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "position_y": {
+                        "default": 50,
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenes/:id": {
+      "put": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Overlay-Szene aktualisieren oder aktuellen Stand übernehmen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "capture_current": {
+                    "type": "boolean"
+                  },
+                  "overlays": {
+                    "type": "object",
+                    "properties": {
+                      "chat": {
+                        "default": {
+                          "enabled": false,
+                          "engine": "canvas",
+                          "position": "bottom-left",
+                          "style": "bubbles",
+                          "max_lines": 8,
+                          "max_messages": 30,
+                          "max_age_seconds": 0,
+                          "panel_height": 0,
+                          "font_size": 22,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "bubble_opacity": 1,
+                          "panel_width": 0,
+                          "render_fps": 10,
+                          "show_timestamps": false,
+                          "show_badges": true,
+                          "show_tiers": true,
+                          "show_stats": false,
+                          "show_earnings_card": false,
+                          "earnings_card_interval_seconds": 120,
+                          "name_colors": true,
+                          "offset_x": 0,
+                          "offset_y": 0,
+                          "api_url": "",
+                          "api_key": "",
+                          "poll_interval": 3,
+                          "delay": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "engine": {
+                            "default": "canvas",
+                            "type": "string",
+                            "enum": [
+                              "canvas",
+                              "drawtext"
+                            ]
+                          },
+                          "position": {
+                            "default": "bottom-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "style": {
+                            "default": "bubbles",
+                            "type": "string",
+                            "enum": [
+                              "bubbles",
+                              "panel",
+                              "minimal"
+                            ]
+                          },
+                          "max_lines": {
+                            "default": 8,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "max_messages": {
+                            "default": 30,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                          },
+                          "max_age_seconds": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3600
+                          },
+                          "panel_height": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "font_size": {
+                            "default": 22,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "bubble_opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "panel_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
+                          },
+                          "render_fps": {
+                            "default": 10,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          },
+                          "show_timestamps": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "show_badges": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_tiers": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "show_stats": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "show_earnings_card": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "earnings_card_interval_seconds": {
+                            "default": 120,
+                            "type": "integer",
+                            "minimum": 10,
+                            "maximum": 3600
+                          },
+                          "name_colors": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "api_url": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "api_key": {
+                            "default": "",
+                            "type": "string"
+                          },
+                          "poll_interval": {
+                            "default": 3,
+                            "type": "number",
+                            "minimum": 1,
+                            "maximum": 60
+                          },
+                          "delay": {
+                            "default": 0,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 300
+                          }
+                        }
+                      },
+                      "clock": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-right",
+                          "format": "%H:%M:%S",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "format": {
+                            "default": "%H:%M:%S",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "text": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "text": "",
+                          "font_size": 28,
+                          "font_color": "white",
+                          "box_color": "black@0.45",
+                          "marquee": false,
+                          "speed": 120,
+                          "show_box": true,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "text": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "font_size": {
+                            "default": 28,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 96
+                          },
+                          "font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "marquee": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "speed": {
+                            "default": 120,
+                            "type": "number",
+                            "minimum": 10,
+                            "maximum": 1000
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "logo": {
+                        "default": {
+                          "enabled": false,
+                          "position": "top-left",
+                          "width": 160,
+                          "opacity": 1,
+                          "margin": 32,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "width": {
+                            "default": 160,
+                            "type": "integer",
+                            "minimum": 32,
+                            "maximum": 1024
+                          },
+                          "opacity": {
+                            "default": 1,
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "margin": {
+                            "default": 32,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      },
+                      "version": {
+                        "default": {
+                          "enabled": false,
+                          "position": "bottom-right",
+                          "prefix": "RELAY v",
+                          "show_update_hint": false,
+                          "update_hint": "Update verfügbar",
+                          "font_size": 16,
+                          "font_color": "white@0.75",
+                          "box_color": "black@0.35",
+                          "show_box": true,
+                          "margin": 24,
+                          "offset_x": 0,
+                          "offset_y": 0
+                        },
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "prefix": {
+                            "default": "RELAY v",
+                            "type": "string",
+                            "maxLength": 40
+                          },
+                          "show_update_hint": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "update_hint": {
+                            "default": "Update verfügbar",
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "font_size": {
+                            "default": 16,
+                            "type": "integer",
+                            "minimum": 8,
+                            "maximum": 72
+                          },
+                          "font_color": {
+                            "default": "white@0.75",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "box_color": {
+                            "default": "black@0.35",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "margin": {
+                            "default": 24,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 200
+                          },
+                          "offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "video_layout": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "scale": {
+                        "default": 100,
+                        "type": "integer",
+                        "minimum": 50,
+                        "maximum": 400
+                      },
+                      "position_x": {
+                        "default": 50,
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      "position_y": {
+                        "default": 50,
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Overlay-Szene löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenes/:id/activate": {
+      "post": {
+        "tags": [
+          "overlays"
+        ],
+        "summary": "Overlay-Szene live aktivieren",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules": {
+      "get": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Zeitpläne auflisten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Zeitplan anlegen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "days": {
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    }
+                  },
+                  "time": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "timezone": {
+                    "default": "Europe/Berlin",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "start_streamer",
+                      "start_playlist",
+                      "start_queue",
+                      "start_screen",
+                      "stop"
+                    ]
+                  },
+                  "target_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "days",
+                  "time",
+                  "action"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/:id": {
+      "put": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Zeitplan aktualisieren",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "days": {
+                    "minItems": 1,
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 6
+                    }
+                  },
+                  "time": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "timezone": {
+                    "default": "Europe/Berlin",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "start_streamer",
+                      "start_playlist",
+                      "start_queue",
+                      "start_screen",
+                      "stop"
+                    ]
+                  },
+                  "target_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Zeitplan löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/:id/run": {
+      "post": {
+        "tags": [
+          "schedules"
+        ],
+        "summary": "Zeitplan sofort ausführen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/media": {
       "get": {
         "tags": [
@@ -4928,6 +6541,18 @@
               "null"
             ]
           },
+          "active_scene_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active_scene_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "manual_screen": {
             "type": [
               "string",
@@ -5658,6 +7283,56 @@
               }
             }
           },
+          "audio": {
+            "default": {
+              "normalize": "off",
+              "target_lufs": -16,
+              "gain_db": 0,
+              "silence_detect": false,
+              "silence_threshold_db": -50,
+              "silence_seconds": 15
+            },
+            "type": "object",
+            "properties": {
+              "normalize": {
+                "default": "off",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "loudnorm",
+                  "dynaudnorm"
+                ]
+              },
+              "target_lufs": {
+                "default": -16,
+                "type": "number",
+                "minimum": -30,
+                "maximum": -6
+              },
+              "gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -24,
+                "maximum": 24
+              },
+              "silence_detect": {
+                "default": false,
+                "type": "boolean"
+              },
+              "silence_threshold_db": {
+                "default": -50,
+                "type": "number",
+                "minimum": -80,
+                "maximum": -10
+              },
+              "silence_seconds": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 300
+              }
+            }
+          },
           "source": {
             "default": {
               "reencode": "on_reconnect"
@@ -6770,6 +8445,75 @@
               "auto_delete": {
                 "default": false,
                 "type": "boolean"
+              }
+            }
+          },
+          "webhooks": {
+            "default": {
+              "enabled": false,
+              "url": "",
+              "format": "generic",
+              "secret": "",
+              "cooldown_seconds": 60,
+              "events": [
+                "stream_error",
+                "pause_limit",
+                "reconnect_failed",
+                "youtube_auth_required",
+                "disk_warning"
+              ]
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "url": {
+                "default": "",
+                "type": "string",
+                "maxLength": 1000
+              },
+              "format": {
+                "default": "generic",
+                "type": "string",
+                "enum": [
+                  "generic",
+                  "discord",
+                  "slack"
+                ]
+              },
+              "secret": {
+                "default": "",
+                "type": "string",
+                "maxLength": 256
+              },
+              "cooldown_seconds": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "events": {
+                "default": [
+                  "stream_error",
+                  "pause_limit",
+                  "reconnect_failed",
+                  "youtube_auth_required",
+                  "disk_warning"
+                ],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "stream_error",
+                    "pause_limit",
+                    "reconnect_failed",
+                    "youtube_auth_required",
+                    "disk_warning",
+                    "audio_silence"
+                  ]
+                }
               }
             }
           }
@@ -6914,6 +8658,56 @@
               }
             }
           },
+          "audio": {
+            "default": {
+              "normalize": "off",
+              "target_lufs": -16,
+              "gain_db": 0,
+              "silence_detect": false,
+              "silence_threshold_db": -50,
+              "silence_seconds": 15
+            },
+            "type": "object",
+            "properties": {
+              "normalize": {
+                "default": "off",
+                "type": "string",
+                "enum": [
+                  "off",
+                  "loudnorm",
+                  "dynaudnorm"
+                ]
+              },
+              "target_lufs": {
+                "default": -16,
+                "type": "number",
+                "minimum": -30,
+                "maximum": -6
+              },
+              "gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -24,
+                "maximum": 24
+              },
+              "silence_detect": {
+                "default": false,
+                "type": "boolean"
+              },
+              "silence_threshold_db": {
+                "default": -50,
+                "type": "number",
+                "minimum": -80,
+                "maximum": -10
+              },
+              "silence_seconds": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 300
+              }
+            }
+          },
           "source": {
             "default": {
               "reencode": "on_reconnect"
@@ -8026,6 +9820,75 @@
               "auto_delete": {
                 "default": false,
                 "type": "boolean"
+              }
+            }
+          },
+          "webhooks": {
+            "default": {
+              "enabled": false,
+              "url": "",
+              "format": "generic",
+              "secret": "",
+              "cooldown_seconds": 60,
+              "events": [
+                "stream_error",
+                "pause_limit",
+                "reconnect_failed",
+                "youtube_auth_required",
+                "disk_warning"
+              ]
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "url": {
+                "default": "",
+                "type": "string",
+                "maxLength": 1000
+              },
+              "format": {
+                "default": "generic",
+                "type": "string",
+                "enum": [
+                  "generic",
+                  "discord",
+                  "slack"
+                ]
+              },
+              "secret": {
+                "default": "",
+                "type": "string",
+                "maxLength": 256
+              },
+              "cooldown_seconds": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "events": {
+                "default": [
+                  "stream_error",
+                  "pause_limit",
+                  "reconnect_failed",
+                  "youtube_auth_required",
+                  "disk_warning"
+                ],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "stream_error",
+                    "pause_limit",
+                    "reconnect_failed",
+                    "youtube_auth_required",
+                    "disk_warning",
+                    "audio_silence"
+                  ]
+                }
               }
             }
           }

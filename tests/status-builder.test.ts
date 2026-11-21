@@ -53,6 +53,10 @@ describe('status builder', () => {
     expect(status.relay.pacing_multiplier).toBe(1);
     expect(status.sink.target_bitrate_kbps).toBe(DEFAULT_SETTINGS.video.video_bitrate);
     expect(status.sink.dts_errors).toBe(0);
+    expect(status.sink.silence_active).toBe(false);
+    expect(status.sink.silence_since).toBeNull();
+    expect(status.active_scene_id).toBeNull();
+    expect(status.active_scene_name).toBeNull();
     expect(status.sink.last_error).toBeNull();
     expect(status.watchdog.stall_timeout).toBe(DEFAULT_SETTINGS.watchdog.stall_timeout);
     expect(status.chat).toEqual(chat);
@@ -106,6 +110,9 @@ describe('status builder', () => {
           restarts: 3,
           dtsErrors: 7,
           bitrateDriftPercent: -12,
+          silenceActive: false,
+          silenceSince: null,
+          silenceCount: 0,
           lastError: 'Non-monotonous DTS',
         },
         watchdog: {

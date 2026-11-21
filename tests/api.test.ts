@@ -23,6 +23,8 @@ function status(): StatusSnapshot {
     active_streamer_id: null,
     active_streamer_name: null,
     active_playlist: null,
+    active_scene_id: null,
+    active_scene_name: null,
     manual_screen: null,
     started_at: null,
     uptime_seconds: 0,
@@ -59,6 +61,8 @@ function status(): StatusSnapshot {
       last_progress_at: null,
       restarts: 0,
       dts_errors: 0,
+      silence_active: false,
+      silence_since: null,
       last_error: null,
     },
     watchdog: {

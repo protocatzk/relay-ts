@@ -24,11 +24,14 @@ import type {
   MediaFile,
   MediaListResponse,
   MediaUploadResult,
+  OverlayScene,
   Playlist,
   PlaylistInput,
   PlaylistsResponse,
   QueueSnapshot,
   RecordingsListResponse,
+  ScheduleRule,
+  ScheduleRuleInput,
   Settings,
   SettingsUpdate,
   StatusPayload,
@@ -574,6 +577,59 @@ export const api = {
     refreshSource: () => request<unknown>('/api/system/refresh', { method: 'POST' }),
     reload: () => request<{ ok: true; changed: boolean }>('/api/reload', { method: 'POST' }),
     checkOnline: () => request<{ ok: true }>('/api/online/check', { method: 'POST' }),
+  },
+
+  webhooks: {
+    test: () => request<{ ok: true; status: number }>('/api/webhooks/test', { method: 'POST' }),
+  },
+
+  scenes: {
+    list: () => request<{ scenes: OverlayScene[]; active_scene_id: string | null }>('/api/scenes'),
+    create: (body: { name: string }) =>
+      request<{ scene: OverlayScene; active_scene_id: string | null }>('/api/scenes', {
+        method: 'POST',
+        body,
+      }),
+    update: (id: string, body: { name?: string; capture_current?: boolean }) =>
+      request<{ scene: OverlayScene; active_scene_id: string | null }>(
+        `/api/scenes/${encodeURIComponent(id)}`,
+        { method: 'PUT', body },
+      ),
+    remove: (id: string) =>
+      request<{ ok: true; active_scene_id: string | null }>(
+        `/api/scenes/${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      ),
+    activate: (id: string) =>
+      request<{ ok: true; scene: OverlayScene; status: StatusPayload }>(
+        `/api/scenes/${encodeURIComponent(id)}/activate`,
+        { method: 'POST' },
+      ),
+  },
+
+  schedules: {
+    list: async () =>
+      normalizeList<ScheduleRule>(await request<{ schedules: ScheduleRule[] }>('/api/schedules'), 'schedules'),
+    create: async (body: ScheduleRuleInput) =>
+      unwrapResource<ScheduleRule>(
+        await request<{ schedule: ScheduleRule }>('/api/schedules', { method: 'POST', body }),
+        'schedule',
+      ),
+    update: async (id: string, body: Partial<ScheduleRuleInput>) =>
+      unwrapResource<ScheduleRule>(
+        await request<{ schedule: ScheduleRule }>(`/api/schedules/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          body,
+        }),
+        'schedule',
+      ),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/api/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    run: (id: string) =>
+      request<{ ok: true; schedule: ScheduleRule; status: StatusPayload }>(
+        `/api/schedules/${encodeURIComponent(id)}/run`,
+        { method: 'POST' },
+      ),
   },
 
   quickstart: (body: QuickStartInput) =>
