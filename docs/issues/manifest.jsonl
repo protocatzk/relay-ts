@@ -28,3 +28,5 @@
 {"title":"Sink: h264-Tune konfigurierbar machen (zerolatency hinterfragen)","file":"28-sink-tune-configurable.md","labels":["performance","streaming","P3"]}
 {"title":"Tech Debt: Sync-FS-Zugriffe, Disk-Check und Preview-Signatur entschärfen","file":"29-sync-fs-periodic-checks.md","labels":["performance","tech-debt","P4"]}
 {"title":"Ops: Rotation für das Haupt-Logfile ergänzen","file":"30-main-log-rotation.md","labels":["ops","observability","P3"]}
+{"title":"Stream: Discovery-Service-Grundgerüst mit Provider-Fallback (Teil 1 zu #65)","file":"31-discovery-service.md","labels":["enhancement","streaming","api","P2"]}
+{"title":"Stream: Discovery-Tab im Dashboard (Teil 2 zu #65)","file":"32-discovery-ui.md","labels":["enhancement","api","accessibility","P3"]}
