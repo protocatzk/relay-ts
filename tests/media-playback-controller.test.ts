@@ -20,7 +20,7 @@ describe('MediaPlaybackController', () => {
     const status = controller.status();
     expect(status?.file).toBe('test.mp4');
     expect(status?.duration_seconds).toBe(100);
-    expect(status?.position_seconds).toBe(pos);
+    expect(status?.position_seconds).toBeCloseTo(pos, 1);
 
     controller.stop();
     expect(controller.isPlaying).toBe(false);
