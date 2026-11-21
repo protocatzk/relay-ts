@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RELAY Restreamer API",
-    "version": "0.19.4",
+    "version": "0.20.0",
     "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
   },
   "servers": [
@@ -4975,7 +4975,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.19.4"
+            "example": "0.20.0"
           }
         }
       },
@@ -5087,7 +5087,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.19.4"
+            "example": "0.20.0"
           },
           "uptime_seconds": {
             "type": "number"
@@ -5526,7 +5526,8 @@
             "default": {
               "enabled": true,
               "size": 30,
-              "max_bytes": 32
+              "max_bytes": 32,
+              "catchup_rate": 1.01
             },
             "type": "object",
             "properties": {
@@ -5545,6 +5546,12 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 512
+              },
+              "catchup_rate": {
+                "default": 1.01,
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1.1
               }
             }
           },
@@ -6775,7 +6782,8 @@
             "default": {
               "enabled": true,
               "size": 30,
-              "max_bytes": 32
+              "max_bytes": 32,
+              "catchup_rate": 1.01
             },
             "type": "object",
             "properties": {
@@ -6794,6 +6802,12 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 512
+              },
+              "catchup_rate": {
+                "default": 1.01,
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1.1
               }
             }
           },

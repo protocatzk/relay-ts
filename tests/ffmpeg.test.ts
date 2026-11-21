@@ -202,9 +202,16 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('scale=1280:720:force_original_aspect_ratio=decrease');
     expect(line).toContain('fps=30');
     expect(line).toContain('drawtext=text=Test');
-    expect(line).toContain('nal-hrd=cbr:filler=1');
+    expect(line).toContain('-err_detect ignore_err');
+    expect(line).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1');
+    expect(line).toContain('-force_key_frames expr:gte(t,n_forced*2)');
+    expect(line).toContain('aresample=async=1:first_pts=0:osr=48000:osf=fltp:ochl=stereo');
+    expect(line).toContain('-avoid_negative_ts make_zero');
+    expect(line).toContain('-max_interleave_delta 500000');
+    expect(line).toContain('-flush_packets 1');
+    expect(line).toContain('-tcp_nodelay 1 -rw_timeout 15000000 rtmp://a.rtmp.youtube.com/live2/abc-def');
     expect(line).toContain('tcp://127.0.0.1:12346?tcp_nodelay=1');
-    expect(line).toContain('rtmp://a.rtmp.youtube.com/live2/abc-def');
+    expect(line).not.toContain('-rw_timeout 15000000 -f mpegts');
   });
 
   it('uses a hardware encoder override for the sink instead of libx264', () => {
@@ -335,6 +342,7 @@ describe('ffmpeg command builders', () => {
       relay,
     });
     expect(args.filter((value) => value === 'flv')).toHaveLength(2);
+    expect(args.filter((value) => value === '-rw_timeout')).toHaveLength(2);
     expect(args).toContain('rtmp://b.rtmp.youtube.com/live2/key?backup=1');
   });
 
@@ -388,6 +396,7 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('Pause\\: gleich weiter');
     expect(line).toContain('tcp://127.0.0.1:12345?tcp_nodelay=1');
     expect(line).toContain('-output_ts_offset 12.000');
+    expect(line).toContain('-keyint_min 50 -sc_threshold 0');
   });
 
   it('uses a looping video background with cover fit', () => {

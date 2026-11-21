@@ -222,6 +222,8 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '5',
     '-fflags',
     '+genpts+discardcorrupt',
+    '-err_detect',
+    'ignore_err',
     '-thread_queue_size',
     '512',
     '-probesize',
@@ -300,8 +302,10 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
       level: '4.0',
       keyframeLimits: true,
     }),
+    '-force_key_frames',
+    'expr:gte(t,n_forced*2)',
     '-af',
-    'aresample=async=1:osr=48000:osf=fltp:ochl=stereo',
+    'aresample=async=1:first_pts=0:osr=48000:osf=fltp:ochl=stereo',
     '-c:a',
     'aac',
     '-b:a',
@@ -310,6 +314,12 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '48000',
     '-ac',
     '2',
+    '-avoid_negative_ts',
+    'make_zero',
+    '-max_interleave_delta',
+    '500000',
+    '-flush_packets',
+    '1',
     '-f',
     'flv',
     '-flvflags',
@@ -320,7 +330,11 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
 
   const args = [...inputArgs];
   for (const url of youtubeUrls(media, options.key)) {
-    args.push(...outputArgs, url);
+    args.push(...outputArgs);
+    if (/^rtmps?:\/\//i.test(url)) {
+      args.push('-tcp_nodelay', '1', '-rw_timeout', '15000000');
+    }
+    args.push(url);
   }
   return args;
 }
@@ -497,6 +511,7 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
       fps,
       preset: 'veryfast',
       tune: !background || kind === 'image' ? 'stillimage' : undefined,
+      keyframeLimits: true,
     }),
     '-c:a',
     'aac',

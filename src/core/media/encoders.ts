@@ -305,6 +305,8 @@ export function buildVideoEncoderArgs(
         '0',
         '-async_depth',
         '1',
+        '-forced_idr',
+        '1',
         ...common,
       ];
     case 'h264_nvenc':
@@ -319,6 +321,12 @@ export function buildVideoEncoderArgs(
         'cbr',
         '-bf',
         '0',
+        '-forced-idr',
+        '1',
+        '-strict_gop',
+        '1',
+        '-zerolatency',
+        '1',
         ...common,
       ];
     case 'h264_amf':
@@ -342,7 +350,7 @@ export function buildVideoEncoderArgs(
         options.preset,
         ...(options.tune ? ['-tune', options.tune] : []),
         ...common,
-        ...(options.filler ? ['-x264-params', 'nal-hrd=cbr:filler=1'] : []),
+        ...(options.filler ? ['-x264-params', 'nal-hrd=cbr:filler=1:force-cfr=1:aud=1'] : []),
       ];
   }
 }

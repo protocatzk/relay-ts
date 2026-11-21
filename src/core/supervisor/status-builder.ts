@@ -88,6 +88,9 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
       ingest_clients: relay?.ingestClients ?? 0,
       output_connected: delay?.outputConnected ?? false,
       buffer_seconds: delay?.bufferSeconds ?? 0,
+      excess_seconds: delay?.excessSeconds ?? 0,
+      catching_up: delay?.catchingUp ?? false,
+      pacing_multiplier: delay?.pacingMultiplier ?? 1,
       buffered_bytes: delay?.bufferedBytes ?? 0,
       dropped_bytes: delay?.droppedBytes ?? 0,
       delay_seconds: delay?.delaySeconds ?? settings.delay_buffer.size,
@@ -104,6 +107,8 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
       speed: sink?.speed ?? null,
       last_progress_at: isoOrNull(sink?.lastProgressAt ?? null),
       restarts: sink?.restarts ?? 0,
+      dts_errors: sink?.dtsErrors ?? 0,
+      last_error: sink?.lastError ?? null,
     },
     watchdog: {
       stall_timeout: settings.watchdog.stall_timeout,

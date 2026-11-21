@@ -87,7 +87,8 @@ export class LogoOverlayEngine {
       });
     }
     if (guarded.destroyed) return;
-    this.timer = setInterval(() => this.tick(), Math.max(20, Math.round(1000 / this.spec.fps)));
+    // +5% write headroom so ffmpeg's overlay filter never throttles 1.01x relay catch-up.
+    this.timer = setInterval(() => this.tick(), Math.max(20, Math.floor(1000 / (this.spec.fps * 1.05))));
     this.tick();
   }
 

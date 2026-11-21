@@ -141,6 +141,9 @@ export interface RelayStatus {
   ingest_clients: number;
   output_connected: boolean;
   buffer_seconds: number;
+  excess_seconds?: number;
+  catching_up?: boolean;
+  pacing_multiplier?: number;
   buffered_bytes: number;
   dropped_bytes: number;
   delay_seconds: number;
@@ -158,6 +161,8 @@ export interface SinkStatus {
   speed: string | null;
   last_progress_at: string | null;
   restarts: number;
+  dts_errors?: number;
+  last_error?: string | null;
 }
 
 export interface WatchdogStatus {
@@ -380,6 +385,7 @@ export interface LogEntry {
 export interface DelayBufferSettings {
   enabled: boolean;
   size: number;
+  catchup_rate?: number;
 }
 
 export interface VideoLayout {

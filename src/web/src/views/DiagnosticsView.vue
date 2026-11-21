@@ -198,6 +198,25 @@ onBeforeUnmount(() => {
               <dt>Watchdog-Auslöser</dt>
               <dd class="mono">{{ formatNumber(diagnostics.metrics.counters.watchdog_triggers_total ?? 0) }}</dd>
             </div>
+            <div v-if="store.status" class="diag-row">
+              <dt>Relay-Pacing</dt>
+              <dd class="mono">
+                {{ store.status.relay.buffer_seconds.toFixed(1) }} s /
+                {{ formatNumber(store.status.relay.delay_seconds) }} s ·
+                {{ (store.status.relay.pacing_multiplier ?? 1).toFixed(2) }}×
+                <span v-if="store.status.relay.catching_up" class="badge tone-warning">Catch-Up</span>
+              </dd>
+            </div>
+            <div v-if="store.status" class="diag-row">
+              <dt>Sink-Stabilität</dt>
+              <dd class="mono diag-wrap">
+                {{ formatNumber(store.status.sink.dropped_frames) }} Dropped ·
+                {{ formatNumber(store.status.sink.dts_errors ?? 0) }} DTS-Fehler
+                <span v-if="store.status.sink.last_error" class="muted">
+                  ({{ store.status.sink.last_error }})
+                </span>
+              </dd>
+            </div>
           </dl>
         </section>
       </div>

@@ -48,7 +48,12 @@ describe('status builder', () => {
     expect(status.source.online).toBe(true);
     expect(status.source.reconnects).toBe(2);
     expect(status.relay.delay_seconds).toBe(DEFAULT_SETTINGS.delay_buffer.size);
+    expect(status.relay.excess_seconds).toBe(0);
+    expect(status.relay.catching_up).toBe(false);
+    expect(status.relay.pacing_multiplier).toBe(1);
     expect(status.sink.target_bitrate_kbps).toBe(DEFAULT_SETTINGS.video.video_bitrate);
+    expect(status.sink.dts_errors).toBe(0);
+    expect(status.sink.last_error).toBeNull();
     expect(status.watchdog.stall_timeout).toBe(DEFAULT_SETTINGS.watchdog.stall_timeout);
     expect(status.chat).toEqual(chat);
     expect(status.version).toBe(VERSION);
@@ -75,6 +80,20 @@ describe('status builder', () => {
         manualScreen: 'pause',
         monitorOnline: null,
         startedAt: null,
+        delay: {
+          outputConnected: true,
+          bufferedBytes: 1024,
+          bufferSeconds: 31.4,
+          excessSeconds: 1.4,
+          catchingUp: true,
+          pacingMultiplier: 1.01,
+          catchupRate: 1.01,
+          droppedBytes: 0,
+          delaySeconds: 30,
+          pacingKbps: 2500,
+          totalBytes: 2048,
+          forwardedBytes: 1024,
+        },
         sink: {
           running: true,
           pid: 42,
@@ -85,7 +104,9 @@ describe('status builder', () => {
           speed: '1x',
           lastProgressAt: new Date('2026-11-19T12:00:00.000Z'),
           restarts: 3,
-          lastError: null,
+          dtsErrors: 7,
+          bitrateDriftPercent: -12,
+          lastError: 'Non-monotonous DTS',
         },
         watchdog: {
           stallTimeout: 30,
@@ -102,6 +123,11 @@ describe('status builder', () => {
     expect(status.sink.running).toBe(true);
     expect(status.sink.pid).toBe(42);
     expect(status.sink.restarts).toBe(3);
+    expect(status.sink.dts_errors).toBe(7);
+    expect(status.sink.last_error).toBe('Non-monotonous DTS');
+    expect(status.relay.excess_seconds).toBe(1.4);
+    expect(status.relay.catching_up).toBe(true);
+    expect(status.relay.pacing_multiplier).toBe(1.01);
     expect(status.watchdog.stall_count).toBe(1);
     expect(status.watchdog.last_error).toBe('stall');
   });

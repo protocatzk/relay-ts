@@ -137,6 +137,16 @@ Wichtige Pfade:
 - Die Live-Vorschau (`GET /api/preview.ts`) ist ein Read-only-Tap am Relay und
   darf den Sink nicht beeinflussen; pro Client wird bei Rückstau getrennt.
 - DelayBuffer-Timestamps müssen monoton bleiben; `nextProducerOffset()` beachten.
+- Der `DelayBuffer` glättet Bursts auf ~150 ms und baut überschüssige Puffer-Latenz
+  (ab >0,5 s über Ziel-Delay bzw. >0,25 s bei `delay=0`) mit `delay_buffer.catchup_rate`
+  (Default `1.01`, Env `DELAY_CATCHUP_RATE`) ab; Chat- und Logo-Canvas-Pipes laufen
+  mit +5 % Taktreserve, damit ffmpeg beim Catch-Up nicht blockiert.
+- YouTube-Sink-Stabilisierung: striktes CFR (`-fps_mode cfr`), 2-s-IDR-Keyframes
+  (`-force_key_frames "expr:gte(t,n_forced*2)"`, NVENC `-forced-idr`/`-strict_gop`,
+  x264 `nal-hrd=cbr:filler=1:force-cfr=1:aud=1`), Audio-Resampling mit `first_pts=0`,
+  `-avoid_negative_ts make_zero`, `-max_interleave_delta 500000` und RTMP-Ausgabe mit
+  `-tcp_nodelay 1 -rw_timeout 15000000`; gehäufte DTS-Fehler (≥ 10 in 15 s) triggern
+  einen kontrollierten Sink-Neustart.
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
   (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart
   sofort Medien statt Stille erhält.

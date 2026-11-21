@@ -131,7 +131,7 @@ describe('video encoder arguments', () => {
     expect(args).toContain('-b:v 4000k');
     expect(args).toContain('-g 50');
     expect(args).toContain('-keyint_min 50');
-    expect(args).toContain('nal-hrd=cbr:filler=1');
+    expect(args).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1');
   });
 
   it('maps presets and pixel format for Intel QSV', () => {
@@ -145,6 +145,7 @@ describe('video encoder arguments', () => {
     expect(args).toContain('-c:v h264_qsv');
     expect(args).toContain('-preset veryfast');
     expect(args).toContain('-look_ahead 0');
+    expect(args).toContain('-forced_idr 1');
     expect(args).toContain('-pix_fmt nv12');
     expect(args).toContain('-g 60');
     expect(args).not.toContain('libx264');
@@ -162,6 +163,9 @@ describe('video encoder arguments', () => {
     expect(nvenc).toContain('-preset p4');
     expect(nvenc).toContain('-tune ll');
     expect(nvenc).toContain('-rc cbr');
+    expect(nvenc).toContain('-forced-idr 1');
+    expect(nvenc).toContain('-strict_gop 1');
+    expect(nvenc).toContain('-zerolatency 1');
     expect(nvenc).toContain('-g 120');
 
     const amf = buildVideoEncoderArgs('h264_amf', {

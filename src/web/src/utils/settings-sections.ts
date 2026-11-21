@@ -77,6 +77,7 @@ export function buildSectionPayload(
         delay_buffer: {
           enabled: current.delay_buffer.enabled,
           size: toNumber(current.delay_buffer.size, 30),
+          catchup_rate: toNumber(current.delay_buffer.catchup_rate, 1.01),
         },
       };
     case 'video':

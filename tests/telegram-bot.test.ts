@@ -29,6 +29,9 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
       ingest_clients: 1,
       output_connected: true,
       buffer_seconds: 0,
+      excess_seconds: 0,
+      catching_up: false,
+      pacing_multiplier: 1,
       buffered_bytes: 0,
       dropped_bytes: 0,
       delay_seconds: 0,
@@ -45,6 +48,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
       speed: '1x',
       last_progress_at: new Date().toISOString(),
       restarts: 0,
+      dts_errors: 0,
+      last_error: null,
     },
     watchdog: {
       stall_timeout: 30,

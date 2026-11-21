@@ -206,6 +206,7 @@ export const DelayBufferSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   size: z.number().min(0).max(300).default(30),
   max_bytes: z.number().int().min(1).max(512).default(32),
+  catchup_rate: z.number().min(1).max(1.1).default(1.01),
 });
 
 export const SourceSettingsSchema = z.object({

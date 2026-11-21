@@ -26,6 +26,9 @@ export interface StatusSnapshot {
     ingest_clients: number;
     output_connected: boolean;
     buffer_seconds: number;
+    excess_seconds: number;
+    catching_up: boolean;
+    pacing_multiplier: number;
     buffered_bytes: number;
     dropped_bytes: number;
     delay_seconds: number;
@@ -42,6 +45,8 @@ export interface StatusSnapshot {
     speed: string | null;
     last_progress_at: string | null;
     restarts: number;
+    dts_errors: number;
+    last_error: string | null;
   };
   watchdog: {
     stall_timeout: number;

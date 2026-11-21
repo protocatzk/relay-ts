@@ -159,6 +159,7 @@ export class Supervisor {
   private autoStartTimer?: NodeJS.Timeout;
   private shuttingDown = false;
   private forceReencodeNext = false;
+  private consecutiveQuickSinkExits = 0;
 
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
@@ -213,6 +214,7 @@ export class Supervisor {
       enabled: this.settings.delay_buffer.enabled,
       maxBytes: this.bufferMaxBytes(this.settings),
       fallbackBitrateKbps: Math.round(this.settings.video.video_bitrate * 1.25),
+      catchupRate: this.settings.delay_buffer.catchup_rate,
       logger,
     });
     try {
@@ -271,6 +273,7 @@ export class Supervisor {
       logger,
       redact: this.deps.redact,
       onExit: () => this.handleSinkExit(),
+      onUnhealthy: (reason) => void this.handleSinkUnhealthy(reason),
     });
     this.sinkController = new SinkController({
       sink,
@@ -464,6 +467,7 @@ export class Supervisor {
 
   private applyConfiguredDelay(): void {
     this.buffer.setDelay(this.settings.delay_buffer.size, this.settings.delay_buffer.enabled);
+    this.buffer.setCatchupRate(this.settings.delay_buffer.catchup_rate);
   }
 
   private async checkBinaries(): Promise<void> {
@@ -1151,6 +1155,7 @@ export class Supervisor {
     this.activeTitle = '';
     this.lastError = null;
     this.forceReencodeNext = false;
+    this.consecutiveQuickSinkExits = 0;
     this.sourceSession.resetReconnectAttempts();
     this.sourceSession.resetTimeline();
     this.earnings.setActive();
@@ -1797,11 +1802,34 @@ export class Supervisor {
 
   private handleSinkExit(): void {
     if (this.sinkController.stopping || this.shuttingDown) return;
-    if (!this.activeStreamer || !this.sinkController.key) return;
+    if ((!this.activeStreamer && !this.pauseController.manualScreen && !this.activeMediaFile) || !this.sinkController.key) {
+      return;
+    }
     if (['idle', 'stopping'].includes(this.state)) return;
     this.overlayRuntime.detachEngine();
-    this.deps.logger.warn('YouTube-Sink beendet – Neustart geplant');
-    this.scheduleSinkRestart(3000);
+    const ranMs = this.sinkController.startedAt ? Date.now() - this.sinkController.startedAt.getTime() : 0;
+    if (ranMs < 15_000) {
+      this.consecutiveQuickSinkExits += 1;
+    } else {
+      this.consecutiveQuickSinkExits = 0;
+    }
+    const delayMs =
+      this.consecutiveQuickSinkExits > 0
+        ? Math.min(15_000, 3000 * 2 ** (this.consecutiveQuickSinkExits - 1))
+        : 3000;
+    this.deps.logger.warn({ delayMs, consecutiveQuickExits: this.consecutiveQuickSinkExits }, 'YouTube-Sink beendet – Neustart geplant');
+    this.scheduleSinkRestart(delayMs);
+  }
+
+  private async handleSinkUnhealthy(reason: string): Promise<void> {
+    await this.lock.run(async () => {
+      if (this.shuttingDown || !this.sinkController.key) return;
+      if (this.playlistController.isAdvancePending) return;
+      this.lastError = reason;
+      incMetric('watchdog_triggers_total');
+      this.deps.logger.warn({ reason }, 'YouTube-Sink instabil – kontrollierter Neustart');
+      await this.restartSinkLocked();
+    });
   }
 
   private scheduleSinkRestart(delayMs: number): void {

@@ -39,6 +39,9 @@ function status(): StatusSnapshot {
       ingest_clients: 0,
       output_connected: false,
       buffer_seconds: 0,
+      excess_seconds: 0,
+      catching_up: false,
+      pacing_multiplier: 1,
       buffered_bytes: 0,
       dropped_bytes: 0,
       delay_seconds: 30,
@@ -55,6 +58,8 @@ function status(): StatusSnapshot {
       speed: null,
       last_progress_at: null,
       restarts: 0,
+      dts_errors: 0,
+      last_error: null,
     },
     watchdog: {
       stall_timeout: 30,

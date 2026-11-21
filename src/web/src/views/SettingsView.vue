@@ -358,6 +358,7 @@ async function loadSettings(silent = false): Promise<void> {
   loadError.value = '';
   try {
     const settings = await api.settings.get();
+    settings.delay_buffer.catchup_rate ??= 1.01;
     form.value = clone(settings);
     baseline.value = clone(settings);
     apiKey.value = '';
@@ -524,6 +525,18 @@ onBeforeUnmount(() => {
               <label for="delay-size">Puffergröße (Sekunden)</label>
               <input id="delay-size" v-model.number="form.delay_buffer.size" type="number" min="0" max="300" />
               <p class="field-hint">20–40 s empfohlen; Neustart erforderlich.</p>
+            </div>
+            <div class="field">
+              <label for="delay-catchup-rate">Catch-Up-Faktor</label>
+              <input
+                id="delay-catchup-rate"
+                v-model.number="form.delay_buffer.catchup_rate"
+                type="number"
+                min="1"
+                max="1.1"
+                step="0.01"
+              />
+              <p class="field-hint">1.01 empfohlen (baut überschüssigen Puffer mit 1,01× ab; 1 = aus).</p>
             </div>
           </div>
         </div>

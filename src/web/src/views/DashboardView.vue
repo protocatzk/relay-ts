@@ -45,8 +45,9 @@ const sourceTone = computed(() => {
 });
 const sinkTone = computed(() => {
   if (state.value === 'error') return 'danger';
-  if (state.value === 'live' && status.value?.sink.running) return 'success';
   if (state.value === 'reconnecting') return 'warning';
+  if (status.value?.sink.last_error || (status.value?.sink.dts_errors ?? 0) > 0) return 'warning';
+  if (state.value === 'live' && status.value?.sink.running) return 'success';
   return undefined;
 });
 const watchdogTone = computed(() =>
@@ -558,14 +559,15 @@ onBeforeUnmount(() => {
       <ModuleVital
         label="Relay"
         :value="formatSeconds(status?.relay.buffer_seconds)"
-        :sub="`Verzögerung ${formatNumber(status?.relay.delay_seconds)} s · ${formatNumber(status?.relay.ingest_clients)} Ingest`"
+        :sub="`Verzögerung ${formatNumber(status?.relay.delay_seconds)} s · ${formatNumber(status?.relay.ingest_clients)} Ingest${status?.relay.catching_up ? ` · Catch-Up ${(status.relay.pacing_multiplier ?? 1.01).toFixed(2)}×` : ''}`"
         module="relay"
         :series="series('relay_buffer_s')"
+        :tone="status?.relay.catching_up ? 'warning' : undefined"
       />
       <ModuleVital
         label="Sink"
         :value="formatBitrate(status?.sink.bitrate_kbps)"
-        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}`"
+        :sub="`${formatFps(status?.sink.fps)} · ${formatNumber(status?.sink.dropped_frames)} Dropped · Ziel ${formatBitrate(status?.sink.target_bitrate_kbps)}${(status?.sink.dts_errors ?? 0) > 0 ? ` · ${formatNumber(status?.sink.dts_errors)} DTS-Fehler` : ''}`"
         module="sink"
         :series="series('sink_kbps')"
         :tone="sinkTone"

@@ -6,6 +6,7 @@ export type MetricName =
   | 'pause_starts_total'
   | 'pause_limit_hits_total'
   | 'sink_restarts_total'
+  | 'sink_dts_errors_total'
   | 'watchdog_triggers_total'
   | 'playlist_advances_total'
   | 'manual_screens_total'
@@ -21,6 +22,7 @@ const METRIC_NAMES: readonly MetricName[] = [
   'pause_starts_total',
   'pause_limit_hits_total',
   'sink_restarts_total',
+  'sink_dts_errors_total',
   'watchdog_triggers_total',
   'playlist_advances_total',
   'manual_screens_total',

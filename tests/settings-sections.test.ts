@@ -161,6 +161,13 @@ describe('settings sections partial updates', () => {
   it('builds isolated payloads containing only the target section keys', () => {
     const settings = makeSettings();
 
+    const delayPayload = buildSectionPayload('delay', settings, emptySecrets);
+    expect(delayPayload.delay_buffer).toEqual({
+      enabled: true,
+      size: 30,
+      catchup_rate: 1.01,
+    });
+
     const watchdogPayload = buildSectionPayload('watchdog', settings, emptySecrets);
     expect(Object.keys(watchdogPayload)).toEqual(['watchdog']);
 

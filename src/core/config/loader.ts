@@ -413,6 +413,7 @@ export function applyEnvSettings(
 
   set(['delay_buffer', 'enabled'], parseBoolean(env.DELAY_BUFFER_ENABLED));
   set(['delay_buffer', 'size'], parseNumber(env.RELAY_DELAY_SECONDS) ?? parseNumber(env.DELAY_SECONDS));
+  set(['delay_buffer', 'catchup_rate'], parseNumber(env.DELAY_CATCHUP_RATE));
   set(['source', 'reencode'], env.SOURCE_REENCODE?.trim() || undefined);
   set(['video', 'resolution'], env.OUTPUT_RESOLUTION?.trim() || undefined);
   set(['video', 'fps'], parseNumber(env.OUTPUT_FPS));
