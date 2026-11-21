@@ -20,3 +20,11 @@
 {"title":"Tech Debt: Supervisor-Rest und große Vue-Views modularisieren","file":"20-supervisor-ui-refactor.md","labels":["tech-debt","reliability","P4"]}
 {"title":"Relay: Puffer-Abbau durch 1.01x-Catch-Up-Pacing erzwingen","file":"21-relay-catchup-pacing.md","labels":["reliability","P1"]}
 {"title":"Sink: Signal zum YouTube-RTMP-Endpoint stabilisieren","file":"22-youtube-rtmp-stability.md","labels":["reliability","youtube","P1"]}
+{"title":"Relay: Delay-Buffer-Rate-Messung auf Sekunden-Buckets aggregieren","file":"23-delay-buffer-rate-window.md","labels":["performance","streaming","P2"]}
+{"title":"API: Status-Snapshot nur bei verbundenen Dashboards erzeugen","file":"24-status-emit-on-demand.md","labels":["performance","api","observability","P3"]}
+{"title":"Overlay: Logo-Frame nur einmal statt pro Tick in die Pipe schreiben","file":"25-static-logo-frames.md","labels":["performance","overlay","P3"]}
+{"title":"Overlay: Chat-Engine triggert Neu-Render nur bei Änderungen","file":"26-chat-overlay-rerender.md","labels":["performance","overlay","chat","P3"]}
+{"title":"Dashboard: Polling- und Preview-Timer bei verstecktem Tab pausieren","file":"27-dashboard-visible-tab-polling.md","labels":["performance","P4"]}
+{"title":"Sink: h264-Tune konfigurierbar machen (zerolatency hinterfragen)","file":"28-sink-tune-configurable.md","labels":["performance","streaming","P3"]}
+{"title":"Tech Debt: Sync-FS-Zugriffe, Disk-Check und Preview-Signatur entschärfen","file":"29-sync-fs-periodic-checks.md","labels":["performance","tech-debt","P4"]}
+{"title":"Ops: Rotation für das Haupt-Logfile ergänzen","file":"30-main-log-rotation.md","labels":["ops","observability","P3"]}
