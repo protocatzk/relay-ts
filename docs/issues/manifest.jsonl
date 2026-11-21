@@ -18,3 +18,5 @@
 {"title":"Aufnahmen: Highlight-Marker, Remux zu MP4 und Übernahme in Medien","file":"18-recording-clips-media.md","labels":["enhancement","P3"]}
 {"title":"System: Backup-Export und -Wiederherstellung im Dashboard","file":"19-dashboard-backup-restore.md","labels":["ops","security","P3"]}
 {"title":"Tech Debt: Supervisor-Rest und große Vue-Views modularisieren","file":"20-supervisor-ui-refactor.md","labels":["tech-debt","reliability","P4"]}
+{"title":"Relay: Puffer-Abbau durch 1.01x-Catch-Up-Pacing erzwingen","file":"21-relay-catchup-pacing.md","labels":["reliability","P1"]}
+{"title":"Sink: Signal zum YouTube-RTMP-Endpoint stabilisieren","file":"22-youtube-rtmp-stability.md","labels":["reliability","youtube","P1"]}
