@@ -19,11 +19,15 @@ Die zentrale technische Vorgabe ist ein **radikal CPU-schonendes Rendering** auf
   - **Annunciator Matrix:** Kacheln für Hardware-Encoder-Status (`NVENC / QSV / x264`), Disconnect Protection (`ARMED`), Audio-Sampling (`AAC-LC 48kHz`).
   - **Comms Terminal (Chat Uplink):** Eingehende Chat-Nachrichten als verschlüsseltes Funkprotokoll mit Zeitstempeln und Rang-Badges (`VIP`, `SUB`, `MOD`, `CREW`).
 
-## Mockup
+## Mockups
 
+### 1. 9:16 Säulen-Cockpit (Pillar-Box Wing HUD)
 ![Starship Cockpit Canvas HUD Mockup](https://raw.githubusercontent.com/protocatzk/relay-ts/main/docs/screenshots/starship-cockpit-mock.svg)
+*Abbildung 1: 9:16-Quelle zentriert im 16:9-Stream. Links: Comms Terminal (Chat Uplink). Mitte: 100 % unverdecktes 9:16 Live-Fenster. Rechts: Flugtelemetrie (MET, Bitrate, FPS, Buffer-Pacing, Power Grid).*
 
-*Abbildung: Starship Cockpit Canvas HUD. Links: Comms Terminal (Chat Uplink). Mitte: 100 % unverdecktes 9:16 Live-Fenster. Rechts: Flugtelemetrie (MET, Bitrate, FPS, Buffer-Pacing, Power Grid).*
+### 2. 16:9 Vollbild-Cockpit (Landscape HUD Overlay)
+![Starship Cockpit 16:9 HUD Mockup](https://raw.githubusercontent.com/protocatzk/relay-ts/main/docs/screenshots/starship-cockpit-16-9-mock.svg)
+*Abbildung 2: 16:9 Landscape / Fullscreen-Quelle (z. B. Gameplay/Desktop). Oben: Top-Visor Header (Status, MET, Uptime, Energy/Spendenziel). Unten links: Semi-transparenter Comms Terminal Chat. Unten rechts: Telemetrie & Vektoren. Zentraler Bildbereich bleibt zu >90 % frei.*
 
 ## Radikal CPU-schonende Architektur ("CPU-sparend")
 
