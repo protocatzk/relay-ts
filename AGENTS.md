@@ -37,6 +37,8 @@ curl -fsS https://relay.positronium.dev/health
 journalctl -u relay -n 50 --no-pager
 ```
 
+> **Release-Regel:** Sobald ein Git-Tag gepusht wurde, wird er niemals überschrieben oder per Force-Push verschoben. Jeder nachfolgende Fix wird immer als neuer Patch-Release (`x.x.1`, `x.x.2` etc.) gebumpt und neu getaggt.
+
 ## Architektur
 
 ```
