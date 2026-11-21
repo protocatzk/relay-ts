@@ -14,10 +14,14 @@ import type {
   VersionOverlay,
   VideoLayout,
 } from '@/src/api/types';
-import ColorInput from '@/src/components/ColorInput.vue';
 import OverlayStudioPreview from '@/src/components/OverlayStudioPreview.vue';
-import StudioGroup from '@/src/components/StudioGroup.vue';
-import ToggleField from '@/src/components/ToggleField.vue';
+import StudioChatTab from '@/src/components/studio/StudioChatTab.vue';
+import StudioClockTab from '@/src/components/studio/StudioClockTab.vue';
+import StudioEarningsTab from '@/src/components/studio/StudioEarningsTab.vue';
+import StudioLogoTab from '@/src/components/studio/StudioLogoTab.vue';
+import StudioTextTab from '@/src/components/studio/StudioTextTab.vue';
+import StudioVersionTab from '@/src/components/studio/StudioVersionTab.vue';
+import StudioVideoTab from '@/src/components/studio/StudioVideoTab.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
 import { useStore } from '@/src/composables/useStore';
@@ -841,589 +845,73 @@ onBeforeUnmount(() => {
           {{ activeTabAnnouncement }}
         </span>
 
-        <div
+        <StudioVideoTab
           v-if="activeSection === 'video' && videoLayout"
-          :id="studioPanelId('video')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('video')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="videoLayout.enabled"
-            label="Video-Layout"
-          />
-          <p class="field-hint">
-            Gilt für Quelle, Screens und lokale Videos.
-          </p>
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-video-scale">Größe (%)</label>
-              <input
-                id="studio-video-scale"
-                v-model.number="videoLayout.scale"
-                type="range"
-                min="50"
-                max="400"
-                step="1"
-              />
-              <p class="field-hint mono">{{ videoLayout.scale }} %</p>
-            </div>
-            <div class="field">
-              <label for="studio-video-position-x">Position X (%)</label>
-              <input
-                id="studio-video-position-x"
-                v-model.number="videoLayout.position_x"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-              />
-              <p class="field-hint mono">{{ videoLayout.position_x }} %</p>
-            </div>
-            <div class="field">
-              <label for="studio-video-position-y">Position Y (%)</label>
-              <input
-                id="studio-video-position-y"
-                v-model.number="videoLayout.position_y"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-              />
-              <p class="field-hint mono">{{ videoLayout.position_y }} %</p>
-            </div>
-            <div class="field">
-              <label for="studio-video-aspect">Quellformat (Vorschau)</label>
-              <select id="studio-video-aspect" v-model="previewAspect">
-                <option v-for="aspect in PREVIEW_ASPECTS" :key="aspect.value" :value="aspect.value">
-                  {{ aspect.label }}
-                </option>
-              </select>
-            </div>
-          </div>
-          <p class="field-hint">
-            100 % entspricht dem eingepassten Bild; über 100 % wird gezoomt und an den
-            Rändern beschnitten.
-          </p>
-          <div class="quick-actions">
-            <button type="button" class="btn btn-ghost btn-sm" @click="resetVideoLayout">
-              Vollbild / Mitte
-            </button>
-          </div>
-        </div>
+          :video-layout="videoLayout"
+          :preview-aspect="previewAspect"
+          :preview-aspects="PREVIEW_ASPECTS"
+          :panel-id="studioPanelId('video')"
+          :tab-id="studioTabId('video')"
+          @update:preview-aspect="previewAspect = $event"
+          @reset="resetVideoLayout"
+        />
 
-        <div
+        <StudioChatTab
           v-else-if="activeSection === 'chat' && chat"
-          :id="studioPanelId('chat')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('chat')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField v-model="chat.enabled" label="Chat-Overlay" />
-          <StudioGroup
-            title="Darstellung"
-            :open="groupOpen('chat', 'look', 0)"
-            @update:open="setGroupOpen('chat', 'look', $event)"
-          >
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-chat-engine">Engine</label>
-              <select id="studio-chat-engine" v-model="chat.engine">
-                <option value="canvas">Canvas (Bubbles, Emoji, Stats)</option>
-                <option value="drawtext">drawtext (leichtgewichtig)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-chat-style">Stil</label>
-              <select id="studio-chat-style" v-model="chat.style">
-                <option value="bubbles">Bubbles</option>
-                <option value="panel">Panel</option>
-                <option value="minimal">Minimal</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-chat-position">Position</label>
-              <select id="studio-chat-position" v-model="chat.position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-chat-font-size">Schriftgröße (px)</label>
-              <input id="studio-chat-font-size" v-model.number="chat.font_size" type="number" min="8" max="96" />
-            </div>
-          </div>
-          </StudioGroup>
+          :chat="chat"
+          :chat-test="chatTest"
+          :positions="POSITIONS"
+          :sending-test="sendingTest"
+          :panel-id="studioPanelId('chat')"
+          :tab-id="studioTabId('chat')"
+          :group-open="groupOpen"
+          @set-group-open="setGroupOpen"
+          @send-test="sendTest"
+        />
 
-          <StudioGroup
-            title="Layout"
-            :open="groupOpen('chat', 'layout', 1)"
-            @update:open="setGroupOpen('chat', 'layout', $event)"
-          >
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-chat-lines">Sichtbare Nachrichten</label>
-              <input id="studio-chat-lines" v-model.number="chat.max_lines" type="number" min="1" max="30" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-messages">Max. Nachrichten im Puffer</label>
-              <input id="studio-chat-messages" v-model.number="chat.max_messages" type="number" min="1" max="100" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-age">Max. Alter (Sekunden, 0 = aus)</label>
-              <input id="studio-chat-age" v-model.number="chat.max_age_seconds" type="number" min="0" max="3600" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-panel-width">Panelbreite (0 = auto)</label>
-              <input id="studio-chat-panel-width" v-model.number="chat.panel_width" type="number" min="0" max="1920" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-panel-height">Panelhöhe (0 = auto)</label>
-              <input id="studio-chat-panel-height" v-model.number="chat.panel_height" type="number" min="0" max="1920" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-fps">Render-FPS</label>
-              <input id="studio-chat-fps" v-model.number="chat.render_fps" type="number" min="1" max="30" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-opacity">Deckkraft ({{ Math.round(chat.bubble_opacity * 100) }} %)</label>
-              <input
-                id="studio-chat-opacity"
-                v-model.number="chat.bubble_opacity"
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-              />
-            </div>
-          </div>
-          </StudioGroup>
-
-          <StudioGroup
-            title="Farben & Extras"
-            :open="groupOpen('chat', 'colors', 2)"
-            @update:open="setGroupOpen('chat', 'colors', $event)"
-          >
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-chat-font-color">Schriftfarbe</label>
-              <ColorInput id="studio-chat-font-color" v-model="chat.font_color" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-box-color">Boxfarbe</label>
-              <ColorInput id="studio-chat-box-color" v-model="chat.box_color" alpha />
-            </div>
-          </div>
-          <div class="checkbox-grid studio-checks">
-            <label class="checkbox"><input v-model="chat.show_timestamps" type="checkbox" /> Zeitstempel</label>
-            <label class="checkbox"><input v-model="chat.show_badges" type="checkbox" /> Badges</label>
-            <label class="checkbox"><input v-model="chat.show_tiers" type="checkbox" /> Tier-Badges</label>
-            <label class="checkbox"><input v-model="chat.show_stats" type="checkbox" /> Chat-Statistik</label>
-            <label class="checkbox"><input v-model="chat.show_earnings_card" type="checkbox" /> Einnahmen-Karte im Chat</label>
-            <label class="checkbox"><input v-model="chat.name_colors" type="checkbox" /> Namensfarben</label>
-          </div>
-          <div v-if="chat.show_earnings_card" class="studio-grid">
-            <div class="field">
-              <label for="studio-chat-earnings-interval">Karten-Intervall (s)</label>
-              <input
-                id="studio-chat-earnings-interval"
-                v-model.number="chat.earnings_card_interval_seconds"
-                type="number"
-                min="10"
-                max="3600"
-              />
-            </div>
-          </div>
-          </StudioGroup>
-
-          <StudioGroup
-            title="Quelle"
-            :open="groupOpen('chat', 'source', 3)"
-            @update:open="setGroupOpen('chat', 'source', $event)"
-          >
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-chat-api">Chat-API-URL</label>
-              <input id="studio-chat-api" v-model="chat.api_url" type="url" spellcheck="false" placeholder="https://…/chat-logs" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-poll">Poll-Intervall (s)</label>
-              <input id="studio-chat-poll" v-model.number="chat.poll_interval" type="number" min="1" max="60" />
-            </div>
-            <div class="field">
-              <label for="studio-chat-delay">Verzögerung (s)</label>
-              <input id="studio-chat-delay" v-model.number="chat.delay" type="number" min="0" max="300" />
-            </div>
-          </div>
-          <p class="field-hint">
-            Der API-Key wird aus Sicherheitsgründen im Streamer-Editor oder in den Einstellungen gepflegt.
-            <RouterLink to="/settings">Zu den Einstellungen</RouterLink>
-          </p>
-          </StudioGroup>
-
-          <StudioGroup
-            title="Testnachricht"
-            :open="groupOpen('chat', 'test', 4)"
-            @update:open="setGroupOpen('chat', 'test', $event)"
-          >
-          <form class="studio-test-form" @submit.prevent="sendTest">
-            <div class="field">
-              <label for="studio-test-user">Benutzername</label>
-              <input id="studio-test-user" v-model="chatTest.username" type="text" maxlength="40" />
-            </div>
-            <div class="field">
-              <label for="studio-test-text">Nachricht</label>
-              <input id="studio-test-text" v-model="chatTest.text" type="text" maxlength="300" />
-            </div>
-            <button type="submit" class="btn btn-secondary" :disabled="sendingTest || !chatTest.text.trim()">
-              <span v-if="sendingTest" class="spinner" aria-hidden="true"></span>
-              Senden
-            </button>
-          </form>
-          <p class="field-hint">Sendet an den aktiven Stream, nicht an die Studio-Vorschau.</p>
-          </StudioGroup>
-        </div>
-
-        <div
+        <StudioClockTab
           v-else-if="activeSection === 'clock' && clock"
-          :id="studioPanelId('clock')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('clock')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="clock.enabled"
-            label="Uhr-Overlay"
-          />
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-clock-format">Format</label>
-              <select id="studio-clock-format" v-model="clock.format">
-                <option value="%H:%M">HH:MM</option>
-                <option value="%H:%M:%S">HH:MM:SS</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-clock-position">Position</label>
-              <select id="studio-clock-position" v-model="clock.position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-clock-size">Schriftgröße (px)</label>
-              <input id="studio-clock-size" v-model.number="clock.font_size" type="number" min="8" max="96" />
-            </div>
-            <div class="field">
-              <label for="studio-clock-margin">Rand (px)</label>
-              <input id="studio-clock-margin" v-model.number="clock.margin" type="number" min="0" max="200" />
-            </div>
-            <div class="field">
-              <label for="studio-clock-font-color">Schriftfarbe</label>
-              <ColorInput id="studio-clock-font-color" v-model="clock.font_color" />
-            </div>
-            <div class="field">
-              <label for="studio-clock-box-color">Boxfarbe</label>
-              <ColorInput id="studio-clock-box-color" v-model="clock.box_color" alpha />
-            </div>
-          </div>
-          <label class="checkbox studio-checks">
-            <input v-model="clock.show_box" type="checkbox" /> Hintergrundbox anzeigen
-          </label>
-        </div>
+          :clock="clock"
+          :positions="POSITIONS"
+          :panel-id="studioPanelId('clock')"
+          :tab-id="studioTabId('clock')"
+        />
 
-        <div
+        <StudioTextTab
           v-else-if="activeSection === 'text' && text"
-          :id="studioPanelId('text')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('text')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="text.enabled"
-            label="Text-Overlay"
-          />
-          <StudioGroup
-            title="Inhalt & Position"
-            :open="groupOpen('text', 'content', 0)"
-            @update:open="setGroupOpen('text', 'content', $event)"
-          >
-          <div class="field">
-            <label for="studio-text-content">Text</label>
-            <input id="studio-text-content" v-model="text.text" type="text" maxlength="500" />
-          </div>
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-text-position">Position</label>
-              <select id="studio-text-position" v-model="text.position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-text-size">Schriftgröße (px)</label>
-              <input id="studio-text-size" v-model.number="text.font_size" type="number" min="8" max="96" />
-            </div>
-            <div class="field">
-              <label for="studio-text-margin">Rand (px)</label>
-              <input id="studio-text-margin" v-model.number="text.margin" type="number" min="0" max="200" />
-            </div>
-          </div>
-          </StudioGroup>
+          :text="text"
+          :positions="POSITIONS"
+          :panel-id="studioPanelId('text')"
+          :tab-id="studioTabId('text')"
+          :group-open="groupOpen"
+          @set-group-open="setGroupOpen"
+        />
 
-          <StudioGroup
-            title="Darstellung"
-            :open="groupOpen('text', 'look', 1)"
-            @update:open="setGroupOpen('text', 'look', $event)"
-          >
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-text-speed">Geschwindigkeit (px/s)</label>
-              <input id="studio-text-speed" v-model.number="text.speed" type="number" min="10" max="1000" :disabled="!text.marquee" />
-            </div>
-            <div class="field">
-              <label for="studio-text-font-color">Schriftfarbe</label>
-              <ColorInput id="studio-text-font-color" v-model="text.font_color" />
-            </div>
-            <div class="field">
-              <label for="studio-text-box-color">Boxfarbe</label>
-              <ColorInput id="studio-text-box-color" v-model="text.box_color" alpha />
-            </div>
-          </div>
-          <div class="checkbox-grid studio-checks">
-            <label class="checkbox"><input v-model="text.marquee" type="checkbox" /> Laufschrift</label>
-            <label class="checkbox"><input v-model="text.show_box" type="checkbox" /> Hintergrundbox anzeigen</label>
-          </div>
-          </StudioGroup>
-        </div>
-
-        <div
+        <StudioLogoTab
           v-else-if="activeSection === 'logo' && logo"
-          :id="studioPanelId('logo')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('logo')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="logo.enabled"
-            label="Logo-Overlay"
-          />
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-logo-position">Position</label>
-              <select id="studio-logo-position" v-model="logo.position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-logo-width">Breite (px)</label>
-              <input
-                id="studio-logo-width"
-                v-model.number="logo.width"
-                type="number"
-                min="32"
-                max="1024"
-              />
-            </div>
-            <div class="field">
-              <label for="studio-logo-opacity">Deckkraft (0–1)</label>
-              <input
-                id="studio-logo-opacity"
-                v-model.number="logo.opacity"
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-              />
-            </div>
-            <div class="field">
-              <label for="studio-logo-margin">Rand (px)</label>
-              <input
-                id="studio-logo-margin"
-                v-model.number="logo.margin"
-                type="number"
-                min="0"
-                max="200"
-              />
-            </div>
-          </div>
-        </div>
+          :logo="logo"
+          :positions="POSITIONS"
+          :panel-id="studioPanelId('logo')"
+          :tab-id="studioTabId('logo')"
+        />
 
-        <div
+        <StudioEarningsTab
           v-else-if="activeSection === 'earnings' && earnings"
-          :id="studioPanelId('earnings')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('earnings')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="earnings.overlay_enabled"
-            label="Einnahmen-Overlay"
-          />
-          <StudioGroup
-            title="Template & Stil"
-            :open="groupOpen('earnings', 'all', 0)"
-            @update:open="setGroupOpen('earnings', 'all', $event)"
-          >
-          <div class="field">
-            <label for="studio-earnings-template">Template</label>
-            <textarea
-              id="studio-earnings-template"
-              v-model="earnings.overlay_template"
-              rows="4"
-              maxlength="2000"
-              spellcheck="false"
-            ></textarea>
-            <p class="field-hint">
-              Zeilenumbrüche bleiben erhalten.
-            </p>
-            <p class="field-hint">
-              Platzhalter: {period}, {net}, {gross}, {coins}, {gifts}, {gifters},
-              {session_net}, {session_gross}, {session_coins}, {viewers}, {followers},
-              {live}, {top_gift}, {top_gifter}, {display_name}, {last_seen}, {name},
-              {username}, {currency}, {goal}, {goal_label}, {goal_percent}, {goal_remaining}, {goal_bar}.
-            </p>
-          </div>
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-earnings-goal">Einnahmen-Ziel (0 = aus)</label>
-              <input
-                id="studio-earnings-goal"
-                v-model.number="earnings.goal_amount"
-                type="number"
-                min="0"
-                max="1000000"
-                step="10"
-              />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-goal-label">Ziel-Bezeichnung</label>
-              <input
-                id="studio-earnings-goal-label"
-                v-model="earnings.goal_label"
-                type="text"
-                maxlength="80"
-                placeholder="Tagesziel"
-              />
-            </div>
-          </div>
-          <label class="checkbox studio-checks">
-            <input v-model="earnings.goal_bar_enabled" type="checkbox" />
-            Fortschrittsbalken automatisch anhängen (wenn Ziel &gt; 0)
-          </label>
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-earnings-position">Position</label>
-              <select id="studio-earnings-position" v-model="earnings.overlay_position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-earnings-size">Schriftgröße (px)</label>
-              <input id="studio-earnings-size" v-model.number="earnings.overlay_font_size" type="number" min="8" max="96" />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-margin">Rand (px)</label>
-              <input id="studio-earnings-margin" v-model.number="earnings.overlay_margin" type="number" min="0" max="200" />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-offset-x">Offset X (px)</label>
-              <input id="studio-earnings-offset-x" v-model.number="earnings.overlay_offset_x" type="number" min="-1920" max="1920" />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-offset-y">Offset Y (px)</label>
-              <input id="studio-earnings-offset-y" v-model.number="earnings.overlay_offset_y" type="number" min="-1080" max="1080" />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-font-color">Schriftfarbe</label>
-              <ColorInput id="studio-earnings-font-color" v-model="earnings.overlay_font_color" />
-            </div>
-            <div class="field">
-              <label for="studio-earnings-box-color">Boxfarbe</label>
-              <ColorInput id="studio-earnings-box-color" v-model="earnings.overlay_box_color" alpha />
-            </div>
-          </div>
-          <label class="checkbox studio-checks">
-            <input v-model="earnings.overlay_show_box" type="checkbox" />
-            Hintergrundbox anzeigen
-          </label>
-          <p class="field-hint">
-            Quelle, Zeitraum und Anzeige-Ansicht werden unter
-            <RouterLink to="/settings">Einstellungen → Einnahmen</RouterLink> gepflegt.
-          </p>
-          </StudioGroup>
-        </div>
+          :earnings="earnings"
+          :positions="POSITIONS"
+          :panel-id="studioPanelId('earnings')"
+          :tab-id="studioTabId('earnings')"
+          :group-open="groupOpen"
+          @set-group-open="setGroupOpen"
+        />
 
-        <div
+        <StudioVersionTab
           v-else-if="activeSection === 'version' && versionOverlay"
-          :id="studioPanelId('version')"
-          role="tabpanel"
-          :aria-labelledby="studioTabId('version')"
-          tabindex="0"
-          class="studio-body"
-        >
-          <ToggleField
-            v-model="versionOverlay.enabled"
-            label="Versions-Overlay"
-          />
-          <div class="studio-grid">
-            <div class="field">
-              <label for="studio-version-prefix">Präfix</label>
-              <input id="studio-version-prefix" v-model="versionOverlay.prefix" type="text" maxlength="40" />
-            </div>
-            <div class="field">
-              <label for="studio-version-position">Position</label>
-              <select id="studio-version-position" v-model="versionOverlay.position">
-                <option v-for="position in POSITIONS" :key="position.value" :value="position.value">
-                  {{ position.label }}
-                </option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="studio-version-size">Schriftgröße (px)</label>
-              <input id="studio-version-size" v-model.number="versionOverlay.font_size" type="number" min="8" max="72" />
-            </div>
-            <div class="field">
-              <label for="studio-version-margin">Rand (px)</label>
-              <input id="studio-version-margin" v-model.number="versionOverlay.margin" type="number" min="0" max="200" />
-            </div>
-            <div class="field">
-              <label for="studio-version-font-color">Schriftfarbe</label>
-              <ColorInput id="studio-version-font-color" v-model="versionOverlay.font_color" alpha />
-            </div>
-            <div class="field">
-              <label for="studio-version-box-color">Boxfarbe</label>
-              <ColorInput id="studio-version-box-color" v-model="versionOverlay.box_color" alpha />
-            </div>
-            <div class="field">
-              <label for="studio-version-hint">Update-Hinweis</label>
-              <input
-                id="studio-version-hint"
-                v-model="versionOverlay.update_hint"
-                type="text"
-                maxlength="60"
-                :disabled="!versionOverlay.show_update_hint"
-              />
-            </div>
-          </div>
-          <div class="checkbox-grid studio-checks">
-            <label class="checkbox"><input v-model="versionOverlay.show_box" type="checkbox" /> Hintergrundbox anzeigen</label>
-            <label class="checkbox"><input v-model="versionOverlay.show_update_hint" type="checkbox" /> Update-Hinweis anhängen</label>
-          </div>
-        </div>
+          :version-overlay="versionOverlay"
+          :positions="POSITIONS"
+          :panel-id="studioPanelId('version')"
+          :tab-id="studioTabId('version')"
+        />
       </section>
     </div>
     </template>

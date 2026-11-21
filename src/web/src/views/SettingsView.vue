@@ -24,6 +24,19 @@ import {
 } from '@/src/utils/settings-sections';
 import ToggleField from '@/src/components/ToggleField.vue';
 import TotpSection from '@/src/components/TotpSection.vue';
+import SettingsDelayCard from '@/src/components/settings/SettingsDelayCard.vue';
+import SettingsVideoCard from '@/src/components/settings/SettingsVideoCard.vue';
+import SettingsAudioCard from '@/src/components/settings/SettingsAudioCard.vue';
+import SettingsWatchdogCard from '@/src/components/settings/SettingsWatchdogCard.vue';
+import SettingsRefreshCard from '@/src/components/settings/SettingsRefreshCard.vue';
+import SettingsStartupCard from '@/src/components/settings/SettingsStartupCard.vue';
+import SettingsPauseCard from '@/src/components/settings/SettingsPauseCard.vue';
+import SettingsMonitorCard from '@/src/components/settings/SettingsMonitorCard.vue';
+import SettingsEarningsCard from '@/src/components/settings/SettingsEarningsCard.vue';
+import SettingsChatCard from '@/src/components/settings/SettingsChatCard.vue';
+import SettingsTitleCard from '@/src/components/settings/SettingsTitleCard.vue';
+import SettingsWebhooksCard from '@/src/components/settings/SettingsWebhooksCard.vue';
+import SettingsSessionsCard from '@/src/components/settings/SettingsSessionsCard.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
@@ -568,961 +581,151 @@ onBeforeUnmount(() => {
         nach einem Neustart des Streams wirksam.
       </div>
 
-      <section id="settings-delay" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Verzögerung</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('delay')" class="badge tone-warning">Ungespeichert</span>
-            <span class="badge tone-warning">Neustart erforderlich</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Verzögerung speichern"
-              :disabled="!sectionDirty('delay') || busySaving"
-              @click="saveSection('delay')"
-            >
-              <span v-if="savingSection === 'delay'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.delay_buffer.enabled"
-            label="Delay-Buffer aktiviert"
-            description="Puffert die Quelle gegen kurze Aussetzer."
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="delay-size">Puffergröße (Sekunden)</label>
-              <input id="delay-size" v-model.number="form.delay_buffer.size" type="number" min="0" max="300" />
-              <p class="field-hint">20–40 s empfohlen; Neustart erforderlich.</p>
-            </div>
-            <div class="field">
-              <label for="delay-catchup-rate">Catch-Up-Faktor</label>
-              <input
-                id="delay-catchup-rate"
-                v-model.number="form.delay_buffer.catchup_rate"
-                type="number"
-                min="1"
-                max="1.1"
-                step="0.01"
-              />
-              <p class="field-hint">1.01 empfohlen (baut überschüssigen Puffer mit 1,01× ab; 1 = aus).</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsDelayCard
+        :model="form.delay_buffer"
+        :dirty="sectionDirty('delay')"
+        :saving="savingSection === 'delay'"
+        :busy-saving="busySaving"
+        @save="saveSection('delay')"
+      />
 
-      <section id="settings-video" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Video</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('video')" class="badge tone-warning">Ungespeichert</span>
-            <span class="badge tone-warning">Neustart erforderlich</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Video speichern"
-              :disabled="!sectionDirty('video') || busySaving"
-              @click="saveSection('video')"
-            >
-              <span v-if="savingSection === 'video'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <div class="settings-grid">
-            <div class="field">
-              <label for="video-resolution">Auflösung</label>
-              <select id="video-resolution" v-model="form.video.resolution">
-                <option v-for="resolution in RESOLUTIONS" :key="resolution" :value="resolution">
-                  {{ resolution }}
-                </option>
-              </select>
-              <p class="field-hint">Hochkant: 720x1280 oder 1080x1920 · Querformat: 1280x720 oder 1920x1080</p>
-            </div>
-            <div class="field">
-              <label for="video-fps">FPS</label>
-              <input id="video-fps" v-model.number="form.video.fps" type="number" min="1" max="60" />
-            </div>
-            <div class="field">
-              <label for="video-bitrate">Video-Bitrate (kbit/s)</label>
-              <input id="video-bitrate" v-model.number="form.video.video_bitrate" type="number" min="500" max="50000" />
-            </div>
-            <div class="field">
-              <label for="audio-bitrate">Audio-Bitrate (kbit/s)</label>
-              <input id="audio-bitrate" v-model.number="form.video.audio_bitrate" type="number" min="32" max="320" />
-            </div>
-            <div class="field">
-              <label for="video-preset">Encoder-Preset</label>
-              <select id="video-preset" v-model="form.video.preset">
-                <option v-for="preset in PRESETS" :key="preset.value" :value="preset.value">
-                  {{ preset.label }}
-                </option>
-              </select>
-              <p class="field-hint">Schnellere Presets reduzieren die CPU-Last.</p>
-            </div>
-            <div class="field">
-              <label for="video-tune">H.264 Tune</label>
-              <select id="video-tune" v-model="form.video.tune">
-                <option v-for="tune in TUNES" :key="tune.value" :value="tune.value">
-                  {{ tune.label }}
-                </option>
-              </select>
-              <p class="field-hint">
-                „Aus“ ermöglicht B-Frames und Lookahead für bessere Kompressionseffizienz bei gleicher Bitrate.
-              </p>
-            </div>
-            <div class="field">
-              <label for="video-encoder">Video-Encoder</label>
-              <select id="video-encoder" v-model="form.video.encoder">
-                <option v-for="encoder in ENCODERS" :key="encoder.value" :value="encoder.value">
-                  {{ encoder.label }}
-                </option>
-              </select>
-              <p class="field-hint">
-                Auto nutzt die GPU, wenn der Encoder beim Start verfügbar ist; sonst libx264.
-                Ein nicht verfügbarer Encoder fällt automatisch auf libx264 zurück (siehe Logs).
-              </p>
-            </div>
-            <div class="field">
-              <label for="source-reencode">Quellen-Re-Encoding</label>
-              <select id="source-reencode" v-model="form.source.reencode">
-                <option value="on_reconnect">Nur bei Reconnect (empfohlen)</option>
-                <option value="always">Immer</option>
-                <option value="off">Nie (Copy)</option>
-              </select>
-              <p class="field-hint">Verhindert Mid-GOP-Ruckler beim Neustart der TikTok-Quelle.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsVideoCard
+        :video="form.video"
+        :source="form.source"
+        :resolutions="RESOLUTIONS"
+        :presets="PRESETS"
+        :tunes="TUNES"
+        :encoders="ENCODERS"
+        :dirty="sectionDirty('video')"
+        :saving="savingSection === 'video'"
+        :busy-saving="busySaving"
+        @save="saveSection('video')"
+      />
 
-      <section v-if="form.audio" id="settings-audio" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Audio</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('audio')" class="badge tone-warning">Ungespeichert</span>
-            <span class="badge tone-warning">Sink-Neustart erforderlich</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Audio speichern"
-              :disabled="!sectionDirty('audio') || busySaving"
-              @click="saveSection('audio')"
-            >
-              <span v-if="savingSection === 'audio'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <div class="settings-grid">
-            <div class="field">
-              <label for="audio-normalize">Lautheits-Normalisierung</label>
-              <select id="audio-normalize" v-model="form.audio.normalize">
-                <option value="off">Aus</option>
-                <option value="loudnorm">EBU R128 (loudnorm)</option>
-                <option value="dynaudnorm">Dynamisch (dynaudnorm)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="audio-target-lufs">Ziel-Lautheit (LUFS)</label>
-              <input
-                id="audio-target-lufs"
-                v-model.number="form.audio.target_lufs"
-                type="number"
-                min="-30"
-                max="-6"
-                step="0.5"
-              />
-              <p class="field-hint">−16 LUFS empfohlen für YouTube Live (nur bei loudnorm).</p>
-            </div>
-            <div class="field">
-              <label for="audio-gain">Pegel-Anpassung (dB)</label>
-              <input
-                id="audio-gain"
-                v-model.number="form.audio.gain_db"
-                type="number"
-                min="-24"
-                max="24"
-                step="0.5"
-              />
-            </div>
-          </div>
-          <ToggleField
-            v-model="form.audio.silence_detect"
-            label="Audio-Stille erkennen"
-            description="Meldet anhaltende Stille im Status, auf dem Dashboard und per Webhook (startet den Sink nicht neu)."
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="audio-silence-threshold">Stille-Schwelle (dB)</label>
-              <input
-                id="audio-silence-threshold"
-                v-model.number="form.audio.silence_threshold_db"
-                type="number"
-                min="-80"
-                max="-10"
-              />
-            </div>
-            <div class="field">
-              <label for="audio-silence-seconds">Stille-Dauer (Sekunden)</label>
-              <input
-                id="audio-silence-seconds"
-                v-model.number="form.audio.silence_seconds"
-                type="number"
-                min="2"
-                max="300"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsAudioCard
+        v-if="form.audio"
+        :audio="form.audio"
+        :dirty="sectionDirty('audio')"
+        :saving="savingSection === 'audio'"
+        :busy-saving="busySaving"
+        @save="saveSection('audio')"
+      />
 
-      <section id="settings-watchdog" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Watchdog</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('watchdog')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Watchdog speichern"
-              :disabled="!sectionDirty('watchdog') || busySaving"
-              @click="saveSection('watchdog')"
-            >
-              <span v-if="savingSection === 'watchdog'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.watchdog.auto_reconnect"
-            label="Automatisch neu verbinden"
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="watchdog-stall">Stall-Timeout (Sekunden)</label>
-              <input id="watchdog-stall" v-model.number="form.watchdog.stall_timeout" type="number" min="5" max="600" />
-            </div>
-            <div class="field">
-              <label for="watchdog-bitrate">Minimale Bitrate (kbit/s)</label>
-              <input id="watchdog-bitrate" v-model.number="form.watchdog.min_bitrate" type="number" min="0" max="50000" />
-            </div>
-            <div class="field">
-              <label for="watchdog-rate">Mindest-Quellrate (% Echtzeit, 0 = aus)</label>
-              <input id="watchdog-rate" v-model.number="form.watchdog.min_source_rate_percent" type="number" min="0" max="200" />
-            </div>
-            <div class="field">
-              <label for="watchdog-interval">Prüfintervall (Sekunden)</label>
-              <input id="watchdog-interval" v-model.number="form.watchdog.interval" type="number" min="1" max="60" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsWatchdogCard
+        :watchdog="form.watchdog"
+        :dirty="sectionDirty('watchdog')"
+        :saving="savingSection === 'watchdog'"
+        :busy-saving="busySaving"
+        @save="saveSection('watchdog')"
+      />
 
-      <section id="settings-refresh" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Auto-Refresh</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('refresh')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Auto-Refresh speichern"
-              :disabled="!sectionDirty('refresh') || busySaving"
-              @click="saveSection('refresh')"
-            >
-              <span v-if="savingSection === 'refresh'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.auto_refresh.enabled"
-            label="Auto-Refresh aktiviert"
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="refresh-interval">Intervall (Minuten)</label>
-              <input id="refresh-interval" v-model.number="form.auto_refresh.interval" type="number" min="1" max="720" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsRefreshCard
+        :refresh="form.auto_refresh"
+        :dirty="sectionDirty('refresh')"
+        :saving="savingSection === 'refresh'"
+        :busy-saving="busySaving"
+        @save="saveSection('refresh')"
+      />
 
-      <section id="settings-startup" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Startbildschirm</h2>
-            <p class="card-sub">Vor dem ersten Live-Bild nach dem Start.</p>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('startup')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Startbildschirm speichern"
-              :disabled="!sectionDirty('startup') || busySaving"
-              @click="saveSection('startup')"
-            >
-              <span v-if="savingSection === 'startup'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.startup.enabled"
-            label="Startbildschirm aktiviert"
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="startup-duration">Dauer (Sekunden, 0 = aus)</label>
-              <input id="startup-duration" v-model.number="form.startup.duration_seconds" type="number" min="0" max="300" />
-            </div>
-            <div class="field">
-              <label for="startup-text">Haupttext</label>
-              <input id="startup-text" v-model="form.startup.text" type="text" maxlength="200" />
-            </div>
-            <div class="field">
-              <label for="startup-subtext">Untertext</label>
-              <input id="startup-subtext" v-model="form.startup.subtext" type="text" maxlength="200" />
-            </div>
-            <div class="field">
-              <label for="startup-color">Hintergrundfarbe (Fallback)</label>
-              <input id="startup-color" v-model="form.startup.color" type="text" spellcheck="false" placeholder="0x101820" />
-            </div>
-            <div class="field">
-              <label for="startup-text-color">Textfarbe</label>
-              <input id="startup-text-color" v-model="form.startup.text_color" type="text" spellcheck="false" placeholder="white" />
-            </div>
-            <div class="field">
-              <label for="startup-fit">Bildanpassung</label>
-              <select id="startup-fit" v-model="form.startup.fit">
-                <option value="cover">Ausfüllen (cover, beschneidet)</option>
-                <option value="contain">Einpassen (contain, Ränder)</option>
-                <option value="stretch">Strecken (exakt füllen)</option>
-              </select>
-            </div>
-            <div class="field field-span-2">
-              <label for="startup-background">Hintergrundbild oder -video</label>
-              <input
-                id="startup-background"
-                v-model="form.startup.background"
-                type="text"
-                spellcheck="false"
-                placeholder="/app/data/pause/starting-soon.mp4"
-              />
-              <div class="pause-upload-row">
-                <label class="btn btn-ghost btn-sm">
-                  <input
-                    class="sr-only"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-matroska"
-                    @change="uploadPauseAsset('background', $event, 'startup')"
-                  />
-                  Hintergrund hochladen
-                </label>
-                <button
-                  v-if="form.startup.background"
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  :disabled="pauseUploading !== null"
-                  @click="removePauseAsset('background', 'startup')"
-                >
-                  Entfernen
-                </button>
-                <span v-if="pauseUploading === 'background'" class="muted small">Lädt hoch…</span>
-              </div>
-              <div v-if="startupPreviewSource" class="pause-preview">
-                <video
-                  v-if="startupPreviewIsVideo"
-                  :src="startupPreviewSource"
-                  controls
-                  muted
-                  loop
-                  playsinline
-                  preload="metadata"
-                ></video>
-                <img v-else :src="startupPreviewSource" alt="Startbildschirm-Vorschau" />
-              </div>
-              <p v-if="startupAssetMetadata && startupAsset?.kind !== 'font'" class="field-hint mono">
-                {{ startupAssetMetadata }}
-              </p>
-              <p v-if="startupComposedUrl" class="field-hint">Vorschau mit Text (noch nicht gespeichert):</p>
-              <div v-if="startupComposedUrl" class="pause-preview">
-                <img :src="startupComposedUrl" alt="Startbildschirm-Vorschau mit Text" />
-              </div>
-            </div>
-            <div class="field">
-              <label for="startup-font">Schriftdatei (TTF/OTF)</label>
-              <input
-                id="startup-font"
-                v-model="form.startup.font"
-                type="text"
-                spellcheck="false"
-                placeholder="/app/data/pause/font.ttf"
-              />
-              <div class="pause-upload-row">
-                <label class="btn btn-ghost btn-sm">
-                  <input
-                    class="sr-only"
-                    type="file"
-                    accept=".ttf,.otf,font/ttf,font/otf"
-                    @change="uploadPauseAsset('font', $event, 'startup')"
-                  />
-                  Schrift hochladen
-                </label>
-                <button
-                  v-if="form.startup.font"
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  :disabled="pauseUploading !== null"
-                  @click="removePauseAsset('font', 'startup')"
-                >
-                  Entfernen
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsStartupCard
+        :startup="form.startup"
+        :dirty="sectionDirty('startup')"
+        :saving="savingSection === 'startup'"
+        :busy-saving="busySaving"
+        :pause-uploading="pauseUploading"
+        :startup-asset="startupAsset"
+        :startup-preview-source="startupPreviewSource"
+        :startup-preview-is-video="startupPreviewIsVideo"
+        :startup-asset-metadata="startupAssetMetadata"
+        :startup-composed-url="startupComposedUrl"
+        @save="saveSection('startup')"
+        @upload-asset="uploadPauseAsset"
+        @remove-asset="removePauseAsset"
+      />
 
-      <section id="settings-pause" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Pause</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('pause')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Pause speichern"
-              :disabled="!sectionDirty('pause') || busySaving"
-              @click="saveSection('pause')"
-            >
-              <span v-if="savingSection === 'pause'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.pause.enabled"
-            label="Pause-Funktion aktiviert"
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="pause-text">Haupttext</label>
-              <input id="pause-text" v-model="form.pause.text" type="text" placeholder="Stream pausiert" maxlength="200" />
-            </div>
-            <div class="field">
-              <label for="pause-subtext">Untertext</label>
-              <input id="pause-subtext" v-model="form.pause.subtext" type="text" placeholder="Wir sind gleich zurück." maxlength="200" />
-            </div>
-            <div class="field">
-              <label for="pause-max">Maximale Pausendauer (Minuten, 0 = unbegrenzt)</label>
-              <input id="pause-max" v-model.number="form.pause.max_minutes" type="number" min="0" max="1440" />
-            </div>
-            <div class="field">
-              <label for="pause-grace">Pausenscreen-Verzögerung (Sekunden)</label>
-              <input id="pause-grace" v-model.number="form.pause.grace_seconds" type="number" min="0" max="60" />
-              <p class="field-hint">Kurze Unterbrechungen werden überbrückt, bevor der Pausenscreen übernimmt.</p>
-            </div>
-            <div class="field field-span-2">
-              <label for="pause-background">Hintergrundbild oder -video</label>
-              <input
-                id="pause-background"
-                v-model="form.pause.background"
-                type="text"
-                spellcheck="false"
-                placeholder="z. B. /app/data/pause/background.webm oder https://…/loop.webm"
-              />
-              <p class="field-hint">
-                PNG/JPG/WebP/GIF/MP4/WebM; SVG nur statisch. Leer = Hintergrundfarbe.
-              </p>
-              <div class="pause-upload-row">
-                <label class="btn btn-ghost btn-sm">
-                  <input
-                    class="sr-only"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-matroska"
-                    @change="uploadPauseAsset('background', $event)"
-                  />
-                  Hintergrund hochladen
-                </label>
-                <button
-                  v-if="form.pause.background"
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  :disabled="pauseUploading !== null"
-                  @click="removePauseAsset('background')"
-                >
-                  Entfernen
-                </button>
-                <span v-if="pauseUploading === 'background'" class="muted small">Lädt hoch…</span>
-              </div>
-              <div v-if="pausePreviewSource" class="pause-preview">
-                <video
-                  v-if="pausePreviewIsVideo"
-                  :src="pausePreviewSource"
-                  controls
-                  muted
-                  loop
-                  playsinline
-                  preload="metadata"
-                ></video>
-                <img v-else :src="pausePreviewSource" alt="Pausen-Hintergrund-Vorschau" />
-              </div>
-              <p v-if="pauseAssetMetadata && pauseAsset?.kind !== 'font'" class="field-hint mono">
-                {{ pauseAssetMetadata }}
-              </p>
-              <p v-if="pauseAsset?.warning" class="alert alert-warn">{{ pauseAsset.warning }}</p>
-              <p v-if="pauseComposedUrl" class="field-hint">Vorschau mit Text (noch nicht gespeichert):</p>
-              <div v-if="pauseComposedUrl" class="pause-preview">
-                <img :src="pauseComposedUrl" alt="Pausenscreen-Vorschau mit Text" />
-              </div>
-              <p v-if="composedPreviewError" class="field-hint mono">{{ composedPreviewError }}</p>
-            </div>
-            <div class="field">
-              <label for="pause-font">Schriftdatei (TTF/OTF)</label>
-              <input
-                id="pause-font"
-                v-model="form.pause.font"
-                type="text"
-                spellcheck="false"
-                placeholder="/app/data/pause/font.ttf"
-              />
-              <div class="pause-upload-row">
-                <label class="btn btn-ghost btn-sm">
-                  <input
-                    class="sr-only"
-                    type="file"
-                    accept=".ttf,.otf,font/ttf,font/otf"
-                    @change="uploadPauseAsset('font', $event)"
-                  />
-                  Schrift hochladen
-                </label>
-                <button
-                  v-if="form.pause.font"
-                  type="button"
-                  class="btn btn-ghost btn-sm"
-                  :disabled="pauseUploading !== null"
-                  @click="removePauseAsset('font')"
-                >
-                  Entfernen
-                </button>
-                <span v-if="pauseUploading === 'font'" class="muted small">Lädt hoch…</span>
-              </div>
-              <p v-if="pauseAsset?.kind === 'font'" class="field-hint mono">
-                {{ pauseAsset.filename }} · {{ Math.round(pauseAsset.size / 1024) }} KB
-              </p>
-            </div>
-            <div class="field">
-              <label for="pause-text-color">Textfarbe</label>
-              <input id="pause-text-color" v-model="form.pause.text_color" type="text" placeholder="white" spellcheck="false" />
-            </div>
-            <div class="field">
-              <label for="pause-color">Hintergrundfarbe (Fallback)</label>
-              <input id="pause-color" v-model="form.pause.color" type="text" spellcheck="false" placeholder="0x101820" />
-            </div>
-            <div class="field">
-              <label for="pause-fit">Bildanpassung</label>
-              <select id="pause-fit" v-model="form.pause.fit">
-                <option value="cover">Ausfüllen (cover, beschneidet)</option>
-                <option value="contain">Einpassen (contain, Ränder)</option>
-                <option value="stretch">Strecken (exakt füllen)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsPauseCard
+        :pause="form.pause"
+        :dirty="sectionDirty('pause')"
+        :saving="savingSection === 'pause'"
+        :busy-saving="busySaving"
+        :pause-uploading="pauseUploading"
+        :pause-asset="pauseAsset"
+        :pause-preview-source="pausePreviewSource"
+        :pause-preview-is-video="pausePreviewIsVideo"
+        :pause-asset-metadata="pauseAssetMetadata"
+        :pause-composed-url="pauseComposedUrl"
+        :composed-preview-error="composedPreviewError"
+        @save="saveSection('pause')"
+        @upload-asset="uploadPauseAsset"
+        @remove-asset="removePauseAsset"
+      />
 
-      <section id="settings-monitor" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Online-Monitor</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('monitor')" class="badge tone-warning">Ungespeichert</span>
-            <span v-if="form.online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
-            <span v-else class="badge tone-muted">Kein API-Key</span>
-            <button type="button" class="btn btn-ghost btn-sm" :disabled="checkingOnline" @click="checkOnline">
-              <span v-if="checkingOnline" class="spinner" aria-hidden="true"></span>
-              Jetzt prüfen
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Online-Monitor speichern"
-              :disabled="!sectionDirty('monitor') || busySaving"
-              @click="saveSection('monitor')"
-            >
-              <span v-if="savingSection === 'monitor'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.online.enabled"
-            label="Online-Monitor aktiviert"
-          />
-          <ToggleField
-            v-model="form.online.auto_switch_preferred"
-            label="Bevorzugte Streamer automatisch übernehmen"
-            description="Wechselt, sobald der Streamer live ist; danach zurück zum vorherigen Ziel."
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="online-url">Quell-URL</label>
-              <input
-                id="online-url"
-                v-model="form.online.source_url"
-                type="url"
-                placeholder="https://api.example.com/check"
-                spellcheck="false"
-              />
-            </div>
-            <div class="field">
-              <label for="online-key">API-Key</label>
-              <input
-                id="online-key"
-                v-model="apiKey"
-                type="password"
-                :placeholder="form.online.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
-                autocomplete="new-password"
-              />
-              <p class="field-hint">Der Key wird nur beim Speichern übertragen und nie im Klartext angezeigt.</p>
-            </div>
-            <div class="field">
-              <label for="online-interval">Prüfintervall (Sekunden)</label>
-              <input id="online-interval" v-model.number="form.online.interval" type="number" min="10" max="3600" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsMonitorCard
+        :online="form.online"
+        :api-key="apiKey"
+        :checking-online="checkingOnline"
+        :dirty="sectionDirty('monitor')"
+        :saving="savingSection === 'monitor'"
+        :busy-saving="busySaving"
+        @update:api-key="apiKey = $event"
+        @check-online="checkOnline"
+        @save="saveSection('monitor')"
+      />
 
-      <section id="settings-earnings" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Einnahmen</h2>
-            <p class="card-sub">TokTracker-Format.</p>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('earnings')" class="badge tone-warning">Ungespeichert</span>
-            <span v-if="form.earnings.api_key_set" class="badge tone-success">API-Key gesetzt</span>
-            <span v-else class="badge tone-muted">Kein API-Key</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Einnahmen speichern"
-              :disabled="!sectionDirty('earnings') || busySaving"
-              @click="saveSection('earnings')"
-            >
-              <span v-if="savingSection === 'earnings'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.earnings.enabled"
-            label="Einnahmen-Monitor aktiviert"
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="earnings-url">Quell-URL</label>
-              <input id="earnings-url" v-model="form.earnings.source_url" type="url" spellcheck="false" />
-            </div>
-            <div class="field">
-              <label for="earnings-key">API-Key</label>
-              <input
-                id="earnings-key"
-                v-model="earningsApiKey"
-                type="password"
-                :placeholder="form.earnings.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="field">
-              <label for="earnings-interval">Aktualisierungsintervall (Sekunden)</label>
-              <input id="earnings-interval" v-model.number="form.earnings.interval" type="number" min="30" max="3600" />
-            </div>
-            <div class="field">
-              <label for="earnings-period">Zeitraum</label>
-              <select id="earnings-period" v-model="form.earnings.period">
-                <option value="today">Heute</option>
-                <option value="24h">Letzte 24 h</option>
-                <option value="7d">Letzte 7 Tage</option>
-                <option value="30d">Letzte 30 Tage</option>
-                <option value="all">Gesamt</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="earnings-view">Dashboard-Anzeige</label>
-              <select id="earnings-view" v-model="form.earnings.view">
-                <option value="compact">Kompakt</option>
-                <option value="standard">Standard</option>
-                <option value="detailed">Ausführlich</option>
-              </select>
-            </div>
-          </div>
-          <div class="alert alert-info">
-            Overlay-Text und Position:
-            <RouterLink to="/overlays">Overlay-Studio</RouterLink>
-          </div>
-        </div>
-      </section>
+      <SettingsEarningsCard
+        :earnings="form.earnings"
+        :earnings-api-key="earningsApiKey"
+        :dirty="sectionDirty('earnings')"
+        :saving="savingSection === 'earnings'"
+        :busy-saving="busySaving"
+        @update:earnings-api-key="earningsApiKey = $event"
+        @save="saveSection('earnings')"
+      />
 
-      <section id="settings-chat" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Chat-Overlay</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('chat')" class="badge tone-warning">Ungespeichert</span>
-            <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Chat-Overlay speichern"
-              :disabled="!sectionDirty('chat') || busySaving"
-              @click="saveSection('chat')"
-            >
-              <span v-if="savingSection === 'chat'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <div class="settings-grid">
-            <div class="field">
-              <label for="chat-url">Chat-API-URL</label>
-              <input
-                id="chat-url"
-                v-model="form.chat.api_url"
-                type="url"
-                placeholder="https://toktracker.example/api/chat-logs"
-                spellcheck="false"
-              />
-              <p class="field-hint">Gilt global für alle Streamer.</p>
-            </div>
-            <div class="field">
-              <label for="chat-key">Chat-API-Key</label>
-              <input
-                id="chat-key"
-                v-model="chatApiKey"
-                type="password"
-                :placeholder="form.chat.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
-                autocomplete="new-password"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SettingsChatCard
+        :chat="form.chat"
+        :chat-api-key="chatApiKey"
+        :dirty="sectionDirty('chat')"
+        :saving="savingSection === 'chat'"
+        :busy-saving="busySaving"
+        @update:chat-api-key="chatApiKey = $event"
+        @save="saveSection('chat')"
+      />
 
-      <section id="settings-title" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">YouTube-Titel</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('title')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="YouTube-Titel speichern"
-              :disabled="!sectionDirty('title') || busySaving"
-              @click="saveSection('title')"
-            >
-              <span v-if="savingSection === 'title'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <div class="field">
-            <label for="title-template">Titel-Template</label>
-            <input
-              id="title-template"
-              v-model="form.streaming.title_template"
-              type="text"
-              maxlength="200"
-              spellcheck="false"
-            />
-            <p class="field-hint">
-              Platzhalter: <code>{name}</code>, <code>{tiktok}</code>, <code>{title}</code>,
-              <code>{date}</code>, <code>{time}</code>. Nur lokal, wird nicht an YouTube gesendet.
-            </p>
-          </div>
-        </div>
-      </section>
+      <SettingsTitleCard
+        :streaming="form.streaming"
+        :dirty="sectionDirty('title')"
+        :saving="savingSection === 'title'"
+        :busy-saving="busySaving"
+        @save="saveSection('title')"
+      />
 
-      <section v-if="form.webhooks" id="settings-webhooks" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Webhooks</h2>
-          </div>
-          <div class="settings-section-actions">
-            <span v-if="sectionDirty('webhooks')" class="badge tone-warning">Ungespeichert</span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="testingWebhook || !form.webhooks.url_set"
-              @click="sendTestWebhook"
-            >
-              Test-Webhook senden
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              aria-label="Webhooks speichern"
-              :disabled="!sectionDirty('webhooks') || busySaving"
-              @click="saveSection('webhooks')"
-            >
-              <span v-if="savingSection === 'webhooks'" class="spinner" aria-hidden="true"></span>
-              Speichern
-            </button>
-          </div>
-        </div>
-        <div class="settings-body">
-          <ToggleField
-            v-model="form.webhooks.enabled"
-            label="Alerting-Webhooks aktiviert"
-            description="Sendet Störungs- und Statusmeldungen asynchron an Discord, Slack oder einen HTTP-Endpunkt."
-          />
-          <div class="settings-grid">
-            <div class="field">
-              <label for="webhook-format">Format</label>
-              <select id="webhook-format" v-model="form.webhooks.format">
-                <option value="generic">Generisches JSON</option>
-                <option value="discord">Discord Embed</option>
-                <option value="slack">Slack Webhook</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="webhook-url">Webhook-URL</label>
-              <input
-                id="webhook-url"
-                v-model="webhookUrl"
-                type="url"
-                :placeholder="
-                  form.webhooks.url_set
-                    ? `•••••••• (${form.webhooks.url_host || 'gesetzt'} – leer lassen zum Behalten)`
-                    : 'https://discord.com/api/webhooks/...'
-                "
-                spellcheck="false"
-                autocomplete="off"
-              />
-            </div>
-            <div class="field">
-              <label for="webhook-secret">Signatur-Secret (optional)</label>
-              <input
-                id="webhook-secret"
-                v-model="webhookSecret"
-                type="password"
-                :placeholder="
-                  form.webhooks.secret_set
-                    ? '•••••••• (gesetzt – leer lassen zum Behalten)'
-                    : 'HMAC-SHA256 Secret'
-                "
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="field">
-              <label for="webhook-cooldown">Cooldown (Sekunden)</label>
-              <input
-                id="webhook-cooldown"
-                v-model.number="form.webhooks.cooldown_seconds"
-                type="number"
-                min="0"
-                max="3600"
-              />
-            </div>
-          </div>
-          <fieldset class="field" style="border: 0; padding: 0; margin: 0">
-            <legend style="font-size: 13px; margin-bottom: 6px">Ereignisse</legend>
-            <div style="display: flex; flex-wrap: wrap; gap: 10px">
-              <label
-                v-for="ev in WEBHOOK_EVENT_OPTIONS"
-                :key="ev.value"
-                style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px"
-              >
-                <input
-                  type="checkbox"
-                  :checked="form.webhooks.events.includes(ev.value)"
-                  @change="toggleWebhookEvent(ev.value)"
-                />
-                {{ ev.label }}
-              </label>
-            </div>
-          </fieldset>
-        </div>
-      </section>
+      <SettingsWebhooksCard
+        v-if="form.webhooks"
+        :webhooks="form.webhooks"
+        :webhook-url="webhookUrl"
+        :webhook-secret="webhookSecret"
+        :testing-webhook="testingWebhook"
+        :event-options="WEBHOOK_EVENT_OPTIONS"
+        :dirty="sectionDirty('webhooks')"
+        :saving="savingSection === 'webhooks'"
+        :busy-saving="busySaving"
+        @update:webhook-url="webhookUrl = $event"
+        @update:webhook-secret="webhookSecret = $event"
+        @test="sendTestWebhook"
+        @toggle-event="toggleWebhookEvent"
+        @save="saveSection('webhooks')"
+      />
 
       <TotpSection />
 
-      <section id="settings-sessions" class="card settings-section" tabindex="-1">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Sessions</h2>
-          </div>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="sessionsLoading || sessions.length === 0"
-            @click="revokeAllSessions"
-          >
-            Alle abmelden
-          </button>
-        </div>
-        <div class="settings-body">
-          <p v-if="sessionsError" class="alert alert-error" role="alert">{{ sessionsError }}</p>
-          <p v-else-if="sessionsLoading" class="muted small">Sessions werden geladen…</p>
-          <p v-else-if="sessions.length === 0" class="muted small">Keine aktiven Sessions.</p>
-          <ul v-else class="session-list">
-            <li v-for="session in sessions" :key="session.id" class="session-item">
-              <div class="session-main">
-                <strong>{{ session.user }}</strong>
-                <span class="badge tone-info">
-                  {{ session.provider === 'telegram' ? 'Telegram' : 'Passwort' }}
-                </span>
-                <span v-if="session.current" class="badge tone-success">Diese Sitzung</span>
-              </div>
-              <p class="session-meta">
-                Erstellt {{ formatDateTime(session.created_at) }} · Zuletzt
-                {{ formatDateTime(session.last_seen_at) }}
-              </p>
-              <button
-                v-if="!session.current"
-                type="button"
-                class="btn btn-ghost btn-sm"
-                @click="revokeSession(session)"
-              >
-                Abmelden
-              </button>
-            </li>
-          </ul>
-        </div>
-      </section>
+      <SettingsSessionsCard
+        :sessions="sessions"
+        :sessions-loading="sessionsLoading"
+        :sessions-error="sessionsError"
+        @revoke="revokeSession"
+        @revoke-all="revokeAllSessions"
+      />
 
       <div class="form-actions">
         <span v-if="dirty" class="muted small">Ungespeicherte Änderungen</span>

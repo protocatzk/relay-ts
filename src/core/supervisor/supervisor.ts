@@ -1,9 +1,7 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Logger } from 'pino';
 import type { LoadedConfig } from '../config/loader.js';
 import {
-  StreamerSchema,
   resolveStreamKey,
   type PlaylistConfig,
   type Settings,
@@ -12,9 +10,7 @@ import {
 import { AsyncLock, runCommand } from '../../utils/process.js';
 import {
   AppError,
-  MissingStreamKeyError,
   NotFoundError,
-  StreamerOfflineError,
   ValidationError,
   toErrorMessage,
 } from '../../utils/errors.js';
@@ -24,24 +20,35 @@ import type { SettingsService } from '../store/settings-service.js';
 import type { StreamerStore, StreamerView } from '../store/streamer-store.js';
 import { DelayBuffer } from '../relay/delay-buffer.js';
 import { MpegTsRelay } from '../relay/relay-server.js';
-import { TikTokResolver } from '../source/resolver.js';
-import { TikTokSource } from '../source/tiktok-source.js';
 import type { ResolvedStream } from '../source/tiktok.js';
-import { YouTubeSink } from '../sink/youtube-sink.js';
-import { SecondarySink } from '../sink/secondary-sink.js';
-import {
-  RecordingController,
-  type ClipOptions,
-  type ClipResult,
-} from '../recording/recording-controller.js';
+import { OutputFanout } from './output-fanout.js';
+import type { ClipOptions, ClipResult } from '../recording/recording-controller.js';
 import type { MarkerSource, RecordingMarker } from '../recording/recording-markers.js';
+import { MediaPlaybackController } from './media-playback-controller.js';
+import { AutoSwitchController, type PreferredReturnTarget } from './auto-switch-controller.js';
+import {
+  ScreenPlaybackController,
+  resolveScreenTarget,
+  screenFallbackStreamer,
+} from './screen-controller.js';
+import { SourceRecoveryController } from './source-recovery.js';
+import { StreamerLauncher, type StartStreamerOptions } from './streamer-launcher.js';
+import { SinkWatchdogCoordinator } from './sink-watchdog-coordinator.js';
+import { QueuePlaybackCoordinator } from './queue-playback-coordinator.js';
+import {
+  formatStreamTitle,
+  buildStreamersView,
+  buildPlaylistsView,
+  type PlaylistView,
+} from './supervisor-views.js';
+export type { PlaylistView };
+import { applySupervisorSettings, type SettingsApplyHost } from './settings-applier.js';
+import { createSupervisorSubsystems, type SupervisorWiringHost } from './supervisor-wiring.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
 import type { ChatMessage } from '../overlays/chat-service.js';
-import { PauseScreen } from '../overlays/pause-screen.js';
-import { remainingTimeFilter } from '../overlays/drawtext.js';
 import { OnlineMonitor } from '../online/monitor.js';
 import { EarningsMonitor } from '../earnings/monitor.js';
-import { EarningsHistoryStore, type EarningsPeriod } from '../earnings/history.js';
+import type { EarningsPeriod } from '../earnings/history.js';
 import type { PreviewAspect } from '../overlays/studio-preview.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
@@ -51,22 +58,14 @@ import { OverlayRuntime } from './overlay-runtime.js';
 import { SinkController } from './sink-controller.js';
 import { PauseController } from './pause-controller.js';
 import { SourceSession } from './source-session.js';
-import { incMetric } from '../metrics.js';
 import {
   PlaylistController,
-  type PlaylistRunState,
   type PlaylistStartOptions,
 } from './playlist-controller.js';
-import { mediaFilePath, probeMediaFile } from '../media/media-files.js';
-import {
-  configureVideoEncoder,
-  probeVideoEncoders,
-  setAvailableVideoEncoders,
-} from '../media/encoders.js';
+import { probeMediaFile } from '../media/media-files.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
-import { sortStreamersByPriority } from '../streamer-order.js';
 import { SceneStore, type OverlayScene } from '../overlays/scene-store.js';
 import type { WebhookDispatcher } from '../notifications/webhooks.js';
 
@@ -89,45 +88,6 @@ export interface SupervisorDeps {
   webhooks?: WebhookDispatcher;
 }
 
-export interface PlaylistView {
-  id: string;
-  name: string;
-  channels: string[];
-  auto_advance: boolean;
-  wrap: boolean;
-  advance_delay_seconds: number;
-  end_after_minutes: number | null;
-  end_time: string | null;
-  youtube_key_set: boolean;
-  active: boolean;
-  index: number | null;
-}
-
-
-interface StartOptions {
-  key?: string;
-  playlist?: PlaylistRunState;
-  forceReencode?: boolean;
-  allowOfflineWait?: boolean;
-  intro?: boolean;
-  /** Internal: keep the return target when taking over for a preferred streamer. */
-  preservePreferredReturn?: boolean;
-}
-
-interface PreferredReturnTarget {
-  kind: 'streamer' | 'file';
-  streamer?: StreamerConfig;
-  file?: string;
-  key: string;
-  playlist: PlaylistRunState | null;
-  seekSeconds?: number;
-}
-
-/**
- * Owns the stream lifecycle: source, delay line, sink, overlays and recovery.
- * All mutating operations are serialized through a single async lock so a
- * watchdog restart can never race a user-initiated switch.
- */
 export class Supervisor {
   private readonly deps: SupervisorDeps;
   private readonly lock = new AsyncLock();
@@ -137,8 +97,7 @@ export class Supervisor {
   private relay!: MpegTsRelay;
   private sourceSession!: SourceSession;
   private sinkController!: SinkController;
-  private secondarySink!: SecondarySink;
-  private recording!: RecordingController;
+  private outputFanout!: OutputFanout;
   private overlays!: OverlayManager;
   private pauseController!: PauseController;
   private watchdog!: Watchdog;
@@ -146,21 +105,19 @@ export class Supervisor {
   private online!: OnlineMonitor;
   private earnings!: EarningsMonitor;
   private overlayRuntime!: OverlayRuntime;
+  private screenController!: ScreenPlaybackController;
+  private sourceRecovery!: SourceRecoveryController;
+  private streamerLauncher!: StreamerLauncher;
+  private sinkWatchdog!: SinkWatchdogCoordinator;
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
-  private activeMediaFile: string | null = null;
-  private activeMediaOffset = 0;
-  private activeMediaStartedAt: number | null = null;
-  private activeMediaDuration: number | null = null;
-  /** Where to return when an automatically preferred streamer ends. */
-  private preferredReturn: PreferredReturnTarget | null = null;
-  /** Preferred streamers that ended and must go offline before a new takeover. */
-  private readonly endedPreferred = new Map<string, number>();
+  private readonly media = new MediaPlaybackController();
+  private readonly autoSwitch = new AutoSwitchController();
   private statusTicks = 0;
-  private resumeTimer?: NodeJS.Timeout;
   private readonly playlistController: PlaylistController;
   private readonly queue: QueueController;
+  private readonly queueCoordinator: QueuePlaybackCoordinator;
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
@@ -168,7 +125,6 @@ export class Supervisor {
   private autoStartTimer?: NodeJS.Timeout;
   private shuttingDown = false;
   private forceReencodeNext = false;
-  private consecutiveQuickSinkExits = 0;
   private readonly scenes: SceneStore;
   private applyingScene = false;
   private lastDiskWarning: string | null = null;
@@ -202,6 +158,18 @@ export class Supervisor {
         this.lastError = message;
       },
     });
+    this.queueCoordinator = new QueuePlaybackCoordinator({
+      queue: this.queue,
+      playlistController: this.playlistController,
+      media: this.media,
+      getSinkKey: () => this.sinkController?.key ?? null,
+      lock: this.lock,
+      logger: deps.logger,
+      emitQueue: () => this.emitQueue(),
+      stopInternalLocked: () => this.stopInternalLocked(),
+      stop: () => this.stop(),
+      startFileLocked: (f, o) => this.startFileLocked(f, o),
+    });
   }
 
   private get state(): StreamState {
@@ -218,252 +186,32 @@ export class Supervisor {
 
   async init(): Promise<void> {
     const { config, logger } = this.deps;
-    const relayEndpoint = { host: config.media.relayHost, port: config.media.relayPort };
+    const subsystems = await createSupervisorSubsystems(this as unknown as SupervisorWiringHost);
+    this.buffer = subsystems.buffer;
+    this.relay = subsystems.relay;
+    this.sourceSession = subsystems.sourceSession;
+    this.sinkController = subsystems.sinkController;
+    this.outputFanout = subsystems.outputFanout;
+    this.overlays = subsystems.overlays;
+    this.pauseController = subsystems.pauseController;
+    this.watchdog = subsystems.watchdog;
+    this.autoRefresh = subsystems.autoRefresh;
+    this.online = subsystems.online;
+    this.earnings = subsystems.earnings;
+    this.overlayRuntime = subsystems.overlayRuntime;
+    this.screenController = subsystems.screenController;
+    this.sourceRecovery = subsystems.sourceRecovery;
+    this.streamerLauncher = subsystems.streamerLauncher;
+    this.sinkWatchdog = subsystems.sinkWatchdog;
 
-    this.buffer = new DelayBuffer({
-      host: relayEndpoint.host,
-      port: relayEndpoint.port + 1,
-      delaySeconds: this.settings.delay_buffer.size,
-      enabled: this.settings.delay_buffer.enabled,
-      maxBytes: this.bufferMaxBytes(this.settings),
-      fallbackBitrateKbps: Math.round(this.settings.video.video_bitrate * 1.25),
-      catchupRate: this.settings.delay_buffer.catchup_rate,
-      logger,
-    });
-    try {
-      await this.buffer.start();
-    } catch (error) {
-      throw new AppError(
-        'relay_bind_failed',
-        `Delay-Puffer konnte nicht auf Port ${relayEndpoint.port + 1} starten: ${toErrorMessage(error)}`,
-        500,
-      );
-    }
-
-    this.relay = new MpegTsRelay({
-      host: relayEndpoint.host,
-      port: relayEndpoint.port,
-      logger,
-      buffer: this.buffer,
-    });
-    try {
-      await this.relay.start();
-    } catch (error) {
-      await this.buffer.stop();
-      throw new AppError(
-        'relay_bind_failed',
-        `MPEG-TS-Relay konnte nicht auf Port ${relayEndpoint.port} starten: ${toErrorMessage(error)}`,
-        500,
-      );
-    }
-
-    const resolver =
-      this.deps.resolver ??
-      new TikTokResolver({
-        media: config.media,
-        logger,
-        cookiesFile: config.paths.cookiesFile,
-        redact: this.deps.redact,
-      });
-    const source = new TikTokSource({
-      media: config.media,
-      settings: this.settings,
-      relay: relayEndpoint,
-      logger,
-      redact: this.deps.redact,
-      onExit: (code, signal) => this.handleSourceExit(code, signal),
-      onCodecProblem: (line) => this.handleCodecProblem(line),
-    });
-    this.sourceSession = new SourceSession({
-      source,
-      resolver,
-      settings: this.settings,
-    });
-    const sink = new YouTubeSink({
-      media: config.media,
-      settings: this.settings,
-      relay: relayEndpoint,
-      logger,
-      redact: this.deps.redact,
-      onExit: () => this.handleSinkExit(),
-      onUnhealthy: (reason) => void this.handleSinkUnhealthy(reason),
-      onSilenceChange: (active, since) => {
-        this.emitAll();
-        if (active) {
-          this.deps.webhooks?.notify(
-            'audio_silence',
-            'Audio-Stille erkannt',
-            'Am YouTube-Sink wurde anhaltende Audio-Stille erkannt.',
-            { since: since?.toISOString() ?? null },
-          );
-        }
-      },
-    });
-    this.sinkController = new SinkController({
-      sink,
-      settings: this.settings,
-      logger,
-      lock: this.lock,
-      isShuttingDown: () => this.shuttingDown,
-      canStartDelayed: () =>
-        this.sourceSession.running ||
-        this.pauseController.pauseRunning ||
-        this.pauseController.startupRunning,
-      onStarted: () =>
-        this.overlayRuntime.attachToSink(
-          this.sinkController.overlayStream(),
-          this.sinkController.logoStream(),
-        ),
-      onStopping: () => this.overlayRuntime.detachEngine(),
-      onPrefillDone: () => this.emitAll(),
-      youtube: () => this.deps.youtube,
-    });
-    this.secondarySink = new SecondarySink({
-      media: config.media,
-      settings: this.settings,
-      relay: this.relay,
-      logger,
-      redact: this.deps.redact,
-    });
-    this.recording = new RecordingController({
-      dataDir: config.paths.dataDir,
-      media: config.media,
-      settings: this.settings,
-      relay: this.relay,
-      logger,
-    });
-    if (this.settings.secondary_sink.stream_key) {
-      this.deps.registerSecret?.(this.settings.secondary_sink.stream_key);
-    }
-    if (this.settings.webhooks.url) {
-      this.deps.registerSecret?.(this.settings.webhooks.url);
-    }
-    if (this.settings.webhooks.secret) {
-      this.deps.registerSecret?.(this.settings.webhooks.secret);
-    }
-    this.overlays = new OverlayManager(
-      { media: config.media, overlaysDir: config.paths.overlaysDir, logger },
-      this.settings,
-    );
-    const pauseScreen = new PauseScreen({
-      media: config.media,
-      settings: this.settings,
-      relay: relayEndpoint,
-      logger,
-      overlaysDir: config.paths.overlaysDir,
-      fontFile: this.overlays.font,
-      redact: this.deps.redact,
-      onExit: () => {
-        if (!this.shuttingDown && this.state === 'paused') {
-          this.deps.logger.warn('Pausenscreen unerwartet beendet – Neustart wird geplant');
-          this.pauseController.handlePauseScreenExit();
-        }
-      },
-    });
-    const startupScreen = new PauseScreen({
-      media: config.media,
-      settings: this.settings,
-      relay: relayEndpoint,
-      logger,
-      overlaysDir: config.paths.overlaysDir,
-      fontFile: this.overlays.font,
-      screen: 'startup',
-      redact: this.deps.redact,
-    });
-    this.pauseController = new PauseController({
-      pauseScreen,
-      startupScreen,
-      settings: this.settings,
-      logger,
-      lock: this.lock,
-      hooks: {
-        isShuttingDown: () => this.shuttingDown,
-        isPaused: () => this.state === 'paused',
-        nextOffset: () => this.sourceSession.nextOffset(),
-        markProducerStarted: (offset) => this.sourceSession.markProducerStarted(offset),
-        emitStatus: () => this.emitStatus(),
-        emitAll: () => this.emitAll(),
-        canScheduleOfflinePause: () => this.sinkController.running,
-        canStartOfflinePause: () => this.canStartOfflinePauseLocked(),
-        startOfflinePause: () => this.startPauseLocked(),
-        onPauseLimit: async () => {
-          incMetric('pause_limit_hits_total');
-          this.deps.webhooks?.notify(
-            'pause_limit',
-            'Pausen-Limit erreicht',
-            `Stream wurde nach ${this.settings.pause.max_minutes} Minuten Pause gestoppt.`,
-            { streamer: this.activeStreamer?.id ?? null },
-          );
-          await this.stopInternalLocked();
-        },
-      },
-    });
-    this.watchdog = new Watchdog({
-      settings: this.settings,
-      logger,
-      snapshot: () => ({
-        state: this.state,
-        relayLastDataAt: this.relay.lastData,
-        sinkRunning: this.sinkController.running,
-        sinkStarting: this.sinkController.starting,
-        sinkLastProgressAt: this.sinkController.lastProgressAt,
-        sourceRunning: this.sourceSession.running,
-        sourceStartedAt: this.sourceSession.startedAt,
-        sinkStartedAt: this.sinkController.startedAt,
-        sourceBitrateKbps: this.sourceSession.bitrateKbps ?? this.buffer?.stats().pacingKbps ?? null,
-        sourceOutputSeconds: this.sourceSession.outputTimeSeconds,
-        suppressStall: this.playlistController.isAdvancePending,
-        sinkGraceUntil: this.sinkController.graceUntil,
-      }),
-      onRelayStall: (age) => void this.handleRelayStall(age),
-      onSinkDown: () => this.scheduleSinkRestart(1000),
-      onSinkStall: (age) => void this.handleSinkStall(age),
-      onLowBitrate: (kbps) => void this.handleLowBitrate(kbps),
-      onLowSourceRate: (percent) => void this.handleLowSourceRate(percent),
-    });
-    this.autoRefresh = new AutoRefresh({
-      settings: this.settings,
-      logger,
-      onRefresh: () => this.refreshSource('auto_refresh'),
-    });
-    this.online = new OnlineMonitor({
-      settings: this.settings,
-      logger,
-      onStatuses: () => {
-        this.handleOnlineStatuses();
-      },
-    });
     this.online.start();
-    const earningsHistory = new EarningsHistoryStore(
-      join(config.paths.dataDir, 'earnings-history.json'),
-      logger,
-    );
-    this.earnings = new EarningsMonitor({
-      settings: this.settings,
-      logger,
-      getActive: () => this.activeStreamer,
-      onUpdate: (snapshot, overlayText) => {
-        this.overlays.updateEarnings(overlayText);
-        this.overlayRuntime?.updateEarnings(snapshot);
-        this.deps.bus.emit({ type: 'earnings', data: snapshot });
-      },
-      history: earningsHistory,
-    });
-    this.overlayRuntime = new OverlayRuntime({
-      settings: this.settings,
-      overlays: this.overlays,
-      earnings: this.earnings,
-      logger,
-      logoPath: join(config.paths.webDir, 'logo.png'),
-    });
-    await this.overlayRuntime.loadLogo();
     this.earnings.start();
     this.watchdog.start();
     this.statusTimer = setInterval(() => {
       this.emitStatus();
       this.statusTicks += 1;
       if (this.statusTicks % 5 === 0) this.persistMediaProgress();
-      const warning = this.recording?.status().disk_warning ?? null;
+      const warning = this.outputFanout.diskWarning();
       if (warning && warning !== this.lastDiskWarning) {
         this.deps.webhooks?.notify('disk_warning', 'Speicher-Warnung (Aufzeichnung)', warning);
       }
@@ -481,10 +229,11 @@ export class Supervisor {
       resume.position_seconds > 1 &&
       (resume.duration_seconds <= 0 || resume.position_seconds < resume.duration_seconds - 2)
     ) {
-      this.resumeTimer = setTimeout(() => void this.resumeQueuePlayback(resume), 2500);
-      this.resumeTimer.unref?.();
+      this.media.scheduleResume(resume, async (p) => {
+        await this.resumeQueuePlayback(p);
+      });
     }
-    logger.info({ version: VERSION, relayPort: relayEndpoint.port }, 'Supervisor bereit');
+    logger.info({ version: VERSION, relayPort: config.media.relayPort }, 'Supervisor bereit');
   }
 
   private markSinkGrace(): void {
@@ -553,43 +302,29 @@ export class Supervisor {
     }
     if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
 
-    const active = this.activeStreamer;
-    const candidates = sortStreamersByPriority(
-      this.deps.store.list().filter(
-        (streamer) =>
-          streamer.enabled &&
-          streamer.preferred &&
-          streamer.id !== active?.id &&
-          this.online.isOnline(streamer) === true &&
-          Boolean(resolveStreamKey(streamer).key) &&
-          !this.isPreferredSuppressed(streamer.id),
-      ),
+    const candidate = this.autoSwitch.findPreferredCandidate(
+      this.activeStreamer,
+      this.deps.store.list(),
+      (streamer) => this.online?.isOnline(streamer) ?? false,
+      (streamer) => resolveStreamKey(streamer).key,
     );
-    if (candidates.length === 0) return;
-
-    const candidate = candidates[0]!;
-    if (active?.preferred) {
-      // A manually selected preferred streamer is never replaced. After an
-      // automatic takeover only a strictly better priority may take over.
-      if (!this.preferredReturn) return;
-      if (candidate.priority >= active.priority) return;
-    }
+    if (!candidate) return;
 
     await this.lock.run(async () => {
       if (
         this.shuttingDown ||
         this.playlistController.isAdvancePending ||
         this.activeStreamer?.id === candidate.id ||
-        this.isPreferredSuppressed(candidate.id)
+        this.autoSwitch.isSuppressed(candidate.id)
       ) {
         return;
       }
       const key = resolveStreamKey(candidate).key;
       if (!key) return;
 
-      const previousTarget = this.preferredReturn;
-      if (!this.preferredReturn) {
-        this.preferredReturn = this.capturePreferredReturnTarget();
+      const previousTarget = this.autoSwitch.returnTarget;
+      if (!previousTarget) {
+        this.autoSwitch.setReturnTarget(this.capturePreferredReturnTarget());
       }
       this.deps.logger.info(
         { streamer: candidate.id, priority: candidate.priority },
@@ -603,7 +338,7 @@ export class Supervisor {
         });
       } catch (error) {
         if (!previousTarget && this.activeStreamer?.id !== candidate.id) {
-          this.preferredReturn = null;
+          this.autoSwitch.clearReturnTarget();
         }
         this.deps.logger.warn(
           { streamer: candidate.id, err: toErrorMessage(error) },
@@ -614,50 +349,27 @@ export class Supervisor {
   }
 
   private handleOnlineStatuses(): void {
-    const now = Date.now();
-    for (const [id, endedAt] of this.endedPreferred) {
-      const streamer = this.deps.store.get(id);
-      if (!streamer || this.online.isOnline(streamer) === false || now - endedAt > 300_000) {
-        this.endedPreferred.delete(id);
-      }
-    }
+    this.autoSwitch.cleanEnded(
+      Date.now(),
+      (id) => {
+        const streamer = this.deps.store.get(id);
+        return streamer ? this.online.isOnline(streamer) : null;
+      },
+      (id) => Boolean(this.deps.store.get(id)),
+    );
     this.emitStreamers();
     void this.maybeAutoSwitchPreferred();
   }
 
-  private isPreferredSuppressed(id: string): boolean {
-    const endedAt = this.endedPreferred.get(id);
-    if (!endedAt) return false;
-    if (Date.now() - endedAt > 300_000) {
-      this.endedPreferred.delete(id);
-      return false;
-    }
-    return true;
-  }
-
   /** Snapshot of what was playing before a preferred takeover. */
   private capturePreferredReturnTarget(): PreferredReturnTarget | null {
-    if (!this.sinkController.key) return null;
-    if (this.activeMediaFile) {
-      const playlist = this.playlistController.current;
-      if (!playlist) return null;
-      return {
-        kind: 'file',
-        file: this.activeMediaFile,
-        key: this.sinkController.key,
-        playlist,
-        seekSeconds: this.currentMediaPosition(),
-      };
-    }
-    if (this.activeStreamer) {
-      return {
-        kind: 'streamer',
-        streamer: this.activeStreamer,
-        key: this.sinkController.key,
-        playlist: this.playlistController.current,
-      };
-    }
-    return null;
+    return this.autoSwitch.captureReturnTarget(
+      this.sinkController.key,
+      this.activeStreamer,
+      this.media.file,
+      this.media.currentPosition(),
+      this.playlistController.current,
+    );
   }
 
   /**
@@ -665,13 +377,13 @@ export class Supervisor {
    * takeover. Returns false when there is nothing to restore.
    */
   private async returnToPreferredOriginLocked(reason: string): Promise<boolean> {
-    const target = this.preferredReturn;
+    const target = this.autoSwitch.returnTarget;
     if (!target) return false;
-    this.preferredReturn = null;
+    this.autoSwitch.clearReturnTarget();
     this.pauseController.clearOfflinePauseTimer();
     const ended = this.activeStreamer;
     const endedId = ended?.preferred ? ended.id : undefined;
-    if (endedId) this.endedPreferred.set(endedId, Date.now());
+    if (endedId) this.autoSwitch.markEnded(endedId);
 
     this.deps.logger.info(
       {
@@ -687,7 +399,7 @@ export class Supervisor {
         await this.startStreamerLocked(streamer, {
           key: target.key,
           playlist: target.playlist
-            ? this.refreshReturnPlaylist(target.playlist)
+            ? this.autoSwitch.refreshReturnPlaylist(target.playlist, (id) => this.resolvePlaylist(id))
             : undefined,
           allowOfflineWait: true,
           intro: false,
@@ -696,7 +408,7 @@ export class Supervisor {
       } else if (target.kind === 'file' && target.file && target.playlist) {
         await this.startFileLocked(target.file, {
           key: target.key,
-          playlist: this.refreshReturnPlaylist(target.playlist),
+          playlist: this.autoSwitch.refreshReturnPlaylist(target.playlist, (id) => this.resolvePlaylist(id)),
           seekSeconds: target.seekSeconds,
         });
       }
@@ -716,17 +428,8 @@ export class Supervisor {
     }
   }
 
-  private refreshReturnPlaylist(state: PlaylistRunState): PlaylistRunState {
-    const playlist = this.resolvePlaylist(state.playlist.id) ?? state.playlist;
-    const maxIndex = Math.max(0, playlist.channels.length - 1);
-    return { playlist, index: Math.min(Math.max(0, state.index), maxIndex) };
-  }
-
   private async autoStart(): Promise<void> {
-    const candidates = sortStreamersByPriority(
-      this.deps.store.list().filter((streamer) => streamer.enabled && streamer.auto_start),
-    );
-    if (candidates.length === 0) return;
+    const candidates = this.autoSwitch.autoStartCandidates(this.deps.store.list());
     for (const candidate of candidates) {
       try {
         this.deps.logger.info(
@@ -773,25 +476,20 @@ export class Supervisor {
     options: PlaylistStartOptions,
   ): Promise<StatusSnapshot> {
     if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
-    this.preferredReturn = null;
-    const path = mediaFilePath(this.deps.config.paths.dataDir, file);
-    if (!path || !existsSync(path)) {
-      throw new ValidationError(`Lokales Video "${file}" wurde nicht gefunden`);
-    }
+    this.autoSwitch.clearReturnTarget();
+    const path = this.media.validateMediaFile(this.deps.config.paths.dataDir, file);
     const seekSeconds = Math.max(0, options.seekSeconds ?? 0);
     this.sinkController.clearStartTimer();
     const probe = await probeMediaFile(this.deps.config.media.ffmpegBin, path);
     const prepared = this.overlays.prepare();
     const filters = [...prepared.filters];
-    if (prepared.fontFile && probe.duration) {
-      const countdown = remainingTimeFilter(
-        this.settings,
-        prepared.fontFile,
-        probe.duration,
-        seekSeconds,
-      );
-      if (countdown) filters.push(countdown);
-    }
+    this.media.start(file, seekSeconds, probe.duration);
+    const countdown = this.media.prepareCountdownFilter(
+      this.settings,
+      prepared.fontFile,
+      seekSeconds,
+    );
+    if (countdown) filters.push(countdown);
     const logoEngine = this.overlayRuntime.createLogoEngine();
     const signature = this.overlayRuntime.signature(filters, undefined, logoEngine);
     await this.stopSourceAndChatLocked();
@@ -804,9 +502,6 @@ export class Supervisor {
     this.applyConfiguredDelay();
 
     this.activeStreamer = null;
-    this.activeMediaFile = file;
-    this.activeMediaOffset = seekSeconds;
-    this.activeMediaDuration = probe.duration;
     this.sinkController.key = options.key;
     this.sinkController.filters = filters;
     this.sinkController.overlayInput = undefined;
@@ -820,24 +515,14 @@ export class Supervisor {
     this.sourceSession.resetReconnectAttempts();
     this.forceReencodeNext = false;
 
-    const synthetic = StreamerSchema.parse({
-      id: 'media-file',
-      name: file,
-      tiktok: 'media-file',
-      video_mode: 'copy',
-    });
-    const resolved: ResolvedStream = {
-      url: path,
-      vcodec: probe.isH264 ? 'h264' : 'other',
-      height: probe.height,
-      formatId: null,
-      isH264: probe.isH264,
-      title: file,
-      resolvedAt: new Date(),
-    };
+    const { synthetic, resolved } = this.media.buildSyntheticStreamerAndResolved(
+      file,
+      path,
+      probe.isH264,
+      probe.height,
+    );
     const offset = 0;
     this.sourceSession.start(synthetic, resolved, false, offset, seekSeconds);
-    this.activeMediaStartedAt = Date.now();
     this.startSinkOrPrefillLocked(options.key, filters, signature, undefined, logoEngine?.panel);
     this.sourceSession.markProducerStarted(offset);
     this.markSinkGrace();
@@ -847,14 +532,7 @@ export class Supervisor {
     this.watchdog.clearError();
     this.playlistController.activate(options.playlist);
     this.transitionTo('live');
-    if (options.playlist.playlist.id === QUEUE_PLAYLIST_ID && probe.duration) {
-      this.queue.setPlayback({
-        channel: `file:${file}`,
-        position_seconds: seekSeconds,
-        duration_seconds: probe.duration,
-        updated_at: new Date().toISOString(),
-      });
-    }
+    this.media.persistProgress(this.queue, options.playlist.playlist.id);
     this.emitAll();
     this.deps.logger.info({ file, playlist: options.playlist.playlist.id }, 'Lokales Video gestartet');
     return this.buildStatus();
@@ -862,252 +540,9 @@ export class Supervisor {
 
   private async startStreamerLocked(
     streamer: StreamerConfig,
-    options: StartOptions,
+    options: StartStreamerOptions,
   ): Promise<StatusSnapshot> {
-    if (this.shuttingDown) throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
-    if (!options.preservePreferredReturn) this.preferredReturn = null;
-    this.sinkController.clearStartTimer();
-    const key = options.key ?? resolveStreamKey(streamer).key;
-    if (!key) throw new MissingStreamKeyError();
-    this.deps.registerSecret(key);
-
-    if (
-      this.activeStreamer?.id === streamer.id &&
-      this.state === 'live' &&
-      this.sinkController.key === key &&
-      !options.forceReencode
-    ) {
-      return this.buildStatus();
-    }
-
-    this.sourceSession.clearReconnectTimer();
-    const previousState = this.state;
-    this.transitionTo('starting');
-    this.lastError = null;
-    this.sourceSession.beginResolve();
-    this.emitStatus();
-
-    let stream: ResolvedStream;
-    try {
-      stream = await this.sourceSession.resolve(streamer);
-    } catch (error) {
-      this.sourceSession.endResolve();
-      const message = toErrorMessage(error);
-      this.lastError = message;
-      if (
-        error instanceof StreamerOfflineError &&
-        options.allowOfflineWait &&
-        this.settings.pause.enabled
-      ) {
-        await this.beginWaitingSessionLocked(streamer, key, options, message);
-        return this.buildStatus();
-      }
-      this.transitionTo(
-        previousState === 'live' || previousState === 'paused' ? previousState : 'error',
-        'start failed',
-      );
-      this.emitAll();
-      throw error;
-    }
-    this.sourceSession.endResolve();
-
-    const previousKey = this.sinkController.key;
-    const prepared = this.overlays.prepare();
-    const candidateEngine = this.overlayRuntime.createEngine();
-    const candidateLogo = this.overlayRuntime.createLogoEngine();
-    const overlayInput = candidateEngine?.panel;
-    const logoInput = candidateLogo?.panel;
-    const signature = this.overlayRuntime.signature(
-      prepared.filters,
-      candidateEngine,
-      candidateLogo,
-    );
-    const reusable =
-      this.sinkController.running && previousKey === key && this.sinkController.signature === signature;
-    const timestampOffset = reusable ? this.sourceSession.nextOffset() : 0;
-
-    await this.stopSourceAndChatLocked();
-
-    if (!reusable) {
-      this.buffer.reset();
-      this.sourceSession.resetTimeline();
-      if (previousKey && previousKey !== key) this.sinkController.notifyStopped(previousKey);
-      if (this.sinkController.running) await this.stopSinkLocked();
-      this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
-    } else if (
-      (!this.overlayRuntime.engine && candidateEngine) ||
-      (!this.overlayRuntime.logo && candidateLogo)
-    ) {
-      this.overlayRuntime.adoptEngine(
-        candidateEngine,
-        candidateLogo,
-        this.sinkController.overlayStream(),
-        this.sinkController.logoStream(),
-      );
-    }
-    this.applyConfiguredDelay();
-
-    this.activeStreamer = streamer;
-    this.activeMediaFile = null;
-    this.activeMediaOffset = 0;
-    this.activeMediaStartedAt = null;
-    this.activeMediaDuration = null;
-    this.queue.clearPlayback();
-    this.sinkController.key = key;
-    this.sinkController.filters = prepared.filters;
-    this.sinkController.overlayInput = overlayInput;
-    this.sinkController.logoInput = logoInput;
-    this.sinkController.signature = signature;
-    this.startedAt = new Date();
-    this.activeTitle = stream.title;
-    this.pauseController.pauseReason = null;
-    this.pauseController.manualScreen = null;
-    this.pauseController.clearPauseLimit();
-    this.sourceSession.resetReconnectAttempts();
-    this.forceReencodeNext = options.forceReencode ?? false;
-
-    const introSeconds =
-      options.intro !== false &&
-      !options.playlist &&
-      previousState === 'idle' &&
-      this.settings.startup.enabled
-        ? Math.max(0, this.settings.startup.duration_seconds)
-        : 0;
-
-    if (introSeconds > 0) {
-      incMetric('startup_screens_total');
-      await this.pauseController.startStartup(timestampOffset);
-      this.sourceSession.markProducerStarted(timestampOffset);
-      this.markSinkGrace();
-      this.pauseController.clearOfflinePauseTimer();
-      this.earnings.setActive();
-      this.watchdog.reset();
-      this.watchdog.clearError();
-      this.transitionTo('starting', 'startup screen');
-      this.scheduleStartupFinishLocked(streamer, stream, introSeconds);
-    } else {
-      this.sourceSession.start(streamer, stream, this.reencodeSource(false), timestampOffset);
-      this.sourceSession.markProducerStarted(timestampOffset);
-      this.markSinkGrace();
-      this.pauseController.clearOfflinePauseTimer();
-      this.overlayRuntime.startChat(streamer);
-      this.earnings.setActive();
-      this.autoRefresh.start();
-      this.watchdog.reset();
-      this.watchdog.clearError();
-      this.transitionTo('live');
-    }
-    if (!reusable) {
-      this.startSinkOrPrefillLocked(key, prepared.filters, signature, overlayInput, logoInput);
-    }
-    this.playlistController.activate(options.playlist ?? null);
-    this.emitAll();
-    this.deps.logger.info(
-      { streamer: streamer.id, key: '***', reusedSink: reusable, introSeconds },
-      introSeconds > 0 ? 'Startbildschirm aktiv' : 'Stream gestartet',
-    );
-    return this.buildStatus();
-  }
-
-  private scheduleStartupFinishLocked(
-    streamer: StreamerConfig,
-    stream: ResolvedStream,
-    introSeconds: number,
-  ): void {
-    this.pauseController.scheduleStartupFinish(introSeconds, () => {
-      void this.lock.run(async () => {
-        if (
-          this.shuttingDown ||
-          this.state !== 'starting' ||
-          this.activeStreamer?.id !== streamer.id
-        ) {
-          return;
-        }
-        await this.pauseController.stopStartup();
-        if (this.sourceSession.running) return;
-        const offset = this.sourceSession.nextOffset();
-        this.sourceSession.start(streamer, stream, this.reencodeSource(false), offset);
-        this.sourceSession.markProducerStarted(offset);
-        this.markSinkGrace();
-        this.pauseController.clearOfflinePauseTimer();
-        this.overlayRuntime.startChat(streamer);
-        this.autoRefresh.start();
-        this.transitionTo('live', 'startup finished');
-        this.emitAll();
-      });
-    });
-  }
-
-  /**
-   * Manual start of an offline streamer: keep YouTube alive with the pause
-   * screen and retry until the streamer goes live (matches the old
-   * Python restreamer behaviour instead of returning an error immediately).
-   */
-  private async beginWaitingSessionLocked(
-    streamer: StreamerConfig,
-    key: string,
-    options: StartOptions,
-    message: string,
-  ): Promise<void> {
-    this.sourceSession.clearReconnectTimer();
-    this.pauseController.clearOfflinePauseTimer();
-    const prepared = this.overlays.prepare();
-    const candidateEngine = this.overlayRuntime.createEngine();
-    const candidateLogo = this.overlayRuntime.createLogoEngine();
-    const overlayInput = candidateEngine?.panel;
-    const logoInput = candidateLogo?.panel;
-    const signature = this.overlayRuntime.signature(
-      prepared.filters,
-      candidateEngine,
-      candidateLogo,
-    );
-    const reusable =
-      this.sinkController.running && this.sinkController.key === key && this.sinkController.signature === signature;
-
-    await this.stopSourceAndChatLocked();
-    if (!reusable) {
-      this.buffer.reset();
-      this.sourceSession.resetTimeline();
-      if (this.sinkController.running) await this.stopSinkLocked();
-      this.overlayRuntime.replaceEngine(candidateEngine, candidateLogo);
-    } else if (
-      (!this.overlayRuntime.engine && candidateEngine) ||
-      (!this.overlayRuntime.logo && candidateLogo)
-    ) {
-      this.overlayRuntime.adoptEngine(
-        candidateEngine,
-        candidateLogo,
-        this.sinkController.overlayStream(),
-        this.sinkController.logoStream(),
-      );
-    }
-
-    this.activeStreamer = streamer;
-    this.sinkController.key = key;
-    this.sinkController.filters = prepared.filters;
-    this.sinkController.overlayInput = overlayInput;
-    this.sinkController.logoInput = logoInput;
-    this.sinkController.signature = signature;
-    this.startedAt = new Date();
-    this.activeTitle = streamer.name;
-    this.sourceSession.resetReconnectAttempts();
-    this.forceReencodeNext = false;
-    this.applyConfiguredDelay();
-    this.autoRefresh.stop();
-    this.watchdog.reset();
-    this.watchdog.clearError();
-
-    this.playlistController.activate(options.playlist ?? null);
-
-    await this.startPauseLocked();
-    this.earnings.setActive();
-    this.lastError = message;
-    this.emitAll();
-    this.scheduleReconnect(30_000);
-    this.deps.logger.info(
-      { streamer: streamer.id, err: message },
-      'Streamer offline – Wartemodus mit Pausenscreen',
-    );
+    return this.streamerLauncher.startStreamerLocked(streamer, options);
   }
 
   /**
@@ -1135,8 +570,7 @@ export class Supervisor {
       delaySeconds,
       bufferedSeconds,
     });
-    this.secondarySink.start();
-    this.recording.start(this.activeStreamer?.id ?? this.activeMediaFile ?? 'stream');
+    this.outputFanout.start(this.activeStreamer?.id ?? this.media.file ?? 'stream');
   }
 
   private async stopSinkLocked(): Promise<void> {
@@ -1144,10 +578,7 @@ export class Supervisor {
   }
 
   private async stopSourceAndChatLocked(): Promise<void> {
-    this.activeMediaFile = null;
-    this.activeMediaOffset = 0;
-    this.activeMediaStartedAt = null;
-    this.activeMediaDuration = null;
+    this.media.stop();
     this.overlayRuntime.stopChat();
     await this.sourceSession.stop();
     await this.pauseController.stopScreens();
@@ -1170,7 +601,7 @@ export class Supervisor {
     this.autoRefresh.stop();
     this.watchdog.reset();
     await this.stopSourceAndChatLocked();
-    await Promise.allSettled([this.secondarySink.stop(), this.recording.stop()]);
+    await this.outputFanout.stop();
     await this.stopSinkLocked();
     // A container restart is not a user stop. Keep the broadcast for the next
     // start instead of completing it on every deploy.
@@ -1180,13 +611,9 @@ export class Supervisor {
     this.overlays.clear();
     this.overlayRuntime.resetMessages();
     this.activeStreamer = null;
-    this.activeMediaFile = null;
-    this.activeMediaOffset = 0;
-    this.activeMediaStartedAt = null;
-    this.activeMediaDuration = null;
+    this.media.stop();
     this.playlistController.detach();
-    this.preferredReturn = null;
-    this.endedPreferred.clear();
+    this.autoSwitch.clearReturnTarget();
     this.sinkController.key = '';
     this.sinkController.filters = [];
     this.sinkController.overlayInput = undefined;
@@ -1196,7 +623,7 @@ export class Supervisor {
     this.activeTitle = '';
     this.lastError = null;
     this.forceReencodeNext = false;
-    this.consecutiveQuickSinkExits = 0;
+    this.sinkWatchdog?.resetQuickExits();
     this.sourceSession.resetReconnectAttempts();
     this.sourceSession.resetTimeline();
     this.earnings.setActive();
@@ -1215,11 +642,7 @@ export class Supervisor {
    * active source. Overlays are global, so any streamer works as a carrier.
    */
   private screenFallbackStreamer(): StreamerConfig {
-    return (
-      this.activeStreamer ??
-      this.deps.store.list()[0] ??
-      StreamerSchema.parse({ id: 'screen', name: 'Screen', tiktok: 'screen' })
-    );
+    return screenFallbackStreamer(this.deps.store.list(), this.activeStreamer);
   }
 
   /**
@@ -1228,20 +651,11 @@ export class Supervisor {
    * YOUTUBE_STREAM_KEY acts as the last fallback.
    */
   private resolveScreenTarget(): { streamer: StreamerConfig | null; key: string } {
-    if (this.activeStreamer && this.sinkController.key) {
-      return { streamer: this.activeStreamer, key: this.sinkController.key };
-    }
-    const streamers = this.deps.store.list();
-    const ordered = [
-      ...sortStreamersByPriority(streamers.filter((item) => item.enabled && item.preferred)),
-      ...sortStreamersByPriority(streamers.filter((item) => item.enabled && !item.preferred)),
-      ...sortStreamersByPriority(streamers.filter((item) => !item.enabled)),
-    ];
-    for (const streamer of ordered) {
-      const { key } = resolveStreamKey(streamer);
-      if (key) return { streamer, key };
-    }
-    return { streamer: null, key: resolveStreamKey({}).key };
+    return resolveScreenTarget(
+      this.deps.store.list(),
+      this.activeStreamer,
+      this.sinkController.key,
+    );
   }
 
   private resolvePlaylist(id: string): PlaylistConfig | null {
@@ -1259,95 +673,8 @@ export class Supervisor {
   }
 
   private async showScreenLocked(type: 'startup' | 'pause'): Promise<StatusSnapshot> {
-      if (this.shuttingDown) {
-        throw new AppError('shutting_down', 'Der Dienst wird beendet', 503);
-      }
-      if (type === 'startup' && !this.settings.startup.enabled) {
-        throw new ValidationError('Der Startbildschirm ist in den Einstellungen deaktiviert');
-      }
-      if (type === 'pause' && !this.settings.pause.enabled) {
-        throw new ValidationError('Der Pausenscreen ist in den Einstellungen deaktiviert');
-      }
-      this.pauseController.clearStartupTimer();
-      this.pauseController.clearOfflinePauseTimer();
-      this.pauseController.clearPauseLimit();
-      this.sourceSession.clearReconnectTimer();
-      this.sinkController.clearStartTimer();
-      await this.stopSourceAndChatLocked();
-      this.queue.clearPlayback();
-
-      let pendingSink: {
-        key: string;
-        filters: string[];
-        signature: string;
-        input?: SinkOverlayInput;
-      } | null = null;
-
-      if (this.activeStreamer && this.sinkController.key) {
-        // Keep the existing sink so the RTMP connection survives the swap.
-        if (!this.sinkController.running) {
-          this.buffer.reset();
-          this.sourceSession.resetTimeline();
-          pendingSink = {
-            key: this.sinkController.key,
-            filters: this.sinkController.filters,
-            signature: this.sinkController.signature,
-            input: this.sinkController.overlayInput,
-          };
-        }
-      } else {
-        const target = this.resolveScreenTarget();
-        if (!target.key) {
-          throw new ValidationError(
-            'Kein YouTube-Stream-Key gefunden – der Screen kann nicht gesendet werden',
-          );
-        }
-        this.deps.registerSecret(target.key);
-        if (!this.sinkController.running || this.sinkController.key !== target.key) {
-          if (this.sinkController.running) await this.stopSinkLocked();
-          this.overlayRuntime.stopEngine();
-          this.sinkController.logoInput = undefined;
-          this.overlayRuntime.resetMessages(false, false);
-          this.buffer.reset();
-          this.sourceSession.resetTimeline();
-          const prepared = this.overlays.prepare();
-          pendingSink = {
-            key: target.key,
-            filters: prepared.filters,
-            signature: this.overlayRuntime.signature(prepared.filters, undefined),
-          };
-        }
-      }
-      this.applyConfiguredDelay();
-      const offset = this.sourceSession.nextOffset();
-      const screen = this.pauseController.screen(type);
-      if (screen === this.pauseController.screen('startup')) {
-        await this.pauseController.startStartup(offset);
-      } else {
-        await this.pauseController.startPause(offset);
-      }
-      if (pendingSink) {
-        this.startSinkOrPrefillLocked(
-          pendingSink.key,
-          pendingSink.filters,
-          pendingSink.signature,
-          pendingSink.input,
-          this.sinkController.logoInput,
-        );
-      }
-      this.sourceSession.markProducerStarted(offset);
-      this.markSinkGrace();
-      this.pauseController.manualScreen = type;
-      this.pauseController.pauseReason = 'user';
-      incMetric('manual_screens_total');
-      this.transitionTo('paused', `manual ${type} screen`);
-      this.autoRefresh.stop();
-      this.emitAll();
-      this.deps.logger.info(
-        { screen: type, streamer: this.activeStreamer?.id ?? null },
-        'Manueller Screen aktiviert',
-      );
-      return this.buildStatus();
+    await this.screenController.showScreenLocked(type, this.activeStreamer);
+    return this.buildStatus();
   }
 
   async hideScreen(): Promise<StatusSnapshot> {
@@ -1368,7 +695,7 @@ export class Supervisor {
         playlist: this.playlistController.current ?? undefined,
         allowOfflineWait: true,
         intro: false,
-        preservePreferredReturn: Boolean(this.preferredReturn),
+        preservePreferredReturn: Boolean(this.autoSwitch.returnTarget),
       });
     });
   }
@@ -1396,176 +723,67 @@ export class Supervisor {
   // --- Regie-Queue -----------------------------------------------------------
 
   buildQueueSnapshot(): QueueSnapshot {
-    const active = this.playlistController.current;
-    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
-    return this.queue.snapshot(Boolean(isQueue), isQueue ? (active?.index ?? null) : null);
+    return this.queueCoordinator.buildSnapshot();
   }
 
   async queueAdd(channel: string): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      const { isQueue, currentId } = this.queueEditState();
-      this.queue.add(channel);
-      await this.reindexQueueLocked(currentId, isQueue);
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.add(channel);
   }
 
   async queueRemove(id: string): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      const { isQueue, currentId } = this.queueEditState();
-      if (!this.queue.remove(id)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
-      await this.reindexQueueLocked(currentId, isQueue);
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.remove(id);
   }
 
   async queueMove(id: string, to: number): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      const { isQueue, currentId } = this.queueEditState();
-      if (!this.queue.move(id, to)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
-      await this.reindexQueueLocked(currentId, isQueue);
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.move(id, to);
   }
 
   async queueDuplicate(id: string): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      const { isQueue, currentId } = this.queueEditState();
-      if (!this.queue.duplicate(id)) throw new NotFoundError('Queue-Eintrag nicht gefunden');
-      await this.reindexQueueLocked(currentId, isQueue);
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.duplicate(id);
   }
 
   async queueUpdateEntry(
     id: string,
     patch: { duration_seconds?: number | null },
   ): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      if (!this.queue.updateEntry(id, patch)) {
-        throw new NotFoundError('Queue-Eintrag nicht gefunden');
-      }
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.updateEntry(id, patch);
   }
 
   async queueSetLoop(loop: boolean): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      this.queue.setLoop(loop);
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.setLoop(loop);
   }
 
   async queueClear(): Promise<QueueSnapshot> {
-    return this.lock.run(async () => {
-      const { isQueue } = this.queueEditState();
-      this.queue.clear();
-      if (isQueue) await this.stopInternalLocked();
-      this.emitQueue();
-      return this.buildQueueSnapshot();
-    });
+    return this.queueCoordinator.clear();
   }
 
   async queuePlay(index = 0): Promise<StatusSnapshot> {
-    if (this.queue.get().length === 0) {
-      throw new ValidationError('Die Regie-Queue ist leer');
-    }
-    return this.playlistController.play(QUEUE_PLAYLIST_ID, index);
+    return this.queueCoordinator.play(index);
   }
 
   async queueNext(): Promise<StatusSnapshot> {
-    if (this.playlistController.current?.playlist.id !== QUEUE_PLAYLIST_ID) {
-      throw new ValidationError('Die Regie-Queue ist nicht aktiv');
-    }
-    return this.playlistController.next();
+    return this.queueCoordinator.next();
   }
 
   async queueStop(): Promise<StatusSnapshot> {
-    return this.stop();
+    return this.queueCoordinator.stop();
   }
 
-  /** "Sofort abspielen": queued after the current entry and skipped to. */
   async queuePlayNow(channel: string): Promise<StatusSnapshot> {
-    const active = this.playlistController.current;
-    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
-    if (isQueue && active) {
-      this.queue.insertAt(channel, active.index + 1);
-      this.emitQueue();
-      return this.playlistController.next();
-    }
-    this.queue.insertAt(channel, 0);
-    this.emitQueue();
-    return this.playlistController.play(QUEUE_PLAYLIST_ID, 0);
+    return this.queueCoordinator.playNow(channel);
   }
 
-  /** Jumps within the currently playing local video. */
   async seekActiveVideo(seconds: number): Promise<StatusSnapshot> {
-    return this.lock.run(async () => {
-      const file = this.activeMediaFile;
-      if (!file) throw new ValidationError('Es läuft kein lokales Video');
-      const key = this.sinkController.key;
-      if (!key) throw new ValidationError('Kein aktiver YouTube-Stream-Key');
-      const current = this.playlistController.current;
-      if (!current) throw new ValidationError('Keine aktive Playlist');
-      const max = this.activeMediaDuration
-        ? Math.max(0, this.activeMediaDuration - 0.5)
-        : Math.max(0, seconds);
-      const target = Math.max(0, Math.min(seconds, max));
-      this.deps.logger.info({ file, seconds: target }, 'Lokales Video wird gesucht');
-      return this.startFileLocked(file, {
-        key,
-        playlist: current,
-        seekSeconds: target,
-      });
-    });
-  }
-
-  private queueEditState(): { isQueue: boolean; currentId: string | null } {
-    const active = this.playlistController.current;
-    const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
-    return {
-      isQueue: Boolean(isQueue),
-      currentId: isQueue && active ? this.queue.entryIdAt(active.index) : null,
-    };
-  }
-
-  /** Keeps playback on the same entry after a live queue edit; stops if it was removed. */
-  private async reindexQueueLocked(currentId: string | null, wasActive: boolean): Promise<void> {
-    if (!wasActive || !currentId) return;
-    const nextIndex = this.queue.indexOfId(currentId);
-    if (nextIndex >= 0) {
-      this.playlistController.setIndex(nextIndex);
-      return;
-    }
-    this.queue.clearPlayback();
-    await this.stopInternalLocked();
+    return this.queueCoordinator.seekActiveVideo(seconds);
   }
 
   private currentMediaPosition(): number {
-    if (!this.activeMediaDuration) return 0;
-    const elapsed =
-      this.activeMediaStartedAt === null
-        ? 0
-        : Math.max(0, (Date.now() - this.activeMediaStartedAt) / 1000);
-    return Math.min(this.activeMediaDuration, this.activeMediaOffset + elapsed);
+    return this.media.currentPosition();
   }
 
   /** Persists the active queue video position (throttled by the status timer). */
   private persistMediaProgress(): void {
-    if (!this.activeMediaFile || !this.activeMediaDuration) return;
-    if (this.playlistController.current?.playlist.id !== QUEUE_PLAYLIST_ID) return;
-    this.queue.setPlayback({
-      channel: `file:${this.activeMediaFile}`,
-      position_seconds: this.currentMediaPosition(),
-      duration_seconds: this.activeMediaDuration,
-      updated_at: new Date().toISOString(),
-    });
+    this.media.persistProgress(this.queue, this.playlistController.current?.playlist.id);
   }
 
   private async resumeQueuePlayback(playback: QueuePlayback): Promise<void> {
@@ -1592,8 +810,7 @@ export class Supervisor {
     this.playlistController.clearTimers();
     if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
     this.autoStartTimer = undefined;
-    if (this.resumeTimer) clearTimeout(this.resumeTimer);
-    this.resumeTimer = undefined;
+    this.media.clearResumeTimer();
     this.pauseController.clearTimers();
   }
 
@@ -1601,367 +818,39 @@ export class Supervisor {
     code: number | null = null,
     signal: NodeJS.Signals | null = null,
   ): void {
-    if (this.shuttingDown || this.sourceSession.stopping > 0) return;
-    if (this.activeMediaFile) {
-      const file = this.activeMediaFile;
-      this.activeMediaFile = null;
-      this.activeMediaOffset = 0;
-      this.activeMediaStartedAt = null;
-      this.activeMediaDuration = null;
-      this.deps.logger.info({ file, code, signal }, 'Lokales Playlist-Video beendet');
-      void this.playlistController.advanceAfterFile().catch((error) => {
-        this.lastError = toErrorMessage(error);
-        this.deps.logger.warn({ err: this.lastError }, 'Playlist konnte nach Video nicht fortsetzen');
-        this.emitAll();
-      });
-      return;
-    }
-    if (!this.activeStreamer) return;
-    if (!['live', 'starting'].includes(this.state)) return;
-    incMetric('source_exits_total');
-    this.sourceSession.incrementReconnects();
-    this.lastError = 'Stream-Quelle beendet';
-    this.pauseController.scheduleOfflinePause();
-    if (!this.settings.watchdog.auto_reconnect) {
-      if (this.preferredReturn) {
-        void this.lock.run(async () => {
-          await this.returnToPreferredOriginLocked('preferred source ended without reconnect');
-          this.emitAll();
-        });
-        return;
-      }
-      this.transitionTo('error');
-      this.emitAll();
-      return;
-    }
-    this.transitionTo('reconnecting');
-    this.emitStatus();
-    this.deps.logger.warn(
-      { streamer: this.activeStreamer.id },
-      'Quelle unerwartet beendet – Neuverbindung',
-    );
-    this.scheduleReconnect();
+    this.sourceRecovery.handleSourceExit(code, signal);
   }
 
   private scheduleReconnect(delayMs?: number): void {
-    if (this.shuttingDown || !this.activeStreamer || this.sourceSession.reconnecting) return;
-    incMetric('source_reconnects_total');
-    const scheduled = this.sourceSession.scheduleReconnect(delayMs, () => void this.reconnect());
-    if (!scheduled) return;
-    if (this.state !== 'paused') this.transitionTo('reconnecting', 'reconnect scheduled');
-    this.emitStatus();
-    this.deps.logger.info(
-      { attempt: scheduled.attempt, delaySeconds: Math.round(scheduled.delayMs / 100) / 10 },
-      'Neuverbindung geplant',
-    );
+    this.sourceRecovery.scheduleReconnect(delayMs);
   }
 
   private reencodeSource(reconnect: boolean): boolean {
-    if (this.forceReencodeNext) return true;
-    const mode = this.settings.source.reencode;
-    if (mode === 'always') return true;
-    if (mode === 'on_reconnect' && reconnect) return true;
-    return false;
+    return this.sourceRecovery.reencodeSource(reconnect);
   }
 
   private async reconnect(): Promise<void> {
-    await this.lock.run(async () => {
-      if (this.shuttingDown || !this.activeStreamer) return;
-      if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return;
-      if (this.sourceSession.running) return;
-      this.transitionTo('reconnecting');
-      this.emitStatus();
-      try {
-        const stream = await this.sourceSession.resolve(this.activeStreamer);
-        await this.pauseController.stopPause();
-        this.applyConfiguredDelay();
-        const timestampOffset = this.sourceSession.nextOffset();
-        this.sourceSession.start(this.activeStreamer, stream, this.reencodeSource(true), timestampOffset);
-        if (!this.sinkController.running && this.sinkController.key) {
-          this.startSinkOrPrefillLocked(
-            this.sinkController.key,
-            this.sinkController.filters,
-            this.sinkController.signature,
-            this.sinkController.overlayInput,
-            this.sinkController.logoInput,
-          );
-        }
-        this.sourceSession.markProducerStarted(timestampOffset);
-        this.markSinkGrace();
-        this.applyConfiguredDelay();
-        this.pauseController.clearOfflinePauseTimer();
-        this.activeTitle = stream.title;
-        this.pauseController.clearPauseLimit();
-        this.pauseController.pauseReason = null;
-        this.pauseController.manualScreen = null;
-        this.lastError = null;
-        this.sourceSession.resetReconnectAttempts();
-        this.watchdog.clearError();
-        this.overlayRuntime.ensureChat(this.activeStreamer);
-        this.transitionTo('live');
-        incMetric('reconnect_success_total');
-        this.emitAll();
-        this.deps.logger.info({ streamer: this.activeStreamer.id }, 'Stream wieder verbunden');
-      } catch (error) {
-        const message = toErrorMessage(error);
-        this.lastError = message;
-        incMetric('reconnect_failures_total');
-        if (this.sourceSession.reconnectAttempts >= 3) {
-          this.deps.webhooks?.notify('reconnect_failed', 'Neuverbindung fehlgeschlagen', message, {
-            streamer: this.activeStreamer?.id ?? null,
-            attempts: this.sourceSession.reconnectAttempts,
-          });
-        }
-        this.deps.logger.warn(
-          { streamer: this.activeStreamer.id, err: message },
-          'Neuverbindung fehlgeschlagen',
-        );
-        if (error instanceof StreamerOfflineError && this.preferredReturn) {
-          await this.returnToPreferredOriginLocked('preferred streamer offline');
-          this.emitAll();
-          return;
-        }
-        const playlist = this.playlistController.current;
-        if (error instanceof StreamerOfflineError && playlist) {
-          if (playlist.playlist.auto_advance) {
-            this.playlistController.scheduleAdvance();
-            this.emitStatus();
-            return;
-          }
-          if (this.settings.pause.enabled && this.sinkController.running && !this.pauseController.pauseRunning) {
-            await this.startPauseLocked();
-          }
-          this.emitStatus();
-          this.scheduleReconnect(Math.max(30, this.settings.watchdog.max_reconnect_delay) * 1000);
-          return;
-        }
-        if (
-          error instanceof StreamerOfflineError &&
-          this.settings.pause.enabled &&
-          this.sinkController.running &&
-          !this.pauseController.pauseRunning &&
-          this.sourceSession.reconnectAttempts >= 2
-        ) {
-          await this.startPauseLocked();
-        }
-        this.emitStatus();
-        this.scheduleReconnect(error instanceof StreamerOfflineError ? 30_000 : undefined);
-      }
-    });
+    return this.sourceRecovery.reconnect();
   }
 
   private async startPauseLocked(): Promise<void> {
-    this.pauseController.clearStartupTimer();
-    await this.pauseController.stopStartup();
-    this.overlayRuntime.stopChat();
-    this.applyConfiguredDelay();
-    const timestampOffset = this.sourceSession.nextOffset();
-    await this.pauseController.startPause(timestampOffset);
-    if (!this.sinkController.running && this.sinkController.key) {
-      this.startSinkOrPrefillLocked(
-        this.sinkController.key,
-        this.sinkController.filters,
-        this.sinkController.signature,
-        this.sinkController.overlayInput,
-        this.sinkController.logoInput,
-      );
-    }
-    this.sourceSession.markProducerStarted(timestampOffset);
-    this.markSinkGrace();
-    this.pauseController.pauseReason = 'offline';
-    this.pauseController.manualScreen = null;
-    this.transitionTo('paused');
-    incMetric('pause_starts_total');
-    this.pauseController.schedulePauseLimit();
-    this.deps.logger.info('Quelle offline – Pausenscreen aktiv');
+    return this.sourceRecovery.startPauseLocked();
   }
 
   private canStartOfflinePauseLocked(): boolean {
-    if (this.sourceSession.running || this.pauseController.pauseRunning || !this.sinkController.running) {
-      return false;
-    }
-    if (this.playlistController.isAdvancePending) return false;
-    if (!['live', 'starting', 'reconnecting', 'paused', 'error'].includes(this.state)) return false;
-    if (this.state === 'paused' && this.pauseController.pauseReason === 'user') return false;
-    return true;
+    return this.sourceRecovery.canStartOfflinePauseLocked();
   }
 
   private async refreshSource(reason: string): Promise<void> {
-    await this.lock.run(async () => {
-      const streamer = this.activeStreamer;
-      if (!streamer || this.shuttingDown) return;
-      if (!['live', 'paused'].includes(this.state)) return;
-      this.deps.logger.info({ reason }, 'Quell-URL wird aktualisiert');
-      try {
-        const stream = await this.sourceSession.resolve(streamer);
-        await this.pauseController.stopPause();
-        await this.sourceSession.stop();
-        const timestampOffset = this.sourceSession.nextOffset();
-        this.sourceSession.start(streamer, stream, this.reencodeSource(true), timestampOffset);
-        this.sourceSession.markProducerStarted(timestampOffset);
-        this.markSinkGrace();
-        this.applyConfiguredDelay();
-        this.pauseController.clearOfflinePauseTimer();
-        this.activeTitle = stream.title;
-        this.pauseController.clearPauseLimit();
-        this.pauseController.pauseReason = null;
-        this.pauseController.manualScreen = null;
-        this.transitionTo('live');
-        this.lastError = null;
-        this.autoRefresh.markRefreshed();
-        // Keep the running chat service alive: restarting it would clear the
-        // overlay until the next poll and cause visible flicker.
-        this.overlayRuntime.ensureChat(streamer);
-        this.emitAll();
-      } catch (error) {
-        this.lastError = toErrorMessage(error);
-        this.emitStatus();
-        if (error instanceof StreamerOfflineError && this.preferredReturn) {
-          await this.returnToPreferredOriginLocked('preferred streamer offline');
-          return;
-        }
-        if (!this.sourceSession.running && this.state === 'live') {
-          this.scheduleReconnect(3000);
-        }
-        if (error instanceof StreamerOfflineError) {
-          this.deps.logger.warn('Auto-Refresh: Streamer ist offline');
-          if (this.playlistController.current?.playlist.auto_advance) {
-            this.playlistController.scheduleAdvance();
-          }
-        } else {
-          this.deps.logger.warn({ err: this.lastError }, 'Auto-Refresh fehlgeschlagen');
-        }
-        throw error;
-      }
-    });
+    return this.sourceRecovery.refreshSource(reason);
   }
 
   private handleCodecProblem(line: string): void {
-    if (this.shuttingDown || this.sourceSession.stopping > 0 || !this.activeStreamer) return;
-    this.deps.logger.warn({ line }, 'Quell-Codec wird nicht unterstützt – Re-Encoding-Fallback');
-    this.forceReencodeNext = true;
-    void (async () => {
-      await this.sourceSession.stop();
-      this.pauseController.scheduleOfflinePause();
-      this.scheduleReconnect(1000);
-    })();
-  }
-
-  private handleSinkExit(): void {
-    if (this.sinkController.stopping || this.shuttingDown) return;
-    if ((!this.activeStreamer && !this.pauseController.manualScreen && !this.activeMediaFile) || !this.sinkController.key) {
-      return;
-    }
-    if (['idle', 'stopping'].includes(this.state)) return;
-    this.overlayRuntime.detachEngine();
-    const ranMs = this.sinkController.startedAt ? Date.now() - this.sinkController.startedAt.getTime() : 0;
-    if (ranMs < 15_000) {
-      this.consecutiveQuickSinkExits += 1;
-    } else {
-      this.consecutiveQuickSinkExits = 0;
-    }
-    const delayMs =
-      this.consecutiveQuickSinkExits > 0
-        ? Math.min(15_000, 3000 * 2 ** (this.consecutiveQuickSinkExits - 1))
-        : 3000;
-    this.deps.logger.warn({ delayMs, consecutiveQuickExits: this.consecutiveQuickSinkExits }, 'YouTube-Sink beendet – Neustart geplant');
-    this.scheduleSinkRestart(delayMs);
-  }
-
-  private async handleSinkUnhealthy(reason: string): Promise<void> {
-    await this.lock.run(async () => {
-      if (this.shuttingDown || !this.sinkController.key) return;
-      if (this.playlistController.isAdvancePending) return;
-      this.lastError = reason;
-      incMetric('watchdog_triggers_total');
-      this.deps.logger.warn({ reason }, 'YouTube-Sink instabil – kontrollierter Neustart');
-      this.deps.webhooks?.notify('stream_error', 'YouTube-Sink instabil', reason, {
-        streamer: this.activeStreamer?.id ?? null,
-      });
-      await this.restartSinkLocked();
-    });
-  }
-
-  private scheduleSinkRestart(delayMs: number): void {
-    this.sinkController.scheduleRestart(
-      delayMs,
-      () => this.restartSinkLocked(),
-      () => !this.shuttingDown && Boolean(this.sinkController.key) && !['idle', 'stopping'].includes(this.state),
-    );
+    this.sourceRecovery.handleCodecProblem(line);
   }
 
   private async restartSinkLocked(): Promise<void> {
-    if (!this.sinkController.key) return;
-    incMetric('sink_restarts_total');
-    await this.sinkController.restart();
-    this.emitAll();
-  }
-
-  private async handleRelayStall(ageSeconds: number): Promise<void> {
-    await this.lock.run(async () => {
-      if (!this.activeStreamer || this.shuttingDown) return;
-      if (!['live', 'reconnecting'].includes(this.state)) return;
-      if (this.playlistController.isAdvancePending) return;
-      const last = this.relay.lastData;
-      if (last && Date.now() - last.getTime() < this.settings.watchdog.stall_timeout * 1000) {
-        return;
-      }
-      this.lastError = `Quelle liefert seit ${ageSeconds}s keine Daten`;
-      incMetric('watchdog_triggers_total');
-      this.deps.logger.warn({ ageSeconds }, 'Quelle wird wegen Stall neu gestartet');
-      await this.sourceSession.stop();
-      this.pauseController.scheduleOfflinePause();
-      this.scheduleReconnect(1000);
-    });
-  }
-
-  private async handleLowBitrate(kbps: number): Promise<void> {
-    await this.lock.run(async () => {
-      if (!this.activeStreamer || this.shuttingDown) return;
-      if (this.state !== 'live') return;
-      incMetric('watchdog_triggers_total');
-      // A low source bitrate is a quality warning, not an outage. Restarting
-      // the source here would cause the output to stall repeatedly.
-      this.deps.logger.warn(
-        { kbps: Math.round(kbps), minimum: this.settings.watchdog.min_bitrate },
-        'Quell-Bitrate niedrig – Stream bleibt aktiv',
-      );
-    });
-  }
-
-  private async handleLowSourceRate(percent: number): Promise<void> {
-    await this.handleSourceProblem(`Quellrate zu niedrig (${percent} %)`, { percent });
-  }
-
-  private async handleSourceProblem(
-    reason: string,
-    context: Record<string, unknown>,
-  ): Promise<void> {
-    await this.lock.run(async () => {
-      if (!this.activeStreamer || this.shuttingDown) return;
-      if (this.state !== 'live' || this.playlistController.isAdvancePending) return;
-      this.lastError = reason;
-      incMetric('watchdog_triggers_total');
-      this.deps.logger.warn({ ...context, reason }, 'Quelle wird neu gestartet');
-      await this.sourceSession.stop();
-      this.pauseController.scheduleOfflinePause();
-      this.scheduleReconnect(2000);
-    });
-  }
-
-  private async handleSinkStall(ageSeconds: number): Promise<void> {
-    await this.lock.run(async () => {
-      if (this.shuttingDown || !this.sinkController.key) return;
-      if (this.playlistController.isAdvancePending) return;
-      const last = this.sinkController.lastProgressAt;
-      if (last && Date.now() - last.getTime() < this.settings.watchdog.stall_timeout * 1000) {
-        return;
-      }
-      this.lastError = `Encoder liefert seit ${ageSeconds}s keinen Fortschritt`;
-      incMetric('watchdog_triggers_total');
-      this.deps.logger.warn({ ageSeconds }, 'Sink wird neu gestartet');
-      await this.restartSinkLocked();
-    });
+    await this.sinkWatchdog.restartSinkLocked();
   }
 
   async applySettings(next: Settings, previous: Settings): Promise<StatusSnapshot> {
@@ -1996,155 +885,7 @@ export class Supervisor {
   }
 
   private async applySettingsLocked(next: Settings, previous: Settings): Promise<StatusSnapshot> {
-      this.settings = next;
-      if (previous.video.encoder !== next.video.encoder) {
-        // Probe lazily so switching to a hardware encoder in the dashboard
-        // works without a restart; failed probes fall back to libx264.
-        setAvailableVideoEncoders(
-          await probeVideoEncoders({
-            ffmpegBin: this.deps.config.media.ffmpegBin,
-            preferred: next.video.encoder,
-            logger: this.deps.logger,
-          }),
-        );
-      }
-      configureVideoEncoder(next.video.encoder, this.deps.logger);
-      this.sinkController.updateSettings(next);
-      this.applyConfiguredDelay();
-      this.buffer.setMaxBytes(this.bufferMaxBytes(next));
-      this.watchdog.updateSettings(next);
-      this.autoRefresh.updateSettings(next);
-      this.online.updateSettings(next);
-      this.overlays.updateSettings(next);
-      this.overlayRuntime.updateSettings(next);
-      this.sourceSession.updateSettings(next);
-      this.pauseController.updateSettings(next);
-      this.earnings.updateSettings(next);
-      this.secondarySink.updateSettings(next);
-      this.recording.updateSettings(next);
-      if (next.secondary_sink.stream_key) {
-        this.deps.registerSecret?.(next.secondary_sink.stream_key);
-      }
-      if (next.webhooks.url) {
-        this.deps.registerSecret?.(next.webhooks.url);
-      }
-      if (next.webhooks.secret) {
-        this.deps.registerSecret?.(next.webhooks.secret);
-      }
-      const sessionActive = this.sinkController.running || this.sinkController.starting;
-      if (JSON.stringify(previous.secondary_sink) !== JSON.stringify(next.secondary_sink)) {
-        await this.secondarySink.syncWithSettings(sessionActive);
-      }
-      if (JSON.stringify(previous.recording) !== JSON.stringify(next.recording)) {
-        await this.recording.syncWithSettings(
-          sessionActive,
-          this.activeStreamer?.id ?? this.activeMediaFile ?? 'stream',
-        );
-      }
-
-      const overlaysChanged = JSON.stringify(previous.overlays) !== JSON.stringify(next.overlays);
-      const earningsOverlayChanged =
-        previous.earnings.overlay_enabled !== next.earnings.overlay_enabled ||
-        previous.earnings.overlay_position !== next.earnings.overlay_position ||
-        previous.earnings.overlay_template !== next.earnings.overlay_template ||
-        previous.earnings.overlay_font_size !== next.earnings.overlay_font_size ||
-        previous.earnings.overlay_margin !== next.earnings.overlay_margin ||
-        previous.earnings.overlay_offset_x !== next.earnings.overlay_offset_x ||
-        previous.earnings.overlay_offset_y !== next.earnings.overlay_offset_y ||
-        previous.earnings.overlay_font_color !== next.earnings.overlay_font_color ||
-        previous.earnings.overlay_box_color !== next.earnings.overlay_box_color ||
-        previous.earnings.overlay_show_box !== next.earnings.overlay_show_box;
-      const overlayCarrier =
-        this.activeStreamer ??
-        (this.pauseController.manualScreen || this.activeMediaFile ? this.screenFallbackStreamer() : null);
-      let needsSinkRestart = false;
-      if (earningsOverlayChanged && overlayCarrier && !overlaysChanged) {
-        const prepared = this.overlays.prepare();
-        this.sinkController.filters = prepared.filters;
-        this.sinkController.signature = this.overlayRuntime.signature(
-          prepared.filters,
-          this.activeStreamer ? this.overlayRuntime.engine : undefined,
-          this.overlayRuntime.logo,
-        );
-        needsSinkRestart = true;
-      }
-
-      if (overlaysChanged && overlayCarrier) {
-        const prepared = this.overlays.prepare();
-        this.sinkController.filters = prepared.filters;
-        this.rebuildChatEngineLocked();
-        if (this.state === 'live' && this.activeStreamer) {
-          this.overlayRuntime.startChat(this.activeStreamer, { preserveMessages: true });
-        }
-        needsSinkRestart = true;
-      }
-
-      const videoLayoutChanged =
-        JSON.stringify(previous.video.layout) !== JSON.stringify(next.video.layout);
-      if (videoLayoutChanged) needsSinkRestart = true;
-      const audioChanged = JSON.stringify(previous.audio) !== JSON.stringify(next.audio);
-      if (audioChanged) needsSinkRestart = true;
-      if ((overlaysChanged || videoLayoutChanged) && !this.applyingScene) {
-        this.scenes.setActiveId(null);
-      }
-
-      const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
-      if (chatChanged && this.activeStreamer) {
-        if (this.state === 'live') {
-          this.overlayRuntime.startChat(this.activeStreamer, { preserveMessages: true });
-        } else if (this.state === 'paused') {
-          this.overlayRuntime.stopChat();
-          this.overlayRuntime.resetMessages(false);
-        }
-      }
-
-      const videoEncodeChanged =
-        previous.video.resolution !== next.video.resolution ||
-        previous.video.fps !== next.video.fps ||
-        previous.video.video_bitrate !== next.video.video_bitrate ||
-        previous.video.audio_bitrate !== next.video.audio_bitrate ||
-        previous.video.preset !== next.video.preset ||
-        previous.video.encoder !== next.video.encoder;
-      if (videoEncodeChanged) {
-        this.rebuildChatEngineLocked();
-        needsSinkRestart = true;
-      }
-      if (needsSinkRestart && this.sinkController.running) await this.restartSinkLocked();
-      if (videoEncodeChanged && this.sourceSession.running && this.sourceSession.resolved) {
-        const reencoding =
-          this.activeStreamer?.video_mode === 'reencode' || !this.sourceSession.resolved.isH264;
-        const resolved = this.sourceSession.resolved;
-        if (reencoding && this.activeStreamer && resolved) {
-          await this.sourceSession.stop();
-          const timestampOffset = this.sourceSession.nextOffset();
-          this.sourceSession.start(this.activeStreamer, resolved, true, timestampOffset);
-          this.sourceSession.markProducerStarted(timestampOffset);
-          this.markSinkGrace();
-          this.applyConfiguredDelay();
-        }
-      }
-      if (this.state === 'paused') {
-        const screen = this.pauseController.startupRunning
-          ? this.pauseController.screen('startup')
-          : this.pauseController.pauseRunning
-            ? this.pauseController.screen('pause')
-            : null;
-        if (screen) {
-          await screen.stop();
-          const timestampOffset = this.sourceSession.nextOffset();
-          await screen.start(undefined, undefined, timestampOffset);
-          this.sourceSession.markProducerStarted(timestampOffset);
-        }
-      }
-      if (!next.auto_refresh.enabled) {
-        this.autoRefresh.stop();
-      } else if (this.activeStreamer && this.state === 'live') {
-        this.autoRefresh.start();
-      } else if (!this.activeStreamer) {
-        this.autoRefresh.stop();
-      }
-      this.emitAll();
-      return this.buildStatus();
+    return applySupervisorSettings(this as unknown as SettingsApplyHost, next, previous);
   }
 
   async restartSink(): Promise<StatusSnapshot> {
@@ -2254,49 +995,29 @@ export class Supervisor {
     if (!streamer) throw new NotFoundError(`Streamer "${id}" wurde nicht gefunden`);
     const template = this.settings.streaming.title_template;
     const resolved = this.activeStreamer?.id === id ? this.activeTitle : '';
-    const now = new Date();
-    const title = template
-      .replaceAll('{name}', streamer.name)
-      .replaceAll('{tiktok}', streamer.tiktok.replace(/^@+/, ''))
-      .replaceAll('{title}', resolved || streamer.name)
-      .replaceAll('{date}', now.toLocaleDateString('de-DE'))
-      .replaceAll('{time}', now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))
-      .slice(0, 200);
-    return { streamer_id: id, template, title };
+    return {
+      streamer_id: id,
+      template,
+      title: formatStreamTitle(template, streamer, resolved),
+    };
   }
 
   streamersView(): StreamerView[] {
-    const activeId = this.activeStreamer?.id ?? null;
-    return this.deps.store.list().map((streamer) => {
-      const monitor = this.online.isOnline(streamer);
-      const online = streamer.id === activeId && this.state === 'live' ? true : monitor;
-      return this.deps.store.view(streamer, activeId, online);
-    });
+    return buildStreamersView(
+      this.deps.store.list(),
+      this.activeStreamer?.id ?? null,
+      this.state === 'live',
+      this.online,
+      this.deps.store,
+    );
   }
 
   playlistsView(): PlaylistView[] {
-    const active = this.playlistController.current;
-    return this.deps.store.playlists().map((playlist) => {
-      const playlistKey = resolveStreamKey(playlist).key;
-      const channelsHaveKey =
-        Boolean(playlistKey) ||
-        playlist.channels.some((channel) =>
-          Boolean(resolveStreamKey(this.playlistController.resolveChannel(channel)).key),
-        );
-      return {
-        id: playlist.id,
-        name: playlist.name,
-        channels: playlist.channels,
-        auto_advance: playlist.auto_advance,
-        wrap: playlist.wrap,
-        advance_delay_seconds: playlist.advance_delay_seconds,
-        end_after_minutes: playlist.end_after_minutes ?? null,
-        end_time: playlist.end_time ?? null,
-        youtube_key_set: channelsHaveKey,
-        active: active?.playlist.id === playlist.id,
-        index: active?.playlist.id === playlist.id ? active.index : null,
-      };
-    });
+    return buildPlaylistsView(
+      this.deps.store.playlists(),
+      this.playlistController.current,
+      (channel) => this.playlistController.resolveChannel(channel),
+    );
   }
 
   emitAll(force = false): void {
@@ -2335,20 +1056,21 @@ export class Supervisor {
   }
 
   recordingFilename(): string | null {
-    return this.recording?.filename ?? null;
+    return this.outputFanout?.recordingFilename() ?? null;
   }
 
   addRecordingMarker(input: { label?: string; source?: MarkerSource }): RecordingMarker | null {
-    return this.recording?.addMarker(input) ?? null;
+    return this.outputFanout?.addRecordingMarker(input) ?? null;
   }
 
   async createRecordingClip(options: ClipOptions): Promise<ClipResult> {
-    return this.recording.createClip(options);
+    return this.outputFanout.createRecordingClip(options);
   }
 
   buildStatus(): StatusSnapshot {
     const activeSceneId = this.scenes?.activeId() ?? null;
     const activeScene = activeSceneId ? (this.scenes.get(activeSceneId) ?? null) : null;
+    const fanout = this.outputFanout?.status() ?? {};
     return buildStatusSnapshot({
       state: this.state,
       settings: this.settings,
@@ -2371,16 +1093,9 @@ export class Supervisor {
       watchdog: this.watchdog?.stats(),
       autoRefresh: this.autoRefresh?.stats(),
       chat: this.chatStatus(),
-      media:
-        this.activeMediaFile && this.activeMediaDuration
-          ? {
-              file: this.activeMediaFile,
-              duration_seconds: this.activeMediaDuration,
-              position_seconds: this.currentMediaPosition(),
-            }
-          : null,
-      secondarySink: this.secondarySink?.status(),
-      recording: this.recording?.status(),
+      media: this.media.status(),
+      secondarySink: fanout.secondarySink,
+      recording: fanout.recording,
     });
   }
 }
