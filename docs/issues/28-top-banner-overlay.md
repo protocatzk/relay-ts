@@ -11,6 +11,12 @@ Ein integriertes, horizontales Top-Banner-Overlay als alternatives Anzeigeformat
   - Mitte: Letzte Chat-Nachrichten als einzeiliger Ticker oder weich einblendende Blase.
   - Rechts: Einnahmen-Zusammenfassung (Coins/EUR) samt kompaktem Spendenziel-Fortschrittsbalken.
 
+## Mockup
+
+![Top-Banner Overlay Mockup](https://raw.githubusercontent.com/protocatzk/relay-ts/main/docs/screenshots/top-banner-overlay-mock.svg)
+
+*Abbildung: Horizontales Top-Banner mit Status & Stream-Stats (links), Chat-Ticker (Mitte) und Einnahmen & Spendenziel (rechts). Der Hauptstream bleibt vollständig unverdeckt.*
+
 ## Umfang
 
 - **Canvas-Rendering (`src/core/overlays/` & `chat-engine.ts`):**
