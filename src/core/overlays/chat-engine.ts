@@ -249,6 +249,13 @@ export interface ChatEarningsCard {
   goalLabel?: string;
 }
 
+export interface ChatStreamerInfo {
+  name: string;
+  tiktok?: string;
+  title?: string;
+  status?: string;
+}
+
 export interface ChatOverlayEngineOptions {
   settings: Settings;
   overlays: Settings['overlays'];
@@ -269,6 +276,7 @@ export class ChatOverlayEngine {
   private readonly firstSeenAt = new Map<string, number>();
   private earningsCard: ChatEarningsCard | null = null;
   private lastEarningsCardKey = '';
+  private streamerInfo: ChatStreamerInfo | null = null;
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
   private dirty = true;
@@ -351,6 +359,11 @@ export class ChatOverlayEngine {
       this.lastEarningsCardKey = key;
       this.dirty = true;
     }
+  }
+
+  setStreamer(streamer: ChatStreamerInfo | null): void {
+    this.streamerInfo = streamer;
+    this.dirty = true;
   }
 
   setMessages(messages: ChatMessage[], now = Date.now()): void {
@@ -601,13 +614,31 @@ export class ChatOverlayEngine {
       ctx.fillText('LIVE', liveBadgeX + liveBadgeW / 2, liveBadgeY + liveBadgeH / 2);
       ctx.textAlign = 'left';
 
-      // Streamer Title
+      // Streamer Title & Status
       let cursorX = liveBadgeX + liveBadgeW + 12;
       ctx.font = `700 13px ${fontFamily}`;
       ctx.fillStyle = '#ffffff';
-      const titleText = isPreviewSample
+
+      const template = this.options.settings.streaming?.title_template || '{name} – LIVE';
+      const streamerName = this.streamerInfo?.name || (isPreviewSample ? 'RELAY Studio Live' : '');
+      const statusText = this.streamerInfo?.status || 'LIVE';
+      const tiktokHandle = (this.streamerInfo?.tiktok || '').replace(/^@+/, '');
+
+      let titleText = isPreviewSample
         ? 'RELAY Studio Live'
-        : (this.options.settings.streaming?.title_template || 'RELAY Stream');
+        : template
+            .replaceAll('{name}', streamerName || 'RELAY')
+            .replaceAll('{tiktok}', tiktokHandle)
+            .replaceAll('{live}', statusText)
+            .replaceAll('{status}', statusText)
+            .replaceAll('{title}', this.streamerInfo?.title || streamerName || 'RELAY Stream')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+      if (!titleText || titleText === '–' || titleText === '– LIVE') {
+        titleText = streamerName ? `${streamerName} – LIVE` : 'RELAY Stream';
+      }
+
       const truncatedTitle = titleText.length > 28 ? `${titleText.slice(0, 26)}…` : titleText;
       ctx.fillText(truncatedTitle, cursorX, by + bh / 2);
       cursorX += ctx.measureText(truncatedTitle).width + 20;
@@ -624,8 +655,8 @@ export class ChatOverlayEngine {
         ctx.fillText('⏱ LIVE', cursorX, by + bh / 2);
       }
 
-      // Center Mode Tag (if space permits)
-      if (bw >= 1000) {
+      // Center Mode Tag (only in preview sample)
+      if (bw >= 1000 && isPreviewSample) {
         const tagW = 160;
         const tagH = 20;
         const tagX = bx + (bw - tagW) / 2;
@@ -687,7 +718,7 @@ export class ChatOverlayEngine {
           rightCursor = goalX - 20;
         }
 
-        // Coins / Net amount
+        // Coins / Net amount & Period on the right
         ctx.textBaseline = 'middle';
         ctx.font = `500 11px ${fontFamily}`;
         ctx.fillStyle = '#94a3b8';
@@ -701,26 +732,39 @@ export class ChatOverlayEngine {
 
         ctx.font = `700 12px ${fontFamily}`;
         ctx.fillStyle = '#00ff88';
-        const netStr = card.net !== null && card.net !== undefined ? ` · ${card.net.toFixed(2)} €` : '';
+        const netStr = card.net !== null && card.net !== undefined ? ` · ${card.net.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '';
         const netW = ctx.measureText(netStr).width;
 
-        const totalEarnW = labelW + 8 + coinsW + netW;
+        const periodStr = card.periodLabel ? ` (${card.periodLabel})` : '';
+        ctx.font = `600 11px ${fontFamily}`;
+        const periodW = periodStr ? ctx.measureText(periodStr).width : 0;
+
+        const totalEarnW = labelW + 8 + coinsW + netW + (periodStr ? 4 + periodW : 0);
         const earnStartX = rightCursor - totalEarnW;
 
         ctx.font = `500 11px ${fontFamily}`;
         ctx.fillStyle = '#94a3b8';
         ctx.fillText(labelText, earnStartX, by + bh / 2);
 
+        let curX = earnStartX + labelW + 6;
         if (coinsStr) {
           ctx.font = `600 12px ${fontFamily}`;
           ctx.fillStyle = '#f8fafc';
-          ctx.fillText(coinsStr, earnStartX + labelW + 6, by + bh / 2);
+          ctx.fillText(coinsStr, curX, by + bh / 2);
+          curX += coinsW;
         }
 
         if (netStr) {
           ctx.font = `700 12px ${fontFamily}`;
           ctx.fillStyle = '#00ff88';
-          ctx.fillText(netStr, earnStartX + labelW + 6 + coinsW, by + bh / 2);
+          ctx.fillText(netStr, curX, by + bh / 2);
+          curX += netW;
+        }
+
+        if (periodStr) {
+          ctx.font = `600 11px ${fontFamily}`;
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(periodStr, curX + 4, by + bh / 2);
         }
       }
       ctx.restore();

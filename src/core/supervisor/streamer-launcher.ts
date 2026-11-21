@@ -141,6 +141,7 @@ export class StreamerLauncher {
     }
     this.deps.sourceSession.endResolve();
 
+    this.deps.overlayRuntime.setStreamer(streamer);
     const previousKey = this.deps.sinkController.key;
     const prepared = this.deps.overlays.prepare();
     const candidateEngine = this.deps.overlayRuntime.createEngine();
@@ -287,6 +288,7 @@ export class StreamerLauncher {
   ): Promise<void> {
     this.deps.sourceSession.clearReconnectTimer();
     this.deps.pauseController.clearOfflinePauseTimer();
+    this.deps.overlayRuntime.setStreamer(streamer);
     const prepared = this.deps.overlays.prepare();
     const candidateEngine = this.deps.overlayRuntime.createEngine();
     const candidateLogo = this.deps.overlayRuntime.createLogoEngine();

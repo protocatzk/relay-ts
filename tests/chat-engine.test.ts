@@ -209,7 +209,13 @@ describe('Canvas chat overlay', () => {
       goalLabel: 'Tagesziel',
     });
 
-    const png = engine.previewPng(true);
+    engine.setStreamer({
+      name: 'MaxMuster',
+      tiktok: 'max_tiktok',
+      status: 'LIVE',
+    });
+
+    const png = engine.previewPng(false);
     expect(png.length).toBeGreaterThan(1000);
     expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
     engine.stop();

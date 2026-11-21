@@ -48,6 +48,7 @@ export class OverlayRuntime {
   private currentMessages: ChatMessage[] = [];
   private lastMessageAt: Date | null = null;
   private lastValidEarningsCard: ChatEarningsCard | null = null;
+  private currentStreamer: StreamerConfig | null = null;
   private readonly analytics = new ChatAnalytics();
 
   constructor(deps: OverlayRuntimeDeps) {
@@ -94,6 +95,13 @@ export class OverlayRuntime {
     return Boolean(this.chat);
   }
 
+  setStreamer(streamer: StreamerConfig | null): void {
+    this.currentStreamer = streamer;
+    const info = streamer ? { name: streamer.name, tiktok: streamer.tiktok, status: 'LIVE' } : null;
+    this.chatEngine?.setStreamer(info);
+    this.previewEngine?.setStreamer(info);
+  }
+
   createEngine(): ChatOverlayEngine | undefined {
     const chat = this.settings.overlays.chat;
     if (!chat.enabled || chat.engine !== 'canvas') return undefined;
@@ -103,6 +111,13 @@ export class OverlayRuntime {
       logger: this.logger,
     });
     engine.setEarningsCard(this.currentEarningsCard());
+    if (this.currentStreamer) {
+      engine.setStreamer({
+        name: this.currentStreamer.name,
+        tiktok: this.currentStreamer.tiktok,
+        status: 'LIVE',
+      });
+    }
     return engine;
   }
 
@@ -202,6 +217,12 @@ export class OverlayRuntime {
 
   startChat(streamer: StreamerConfig, options: { preserveMessages?: boolean } = {}): void {
     const preserve = options.preserveMessages ?? false;
+    this.currentStreamer = streamer;
+    this.chatEngine?.setStreamer({
+      name: streamer.name,
+      tiktok: streamer.tiktok,
+      status: 'LIVE',
+    });
     this.chat?.stop(!preserve);
     if (!preserve) {
       this.currentMessages = [];
@@ -231,6 +252,10 @@ export class OverlayRuntime {
   stopChat(clear = true): void {
     this.chat?.stop(clear);
     this.chat = undefined;
+    if (clear) {
+      this.currentStreamer = null;
+      this.chatEngine?.setStreamer(null);
+    }
   }
 
   ensureChat(streamer: StreamerConfig): void {
