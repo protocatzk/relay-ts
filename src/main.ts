@@ -364,6 +364,7 @@ async function main(): Promise<void> {
             }));
           },
           activateScene: (id) => auditTelegram('scene.activate', id, () => supervisor.activateScene(id)),
+          addMarker: (label) => supervisor.addRecordingMarker({ label, source: 'telegram' }),
         },
         notify: {
           chatId: config.telegram.notifyChatId,

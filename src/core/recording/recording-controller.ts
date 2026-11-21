@@ -6,13 +6,28 @@ import type { RecordingSettings, Settings } from '../config/schema.js';
 import type { MpegTsRelay } from '../relay/relay-server.js';
 import { filesystemUsage } from '../diagnostics.js';
 import { ensureDir } from '../../utils/fs.js';
-import { ManagedProcess } from '../../utils/process.js';
+import { ManagedProcess, runCommand } from '../../utils/process.js';
+import { AppError, NotFoundError, ValidationError } from '../../utils/errors.js';
+import {
+  addRecordingMarker,
+  readRecordingMarkers,
+  type MarkerSource,
+  type RecordingMarker,
+} from './recording-markers.js';
+import {
+  ensureMediaThumbnail,
+  mediaDirectory,
+  probeMediaFile,
+  safeMediaNameFromOriginal,
+  type MediaFileWithMeta,
+} from '../media/media-files.js';
 
 export interface RecordingFileInfo {
   filename: string;
   size: number;
   modified_at: string;
   active: boolean;
+  markers_count: number;
 }
 
 export interface RecordingStatus {
@@ -36,6 +51,23 @@ export interface RecordingStorageSummary {
     free_bytes: number;
     available_bytes: number;
   } | null;
+}
+
+export interface ClipOptions {
+  sourceFilename: string;
+  startSeconds: number;
+  endSeconds?: number;
+  targetFilename?: string;
+  toMedia?: boolean;
+}
+
+export interface ClipResult {
+  filename: string;
+  path: string;
+  size: number;
+  duration: number | null;
+  to_media: boolean;
+  media_file?: MediaFileWithMeta;
 }
 
 const MAX_STDIN_BACKLOG_BYTES = 8 * 1024 * 1024;
@@ -62,11 +94,13 @@ export function listRecordings(dataDir: string, activeFilename: string | null = 
     .filter((name) => isSafeRecordingFilename(name))
     .map((filename) => {
       const stat = statSync(join(dir, filename));
+      const markers = readRecordingMarkers(dataDir, filename);
       return {
         filename,
         size: stat.size,
         modified_at: new Date(stat.mtimeMs).toISOString(),
         active: filename === activeFilename,
+        markers_count: markers.length,
       };
     })
     .sort((a, b) => Date.parse(b.modified_at) - Date.parse(a.modified_at));
@@ -347,4 +381,163 @@ export class RecordingController {
     if (this.diskTimer) clearInterval(this.diskTimer);
     this.diskTimer = undefined;
   }
+
+  addMarker(input: { label?: string; source?: MarkerSource }): RecordingMarker | null {
+    if (!this.active || !this.currentFilename || !this.startedAt) return null;
+    const offset = Math.max(0, (Date.now() - Date.parse(this.startedAt)) / 1000);
+    const marker = addRecordingMarker(this.options.dataDir, this.currentFilename, {
+      offset_seconds: offset,
+      label: input.label,
+      source: input.source,
+    });
+    this.options.logger.info(
+      { filename: this.currentFilename, markerId: marker.id, label: marker.label, offset },
+      'Aufzeichnungs-Marker gesetzt',
+    );
+    return marker;
+  }
+
+  async createClip(options: ClipOptions): Promise<ClipResult> {
+    return remuxRecordingClip({
+      ffmpegBin: this.options.media.ffmpegBin,
+      dataDir: this.options.dataDir,
+      logger: this.options.logger,
+      ...options,
+    });
+  }
+}
+
+export async function remuxRecordingClip(options: {
+  ffmpegBin: string;
+  dataDir: string;
+  sourceFilename: string;
+  startSeconds: number;
+  endSeconds?: number;
+  targetFilename?: string;
+  toMedia?: boolean;
+  logger?: Logger;
+}): Promise<ClipResult> {
+  const sourcePath = recordingFilePath(options.dataDir, options.sourceFilename);
+  if (!sourcePath || !existsSync(sourcePath)) {
+    throw new NotFoundError(`Aufzeichnung „${options.sourceFilename}“ nicht gefunden`);
+  }
+
+  const start = Math.max(0, options.startSeconds);
+  let duration: number | undefined;
+  if (options.endSeconds !== undefined) {
+    if (options.endSeconds <= start) {
+      throw new ValidationError('Endzeitpunkt muss nach dem Startzeitpunkt liegen');
+    }
+    duration = options.endSeconds - start;
+  }
+
+  const toMedia = Boolean(options.toMedia);
+  const outDir = toMedia
+    ? mediaDirectory(options.dataDir)
+    : recordingsDirectory(options.dataDir);
+  ensureDir(outDir);
+
+  if (options.targetFilename) {
+    if (
+      options.targetFilename.includes('/') ||
+      options.targetFilename.includes('\\') ||
+      options.targetFilename.includes('..')
+    ) {
+      throw new ValidationError('Ungültiger Name für den Clip (keine Pfadtrennzeichen oder .. erlaubt)');
+    }
+  }
+
+  let targetName = (options.targetFilename ?? '').trim();
+  if (targetName) {
+    targetName = basename(targetName);
+    if (!/\.(mp4|mkv)$/i.test(targetName)) {
+      targetName = `${targetName}.mp4`;
+    }
+  } else {
+    const base = options.sourceFilename.replace(/\.mkv$/i, '');
+    const endPart = options.endSeconds !== undefined ? `-${Math.round(options.endSeconds)}s` : '';
+    targetName = `clip-${base}-${Math.round(start)}s${endPart}.mp4`;
+  }
+
+  const sanitized =
+    safeMediaNameFromOriginal(targetName) ??
+    targetName.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  if (!/^[a-z0-9][a-z0-9._-]*\.(mp4|mkv)$/i.test(sanitized)) {
+    throw new ValidationError('Ungültiger Name für den Clip');
+  }
+
+  let finalName = sanitized;
+  let counter = 2;
+  while (existsSync(join(outDir, finalName))) {
+    const dot = sanitized.lastIndexOf('.');
+    const ext = dot >= 0 ? sanitized.slice(dot) : '.mp4';
+    const raw = dot >= 0 ? sanitized.slice(0, dot) : sanitized;
+    finalName = `${raw}-${counter}${ext}`;
+    counter += 1;
+  }
+
+  const outputPath = join(outDir, finalName);
+  const args = [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-ss',
+    start.toFixed(3),
+    ...(duration !== undefined ? ['-t', duration.toFixed(3)] : []),
+    '-i',
+    sourcePath,
+    '-c',
+    'copy',
+    '-avoid_negative_ts',
+    'make_zero',
+    outputPath,
+  ];
+
+  options.logger?.info(
+    { source: options.sourceFilename, target: finalName, start, duration },
+    'Clip-Remux gestartet',
+  );
+  const res = await runCommand(options.ffmpegBin, args, { timeoutMs: 120_000 });
+  if (res.code !== 0 || !existsSync(outputPath)) {
+    throw new AppError(
+      'clip_failed',
+      `FFmpeg-Remux fehlgeschlagen: ${res.stderr || 'Unbekannter Fehler'}`,
+    );
+  }
+
+  const stat = statSync(outputPath);
+  let mediaFile: MediaFileWithMeta | undefined;
+  let probedDuration: number | null = duration ?? null;
+
+  if (toMedia) {
+    try {
+      const probe = await probeMediaFile(options.ffmpegBin, outputPath);
+      if (probe.duration) probedDuration = probe.duration;
+      await ensureMediaThumbnail(options.dataDir, options.ffmpegBin, finalName);
+      mediaFile = {
+        filename: finalName,
+        path: outputPath,
+        size: stat.size,
+        modified_at: new Date(stat.mtimeMs).toISOString(),
+        duration: probe.duration,
+        width: probe.width,
+        height: probe.height,
+        is_h264: probe.isH264,
+        codec: probe.codec,
+        thumbnail_url: `/api/media/${encodeURIComponent(finalName)}/thumbnail`,
+      };
+    } catch {
+      /* ignore thumbnail/probe errors */
+    }
+  }
+
+  return {
+    filename: finalName,
+    path: outputPath,
+    size: stat.size,
+    duration: probedDuration,
+    to_media: toMedia,
+    ...(mediaFile ? { media_file: mediaFile } : {}),
+  };
 }

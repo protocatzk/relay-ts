@@ -1108,6 +1108,84 @@
         }
       }
     },
+    "/api/system/backup": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "System-Backup (.tar.gz) erstellen und herunterladen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/restore": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "System-Backup (.tar.gz) validieren und wiederherstellen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "rollback_file": {
+                      "type": "string"
+                    },
+                    "entries_count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "rollback_file",
+                    "entries_count"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {
         "tags": [
@@ -5852,6 +5930,359 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recordings/:filename/markers": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Highlight-Marker einer Aufzeichnung abrufen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "markers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "offset_seconds": {
+                            "type": "number"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "streamdeck",
+                              "telegram",
+                              "chat_spike"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "timestamp",
+                          "offset_seconds",
+                          "label",
+                          "source"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "markers"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Highlight-Marker für Aufzeichnung anlegen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "offset_seconds": {
+                    "type": "number"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "manual",
+                      "streamdeck",
+                      "telegram",
+                      "chat_spike"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "marker": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "offset_seconds": {
+                          "type": "number"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "timestamp",
+                        "offset_seconds",
+                        "label",
+                        "source"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "marker"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recordings/:filename/markers/:id": {
+      "delete": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Highlight-Marker entfernen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recordings/:filename/clip": {
+      "post": {
+        "tags": [
+          "media"
+        ],
+        "summary": "Clip aus Aufzeichnung schneiden und optional zu Medien hinzufügen",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "start_seconds": {
+                    "type": "number"
+                  },
+                  "end_seconds": {
+                    "type": "number"
+                  },
+                  "target_filename": {
+                    "type": "string"
+                  },
+                  "to_media": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "start_seconds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "clip": {
+                      "type": "object",
+                      "properties": {
+                        "filename": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "duration": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "to_media": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "filename",
+                        "path",
+                        "size",
+                        "to_media"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "clip"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

@@ -1,6 +1,6 @@
 import type { Router } from 'vue-router';
 
-export type DeckActionId = 'start' | 'stop' | 'pause' | 'startup';
+export type DeckActionId = 'start' | 'stop' | 'pause' | 'startup' | 'marker';
 
 export interface DeckActionConfig {
   id: DeckActionId;
@@ -12,6 +12,7 @@ export const DEFAULT_DECK_ACTIONS: readonly DeckActionConfig[] = [
   { id: 'stop', visible: true },
   { id: 'pause', visible: true },
   { id: 'startup', visible: true },
+  { id: 'marker', visible: true },
 ];
 
 export const DECK_ACTION_LABELS: Record<DeckActionId, string> = {
@@ -19,6 +20,7 @@ export const DECK_ACTION_LABELS: Record<DeckActionId, string> = {
   stop: 'Stop',
   pause: 'Pause / Resume',
   startup: 'Startbildschirm',
+  marker: 'Highlight-Marker',
 };
 
 const STORAGE_KEY = 'relay.deck.layout.v1';
@@ -29,7 +31,7 @@ export function loadDeckLayout(): DeckActionConfig[] {
     if (!raw) return DEFAULT_DECK_ACTIONS.map((item) => ({ ...item }));
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return DEFAULT_DECK_ACTIONS.map((item) => ({ ...item }));
-    const validIds = new Set<DeckActionId>(['start', 'stop', 'pause', 'startup']);
+    const validIds = new Set<DeckActionId>(['start', 'stop', 'pause', 'startup', 'marker']);
     const seen = new Set<DeckActionId>();
     const result: DeckActionConfig[] = [];
     for (const candidate of parsed) {

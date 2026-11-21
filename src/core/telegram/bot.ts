@@ -168,6 +168,7 @@ export interface TelegramControl {
   youtubeAssign?(id: string, streamerId: string): Promise<unknown>;
   scenes?(): { id: string; name: string; active: boolean }[];
   activateScene?(id: string): Promise<unknown>;
+  addMarker?(label?: string): Promise<{ id: string; label: string; offset_seconds: number } | null> | { id: string; label: string; offset_seconds: number } | null;
 }
 
 export interface TelegramBotOptions {
@@ -468,6 +469,9 @@ export class TelegramBot {
         return;
       case '/scene':
         await this.handleSceneCommand(chatId, text.slice('/scene'.length).trim());
+        return;
+      case '/marker':
+        await this.handleMarkerCommand(chatId, text.slice('/marker'.length).trim());
         return;
       case '/notify':
         await this.handleNotifyCommand(chatId, args);
@@ -1619,6 +1623,26 @@ export class TelegramBot {
         'Tippe auf eine Szene zum Aktivieren (inkl. Video-Layout):',
       ].join('\n'),
       { inline_keyboard: rows },
+    );
+  }
+
+  private async handleMarkerCommand(chatId: number, rawLabel: string): Promise<void> {
+    const label = rawLabel.trim() || 'Highlight';
+    if (!this.options.control?.addMarker) {
+      await this.sendMessage(chatId, '❌ Marker-Funktion nicht verfügbar.');
+      return;
+    }
+    const marker = await this.options.control.addMarker(label);
+    if (!marker) {
+      await this.sendMessage(chatId, 'ℹ️ Aktuell läuft keine Aufzeichnung.');
+      return;
+    }
+    const minutes = Math.floor(marker.offset_seconds / 60);
+    const seconds = Math.floor(marker.offset_seconds % 60);
+    const mmss = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    await this.sendMessage(
+      chatId,
+      `🔖 <b>Marker gesetzt</b>\n„${escapeHtml(marker.label)}“ bei ${mmss}`,
     );
   }
 

@@ -338,6 +338,18 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   liefert JSON-Zähler (Auth erforderlich).
 - `scripts/backup.sh` und `scripts/restore.sh` sichern `config/` und `data/`
   ohne `data/sessions.json` und Laufzeit-Overlays.
+- Dashboard-Backup: `GET /api/system/backup` exportiert ein `.tar.gz` aus `config/`
+  und `data/` (exklusive Sessions, Medien und Aufnahmen). `POST /api/system/restore`
+  validiert Archive strikt (kein Traversal, keine Symlinks/Hardlinks, Whitelist),
+  erstellt ein automatisches Rollback-Archiv unter `data/backups/rollback-*.tar.gz`,
+  setzt `0600`-Rechte und lädt aktive Stores (`Settings`, `Streamers`, `Scenes`,
+  `Scheduler`) atomar neu.
+- Aufnahmen (`data/recordings/`): Highlight-Marker (`data/recordings/<datei>.markers.json`,
+  0600) können während aktiver Aufnahme (Dashboard, Telegram `/marker`, Stream-Deck)
+  oder nachträglich erfasst werden. Remux-Clips (`POST /api/recordings/:file/clip`)
+  schneiden per ffmpeg `-c copy` verlustfrei zu MP4 und können mit `to_media: true`
+  direkt mit Thumbnail in `data/media/` übernommen werden. Beim Löschen einer Aufnahme
+  wird die `.markers.json` mitgelöscht.
 
 ## Frontend-Konventionen
 

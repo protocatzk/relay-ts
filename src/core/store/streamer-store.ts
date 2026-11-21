@@ -78,6 +78,12 @@ export class StreamerStore {
     }
   }
 
+  /** Force a reload from disk (e.g. after a backup restore). */
+  reload(): boolean {
+    this.mtimeMs = 0;
+    return this.reloadIfChanged();
+  }
+
   /** Pick up manual YAML edits without restarting the service. */
   reloadIfChanged(): boolean {
     try {

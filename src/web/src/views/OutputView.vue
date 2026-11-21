@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { RecordingFile, RecordingsListResponse } from '@/src/api/types';
+import type { RecordingFile, RecordingMarker, RecordingsListResponse } from '@/src/api/types';
+import ModalDialog from '@/src/components/ModalDialog.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useStore } from '@/src/composables/useStore';
@@ -148,6 +149,128 @@ async function deleteRecording(file: RecordingFile): Promise<void> {
     pushToast(errorMessage(error), 'error');
   } finally {
     deletingFile.value = null;
+  }
+}
+
+function formatOffset(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const addingActiveMarker = ref(false);
+async function addActiveMarker(): Promise<void> {
+  addingActiveMarker.value = true;
+  try {
+    const res = await api.recordings.addMarker('current', { label: 'Highlight', source: 'manual' });
+    pushToast(`Marker „${res.marker.label}“ bei ${formatOffset(res.marker.offset_seconds)} gesetzt.`, 'success');
+    await loadRecordings();
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    addingActiveMarker.value = false;
+  }
+}
+
+// Markers Modal
+const markersFile = ref<RecordingFile | null>(null);
+const fileMarkers = ref<RecordingMarker[]>([]);
+const markersLoading = ref(false);
+const newMarkerLabel = ref('');
+const newMarkerOffset = ref<number | null>(null);
+
+async function openMarkersModal(file: RecordingFile): Promise<void> {
+  markersFile.value = file;
+  newMarkerLabel.value = '';
+  newMarkerOffset.value = null;
+  markersLoading.value = true;
+  try {
+    const res = await api.recordings.listMarkers(file.filename);
+    fileMarkers.value = res.markers;
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    markersLoading.value = false;
+  }
+}
+
+async function addManualMarker(): Promise<void> {
+  if (!markersFile.value) return;
+  const offset = newMarkerOffset.value ?? 0;
+  try {
+    const res = await api.recordings.addMarker(markersFile.value.filename, {
+      offset_seconds: offset,
+      label: newMarkerLabel.value.trim() || 'Highlight',
+      source: 'manual',
+    });
+    fileMarkers.value.push(res.marker);
+    fileMarkers.value.sort((a, b) => a.offset_seconds - b.offset_seconds);
+    newMarkerLabel.value = '';
+    newMarkerOffset.value = null;
+    pushToast('Marker hinzugefügt.', 'success');
+    await loadRecordings();
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
+}
+
+async function removeMarker(marker: RecordingMarker): Promise<void> {
+  if (!markersFile.value) return;
+  try {
+    await api.recordings.removeMarker(markersFile.value.filename, marker.id);
+    fileMarkers.value = fileMarkers.value.filter((m) => m.id !== marker.id);
+    pushToast('Marker gelöscht.', 'success');
+    await loadRecordings();
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  }
+}
+
+// Clip Modal
+const clipFile = ref<RecordingFile | null>(null);
+const clipStart = ref(0);
+const clipEnd = ref<number | null>(null);
+const clipName = ref('');
+const clipToMedia = ref(true);
+const clipping = ref(false);
+
+function openClipModal(file: RecordingFile, startOffset = 0, initialEnd?: number): void {
+  clipFile.value = file;
+  clipStart.value = startOffset;
+  clipEnd.value = initialEnd ?? (startOffset + 60);
+  clipName.value = '';
+  clipToMedia.value = true;
+}
+
+function startClipFromMarker(marker: RecordingMarker): void {
+  if (!markersFile.value) return;
+  const f = markersFile.value;
+  markersFile.value = null;
+  openClipModal(f, marker.offset_seconds, marker.offset_seconds + 60);
+}
+
+async function submitClip(): Promise<void> {
+  if (!clipFile.value) return;
+  clipping.value = true;
+  try {
+    const res = await api.recordings.createClip(clipFile.value.filename, {
+      start_seconds: clipStart.value,
+      end_seconds: clipEnd.value ?? undefined,
+      target_filename: clipName.value.trim() || undefined,
+      to_media: clipToMedia.value,
+    });
+    pushToast(
+      clipToMedia.value
+        ? `Clip „${res.clip.filename}“ erstellt und in Medien übernommen.`
+        : `Clip „${res.clip.filename}“ gespeichert.`,
+      'success',
+    );
+    clipFile.value = null;
+    await loadRecordings();
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    clipping.value = false;
   }
 }
 
@@ -313,6 +436,16 @@ onMounted(() => {
 
           <div class="quick-actions">
             <button
+              v-if="recordingStatus?.active"
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="addingActiveMarker"
+              @click="addActiveMarker"
+            >
+              <span v-if="addingActiveMarker" class="spinner" aria-hidden="true"></span>
+              🔖 Highlight-Marker setzen
+            </button>
+            <button
               type="button"
               class="btn btn-primary btn-sm"
               :disabled="savingRecording || loading"
@@ -365,6 +498,20 @@ onMounted(() => {
                 <td data-label="Geändert" role="cell">{{ formatDateTime(file.modified_at) }}</td>
                 <td data-label="Aktionen" role="cell">
                   <div class="row-actions">
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      @click="openMarkersModal(file)"
+                    >
+                      🔖 {{ file.markers_count ? `${file.markers_count} Marker` : 'Marker' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-xs"
+                      @click="openClipModal(file)"
+                    >
+                      ✂️ Clip
+                    </button>
                     <a
                       :href="api.recordings.downloadUrl(file.filename)"
                       class="btn btn-ghost btn-xs"
@@ -389,5 +536,128 @@ onMounted(() => {
         </div>
       </section>
     </div>
+
+    <!-- Modal: Highlight-Marker -->
+    <ModalDialog
+      :open="markersFile !== null"
+      :title="`Highlight-Marker: ${markersFile?.filename ?? ''}`"
+      size="md"
+      @close="markersFile = null"
+    >
+      <div v-if="markersLoading" class="empty compact">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Marker werden geladen…</p>
+      </div>
+
+      <div v-else>
+        <div v-if="fileMarkers.length === 0" class="empty compact" style="margin-bottom: 1rem">
+          <p>Noch keine Marker für diese Aufzeichnung vorhanden.</p>
+        </div>
+
+        <div v-else class="table-wrap" style="max-height: 260px; overflow-y: auto; margin-bottom: 1rem">
+          <table class="data-table" role="table">
+            <thead>
+              <tr role="row">
+                <th scope="col">Zeitpunkt</th>
+                <th scope="col">Bezeichnung</th>
+                <th scope="col">Quelle</th>
+                <th scope="col">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="marker in fileMarkers" :key="marker.id" role="row">
+                <td class="mono">{{ formatOffset(marker.offset_seconds) }}</td>
+                <td>{{ marker.label }}</td>
+                <td><span class="badge tone-neutral badge-xs">{{ marker.source }}</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-xs"
+                      @click="startClipFromMarker(marker)"
+                    >
+                      ✂️ Clip
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      @click="removeMarker(marker)"
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <form class="card" style="padding: 10px; background: var(--color-bg-subtle, #1a1a1a)" @submit.prevent="addManualMarker">
+          <h3 style="font-size: 0.85rem; margin: 0 0 8px 0; text-transform: uppercase">Neuen Marker hinzufügen</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end">
+            <div class="field" style="flex: 1 1 120px; margin: 0">
+              <label for="marker-sec">Offset (Sekunden)</label>
+              <input id="marker-sec" v-model.number="newMarkerOffset" type="number" min="0" step="0.5" placeholder="0" />
+            </div>
+            <div class="field" style="flex: 2 1 180px; margin: 0">
+              <label for="marker-lbl">Bezeichnung</label>
+              <input id="marker-lbl" v-model="newMarkerLabel" type="text" placeholder="z. B. Tor gefallen" maxlength="60" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Hinzufügen</button>
+          </div>
+        </form>
+      </div>
+
+      <template #footer>
+        <button type="button" class="btn btn-ghost btn-sm" @click="markersFile = null">Schließen</button>
+      </template>
+    </ModalDialog>
+
+    <!-- Modal: Clip erstellen -->
+    <ModalDialog
+      :open="clipFile !== null"
+      :title="`Clip erstellen: ${clipFile?.filename ?? ''}`"
+      size="md"
+      @close="clipFile = null"
+    >
+      <form id="clip-form" @submit.prevent="submitClip">
+        <p class="card-sub" style="margin-bottom: 1rem">
+          Schneidet einen Bereich per verlustfreiem Stream-Copy (-c copy) als MP4 heraus.
+        </p>
+
+        <div class="settings-grid">
+          <div class="field">
+            <label for="clip-start">Startzeit (Sekunden)</label>
+            <input id="clip-start" v-model.number="clipStart" type="number" min="0" step="0.1" required />
+            <p class="field-hint">{{ formatOffset(clipStart) }}</p>
+          </div>
+
+          <div class="field">
+            <label for="clip-end">Endzeit (Sekunden, optional)</label>
+            <input id="clip-end" v-model.number="clipEnd" type="number" :min="clipStart + 0.1" step="0.1" placeholder="Bis Dateiende" />
+            <p v-if="clipEnd" class="field-hint">{{ formatOffset(clipEnd) }} (Dauer: {{ Math.max(0, Math.round(clipEnd - clipStart)) }}s)</p>
+          </div>
+
+          <div class="field field-span-2">
+            <label for="clip-name">Zieldateiname (optional)</label>
+            <input id="clip-name" v-model="clipName" type="text" placeholder="z. B. highlight-szene.mp4" maxlength="80" />
+          </div>
+        </div>
+
+        <ToggleField
+          v-model="clipToMedia"
+          label="Direkt in Medien-Bibliothek übernehmen"
+          description="Kopiert den Clip nach data/media/, erzeugt ein Thumbnail und macht ihn sofort für Playlists und die Regie-Queue verfügbar."
+        />
+      </form>
+
+      <template #footer>
+        <button type="button" class="btn btn-ghost btn-sm" :disabled="clipping" @click="clipFile = null">Abbrechen</button>
+        <button type="submit" form="clip-form" class="btn btn-primary btn-sm" :disabled="clipping">
+          <span v-if="clipping" class="spinner" aria-hidden="true"></span>
+          Clip schneiden
+        </button>
+      </template>
+    </ModalDialog>
   </div>
 </template>

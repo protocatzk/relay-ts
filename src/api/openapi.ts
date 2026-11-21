@@ -363,6 +363,29 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/system/backup',
+    tag: 'system',
+    summary: 'System-Backup (.tar.gz) erstellen und herunterladen',
+    responseType: 'application/gzip',
+    response: { type: 'string' },
+  },
+  {
+    method: 'post',
+    path: '/api/system/restore',
+    tag: 'system',
+    summary: 'System-Backup (.tar.gz) validieren und wiederherstellen',
+    response: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        rollback_file: { type: 'string' },
+        entries_count: { type: 'integer' },
+      },
+      required: ['ok', 'rollback_file', 'entries_count'],
+    },
+  },
+  {
+    method: 'get',
     path: '/api/openapi.json',
     tag: 'system',
     summary: 'OpenAPI-Spezifikation dieser API',
@@ -902,6 +925,105 @@ const routes: RouteDoc[] = [
     tag: 'media',
     summary: 'Aufzeichnung löschen',
     response: 'Ok',
+  },
+  {
+    method: 'get',
+    path: '/api/recordings/:filename/markers',
+    tag: 'media',
+    summary: 'Highlight-Marker einer Aufzeichnung abrufen',
+    response: {
+      type: 'object',
+      properties: {
+        markers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              timestamp: { type: 'string' },
+              offset_seconds: { type: 'number' },
+              label: { type: 'string' },
+              source: { type: 'string', enum: ['manual', 'streamdeck', 'telegram', 'chat_spike'] },
+            },
+            required: ['id', 'timestamp', 'offset_seconds', 'label', 'source'],
+          },
+        },
+      },
+      required: ['markers'],
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/recordings/:filename/markers',
+    tag: 'media',
+    summary: 'Highlight-Marker für Aufzeichnung anlegen',
+    body: {
+      type: 'object',
+      properties: {
+        label: { type: 'string' },
+        offset_seconds: { type: 'number' },
+        source: { type: 'string', enum: ['manual', 'streamdeck', 'telegram', 'chat_spike'] },
+      },
+    },
+    response: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        marker: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            timestamp: { type: 'string' },
+            offset_seconds: { type: 'number' },
+            label: { type: 'string' },
+            source: { type: 'string' },
+          },
+          required: ['id', 'timestamp', 'offset_seconds', 'label', 'source'],
+        },
+      },
+      required: ['ok', 'marker'],
+    },
+  },
+  {
+    method: 'delete',
+    path: '/api/recordings/:filename/markers/:id',
+    tag: 'media',
+    summary: 'Highlight-Marker entfernen',
+    response: 'Ok',
+  },
+  {
+    method: 'post',
+    path: '/api/recordings/:filename/clip',
+    tag: 'media',
+    summary: 'Clip aus Aufzeichnung schneiden und optional zu Medien hinzufügen',
+    body: {
+      type: 'object',
+      properties: {
+        start_seconds: { type: 'number' },
+        end_seconds: { type: 'number' },
+        target_filename: { type: 'string' },
+        to_media: { type: 'boolean' },
+      },
+      required: ['start_seconds'],
+    },
+    response: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        clip: {
+          type: 'object',
+          properties: {
+            filename: { type: 'string' },
+            path: { type: 'string' },
+            size: { type: 'integer' },
+            duration: { type: 'number', nullable: true },
+            to_media: { type: 'boolean' },
+          },
+          required: ['filename', 'path', 'size', 'to_media'],
+        },
+      },
+      required: ['ok', 'clip'],
+    },
   },
   {
     method: 'get',

@@ -3751,6 +3751,12 @@ select {
   color: var(--accent-text);
 }
 
+.deck-btn-marker {
+  border-color: var(--info-border, rgba(56, 189, 248, 0.3));
+  background: var(--info-soft, rgba(56, 189, 248, 0.12));
+  color: var(--info, #38bdf8);
+}
+
 .deck-section {
   display: flex;
   flex-direction: column;

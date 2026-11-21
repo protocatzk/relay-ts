@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import type { ServerResponse } from 'node:http';
+import { createReadStream, createWriteStream, existsSync, unlinkSync } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { basename, dirname, join } from 'node:path';
 import type { ApiContext } from '../context.js';
 import {
   EarningsSettingsSchema,
@@ -9,12 +12,14 @@ import {
   formatZodError,
 } from '../../core/config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
-import { join } from 'node:path';
 import { renderPausePreview } from '../../core/overlays/pause-preview.js';
 import { formatPrometheusMetrics, metricsSnapshot } from '../../core/metrics.js';
 import { collectDiagnostics } from '../../core/diagnostics.js';
 import { formatLogsAsText } from '../../utils/logger.js';
 import { AppError } from '../../utils/errors.js';
+import { createBackupArchive, restoreBackupArchive } from '../../core/system/backup-service.js';
+import { resolveHttpActor } from '../audit-middleware.js';
+import { ensureDir } from '../../utils/fs.js';
 
 const LogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(2000).optional(),
@@ -155,6 +160,86 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       ring: ctx.ring,
       forceProbe,
     });
+  });
+
+  app.get('/api/system/backup', async (request, reply) => {
+    const archive = await createBackupArchive({
+      rootDir: ctx.config.paths.root,
+      dataDir: ctx.config.paths.dataDir,
+      configDir: dirname(ctx.config.paths.settingsFile),
+      logger: ctx.logger,
+    });
+    const actorInfo = resolveHttpActor(request, ctx);
+    ctx.audit?.record({
+      actor: actorInfo.actor,
+      source: actorInfo.source,
+      action: 'system.backup',
+      target: archive.filename,
+      result: 'ok',
+    });
+    reply.header('cache-control', 'no-store');
+    reply.header('content-disposition', `attachment; filename="${archive.filename}"`);
+    reply.header('content-length', String(archive.size));
+    reply.type('application/gzip');
+    return reply.send(createReadStream(archive.archivePath));
+  });
+
+  app.post('/api/system/restore', async (request) => {
+    let upload;
+    try {
+      upload = await request.file({ limits: { fileSize: 100 * 1024 * 1024 } });
+    } catch {
+      throw new ValidationError('Upload überschreitet maximal erlaubte Dateigröße (100 MB)');
+    }
+    if (!upload) {
+      throw new ValidationError('Keine Archivdatei (.tar.gz) übermittelt');
+    }
+
+    const tempDir = join(ctx.config.paths.dataDir, 'backups', 'temp');
+    ensureDir(tempDir);
+    const tempFile = join(tempDir, `restore-${Date.now()}.tar.gz`);
+
+    try {
+      await pipeline(upload.file, createWriteStream(tempFile, { mode: 0o600 }));
+      const result = await restoreBackupArchive({
+        archivePath: tempFile,
+        rootDir: ctx.config.paths.root,
+        dataDir: ctx.config.paths.dataDir,
+        configDir: dirname(ctx.config.paths.settingsFile),
+        logger: ctx.logger,
+      });
+
+      // Hot-reload all active components
+      ctx.settingsService.reload();
+      ctx.store.reload();
+      ctx.scenes?.reload();
+      ctx.scheduler?.reload();
+      ctx.supervisor.notifyStreamersChanged();
+
+      const actorInfo = resolveHttpActor(request, ctx);
+      ctx.audit?.record({
+        actor: actorInfo.actor,
+        source: actorInfo.source,
+        action: 'system.restore',
+        target: basename(upload.filename || 'backup.tar.gz'),
+        result: 'ok',
+        detail: `${result.entriesCount} Dateien wiederhergestellt (Rollback: ${basename(result.rollbackPath)})`,
+      });
+
+      return {
+        ok: true,
+        rollback_file: basename(result.rollbackPath),
+        entries_count: result.entriesCount,
+      };
+    } finally {
+      if (existsSync(tempFile)) {
+        try {
+          unlinkSync(tempFile);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
   });
 
   app.get('/api/status', async () => ctx.supervisor.buildStatus());

@@ -182,9 +182,27 @@ export function mapHttpAuditAction(method: string, url: string): MappedAuditActi
   if (match && method === 'DELETE') {
     return { action: 'media.delete', target: decodeURIComponent(match[1]!) };
   }
+  match = /^\/api\/recordings\/([^/]+)\/markers\/([^/]+)$/.exec(path);
+  if (match && method === 'DELETE') {
+    return {
+      action: 'recording.marker_delete',
+      target: `${decodeURIComponent(match[1]!)}:${decodeURIComponent(match[2]!)}`,
+    };
+  }
+  match = /^\/api\/recordings\/([^/]+)\/markers$/.exec(path);
+  if (match && method === 'POST') {
+    return { action: 'recording.marker_create', target: decodeURIComponent(match[1]!) };
+  }
+  match = /^\/api\/recordings\/([^/]+)\/clip$/.exec(path);
+  if (match && method === 'POST') {
+    return { action: 'recording.clip_create', target: decodeURIComponent(match[1]!) };
+  }
   match = /^\/api\/recordings\/([^/]+)$/.exec(path);
   if (match && method === 'DELETE') {
     return { action: 'recording.delete', target: decodeURIComponent(match[1]!) };
+  }
+  if (path === '/api/system/restore' && method === 'POST') {
+    return { action: 'system.restore', target: null };
   }
 
   // YouTube

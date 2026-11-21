@@ -24,6 +24,11 @@ const refreshing = ref(false);
 const loadError = ref('');
 const pendingAction = ref<'restart-sink' | 'refresh-source' | null>(null);
 const actionBusy = ref(false);
+const restoreFileInput = ref<HTMLInputElement | null>(null);
+const restoreModalOpen = ref(false);
+const selectedBackupFile = ref<File | null>(null);
+const restoring = ref(false);
+const backupDownloadUrl = computed(() => api.system.backupDownloadUrl());
 let pollTimer: number | null = null;
 
 const diskFreePercent = computed(() => {
@@ -74,6 +79,35 @@ async function confirmAction(): Promise<void> {
     pushToast(errorMessage(error), 'error');
   } finally {
     actionBusy.value = false;
+  }
+}
+
+function onRestoreFileSelected(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  selectedBackupFile.value = file;
+  restoreModalOpen.value = true;
+  target.value = '';
+}
+
+async function executeRestore(): Promise<void> {
+  const file = selectedBackupFile.value;
+  if (!file) return;
+  restoring.value = true;
+  try {
+    const res = await api.system.restore(file);
+    pushToast(
+      `Backup wiederhergestellt (${res.entries_count} Dateien). Rollback: ${res.rollback_file}`,
+      'success',
+    );
+    restoreModalOpen.value = false;
+    selectedBackupFile.value = null;
+    await Promise.allSettled([refreshStatus(), loadDiagnostics(true, true)]);
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    restoring.value = false;
   }
 }
 
@@ -306,6 +340,42 @@ onBeforeUnmount(() => {
       <section class="card diag-card">
         <div class="card-head">
           <div>
+            <h2 class="card-title">Backup &amp; Wiederherstellung</h2>
+            <p class="card-sub">
+              Sichert Konfiguration und persistente Daten (exkl. Sessions, Medien und Aufnahmen).
+            </p>
+          </div>
+        </div>
+        <div class="quick-actions">
+          <a
+            :href="backupDownloadUrl"
+            download
+            class="btn btn-secondary btn-sm"
+          >
+            Backup herunterladen (.tar.gz)
+          </a>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="restoring"
+            @click="restoreFileInput?.click()"
+          >
+            <span v-if="restoring" class="spinner" aria-hidden="true"></span>
+            Backup wiederherstellen…
+          </button>
+          <input
+            ref="restoreFileInput"
+            type="file"
+            accept=".tar.gz,application/gzip,application/x-tar"
+            class="sr-only"
+            @change="onRestoreFileSelected"
+          />
+        </div>
+      </section>
+
+      <section class="card diag-card">
+        <div class="card-head">
+          <div>
             <h2 class="card-title">Letzte Fehler ({{ diagnostics.recent_errors.length }})</h2>
           </div>
           <RouterLink to="/logs?level=error" class="btn btn-ghost btn-sm">Alle Fehler ansehen</RouterLink>
@@ -346,6 +416,42 @@ onBeforeUnmount(() => {
         <button type="button" class="btn btn-primary" :disabled="actionBusy" @click="confirmAction">
           <span v-if="actionBusy" class="spinner" aria-hidden="true"></span>
           Ausführen
+        </button>
+      </template>
+    </ModalDialog>
+
+    <ModalDialog
+      :open="restoreModalOpen"
+      title="Backup wiederherstellen"
+      size="sm"
+      @close="if (!restoring) { restoreModalOpen = false; selectedBackupFile = null; }"
+    >
+      <div class="stack">
+        <p>
+          Möchtest du das Backup <strong>{{ selectedBackupFile?.name }}</strong> wirklich einspielen?
+        </p>
+        <p class="muted small">
+          Vor dem Entpacken wird automatisch ein Rollback-Archiv unter <code>data/backups/</code> angelegt.
+          Bestehende Konfigurationsdateien werden überschrieben und laufende Stores neu geladen.
+        </p>
+      </div>
+      <template #footer>
+        <button
+          type="button"
+          class="btn btn-ghost"
+          :disabled="restoring"
+          @click="restoreModalOpen = false; selectedBackupFile = null;"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          :disabled="restoring"
+          @click="executeRestore"
+        >
+          <span v-if="restoring" class="spinner" aria-hidden="true"></span>
+          Wiederherstellen
         </button>
       </template>
     </ModalDialog>

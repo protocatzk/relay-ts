@@ -109,6 +109,10 @@ export class SceneStore {
     writeJsonFile(this.path, this.data);
   }
 
+  reload(): void {
+    this.data = this.load();
+  }
+
   list(): OverlayScene[] {
     return structuredClone(this.data.scenes);
   }

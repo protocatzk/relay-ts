@@ -72,6 +72,7 @@ const tone = computed(() => stateTone(state.value));
 const activeId = computed(() => status.value?.active_streamer_id ?? null);
 const manualScreen = computed(() => status.value?.manual_screen ?? null);
 const isPaused = computed(() => state.value === 'paused');
+const recordingActive = computed(() => Boolean(status.value?.recording?.active));
 
 const activeName = computed(() => {
   if (status.value?.active_streamer_name) return status.value.active_streamer_name;
@@ -173,6 +174,18 @@ async function toggleStartup(): Promise<void> {
     shouldStop ? 'screen-stop' : 'startup',
     () => (shouldStop ? api.screens.stop() : api.screens.show('startup')),
     shouldStop ? 'Startbildschirm beendet.' : 'Startbildschirm aktiviert.',
+  );
+}
+
+async function addDeckMarker(): Promise<void> {
+  if (!recordingActive.value) {
+    pushToast('Keine Aufnahme aktiv.', 'info');
+    return;
+  }
+  await run(
+    'marker',
+    () => api.recordings.addMarker('current', { label: 'Highlight', source: 'streamdeck' }),
+    'Highlight-Marker gesetzt.',
   );
 }
 
@@ -404,6 +417,19 @@ onBeforeUnmount(() => {
             <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>
           {{ manualScreen === 'startup' ? 'Startbildschirm aus' : 'Startbildschirm' }}
+        </button>
+        <button
+          v-else-if="action.id === 'marker'"
+          type="button"
+          class="deck-btn deck-btn-marker"
+          :disabled="!recordingActive || busy !== null"
+          @click="addDeckMarker"
+        >
+          <span v-if="busy === 'marker'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1v17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Marker
         </button>
       </template>
     </section>

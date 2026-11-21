@@ -571,6 +571,50 @@ export interface RecordingFile {
   size: number;
   modified_at: string;
   active: boolean;
+  markers_count?: number;
+}
+
+export interface RecordingMarker {
+  id: string;
+  timestamp: string;
+  offset_seconds: number;
+  label: string;
+  source: 'manual' | 'streamdeck' | 'telegram' | 'chat_spike';
+}
+
+export interface RecordingMarkersResponse {
+  markers: RecordingMarker[];
+}
+
+export interface RecordingMarkerCreateInput {
+  label?: string;
+  offset_seconds?: number;
+  source?: 'manual' | 'streamdeck' | 'telegram' | 'chat_spike';
+}
+
+export interface RecordingClipInput {
+  start_seconds: number;
+  end_seconds?: number;
+  target_filename?: string;
+  to_media?: boolean;
+}
+
+export interface RecordingClipResponse {
+  ok: boolean;
+  clip: {
+    filename: string;
+    path: string;
+    size: number;
+    duration: number | null;
+    to_media: boolean;
+    media_file?: MediaFile;
+  };
+}
+
+export interface RestoreResponse {
+  ok: boolean;
+  rollback_file: string;
+  entries_count: number;
 }
 
 export interface RecordingsListResponse {

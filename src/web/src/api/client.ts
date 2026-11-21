@@ -29,7 +29,14 @@ import type {
   PlaylistInput,
   PlaylistsResponse,
   QueueSnapshot,
+  RecordingClipInput,
+  RecordingClipResponse,
+  RecordingFile,
+  RecordingMarker,
+  RecordingMarkerCreateInput,
+  RecordingMarkersResponse,
   RecordingsListResponse,
+  RestoreResponse,
   ScheduleRule,
   ScheduleRuleInput,
   Settings,
@@ -107,7 +114,8 @@ function extractMessage(data: unknown, status: number): { code: string; message:
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData) headers['Content-Type'] = 'application/json';
 
   let response: Response;
   try {
@@ -115,7 +123,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       method,
       credentials: 'include',
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.body === undefined ? undefined : isFormData ? (options.body as BodyInit) : JSON.stringify(options.body),
       signal: options.signal,
     });
   } catch (error) {
@@ -393,6 +401,28 @@ export const api = {
       request<{ ok: true }>(`/api/recordings/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
       }),
+    listMarkers: (filename: string) =>
+      request<RecordingMarkersResponse>(`/api/recordings/${encodeURIComponent(filename)}/markers`),
+    addMarker: (filename: string, input: RecordingMarkerCreateInput = {}) =>
+      request<{ ok: true; marker: RecordingMarker }>(
+        `/api/recordings/${encodeURIComponent(filename)}/markers`,
+        {
+          method: 'POST',
+          body: input,
+        },
+      ),
+    removeMarker: (filename: string, markerId: string) =>
+      request<{ ok: true }>(
+        `/api/recordings/${encodeURIComponent(filename)}/markers/${encodeURIComponent(markerId)}`,
+        {
+          method: 'DELETE',
+        },
+      ),
+    createClip: (filename: string, input: RecordingClipInput) =>
+      request<RecordingClipResponse>(`/api/recordings/${encodeURIComponent(filename)}/clip`, {
+        method: 'POST',
+        body: input,
+      }),
   },
 
   playlists: {
@@ -577,6 +607,15 @@ export const api = {
     refreshSource: () => request<unknown>('/api/system/refresh', { method: 'POST' }),
     reload: () => request<{ ok: true; changed: boolean }>('/api/reload', { method: 'POST' }),
     checkOnline: () => request<{ ok: true }>('/api/online/check', { method: 'POST' }),
+    backupDownloadUrl: () => '/api/system/backup',
+    restore: (file: File) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      return request<RestoreResponse>('/api/system/restore', {
+        method: 'POST',
+        body: form,
+      });
+    },
   },
 
   webhooks: {

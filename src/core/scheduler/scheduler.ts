@@ -251,6 +251,10 @@ export class StreamScheduler {
     };
   }
 
+  reload(): void {
+    this.rules = this.load();
+  }
+
   list(now = new Date()): ScheduleRuleView[] {
     return this.rules.map((rule) => this.toView(rule, now));
   }

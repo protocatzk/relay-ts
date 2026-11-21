@@ -29,7 +29,12 @@ import { TikTokSource } from '../source/tiktok-source.js';
 import type { ResolvedStream } from '../source/tiktok.js';
 import { YouTubeSink } from '../sink/youtube-sink.js';
 import { SecondarySink } from '../sink/secondary-sink.js';
-import { RecordingController } from '../recording/recording-controller.js';
+import {
+  RecordingController,
+  type ClipOptions,
+  type ClipResult,
+} from '../recording/recording-controller.js';
+import type { MarkerSource, RecordingMarker } from '../recording/recording-markers.js';
 import { OverlayManager } from '../overlays/overlay-manager.js';
 import type { ChatMessage } from '../overlays/chat-service.js';
 import { PauseScreen } from '../overlays/pause-screen.js';
@@ -2328,6 +2333,14 @@ export class Supervisor {
 
   recordingFilename(): string | null {
     return this.recording?.filename ?? null;
+  }
+
+  addRecordingMarker(input: { label?: string; source?: MarkerSource }): RecordingMarker | null {
+    return this.recording?.addMarker(input) ?? null;
+  }
+
+  async createRecordingClip(options: ClipOptions): Promise<ClipResult> {
+    return this.recording.createClip(options);
   }
 
   buildStatus(): StatusSnapshot {

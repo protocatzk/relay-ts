@@ -47,6 +47,16 @@ export class SettingsService {
     return structuredClone(this.current);
   }
 
+  /** Reloads settings from disk (e.g. after a backup restore). */
+  reload(): Settings {
+    const raw = readYamlFile(this.path);
+    const parsed = SettingsSchema.safeParse(raw ?? {});
+    if (parsed.success) {
+      this.current = parsed.data;
+    }
+    return this.get();
+  }
+
   /** Settings safe for the API/UI: secrets are replaced by *_set flags. */
   sanitized(): SanitizedSettings {
     const settings = this.get();
