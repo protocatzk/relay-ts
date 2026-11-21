@@ -2822,6 +2822,10 @@
                           "chat_monitor_enabled": true,
                           "banner_show_stats": true,
                           "banner_show_goal": true,
+                          "starship_style": "auto",
+                          "starship_show_telemetry": true,
+                          "starship_show_comms": true,
+                          "starship_show_power_grid": true,
                           "max_lines": 8,
                           "max_messages": 30,
                           "max_age_seconds": 0,
@@ -2884,7 +2888,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor"
+                              "pillar_monitor",
+                              "starship_cockpit"
                             ]
                           },
                           "top_banner_enabled": {
@@ -2900,6 +2905,27 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_style": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "pillar_wings",
+                              "fullscreen_16_9"
+                            ]
+                          },
+                          "starship_show_telemetry": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_comms": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -4170,6 +4196,10 @@
                           "chat_monitor_enabled": true,
                           "banner_show_stats": true,
                           "banner_show_goal": true,
+                          "starship_style": "auto",
+                          "starship_show_telemetry": true,
+                          "starship_show_comms": true,
+                          "starship_show_power_grid": true,
                           "max_lines": 8,
                           "max_messages": 30,
                           "max_age_seconds": 0,
@@ -4232,7 +4262,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor"
+                              "pillar_monitor",
+                              "starship_cockpit"
                             ]
                           },
                           "top_banner_enabled": {
@@ -4248,6 +4279,27 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_style": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "pillar_wings",
+                              "fullscreen_16_9"
+                            ]
+                          },
+                          "starship_show_telemetry": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_comms": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -4786,6 +4838,10 @@
                           "chat_monitor_enabled": true,
                           "banner_show_stats": true,
                           "banner_show_goal": true,
+                          "starship_style": "auto",
+                          "starship_show_telemetry": true,
+                          "starship_show_comms": true,
+                          "starship_show_power_grid": true,
                           "max_lines": 8,
                           "max_messages": 30,
                           "max_age_seconds": 0,
@@ -4848,7 +4904,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor"
+                              "pillar_monitor",
+                              "starship_cockpit"
                             ]
                           },
                           "top_banner_enabled": {
@@ -4864,6 +4921,27 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_style": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "pillar_wings",
+                              "fullscreen_16_9"
+                            ]
+                          },
+                          "starship_show_telemetry": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_comms": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -8294,6 +8372,10 @@
                 "chat_monitor_enabled": true,
                 "banner_show_stats": true,
                 "banner_show_goal": true,
+                "starship_style": "auto",
+                "starship_show_telemetry": true,
+                "starship_show_comms": true,
+                "starship_show_power_grid": true,
                 "max_lines": 8,
                 "max_messages": 30,
                 "max_age_seconds": 0,
@@ -8381,6 +8463,10 @@
                   "chat_monitor_enabled": true,
                   "banner_show_stats": true,
                   "banner_show_goal": true,
+                  "starship_style": "auto",
+                  "starship_show_telemetry": true,
+                  "starship_show_comms": true,
+                  "starship_show_power_grid": true,
                   "max_lines": 8,
                   "max_messages": 30,
                   "max_age_seconds": 0,
@@ -8443,7 +8529,8 @@
                     "type": "string",
                     "enum": [
                       "standard",
-                      "pillar_monitor"
+                      "pillar_monitor",
+                      "starship_cockpit"
                     ]
                   },
                   "top_banner_enabled": {
@@ -8459,6 +8546,27 @@
                     "type": "boolean"
                   },
                   "banner_show_goal": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_style": {
+                    "default": "auto",
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "pillar_wings",
+                      "fullscreen_16_9"
+                    ]
+                  },
+                  "starship_show_telemetry": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_show_comms": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_show_power_grid": {
                     "default": true,
                     "type": "boolean"
                   },
@@ -9747,6 +9855,10 @@
                 "chat_monitor_enabled": true,
                 "banner_show_stats": true,
                 "banner_show_goal": true,
+                "starship_style": "auto",
+                "starship_show_telemetry": true,
+                "starship_show_comms": true,
+                "starship_show_power_grid": true,
                 "max_lines": 8,
                 "max_messages": 30,
                 "max_age_seconds": 0,
@@ -9834,6 +9946,10 @@
                   "chat_monitor_enabled": true,
                   "banner_show_stats": true,
                   "banner_show_goal": true,
+                  "starship_style": "auto",
+                  "starship_show_telemetry": true,
+                  "starship_show_comms": true,
+                  "starship_show_power_grid": true,
                   "max_lines": 8,
                   "max_messages": 30,
                   "max_age_seconds": 0,
@@ -9896,7 +10012,8 @@
                     "type": "string",
                     "enum": [
                       "standard",
-                      "pillar_monitor"
+                      "pillar_monitor",
+                      "starship_cockpit"
                     ]
                   },
                   "top_banner_enabled": {
@@ -9912,6 +10029,27 @@
                     "type": "boolean"
                   },
                   "banner_show_goal": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_style": {
+                    "default": "auto",
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "pillar_wings",
+                      "fullscreen_16_9"
+                    ]
+                  },
+                  "starship_show_telemetry": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_show_comms": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "starship_show_power_grid": {
                     "default": true,
                     "type": "boolean"
                   },

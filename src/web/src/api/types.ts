@@ -23,11 +23,15 @@ export interface ChatOverlay {
   engine: 'canvas' | 'drawtext';
   position: OverlayPosition;
   style: 'bubbles' | 'panel' | 'minimal';
-  layout_mode?: 'standard' | 'pillar_monitor';
+  layout_mode?: 'standard' | 'pillar_monitor' | 'starship_cockpit';
   top_banner_enabled?: boolean;
   chat_monitor_enabled?: boolean;
   banner_show_stats?: boolean;
   banner_show_goal?: boolean;
+  starship_style?: 'auto' | 'pillar_wings' | 'fullscreen_16_9';
+  starship_show_telemetry?: boolean;
+  starship_show_comms?: boolean;
+  starship_show_power_grid?: boolean;
   max_lines: number;
   max_messages: number;
   max_age_seconds: number;

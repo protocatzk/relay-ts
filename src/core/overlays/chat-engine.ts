@@ -152,6 +152,16 @@ function roundedRect(
   ctx.closePath();
 }
 
+function formatMET(ms: number): string {
+  const totalSec = Math.floor(Math.max(0, ms) / 1000);
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const tenths = Math.floor((Math.max(0, ms) % 1000) / 100);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(hours)}:${pad(mins)}:${pad(secs)}.${tenths} MET`;
+}
+
 function wrapText(
   ctx: SKRSContext2D,
   text: string,
@@ -263,6 +273,9 @@ export class ChatOverlayEngine {
   private timer?: NodeJS.Timeout;
   private dirty = true;
   private cachedStatsLabel: string | null = null;
+  private cachedStarshipCanopy: Canvas | null = null;
+  private cachedStarshipCanopyKey = '';
+  private sessionStartTime = Date.now();
   private lastFrame?: Buffer;
   private blocked = false;
   private stopped = false;
@@ -275,7 +288,7 @@ export class ChatOverlayEngine {
       number,
       number,
     ];
-    if (cfg.layout_mode === 'pillar_monitor') {
+    if (cfg.layout_mode === 'pillar_monitor' || cfg.layout_mode === 'starship_cockpit') {
       this.spec = {
         width: outputWidth,
         height: outputHeight,
@@ -854,6 +867,677 @@ export class ChatOverlayEngine {
     }
   }
 
+  private buildStarshipCanopy(
+    width: number,
+    height: number,
+    style: 'pillar_wings' | 'fullscreen_16_9',
+  ): Canvas {
+    const canopy = createCanvas(width, height);
+    const ctx = canopy.getContext('2d');
+    const cfg = this.options.overlays.chat;
+
+    if (style === 'pillar_wings') {
+      const centerW = Math.round(height * (9 / 16));
+      const centerX = Math.round((width - centerW) / 2);
+      const leftWingW = Math.max(200, centerX - 16);
+      const rightWingX = centerX + centerW + 16;
+      const rightWingW = Math.max(200, width - rightWingX - 16);
+
+      // 1. Left Wing Canopy (Comms Terminal Chassis)
+      if (cfg.starship_show_comms !== false) {
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.96)';
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        roundedRect(ctx, 12, 10, leftWingW, height - 20, 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Corner cutouts / cyan accent lines
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(12, 25);
+        ctx.lineTo(27, 10);
+        ctx.moveTo(12, height - 35);
+        ctx.lineTo(27, height - 20);
+        ctx.stroke();
+
+        // Left Wing Header
+        const headerH = 34;
+        ctx.fillStyle = '#0f172a';
+        roundedRect(ctx, 20, 20, leftWingW - 16, headerH, 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+        ctx.stroke();
+
+        ctx.fillStyle = '#00f0ff';
+        ctx.beginPath();
+        ctx.arc(32, 20 + headerH / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = `700 11px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('COMMS TERMINAL // CHAT UPLINK', 44, 20 + headerH / 2);
+
+        // SECURE Pill
+        const secW = 56;
+        const secH = 18;
+        const secX = 20 + leftWingW - 16 - secW - 8;
+        const secY = 20 + (headerH - secH) / 2;
+        ctx.fillStyle = '#1e293b';
+        roundedRect(ctx, secX, secY, secW, secH, 2);
+        ctx.fill();
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#00ff88';
+        ctx.textAlign = 'center';
+        ctx.fillText('SECURE', secX + secW / 2, secY + secH / 2);
+        ctx.textAlign = 'left';
+
+        // Bottom Comms Stats Frame
+        const statBoxY = height - 90;
+        const statBoxH = 70;
+        ctx.fillStyle = '#0b0f19';
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        roundedRect(ctx, 20, statBoxY, leftWingW - 16, statBoxH, 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('CHAT THROUGHPUT', 32, statBoxY + 16);
+        ctx.fillText('ACTIVE CREW', 20 + Math.round((leftWingW - 16) / 2) + 8, statBoxY + 16);
+
+        // Subline
+        ctx.font = `600 8px ${fontFamily}`;
+        ctx.fillStyle = '#475569';
+        ctx.fillText('UPLINK ENCRYPTED · ZERO-OVERHEAD DELTA', 32, statBoxY + statBoxH - 10);
+      }
+
+      // 2. Center Viewport Crosshairs & Visor
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, 25);
+      ctx.lineTo(centerX + 15, 10);
+      ctx.moveTo(centerX + centerW, 25);
+      ctx.lineTo(centerX + centerW - 15, 10);
+      ctx.moveTo(centerX, height - 35);
+      ctx.lineTo(centerX + 15, height - 20);
+      ctx.moveTo(centerX + centerW, height - 35);
+      ctx.lineTo(centerX + centerW - 15, height - 20);
+      ctx.stroke();
+
+      // Top Center Canopy Visor
+      const visorW = Math.min(340, Math.max(160, centerW - 40));
+      const visorH = 24;
+      const visorX = centerX + (centerW - visorW) / 2;
+      ctx.fillStyle = '#0b0f19';
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, visorX, 10, visorW, visorH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#00ff88';
+      ctx.beginPath();
+      ctx.arc(visorX + 16, 10 + visorH / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = `800 10px ${fontFamily}`;
+      ctx.fillStyle = '#00ff88';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STARSHIP-HUD v1.0', visorX + 26, 10 + visorH / 2);
+
+      if (visorW >= 260) {
+        ctx.font = `600 9px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('SYS: OPTIMAL', visorX + 150, 10 + visorH / 2);
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText('RTMP SINK', visorX + 235, 10 + visorH / 2);
+      }
+
+      // 3. Right Wing Canopy (Telemetry & Flight Systems Chassis)
+      if (cfg.starship_show_telemetry !== false) {
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.96)';
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1;
+        roundedRect(ctx, rightWingX, 10, rightWingW, height - 20, 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Right Wing Header
+        const headerH = 34;
+        ctx.fillStyle = '#0f172a';
+        roundedRect(ctx, rightWingX + 8, 20, rightWingW - 16, headerH, 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.3)';
+        ctx.stroke();
+
+        ctx.fillStyle = '#00ff88';
+        ctx.beginPath();
+        ctx.arc(rightWingX + 22, 20 + headerH / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = `700 11px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('TELEMETRY // FLIGHT SYSTEMS', rightWingX + 34, 20 + headerH / 2);
+
+        // ONLINE Pill
+        const onW = 56;
+        const onH = 18;
+        const onX = rightWingX + rightWingW - 16 - onW - 8;
+        const onY = 20 + (headerH - onH) / 2;
+        ctx.fillStyle = '#1e293b';
+        roundedRect(ctx, onX, onY, onW, onH, 2);
+        ctx.fill();
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#00f0ff';
+        ctx.textAlign = 'center';
+        ctx.fillText('ONLINE', onX + onW / 2, onY + onH / 2);
+        ctx.textAlign = 'left';
+
+        // MET Static Frame
+        const metY = 62;
+        const metH = 56;
+        ctx.fillStyle = '#090d16';
+        ctx.strokeStyle = '#1e293b';
+        roundedRect(ctx, rightWingX + 8, metY, rightWingW - 16, metH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('MISSION ELAPSED TIME (MET)', rightWingX + 18, metY + 16);
+
+        // Bitrate & FPS Static Frames
+        const instrY = 126;
+        const instrH = 80;
+        const halfW = Math.round((rightWingW - 24) / 2);
+
+        ctx.fillStyle = '#090d16';
+        ctx.strokeStyle = '#1e293b';
+        roundedRect(ctx, rightWingX + 8, instrY, halfW, instrH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('INGEST BITRATE', rightWingX + 18, instrY + 16);
+
+        roundedRect(ctx, rightWingX + 8 + halfW + 8, instrY, halfW, instrH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillText('OUTPUT FPS', rightWingX + 18 + halfW + 8, instrY + 16);
+
+        // Delay Buffer Frame
+        const bufY = 214;
+        const bufH = 60;
+        roundedRect(ctx, rightWingX + 8, bufY, rightWingW - 16, bufH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillText('DELAY BUFFER PACING // CATCHUP 1.01X', rightWingX + 18, bufY + 16);
+
+        // Power Grid Frame
+        const pwrY = 282;
+        const pwrH = 96;
+        roundedRect(ctx, rightWingX + 8, pwrY, rightWingW - 16, pwrH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillText('POWER GRID // REVENUE & MISSION GOAL', rightWingX + 18, pwrY + 16);
+
+        // Annunciator Matrix Frame
+        const annY = 386;
+        const annH = 140;
+        roundedRect(ctx, rightWingX + 8, annY, rightWingW - 16, annH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillText('SYSTEM ANNUNCIATOR MATRIX', rightWingX + 18, annY + 16);
+
+        // Static Annunciator Chips
+        const tileW = Math.round((rightWingW - 40) / 2);
+        const tileH = 34;
+        const t1X = rightWingX + 18;
+        const t2X = t1X + tileW + 8;
+        const t1Y = annY + 28;
+        const t2Y = t1Y + tileH + 8;
+
+        const drawChip = (cx: number, cy: number, title: string, sub: string, col: string) => {
+          ctx.fillStyle = '#0f172a';
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 0.8;
+          roundedRect(ctx, cx, cy, tileW, tileH, 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.font = `700 8px ${fontFamily}`;
+          ctx.fillStyle = col;
+          ctx.fillText(title, cx + 8, cy + 12);
+          ctx.font = `600 7px ${fontFamily}`;
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(sub, cx + 8, cy + 24);
+        };
+
+        drawChip(t1X, t1Y, 'NVENC HW ACCEL', 'ACTIVE · 1080p60', '#00ff88');
+        drawChip(t2X, t1Y, 'DISCONNECT GUARD', 'ARMED (2.0s GRACE)', '#00f0ff');
+        drawChip(t1X, t2Y, 'AUDIO RESAMPLE', 'AAC-LC 48kHz ST', '#00ff88');
+        drawChip(t2X, t2Y, 'CPU LOAD', '< 1.5% CANVAS', '#00ff88');
+
+        ctx.font = `600 8px ${fontFamily}`;
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText('RADICAL CPU-SPAR-MODUS:', rightWingX + 18, annY + 114);
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Canopy gerendert 1x · Delta-Updates bei 1Hz', rightWingX + 18, annY + 126);
+
+        // Footer Frame
+        const footY = height - 85;
+        const footH = 65;
+        roundedRect(ctx, rightWingX + 8, footY, rightWingW - 16, footH, 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('FLIGHT CONTROLLER', rightWingX + 18, footY + 18);
+        ctx.font = `700 12px ${fontFamily}`;
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText('COCKPIT CANOPY ACTIVE', rightWingX + 18, footY + 38);
+        ctx.font = `600 8px ${fontFamily}`;
+        ctx.fillStyle = '#475569';
+        ctx.fillText('OVERLAY fd 3 // ZERO-OVERHEAD DELTA BLIT', rightWingX + 18, footY + 52);
+      }
+    } else {
+      // style === 'fullscreen_16_9'
+      const visorW = width - 160;
+      const visorH = 44;
+      const visorX = 80;
+      ctx.fillStyle = 'rgba(9, 13, 22, 0.94)';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, visorX, 8, visorW, visorH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(visorX + 10, 8 + visorH);
+      ctx.lineTo(visorX + visorW - 10, 8 + visorH);
+      ctx.stroke();
+
+      ctx.font = `700 11px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STARSHIP ODYSSEY', visorX + 64, 8 + visorH / 2);
+
+      ctx.font = `600 9px ${fontFamily}`;
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('SYS: STABLE', visorX + 280, 8 + visorH / 2);
+
+      // Corner Struts
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(60, 0); ctx.lineTo(85, 25); ctx.lineTo(25, 25); ctx.lineTo(0, 50); ctx.closePath();
+      ctx.moveTo(width, 0); ctx.lineTo(width - 60, 0); ctx.lineTo(width - 85, 25); ctx.lineTo(width - 25, 25); ctx.lineTo(width, 50); ctx.closePath();
+      ctx.moveTo(0, height); ctx.lineTo(50, height); ctx.lineTo(70, height - 20); ctx.lineTo(20, height - 20); ctx.lineTo(0, height - 40); ctx.closePath();
+      ctx.moveTo(width, height); ctx.lineTo(width - 50, height); ctx.lineTo(width - 70, height - 20); ctx.lineTo(width - 20, height - 20); ctx.lineTo(width, height - 40); ctx.closePath();
+      ctx.stroke();
+
+      // Bottom-Left Tactical Comms Chassis
+      const commsW = 360;
+      const commsH = 250;
+      const commsY = height - commsH - 30;
+      ctx.fillStyle = 'rgba(9, 13, 22, 0.9)';
+      ctx.strokeStyle = '#1e293b';
+      roundedRect(ctx, 24, commsY, commsW, commsH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(24, commsY);
+      ctx.lineTo(24 + commsW, commsY);
+      ctx.stroke();
+
+      ctx.font = `700 10px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('COMMS TERMINAL // CHAT', 36, commsY + 16);
+
+      // Bottom-Right Telemetry Chassis
+      const telemW = 360;
+      const telemH = 250;
+      const telemX = width - telemW - 24;
+      const telemY = height - telemH - 30;
+      ctx.fillStyle = 'rgba(9, 13, 22, 0.9)';
+      ctx.strokeStyle = '#1e293b';
+      roundedRect(ctx, telemX, telemY, telemW, telemH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = '#00ff88';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(telemX, telemY);
+      ctx.lineTo(telemX + telemW, telemY);
+      ctx.stroke();
+
+      ctx.font = `700 10px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('TELEMETRY & FLIGHT VECTORS', telemX + 16, telemY + 16);
+
+      // Bottom-Center Compass Tape
+      const compW = 280;
+      const compH = 22;
+      const compX = (width - compW) / 2;
+      const compY = height - compH - 8;
+      ctx.fillStyle = '#060911';
+      ctx.strokeStyle = '#1e293b';
+      roundedRect(ctx, compX, compY, compW, compH, 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `700 9px ${fontFamily}`;
+      ctx.fillStyle = '#00f0ff';
+      ctx.textAlign = 'center';
+      ctx.fillText('◄ 090° · HDG · 180° · SINK · 270° ►', compX + compW / 2, compY + compH / 2);
+      ctx.textAlign = 'left';
+    }
+
+    return canopy;
+  }
+
+  private renderStarshipCockpit(
+    ctx: SKRSContext2D,
+    width: number,
+    height: number,
+    messages: ChatMessage[],
+    isPreviewSample = false,
+  ): void {
+    const cfg = this.options.overlays.chat;
+    const isLandscape = width >= height;
+    const style: 'pillar_wings' | 'fullscreen_16_9' =
+      cfg.starship_style === 'fullscreen_16_9'
+        ? 'fullscreen_16_9'
+        : cfg.starship_style === 'pillar_wings'
+        ? 'pillar_wings'
+        : isLandscape && (this.options.settings.video?.layout?.scale ?? 100) >= 150
+        ? 'fullscreen_16_9'
+        : 'pillar_wings';
+
+    // 1. Blit cached static canopy (Ultra-fast Skia drawImage)
+    const key = `${width}x${height}:${style}:${cfg.starship_show_telemetry}:${cfg.starship_show_comms}:${cfg.starship_show_power_grid}`;
+    if (this.cachedStarshipCanopyKey !== key || !this.cachedStarshipCanopy) {
+      this.cachedStarshipCanopy = this.buildStarshipCanopy(width, height, style);
+      this.cachedStarshipCanopyKey = key;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(this.cachedStarshipCanopy, 0, 0);
+
+    const card = this.shouldRenderEarningsCard(isPreviewSample);
+    const now = Date.now();
+    const elapsed = now - this.sessionStartTime;
+    const metText = formatMET(elapsed);
+
+    ctx.save();
+
+    if (style === 'pillar_wings') {
+      const centerW = Math.round(height * (9 / 16));
+      const centerX = Math.round((width - centerW) / 2);
+      const leftWingW = Math.max(200, centerX - 16);
+      const rightWingX = centerX + centerW + 16;
+      const rightWingW = Math.max(200, width - rightWingX - 16);
+
+      // Comms Uplink Messages in Left Wing
+      if (cfg.starship_show_comms !== false) {
+        const visible = messages.length > 0 ? messages.slice(-5) : (isPreviewSample ? SAMPLE_MESSAGES.slice(-5) : []);
+        const msgStartY = 64;
+        const msgH = 46;
+        const msgW = leftWingW - 24;
+
+        for (let i = 0; i < visible.length; i++) {
+          const msg = visible[i]!;
+          const my = msgStartY + i * (msgH + 6);
+          if (my + msgH > height - 100) break;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+          ctx.strokeStyle = '#1e293b';
+          ctx.lineWidth = 0.8;
+          roundedRect(ctx, 24, my, msgW, msgH, 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Timestamp
+          const ts = msg.timestamp ? new Date(msg.timestamp) : new Date(msg.receivedAt);
+          const timeStr = `${ts.getHours().toString().padStart(2, '0')}:${ts.getMinutes().toString().padStart(2, '0')}:${ts.getSeconds().toString().padStart(2, '0')}`;
+          ctx.font = `600 8px ${fontFamily}`;
+          ctx.fillStyle = '#64748b';
+          ctx.textBaseline = 'top';
+          ctx.fillText(timeStr, 32, my + 6);
+
+          // Role Badge
+          const badgeType = i === 0 ? 'VIP' : i === 1 ? 'SUB' : i === 2 ? 'MOD' : 'CREW';
+          const badgeCol = badgeType === 'VIP' ? '#60a5fa' : badgeType === 'SUB' ? '#00ff88' : badgeType === 'MOD' ? '#fbbf24' : '#00f0ff';
+          const bW = 28;
+          const bH = 13;
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+          ctx.strokeStyle = badgeCol;
+          roundedRect(ctx, 76, my + 5, bW, bH, 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.font = `800 7px ${fontFamily}`;
+          ctx.fillStyle = badgeCol;
+          ctx.textAlign = 'center';
+          ctx.fillText(badgeType, 76 + bW / 2, my + 6);
+          ctx.textAlign = 'left';
+
+          // Username
+          ctx.font = `700 10px ${fontFamily}`;
+          ctx.fillStyle = nameColor(msg.username || 'User');
+          ctx.fillText(msg.displayName || msg.username || 'CrewMember', 112, my + 6, msgW - 120);
+
+          // Message Text
+          ctx.font = `500 10px ${fontFamily}`;
+          ctx.fillStyle = '#e2e8f0';
+          const truncatedMsg = msg.text.length > 42 ? `${msg.text.slice(0, 40)}…` : msg.text;
+          ctx.fillText(truncatedMsg, 32, my + 24, msgW - 16);
+        }
+
+        // Stats in bottom box
+        const statBoxY = height - 90;
+        ctx.font = `800 13px ${fontFamily}`;
+        ctx.fillStyle = '#00f0ff';
+        const msgRate = `${(Math.max(1, messages.length) / 5).toFixed(1)} MSGS/SEC`;
+        ctx.fillText(msgRate, 32, statBoxY + 36);
+
+        ctx.fillStyle = '#00ff88';
+        const crewCount = `${(messages.length * 8 + 1482).toLocaleString('de-DE')} CREW`;
+        ctx.fillText(crewCount, 20 + Math.round((leftWingW - 16) / 2) + 8, statBoxY + 36);
+      }
+
+      // Telemetry in Right Wing
+      if (cfg.starship_show_telemetry !== false) {
+        // MET
+        const metY = 62;
+        ctx.font = `800 18px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(metText, rightWingX + 18, metY + 38);
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText('STATUS: STABLE', rightWingX + rightWingW - 110, metY + 38);
+
+        // Bitrate & FPS values and bars
+        const instrY = 126;
+        const halfW = Math.round((rightWingW - 24) / 2);
+
+        // Bitrate
+        ctx.font = `800 18px ${fontFamily}`;
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText('4,850', rightWingX + 18, instrY + 42);
+        ctx.font = `600 10px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('kbps', rightWingX + 75, instrY + 42);
+        // Bar
+        ctx.fillStyle = '#1e293b';
+        roundedRect(ctx, rightWingX + 18, instrY + 56, halfW - 20, 5, 1);
+        ctx.fill();
+        ctx.fillStyle = '#00f0ff';
+        roundedRect(ctx, rightWingX + 18, instrY + 56, Math.round((halfW - 20) * 0.75), 5, 1);
+        ctx.fill();
+
+        // FPS
+        ctx.font = `800 18px ${fontFamily}`;
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText('60.0', rightWingX + 18 + halfW + 8, instrY + 42);
+        ctx.font = `600 10px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('CFR', rightWingX + 75 + halfW + 8, instrY + 42);
+        // Bar
+        ctx.fillStyle = '#1e293b';
+        roundedRect(ctx, rightWingX + 18 + halfW + 8, instrY + 56, halfW - 20, 5, 1);
+        ctx.fill();
+        ctx.fillStyle = '#00ff88';
+        roundedRect(ctx, rightWingX + 18 + halfW + 8, instrY + 56, halfW - 20, 5, 1);
+        ctx.fill();
+
+        // Delay Buffer
+        const bufY = 214;
+        ctx.font = `800 12px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('150 MS LATENCY', rightWingX + 18, bufY + 36);
+        ctx.font = `700 9px ${fontFamily}`;
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText('DRIFT: 0.00 MS', rightWingX + rightWingW - 110, bufY + 36);
+
+        // Segmented bar
+        for (let s = 0; s < 6; s++) {
+          ctx.fillStyle = s < 4 ? '#00ff88' : s === 4 ? '#00f0ff' : '#1e293b';
+          roundedRect(ctx, rightWingX + 18 + s * 45, bufY + 44, 40, 4, 1);
+          ctx.fill();
+        }
+
+        // Power Grid (Revenue / Goal)
+        const pwrY = 282;
+        const coinsStr = card?.coins !== null && card?.coins !== undefined ? `${Math.round(card.coins).toLocaleString('de-DE')} COINS` : '14,250 COINS';
+        const netStr = card?.net !== null && card?.net !== undefined ? `(${card.net.toFixed(2)} €)` : '(74.81 €)';
+        const ratio = card?.goalAmount && card.net ? Math.max(0, Math.min(1, card.net / card.goalAmount)) : 0.71;
+
+        ctx.font = `800 13px ${fontFamily}`;
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText(coinsStr, rightWingX + 18, pwrY + 42);
+        ctx.font = `600 11px ${fontFamily}`;
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(netStr, rightWingX + 140, pwrY + 42);
+
+        ctx.font = `800 12px ${fontFamily}`;
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText(`${Math.round(ratio * 100)} %`, rightWingX + rightWingW - 55, pwrY + 42);
+
+        // Progress Bar
+        const barW = rightWingW - 36;
+        ctx.fillStyle = '#1e293b';
+        roundedRect(ctx, rightWingX + 18, pwrY + 56, barW, 8, 2);
+        ctx.fill();
+        ctx.fillStyle = '#00ff88';
+        roundedRect(ctx, rightWingX + 18, pwrY + 56, Math.round(barW * ratio), 8, 2);
+        ctx.fill();
+      }
+    } else {
+      // style === 'fullscreen_16_9'
+      const visorW = width - 160;
+      const visorH = 44;
+      const visorX = 80;
+
+      // Top Visor Dynamic
+      // LIVE badge
+      ctx.fillStyle = '#ef4444';
+      roundedRect(ctx, visorX + 16, 8 + 12, 38, 20, 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `800 9px ${fontFamily}`;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText('LIVE', visorX + 35, 8 + 22);
+      ctx.textAlign = 'left';
+
+      // Crew counter
+      ctx.font = `700 10px ${fontFamily}`;
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText('● 1,482 CREW', visorX + 190, 8 + visorH / 2);
+
+      // MET
+      ctx.font = `800 12px ${fontFamily}`;
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillText(metText, visorX + 370, 8 + visorH / 2);
+
+      // Goal bar
+      const ratio = card?.goalAmount && card.net ? Math.max(0, Math.min(1, card.net / card.goalAmount)) : 0.82;
+      ctx.fillStyle = '#1e293b';
+      roundedRect(ctx, visorX + visorW - 180, 8 + 18, 120, 8, 2);
+      ctx.fill();
+      ctx.fillStyle = '#00ff88';
+      roundedRect(ctx, visorX + visorW - 180, 8 + 18, Math.round(120 * ratio), 8, 2);
+      ctx.fill();
+      ctx.font = `800 10px ${fontFamily}`;
+      ctx.fillText(`${Math.round(ratio * 100)}%`, visorX + visorW - 50, 8 + 22);
+
+      // Comms Uplink Messages (Bottom Left)
+      const commsW = 360;
+      const commsH = 250;
+      const commsY = height - commsH - 30;
+      const visible = messages.length > 0 ? messages.slice(-4) : (isPreviewSample ? SAMPLE_MESSAGES.slice(-4) : []);
+
+      for (let i = 0; i < visible.length; i++) {
+        const msg = visible[i]!;
+        const my = commsY + 36 + i * 48;
+        if (my + 44 > commsY + commsH) break;
+
+        ctx.fillStyle = 'rgba(12, 18, 34, 0.7)';
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 0.8;
+        roundedRect(ctx, 36, my, commsW - 24, 40, 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = `600 8px ${fontFamily}`;
+        ctx.fillStyle = '#64748b';
+        ctx.textBaseline = 'top';
+        ctx.fillText('20:14:02', 44, my + 6);
+
+        ctx.font = `700 10px ${fontFamily}`;
+        ctx.fillStyle = nameColor(msg.username || 'User');
+        ctx.fillText(msg.displayName || msg.username || 'Crew', 90, my + 6);
+
+        ctx.font = `500 9px ${fontFamily}`;
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(msg.text.length > 36 ? `${msg.text.slice(0, 34)}…` : msg.text, 44, my + 22);
+      }
+
+      // Telemetry (Bottom Right)
+      const telemW = 360;
+      const telemH = 250;
+      const telemX = width - telemW - 24;
+      const telemY = height - telemH - 30;
+
+      // Bitrate & FPS
+      ctx.font = `800 16px ${fontFamily}`;
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillText('5,120 kbps', telemX + 24, telemY + 54);
+
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText('60.00 fps', telemX + 180, telemY + 54);
+
+      // Latency
+      ctx.font = `700 11px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('150 ms (Catchup 1.01x · Drift 0.0ms)', telemX + 24, telemY + 110);
+    }
+
+    ctx.restore();
+  }
+
   private render(
     ctx: SKRSContext2D,
     width: number,
@@ -864,6 +1548,10 @@ export class ChatOverlayEngine {
     const cfg = this.options.overlays.chat;
     if (cfg.layout_mode === 'pillar_monitor') {
       this.renderPillarMonitor(ctx, width, height, messages, isPreviewSample);
+      return;
+    }
+    if (cfg.layout_mode === 'starship_cockpit') {
+      this.renderStarshipCockpit(ctx, width, height, messages, isPreviewSample);
       return;
     }
     ctx.clearRect(0, 0, width, height);

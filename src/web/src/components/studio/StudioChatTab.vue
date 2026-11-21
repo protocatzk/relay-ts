@@ -55,8 +55,9 @@ defineEmits<{
           <select id="studio-chat-layout-mode" v-model="chat.layout_mode">
             <option value="standard">Standard (frei positionierbar)</option>
             <option value="pillar_monitor">Säulen-Monitor (Top-Banner + Chat links)</option>
+            <option value="starship_cockpit">Starship-Cockpit (Sci-Fi HUD, CPU-schonend)</option>
           </select>
-          <p class="field-hint">Säulen-Monitor nutzt die ungenutzten Säulen bei 9:16-Quellen (0 % Video-Verdeckung).</p>
+          <p class="field-hint">Starship-Cockpit bietet ein futuristisches Sci-Fi HUD mit gecachter Canopy (&lt; 2% CPU).</p>
         </div>
         <div class="field">
           <label for="studio-chat-style">Stil</label>
@@ -94,6 +95,26 @@ defineEmits<{
           </label>
           <label class="checkbox">
             <input v-model="chat.banner_show_goal" type="checkbox" /> Spendenziel-Balken im Banner
+          </label>
+        </div>
+        <div v-if="chat.layout_mode === 'starship_cockpit'" class="checkbox-grid studio-checks" style="grid-column: 1 / -1; margin-top: 0.5rem;">
+          <div class="field" style="grid-column: 1 / -1; margin-bottom: 0.5rem;">
+            <label for="studio-chat-starship-style">Starship HUD-Stil</label>
+            <select id="studio-chat-starship-style" v-model="chat.starship_style">
+              <option value="auto">Automatisch (basierend auf Videoformat)</option>
+              <option value="pillar_wings">Säulen-Flügel (für 9:16 Quellstream)</option>
+              <option value="fullscreen_16_9">Vollbild 16:9 (Top-Visor &amp; HUD-Instrumente)</option>
+            </select>
+            <p class="field-hint">Render-Once Canopy mit Delta-Updates für minimale CPU-Last (&lt; 2%).</p>
+          </div>
+          <label class="checkbox">
+            <input v-model="chat.starship_show_telemetry" type="checkbox" /> Telemetrie-Instrumente (Bitrate, FPS, Latency)
+          </label>
+          <label class="checkbox">
+            <input v-model="chat.starship_show_comms" type="checkbox" /> Comms Terminal (Chat Uplink)
+          </label>
+          <label class="checkbox">
+            <input v-model="chat.starship_show_power_grid" type="checkbox" /> Power Grid (Spendenziel &amp; Münzen)
           </label>
         </div>
       </div>

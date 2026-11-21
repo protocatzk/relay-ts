@@ -214,4 +214,77 @@ describe('Canvas chat overlay', () => {
     expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
     engine.stop();
   });
+
+  it('renders starship_cockpit layout in pillar_wings and fullscreen_16_9 styles with canopy caching', () => {
+    const starshipSettings = {
+      ...settings,
+      video: {
+        ...settings.video,
+        resolution: '1280x720' as const,
+      },
+      overlays: {
+        ...settings.overlays,
+        chat: {
+          ...settings.overlays.chat,
+          enabled: true,
+          layout_mode: 'starship_cockpit' as const,
+          starship_style: 'pillar_wings' as const,
+          starship_show_telemetry: true,
+          starship_show_comms: true,
+          starship_show_power_grid: true,
+        },
+      },
+    };
+    const engine = new ChatOverlayEngine({
+      settings: starshipSettings,
+      overlays: starshipSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+
+    expect(engine.panel).toEqual({
+      width: 1280,
+      height: 720,
+      x: 0,
+      y: 0,
+      fps: 10,
+    });
+
+    engine.setEarningsCard({
+      periodLabel: 'Heute',
+      currency: 'EUR',
+      net: 74.81,
+      gross: 149.62,
+      coins: 14250,
+      goalAmount: 100,
+      goalLabel: 'Missionsziel',
+    });
+
+    // 1. Pillar wings render
+    const wingsPng = engine.previewPng(true);
+    expect(wingsPng.length).toBeGreaterThan(1000);
+    expect(wingsPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    // 2. Fullscreen 16:9 render
+    const fullscreenSettings = {
+      ...starshipSettings,
+      overlays: {
+        ...starshipSettings.overlays,
+        chat: {
+          ...starshipSettings.overlays.chat,
+          starship_style: 'fullscreen_16_9' as const,
+        },
+      },
+    };
+    const fsEngine = new ChatOverlayEngine({
+      settings: fullscreenSettings,
+      overlays: fullscreenSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    const fsPng = fsEngine.previewPng(true);
+    expect(fsPng.length).toBeGreaterThan(1000);
+    expect(fsPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    engine.stop();
+    fsEngine.stop();
+  });
 });

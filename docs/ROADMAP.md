@@ -106,10 +106,10 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren (#66) | P1 | Reliability/YouTube | abgeschlossen |
 | Systemspecs prüfen und Optimierungsempfehlungen ausgeben (#64) | P3 | Ops/Diagnostics | abgeschlossen |
 | Overlay: Optionaler Säulen-Monitor (Top-Banner für Stats/Ziel + Chat-Monitor links) (#68) | P2 | Overlay/Chat | abgeschlossen |
+| Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie) (#71) | P2 | Overlay/Performance | abgeschlossen |
 | Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) (#62) | P1 | Reliability/Ops | geplant |
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
-| Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie) (#71) | P2 | Overlay/Performance | geplant |
 
 ## Definition of Done
 
