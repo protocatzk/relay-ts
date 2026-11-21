@@ -305,7 +305,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '-force_key_frames',
     'expr:gte(t,n_forced*2)',
     '-af',
-    'aresample=async=1:first_pts=0:osr=48000:osf=fltp:ochl=stereo',
+    'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
     '-c:a',
     'aac',
     '-b:a',

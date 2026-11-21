@@ -205,7 +205,9 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('-err_detect ignore_err');
     expect(line).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1');
     expect(line).toContain('-force_key_frames expr:gte(t,n_forced*2)');
-    expect(line).toContain('aresample=async=1:first_pts=0:osr=48000:osf=fltp:ochl=stereo');
+    expect(line).toContain(
+      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
+    );
     expect(line).toContain('-avoid_negative_ts make_zero');
     expect(line).toContain('-max_interleave_delta 500000');
     expect(line).toContain('-flush_packets 1');

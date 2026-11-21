@@ -143,7 +143,8 @@ Wichtige Pfade:
   mit +5 % Taktreserve, damit ffmpeg beim Catch-Up nicht blockiert.
 - YouTube-Sink-Stabilisierung: striktes CFR (`-fps_mode cfr`), 2-s-IDR-Keyframes
   (`-force_key_frames "expr:gte(t,n_forced*2)"`, NVENC `-forced-idr`/`-strict_gop`,
-  x264 `nal-hrd=cbr:filler=1:force-cfr=1:aud=1`), Audio-Resampling mit `first_pts=0`,
+  x264 `nal-hrd=cbr:filler=1:force-cfr=1:aud=1`), weiches Audio-Resampling
+  (`aresample=async=1000:min_comp=0.01:min_hard_comp=0.2`),
   `-avoid_negative_ts make_zero`, `-max_interleave_delta 500000` und RTMP-Ausgabe mit
   `-tcp_nodelay 1 -rw_timeout 15000000`; gehäufte DTS-Fehler (≥ 10 in 15 s) triggern
   einen kontrollierten Sink-Neustart.
