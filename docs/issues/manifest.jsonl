@@ -11,3 +11,10 @@
 {"title":"Tech Debt: Per-Streamer-Overlays entfernen und Migration abschließen","file":"11-remove-per-streamer-overlays.md","labels":["tech-debt","P4","v0.5.0"],"milestone":"v0.5.0"}
 {"title":"API: OpenAPI generieren und typisierten Client ableiten","file":"12-openapi-typed-client.md","labels":["tech-debt","api","P4","v0.5.0"],"milestone":"v0.5.0"}
 {"title":"YouTube: Live-Chat per Data API im Dashboard anzeigen","file":"13-youtube-live-chat.md","labels":["youtube","enhancement","P3"]}
+{"title":"Overlay: benannte Szenen und Layout-Profile mit Schnellwechsel","file":"14-overlay-scenes.md","labels":["overlay","enhancement","P2"]}
+{"title":"Automatik: Zeitplan-Scheduler für Streamer, Playlists und Screens","file":"15-stream-scheduler.md","labels":["enhancement","reliability","P2"]}
+{"title":"Audio: Lautheits-Normalisierung (LUFS) und Stille-/Pegel-Erkennung","file":"16-audio-normalization.md","labels":["enhancement","reliability","P2"]}
+{"title":"Ops: Prometheus-Metriken und Alerting-Webhooks (Discord/HTTP)","file":"17-prometheus-webhooks.md","labels":["ops","observability","P2"]}
+{"title":"Aufnahmen: Highlight-Marker, Remux zu MP4 und Übernahme in Medien","file":"18-recording-clips-media.md","labels":["enhancement","P3"]}
+{"title":"System: Backup-Export und -Wiederherstellung im Dashboard","file":"19-dashboard-backup-restore.md","labels":["ops","security","P3"]}
+{"title":"Tech Debt: Supervisor-Rest und große Vue-Views modularisieren","file":"20-supervisor-ui-refactor.md","labels":["tech-debt","reliability","P4"]}

@@ -73,20 +73,39 @@ ensure_milestone() {
   fi
 }
 
+existing_titles="$(gh issue list --repo "$REPO" --state all --limit 200 --json title --jq '.[].title')"
+
 issue_exists() {
   local title="$1"
-  gh issue list --repo "$REPO" --state all --limit 200 --json title --jq '.[].title' | grep -Fxq "$title"
+  grep -Fxq "$title" <<<"$existing_titles"
 }
 
 created=0
 skipped=0
 
+json_get() {
+  local expr="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r "$expr"
+  else
+    node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); const v=d['$2']; process.stdout.write(v==null?'':String(v));"
+  fi
+}
+
+json_labels() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.labels[]?'
+  else
+    node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); for(const l of (d.labels||[])) console.log(l);"
+  fi
+}
+
 while IFS= read -r row; do
   [[ -z "$row" ]] && continue
-  title="$(jq -r '.title' <<<"$row")"
-  file="$(jq -r '.file' <<<"$row")"
-  milestone="$(jq -r '.milestone // empty' <<<"$row")"
-  mapfile -t labels < <(jq -r '.labels[]?' <<<"$row")
+  title="$(json_get '.title' title <<<"$row")"
+  file="$(json_get '.file' file <<<"$row")"
+  milestone="$(json_get '.milestone // empty' milestone <<<"$row")"
+  mapfile -t labels < <(json_labels <<<"$row")
 
   if issue_exists "$title"; then
     echo "SKIP  $title"
