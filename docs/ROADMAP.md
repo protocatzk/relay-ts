@@ -100,6 +100,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren | P1 | Reliability/YouTube |
 | YouTube: Thumbnails über Cockpit einfügen | P2 | YouTube/UI |
 | Stream: Discovery für neue Streamer einbauen | P2 | Playlists/Queue |
+| Overlay: Horizontales Top-Banner für Einnahmen, Stream-Stats und Chat | P2 | Overlay/Chat |
 | Systemspecs prüfen und Optimierungsempfehlungen ausgeben | P3 | Ops/Diagnostics |
 
 ## Definition of Done
