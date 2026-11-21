@@ -51,6 +51,14 @@ defineEmits<{
           <p class="field-hint">Canvas bietet weiche Übergänge und Badges.</p>
         </div>
         <div class="field">
+          <label for="studio-chat-layout-mode">Layout-Modell</label>
+          <select id="studio-chat-layout-mode" v-model="chat.layout_mode">
+            <option value="standard">Standard (frei positionierbar)</option>
+            <option value="pillar_monitor">Säulen-Monitor (Top-Banner + Chat links)</option>
+          </select>
+          <p class="field-hint">Säulen-Monitor nutzt die ungenutzten Säulen bei 9:16-Quellen (0 % Video-Verdeckung).</p>
+        </div>
+        <div class="field">
           <label for="studio-chat-style">Stil</label>
           <select id="studio-chat-style" v-model="chat.style">
             <option value="bubbles">Sprechblasen</option>
@@ -73,6 +81,20 @@ defineEmits<{
             step="5"
           />
           <p class="field-hint mono">{{ chat.bubble_opacity }} %</p>
+        </div>
+        <div v-if="chat.layout_mode === 'pillar_monitor'" class="checkbox-grid studio-checks" style="grid-column: 1 / -1; margin-top: 0.5rem;">
+          <label class="checkbox">
+            <input v-model="chat.top_banner_enabled" type="checkbox" /> Top-Banner (Status, Uptime &amp; Stats oben)
+          </label>
+          <label class="checkbox">
+            <input v-model="chat.chat_monitor_enabled" type="checkbox" /> Chat-Monitor links (in freier Säule)
+          </label>
+          <label class="checkbox">
+            <input v-model="chat.banner_show_stats" type="checkbox" /> Statistiken &amp; Einnahmen im Banner
+          </label>
+          <label class="checkbox">
+            <input v-model="chat.banner_show_goal" type="checkbox" /> Spendenziel-Balken im Banner
+          </label>
         </div>
       </div>
     </StudioGroup>

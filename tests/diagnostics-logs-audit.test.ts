@@ -13,7 +13,12 @@ import type { Supervisor } from '../src/core/supervisor/supervisor.js';
 import { buildServer } from '../src/api/server.js';
 import { AuthSessionStore } from '../src/api/session-store.js';
 import { AuditLogStore } from '../src/core/audit-log.js';
-import { clearDiagnosticsCache, measureDirectory } from '../src/core/diagnostics.js';
+import {
+  buildSystemHardwareSpecs,
+  buildSystemRecommendations,
+  clearDiagnosticsCache,
+  measureDirectory,
+} from '../src/core/diagnostics.js';
 import { LogRing, formatLogsAsText } from '../src/utils/logger.js';
 import { VERSION } from '../src/version.js';
 
@@ -282,5 +287,57 @@ describe('Diagnostics, Logs Export and Audit HTTP API', () => {
       target: 'alpha',
       result: 'ok',
     });
+  });
+
+  it('builds system specs and rule-based optimization recommendations (#64)', async () => {
+    const specs = buildSystemHardwareSpecs();
+    expect(specs.cpu_cores).toBeGreaterThanOrEqual(1);
+    expect(typeof specs.cpu_model).toBe('string');
+    expect(specs.total_memory_bytes).toBeGreaterThan(0);
+    expect(specs.used_memory_bytes).toBeGreaterThan(0);
+
+    // Rule: Hardware encoder available but libx264 configured
+    const hwRecs = buildSystemRecommendations({
+      specs,
+      activeEncoder: 'libx264',
+      availableEncoders: ['libx264', 'h264_nvenc'],
+      filesystem: { total_bytes: 100_000, free_bytes: 50_000, available_bytes: 50_000 },
+      videoEncoderSetting: 'libx264',
+    });
+    expect(hwRecs.some((r) => r.id === 'hardware-encoder-available')).toBe(true);
+
+    // Rule: Low disk space (< 15%)
+    const diskRecs = buildSystemRecommendations({
+      specs,
+      activeEncoder: 'h264_nvenc',
+      availableEncoders: ['libx264', 'h264_nvenc'],
+      filesystem: { total_bytes: 100_000, free_bytes: 10_000, available_bytes: 10_000 },
+      videoEncoderSetting: 'auto',
+    });
+    expect(diskRecs.some((r) => r.id === 'low-disk-space')).toBe(true);
+
+    // Rule: High CPU load (> 85% per core)
+    const highCpuRecs = buildSystemRecommendations({
+      specs: { ...specs, cpu_load_1m: specs.cpu_cores * 0.95 },
+      activeEncoder: 'h264_nvenc',
+      availableEncoders: ['libx264', 'h264_nvenc'],
+      filesystem: { total_bytes: 100_000, free_bytes: 50_000, available_bytes: 50_000 },
+      videoEncoderSetting: 'auto',
+    });
+    expect(highCpuRecs.some((r) => r.id === 'high-cpu-load')).toBe(true);
+
+    // API returns specs and recommendations in diagnostics endpoint
+    const diagRes = await app.inject({
+      method: 'GET',
+      url: '/api/system/diagnostics',
+      headers: { authorization: 'Bearer phase2-secret' },
+    });
+    expect(diagRes.statusCode).toBe(200);
+    const diagBody = diagRes.json() as {
+      specs: { cpu_cores: number; total_memory_bytes: number };
+      recommendations: Array<{ id: string; level: string; title: string }>;
+    };
+    expect(diagBody.specs.cpu_cores).toBeGreaterThanOrEqual(1);
+    expect(diagBody.recommendations.length).toBeGreaterThan(0);
   });
 });

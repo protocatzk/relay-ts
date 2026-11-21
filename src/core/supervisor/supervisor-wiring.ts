@@ -38,6 +38,7 @@ export interface SupervisorWiringHost {
   lock: AsyncLock;
   state: StreamState;
   activeStreamer: StreamerConfig | null;
+  startingStreamerId: string | null;
   activeTitle: string;
   startedAt: Date | null;
   lastError: string | null;
@@ -478,6 +479,9 @@ export async function createSupervisorSubsystems(
     },
     setForceReencodeNext: (val) => {
       host.forceReencodeNext = val;
+    },
+    setStartingStreamerId: (id) => {
+      host.startingStreamerId = id;
     },
   });
 

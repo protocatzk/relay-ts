@@ -175,6 +175,54 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-else-if="diagnostics" class="stack">
+      <!-- System Specs & Recommendations (#64) -->
+      <section v-if="diagnostics.specs" class="card diag-card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">System-Hardware &amp; Empfehlungen</h2>
+            <p class="card-sub">{{ diagnostics.specs.cpu_model }} ({{ diagnostics.specs.cpu_cores }} Kerne)</p>
+          </div>
+          <div class="diag-badges">
+            <span class="badge tone-neutral mono">CPU Load: {{ diagnostics.specs.cpu_load_1m }}</span>
+            <span class="badge tone-neutral mono">
+              RAM: {{ formatBytes(diagnostics.specs.used_memory_bytes) }} / {{ formatBytes(diagnostics.specs.total_memory_bytes) }}
+            </span>
+            <span class="badge tone-info mono">
+              Encoder: {{ diagnostics.encoder.active }}
+            </span>
+          </div>
+        </div>
+
+        <div v-if="diagnostics.recommendations && diagnostics.recommendations.length > 0" class="recommendations-list">
+          <div
+            v-for="rec in diagnostics.recommendations"
+            :key="rec.id"
+            class="recommendation-item"
+            :class="`rec-${rec.level}`"
+          >
+            <div class="rec-content">
+              <div class="rec-header">
+                <span
+                  class="badge"
+                  :class="rec.level === 'warning' ? 'tone-danger' : rec.level === 'recommendation' ? 'tone-warning' : 'tone-success'"
+                >
+                  {{ rec.level === 'warning' ? 'Warnung' : rec.level === 'recommendation' ? 'Empfehlung' : 'Optimal' }}
+                </span>
+                <strong class="rec-title">{{ rec.title }}</strong>
+              </div>
+              <p class="rec-message">{{ rec.message }}</p>
+            </div>
+            <RouterLink
+              v-if="rec.action_url"
+              :to="rec.action_url"
+              class="btn btn-secondary btn-sm"
+            >
+              Zu den Einstellungen
+            </RouterLink>
+          </div>
+        </div>
+      </section>
+
       <div class="diag-grid">
         <section class="card diag-card">
           <div class="card-head">

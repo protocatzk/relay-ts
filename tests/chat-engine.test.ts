@@ -163,4 +163,55 @@ describe('Canvas chat overlay', () => {
     expect(engine.isDirty).toBe(true);
     engine.stop();
   });
+
+  it('renders pillar_monitor layout with full output spec, top banner and chat monitor (#68)', () => {
+    const pillarSettings = {
+      ...settings,
+      video: {
+        ...settings.video,
+        resolution: '1280x720' as const,
+      },
+      overlays: {
+        ...settings.overlays,
+        chat: {
+          ...settings.overlays.chat,
+          enabled: true,
+          layout_mode: 'pillar_monitor' as const,
+          top_banner_enabled: true,
+          chat_monitor_enabled: true,
+          banner_show_stats: true,
+          banner_show_goal: true,
+        },
+      },
+    };
+    const engine = new ChatOverlayEngine({
+      settings: pillarSettings,
+      overlays: pillarSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+
+    // In pillar_monitor, panel covers full resolution with x=0, y=0
+    expect(engine.panel).toEqual({
+      width: 1280,
+      height: 720,
+      x: 0,
+      y: 0,
+      fps: 10,
+    });
+
+    engine.setEarningsCard({
+      periodLabel: 'Heute',
+      currency: 'EUR',
+      net: 120.5,
+      gross: 241,
+      coins: 25000,
+      goalAmount: 200,
+      goalLabel: 'Tagesziel',
+    });
+
+    const png = engine.previewPng(true);
+    expect(png.length).toBeGreaterThan(1000);
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    engine.stop();
+  });
 });

@@ -39,11 +39,17 @@ export function buildStreamersView(
   isLive: boolean,
   online: OnlineMonitor,
   store: StreamerStore,
+  startingStreamerId: string | null = null,
 ): StreamerView[] {
   return streamers.map((streamer) => {
     const monitor = online.isOnline(streamer);
-    const isStreamOnline = streamer.id === activeStreamerId && isLive ? true : monitor;
-    return store.view(streamer, activeStreamerId, isStreamOnline);
+    const isStarting = streamer.id === startingStreamerId;
+    const isStreamOnline = (streamer.id === activeStreamerId && isLive) || isStarting ? true : monitor;
+    const view = store.view(streamer, activeStreamerId, isStreamOnline);
+    if (isStarting) {
+      view.status.active = true;
+    }
+    return view;
   });
 }
 

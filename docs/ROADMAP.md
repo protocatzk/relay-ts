@@ -92,16 +92,23 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 - Auslieferung über `GET /api/openapi.json`, Generator und CI-Frischecheck.
 - Route-Coverage-, Ref- und Typ-Paritätstests.
 
-### v0.24.0 – Stream Protection, Discovery & Mobile Fixes
+### v0.24.0 – Stream Protection, Mobile Audio, Säulen-Monitor & Hardware Specs
 
-| Issue | Priorität | Bereich |
-|---|---|---|
-| Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) | P1 | Reliability/Ops |
-| Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren | P1 | Reliability/YouTube |
-| YouTube: Thumbnails über Cockpit einfügen | P2 | YouTube/UI |
-| Stream: Discovery für neue Streamer einbauen | P2 | Playlists/Queue |
-| Overlay: Optionaler Säulen-Monitor (Top-Banner für Stats/Ziel + Chat-Monitor links) | P2 | Overlay/Chat |
-| Systemspecs prüfen und Optimierungsempfehlungen ausgeben | P3 | Ops/Diagnostics |
+**Status: veröffentlicht in 0.24.0.**
+
+- **#66 (iOS YouTube Audio):** Re-Encoding und Sink auf striktes AAC-LC (`-profile:a aac_low`), 48 kHz Stereo und `aresample:first_pts=0` umgestellt, um Stuttering/Silence in der iOS YouTube-App zu beheben.
+- **#64 (System-Spezifikationen & Empfehlungen):** Diagnose erfasst CPU-Modell, Cores, Load-Average, RAM (Total/Used/Free), Swap und Disk. Regelbasierte Empfehlungen für Hardware-Encoder, RAM, Disk-Space und CPU-Last im TokTracker-Stil in `DiagnosticsView.vue`.
+- **#68 (Säulen-Monitor Layout):** Optionales Layout-Modell (`layout_mode: 'pillar_monitor'`) mit Top-Banner (Status, Uptime, Streamer, Stats, Coins, EUR und Zielbalken) und vertikalem Chat-Monitor in der linken ungenutzten Säule bei 9:16-Quellen (0 % Verdeckung des Videos, minimaler Overhead über dieselbe Canvas-Pipe).
+- **Stream-Umschalt-Fix (Blink/Vanish):** Streamer verschwinden beim Live-Schalten im Dashboard nicht mehr kurzzeitig aus dem Live-Menü oder der Übersicht, da `startingStreamerId` den Status nahtlos aktiv und online hält.
+
+| Issue | Priorität | Bereich | Status |
+|---|---|---|---|
+| Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren (#66) | P1 | Reliability/YouTube | abgeschlossen |
+| Systemspecs prüfen und Optimierungsempfehlungen ausgeben (#64) | P3 | Ops/Diagnostics | abgeschlossen |
+| Overlay: Optionaler Säulen-Monitor (Top-Banner für Stats/Ziel + Chat-Monitor links) (#68) | P2 | Overlay/Chat | abgeschlossen |
+| Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) (#62) | P1 | Reliability/Ops | geplant |
+| YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
+| Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
 
 ## Definition of Done
 

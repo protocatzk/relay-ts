@@ -1433,6 +1433,66 @@ select {
   max-height: 280px;
 }
 
+.diag-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.recommendations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.recommendation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.recommendation-item.rec-warning {
+  border-left: 3px solid var(--danger);
+}
+
+.recommendation-item.rec-recommendation {
+  border-left: 3px solid var(--warning);
+}
+
+.recommendation-item.rec-info {
+  border-left: 3px solid var(--accent);
+}
+
+.rec-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rec-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rec-message {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ----------------------------------------------------------- Logs & Audit UI */
 
 .logs-mode-tabs {

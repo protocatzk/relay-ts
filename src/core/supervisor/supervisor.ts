@@ -112,6 +112,7 @@ export class Supervisor {
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
+  startingStreamerId: string | null = null;
   private readonly media = new MediaPlaybackController();
   private readonly autoSwitch = new AutoSwitchController();
   private statusTicks = 0;
@@ -1009,6 +1010,7 @@ export class Supervisor {
       this.state === 'live',
       this.online,
       this.deps.store,
+      this.startingStreamerId,
     );
   }
 

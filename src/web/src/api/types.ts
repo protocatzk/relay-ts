@@ -23,6 +23,11 @@ export interface ChatOverlay {
   engine: 'canvas' | 'drawtext';
   position: OverlayPosition;
   style: 'bubbles' | 'panel' | 'minimal';
+  layout_mode?: 'standard' | 'pillar_monitor';
+  top_banner_enabled?: boolean;
+  chat_monitor_enabled?: boolean;
+  banner_show_stats?: boolean;
+  banner_show_goal?: boolean;
   max_lines: number;
   max_messages: number;
   max_age_seconds: number;
@@ -1104,6 +1109,25 @@ export interface DirectoryStorageStats {
   files: number;
 }
 
+export interface SystemHardwareSpecs {
+  cpu_model: string;
+  cpu_cores: number;
+  cpu_load_1m: number;
+  cpu_load_5m: number;
+  cpu_load_15m: number;
+  total_memory_bytes: number;
+  free_memory_bytes: number;
+  used_memory_bytes: number;
+}
+
+export interface SystemRecommendation {
+  id: string;
+  level: 'info' | 'recommendation' | 'warning';
+  title: string;
+  message: string;
+  action_url?: string;
+}
+
 export interface DiagnosticsSnapshot {
   collected_at: string;
   version: string;
@@ -1116,6 +1140,8 @@ export interface DiagnosticsSnapshot {
     heap_used_bytes: number;
     heap_total_bytes: number;
   };
+  specs: SystemHardwareSpecs;
+  recommendations: SystemRecommendation[];
   tools: {
     ffmpeg: string | null;
     ytdlp: string | null;

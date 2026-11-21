@@ -275,36 +275,48 @@ export class ChatOverlayEngine {
       number,
       number,
     ];
-    const margin = Math.max(16, Math.round(outputWidth * 0.03));
-    const maxWidth = outputWidth - margin * 2;
-    const autoWidth = Math.round(outputWidth * (outputWidth >= outputHeight ? 0.6 : 0.92));
-    const width = Math.max(200, Math.min(maxWidth, cfg.panel_width > 0 ? cfg.panel_width : autoWidth));
-    const lineHeight = Math.round(cfg.font_size * 1.55);
-    const nameLineHeight = Math.round(cfg.font_size * 0.82 * 1.3);
-    const assumedBubbleLines = 2;
-    const autoHeight =
-      cfg.max_lines * (32 + nameLineHeight + lineHeight * assumedBubbleLines) + 32;
-    const height =
-      cfg.panel_height > 0
-        ? Math.max(80, Math.min(outputHeight - margin * 2, cfg.panel_height))
-        : Math.min(outputHeight - margin * 2, Math.max(120, autoHeight));
-    let x = margin;
-    if (cfg.position === 'top-right' || cfg.position === 'bottom-right') {
-      x = outputWidth - width - margin;
+    if (cfg.layout_mode === 'pillar_monitor') {
+      this.spec = {
+        width: outputWidth,
+        height: outputHeight,
+        x: 0,
+        y: 0,
+        fps: cfg.render_fps,
+      };
+      this.canvas = createCanvas(outputWidth, outputHeight);
+      this.ctx = this.canvas.getContext('2d');
+    } else {
+      const margin = Math.max(16, Math.round(outputWidth * 0.03));
+      const maxWidth = outputWidth - margin * 2;
+      const autoWidth = Math.round(outputWidth * (outputWidth >= outputHeight ? 0.6 : 0.92));
+      const width = Math.max(200, Math.min(maxWidth, cfg.panel_width > 0 ? cfg.panel_width : autoWidth));
+      const lineHeight = Math.round(cfg.font_size * 1.55);
+      const nameLineHeight = Math.round(cfg.font_size * 0.82 * 1.3);
+      const assumedBubbleLines = 2;
+      const autoHeight =
+        cfg.max_lines * (32 + nameLineHeight + lineHeight * assumedBubbleLines) + 32;
+      const height =
+        cfg.panel_height > 0
+          ? Math.max(80, Math.min(outputHeight - margin * 2, cfg.panel_height))
+          : Math.min(outputHeight - margin * 2, Math.max(120, autoHeight));
+      let x = margin;
+      if (cfg.position === 'top-right' || cfg.position === 'bottom-right') {
+        x = outputWidth - width - margin;
+      }
+      const y =
+        cfg.position === 'top-left' || cfg.position === 'top-right'
+          ? margin
+          : outputHeight - height - margin;
+      this.spec = {
+        width,
+        height,
+        x: x + cfg.offset_x,
+        y: y + cfg.offset_y,
+        fps: cfg.render_fps,
+      };
+      this.canvas = createCanvas(width, height);
+      this.ctx = this.canvas.getContext('2d');
     }
-    const y =
-      cfg.position === 'top-left' || cfg.position === 'top-right'
-        ? margin
-        : outputHeight - height - margin;
-    this.spec = {
-      width,
-      height,
-      x: x + cfg.offset_x,
-      y: y + cfg.offset_y,
-      fps: cfg.render_fps,
-    };
-    this.canvas = createCanvas(width, height);
-    this.ctx = this.canvas.getContext('2d');
   }
 
   get panel(): ChatPanelSpec {
@@ -527,6 +539,194 @@ export class ChatOverlayEngine {
     return this.earningsCard;
   }
 
+  private renderPillarMonitor(
+    ctx: SKRSContext2D,
+    width: number,
+    height: number,
+    messages: ChatMessage[],
+    isPreviewSample = false,
+  ): void {
+    const cfg = this.options.overlays.chat;
+    ctx.clearRect(0, 0, width, height);
+
+    const card = this.shouldRenderEarningsCard(isPreviewSample);
+
+    // 1. Top Banner
+    if (cfg.top_banner_enabled !== false) {
+      const bx = 16;
+      const by = 12;
+      const bw = width - 32;
+      const bh = 54;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(12, 17, 26, 0.88)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, bx, by, bw, bh, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Red live pill
+      const liveBadgeX = bx + 14;
+      const liveBadgeY = by + 13;
+      const liveBadgeW = 58;
+      const liveBadgeH = 28;
+      ctx.fillStyle = '#e53935';
+      roundedRect(ctx, liveBadgeX, liveBadgeY, liveBadgeW, liveBadgeH, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 13px ${fontFamily}`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText('● LIVE', liveBadgeX + 8, liveBadgeY + liveBadgeH / 2);
+
+      let cursorX = liveBadgeX + liveBadgeW + 14;
+      ctx.font = `700 16px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      const titleText = isPreviewSample
+        ? 'RELAY Studio Live'
+        : (this.options.settings.streaming?.title_template || 'RELAY Stream');
+      const truncatedTitle = titleText.length > 32 ? `${titleText.slice(0, 30)}…` : titleText;
+      ctx.fillText(truncatedTitle, cursorX, by + bh / 2);
+      cursorX += ctx.measureText(truncatedTitle).width + 24;
+
+      if (cfg.banner_show_stats !== false) {
+        ctx.font = `500 13px ${fontFamily}`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        const statsMsg = `💬 ${messages.length} msgs`;
+        ctx.fillText(statsMsg, cursorX, by + bh / 2);
+      }
+
+      // Right items: Earnings and Goal bar
+      if (cfg.banner_show_stats !== false && card) {
+        let rightCursor = bx + bw - 16;
+
+        if (cfg.banner_show_goal !== false && card.goalAmount && card.goalAmount > 0) {
+          const goalW = 120;
+          const goalH = 10;
+          const current = card.net ?? 0;
+          const ratio = Math.max(0, Math.min(1, current / card.goalAmount));
+          const goalX = rightCursor - goalW;
+          const goalY = by + (bh - goalH) / 2 + 7;
+
+          // Bar background
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+          roundedRect(ctx, goalX, goalY, goalW, goalH, 4);
+          ctx.fill();
+
+          // Bar fill
+          if (ratio > 0) {
+            ctx.fillStyle = '#10b981';
+            roundedRect(ctx, goalX, goalY, Math.round(goalW * ratio), goalH, 4);
+            ctx.fill();
+          }
+
+          // Goal label above bar
+          ctx.font = `600 10px ${fontFamily}`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+          const goalLabelText = `${card.goalLabel || 'Ziel'}: ${Math.round(ratio * 100)}% (${current.toFixed(0)}/${card.goalAmount.toFixed(0)} €)`;
+          ctx.fillText(goalLabelText, goalX, goalY - 9);
+
+          rightCursor = goalX - 24;
+        }
+
+        // Coins / Net amount
+        ctx.font = `700 14px ${fontFamily}`;
+        ctx.fillStyle = '#10b981';
+        ctx.textBaseline = 'middle';
+        const parts: string[] = [];
+        if (card.coins !== null && card.coins !== undefined) {
+          parts.push(`🪙 ${card.coins.toLocaleString('de-DE')}`);
+        }
+        if (card.net !== null && card.net !== undefined) {
+          parts.push(`${card.net.toFixed(2)} €`);
+        }
+        if (parts.length > 0) {
+          const earnText = parts.join(' · ');
+          const earnW = ctx.measureText(earnText).width;
+          ctx.fillText(earnText, rightCursor - earnW, by + bh / 2);
+        }
+      }
+      ctx.restore();
+    }
+
+    // 2. Chat Monitor on Left Pillarbox
+    if (cfg.chat_monitor_enabled !== false) {
+      const mx = 16;
+      const my = 78;
+      const mw = Math.min(420, Math.max(300, Math.round(width * 0.22)));
+      const mh = height - 90;
+
+      ctx.save();
+      // Monitor container
+      ctx.fillStyle = 'rgba(12, 17, 26, 0.72)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, mx, my, mw, mh, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Monitor header
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      roundedRect(ctx, mx, my, mw, 36, 8);
+      ctx.fill();
+
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(mx + 18, my + 18, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = `700 13px ${fontFamily}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('LIVE-CHAT', mx + 30, my + 18);
+
+      const innerX = mx + 12;
+      const innerW = mw - 24;
+      const maxLines = Math.max(4, cfg.max_lines);
+      const visible = messages.slice(-maxLines);
+
+      const textSize = Math.min(18, Math.max(12, cfg.font_size));
+      const textLineHeight = Math.round(textSize * 1.3);
+      const nameSize = Math.max(10, Math.round(textSize * 0.85));
+      const nameLineHeight = Math.round(nameSize * 1.3);
+
+      let curY = my + mh - 16;
+      for (let i = visible.length - 1; i >= 0; i--) {
+        const msg = visible[i]!;
+        ctx.font = `${textSize}px ${fontFamily}`;
+        const lines = wrapText(ctx, msg.text, innerW - 16, 3);
+        const bubbleH = nameLineHeight + lines.length * textLineHeight + 10;
+        const bubbleY = curY - bubbleH;
+        if (bubbleY < my + 44) break;
+
+        // Message bubble
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        roundedRect(ctx, innerX, bubbleY, innerW, bubbleH, 6);
+        ctx.fill();
+
+        // Sender Name
+        ctx.font = `700 ${nameSize}px ${fontFamily}`;
+        const senderColor = cfg.name_colors ? nameColor(msg.username || 'User') : '#38bdf8';
+        ctx.fillStyle = senderColor;
+        ctx.textBaseline = 'top';
+        const senderName = msg.displayName || msg.username || 'Gast';
+        ctx.fillText(senderName, innerX + 8, bubbleY + 6);
+
+        // Text lines
+        ctx.font = `400 ${textSize}px ${fontFamily}`;
+        ctx.fillStyle = '#ffffff';
+        lines.forEach((line, lineIdx) => {
+          ctx.fillText(line, innerX + 8, bubbleY + 6 + nameLineHeight + lineIdx * textLineHeight);
+        });
+
+        curY = bubbleY - 8;
+      }
+
+      ctx.restore();
+    }
+  }
+
   private render(
     ctx: SKRSContext2D,
     width: number,
@@ -535,6 +735,10 @@ export class ChatOverlayEngine {
     isPreviewSample = false,
   ): void {
     const cfg = this.options.overlays.chat;
+    if (cfg.layout_mode === 'pillar_monitor') {
+      this.renderPillarMonitor(ctx, width, height, messages, isPreviewSample);
+      return;
+    }
     ctx.clearRect(0, 0, width, height);
     const card = this.shouldRenderEarningsCard(isPreviewSample);
     if (messages.length === 0 && !card) return;

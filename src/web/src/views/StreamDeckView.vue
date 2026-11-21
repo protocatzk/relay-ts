@@ -116,7 +116,9 @@ const startCandidate = computed<Streamer | null>(() => {
 
 const liveStreamers = computed<Streamer[]>(() =>
   sortStreamersByLive(
-    store.streamers.filter((streamer) => streamer.enabled && streamer.status.online === true),
+    store.streamers.filter(
+      (streamer) => streamer.enabled && (streamer.status.online === true || streamer.status.active),
+    ),
   ),
 );
 

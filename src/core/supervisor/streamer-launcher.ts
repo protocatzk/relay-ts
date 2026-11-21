@@ -79,6 +79,7 @@ export interface StreamerLauncherDeps {
   setStartedAt: (date: Date | null) => void;
   setLastError: (err: string | null) => void;
   setForceReencodeNext: (val: boolean) => void;
+  setStartingStreamerId: (id: string | null) => void;
 }
 
 export class StreamerLauncher {
@@ -109,15 +110,17 @@ export class StreamerLauncher {
 
     this.deps.sourceSession.clearReconnectTimer();
     const previousState = state;
+    this.deps.setStartingStreamerId(streamer.id);
     this.deps.transitionTo('starting');
     this.deps.setLastError(null);
     this.deps.sourceSession.beginResolve();
-    this.deps.emitStatus();
+    this.deps.emitAll();
 
     let stream: ResolvedStream;
     try {
       stream = await this.deps.sourceSession.resolve(streamer);
     } catch (error) {
+      this.deps.setStartingStreamerId(null);
       this.deps.sourceSession.endResolve();
       const message = toErrorMessage(error);
       this.deps.setLastError(message);
@@ -177,6 +180,7 @@ export class StreamerLauncher {
     this.deps.applyConfiguredDelay();
 
     this.deps.setActiveStreamer(streamer);
+    this.deps.setStartingStreamerId(null);
     this.deps.media.stop();
     this.deps.queue.clearPlayback();
     this.deps.sinkController.key = key;
@@ -317,6 +321,7 @@ export class StreamerLauncher {
     }
 
     this.deps.setActiveStreamer(streamer);
+    this.deps.setStartingStreamerId(null);
     this.deps.sinkController.key = key;
     this.deps.sinkController.filters = prepared.filters;
     this.deps.sinkController.overlayInput = overlayInput;

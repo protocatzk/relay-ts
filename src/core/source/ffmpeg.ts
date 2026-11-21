@@ -104,6 +104,8 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
       }),
       '-c:a',
       'aac',
+      '-profile:a',
+      'aac_low',
       '-b:a',
       `${settings.video.audio_bitrate}k`,
       '-ar',
@@ -206,7 +208,7 @@ export function buildVideoFilters(
 /** Builds the sink audio filter chain (smooth resample, optional gain/loudnorm/silence detect). */
 export function buildAudioFilter(settings: Settings): string {
   const audio = settings.audio;
-  const filters = ['aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo'];
+  const filters = ['aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:first_pts=0:osr=48000:osf=fltp:ochl=stereo'];
   if (audio.gain_db !== 0) {
     filters.push(`volume=${audio.gain_db.toFixed(1)}dB`);
   }
@@ -337,6 +339,8 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     buildAudioFilter(settings),
     '-c:a',
     'aac',
+    '-profile:a',
+    'aac_low',
     '-b:a',
     `${settings.video.audio_bitrate}k`,
     '-ar',
@@ -544,6 +548,8 @@ export function buildPauseCommand(options: PauseCommandOptions): string[] {
     }),
     '-c:a',
     'aac',
+    '-profile:a',
+    'aac_low',
     '-b:a',
     `${settings.video.audio_bitrate}k`,
     '-ar',

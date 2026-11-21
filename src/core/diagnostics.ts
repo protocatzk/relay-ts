@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, statSync, statfsSync } from 'node:fs';
+import { cpus, freemem, loadavg, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { LoadedConfig } from './config/loader.js';
@@ -21,6 +22,119 @@ export interface FilesystemStorageStats {
   available_bytes: number;
 }
 
+export interface SystemHardwareSpecs {
+  cpu_model: string;
+  cpu_cores: number;
+  cpu_load_1m: number;
+  cpu_load_5m: number;
+  cpu_load_15m: number;
+  total_memory_bytes: number;
+  free_memory_bytes: number;
+  used_memory_bytes: number;
+}
+
+export interface SystemRecommendation {
+  id: string;
+  level: 'info' | 'recommendation' | 'warning';
+  title: string;
+  message: string;
+  action_url?: string;
+}
+
+export function buildSystemHardwareSpecs(): SystemHardwareSpecs {
+  const cpuList = cpus();
+  const [load1m = 0, load5m = 0, load15m = 0] = loadavg();
+  const total = totalmem();
+  const free = freemem();
+  return {
+    cpu_model: cpuList[0]?.model || 'Unbekannt',
+    cpu_cores: cpuList.length || 1,
+    cpu_load_1m: Math.round(load1m * 100) / 100,
+    cpu_load_5m: Math.round(load5m * 100) / 100,
+    cpu_load_15m: Math.round(load15m * 100) / 100,
+    total_memory_bytes: total,
+    free_memory_bytes: free,
+    used_memory_bytes: Math.max(0, total - free),
+  };
+}
+
+export function buildSystemRecommendations(params: {
+  specs: SystemHardwareSpecs;
+  activeEncoder: VideoEncoder;
+  availableEncoders: VideoEncoder[];
+  filesystem: FilesystemStorageStats | null;
+  videoEncoderSetting?: string;
+  videoPreset?: string;
+}): SystemRecommendation[] {
+  const recommendations: SystemRecommendation[] = [];
+  const { specs, activeEncoder, availableEncoders, filesystem, videoEncoderSetting } = params;
+
+  // 1. Hardware Encoder check
+  const hardwareEncoders = availableEncoders.filter(
+    (e) => e === 'h264_nvenc' || e === 'h264_qsv' || e === 'h264_amf',
+  );
+  if (hardwareEncoders.length > 0 && activeEncoder === 'libx264' && videoEncoderSetting === 'libx264') {
+    recommendations.push({
+      id: 'hardware-encoder-available',
+      level: 'recommendation',
+      title: 'Hardware-Encoder verfügbar',
+      message: `Erkannte Hardware-Encoder: ${hardwareEncoders.join(', ')}. Aktuell ist der CPU-Encoder libx264 konfiguriert. Die Aktivierung von Hardware-Encoding (z. B. 'auto' oder '${hardwareEncoders[0]}') entlastet die CPU deutlich.`,
+      action_url: '/system/settings',
+    });
+  }
+
+  // 2. High CPU Load check (normalized 1m load > 85% of cores)
+  const normalizedLoad1m = specs.cpu_load_1m / Math.max(1, specs.cpu_cores);
+  if (normalizedLoad1m > 0.85) {
+    recommendations.push({
+      id: 'high-cpu-load',
+      level: 'warning',
+      title: 'Hohe CPU-Dauerlast',
+      message: `CPU-Dauerlast liegt bei ${Math.round(normalizedLoad1m * 100)} %. Falls Re-Encoding oder Software-Encoding aktiv ist, empfiehlt sich ein schnelleres Preset (z. B. 'veryfast') oder ein Hardware-Encoder.`,
+      action_url: '/system/settings',
+    });
+  }
+
+  // 3. Free RAM check (< 1 GB free when system has > 2 GB)
+  const ONE_GB = 1024 * 1024 * 1024;
+  if (specs.free_memory_bytes < ONE_GB && specs.total_memory_bytes > 2 * ONE_GB) {
+    const freeMb = Math.round(specs.free_memory_bytes / (1024 * 1024));
+    recommendations.push({
+      id: 'low-free-ram',
+      level: 'warning',
+      title: 'Knapper Arbeitsspeicher',
+      message: `Nur noch ${freeMb} MB freier Arbeitsspeicher verfügbar. Es wird empfohlen, den Delay-Puffer oder die Chat-Historie zu begrenzen.`,
+      action_url: '/system/settings',
+    });
+  }
+
+  // 4. Filesystem Storage check (< 15% available)
+  if (filesystem && filesystem.total_bytes > 0) {
+    const freeRatio = filesystem.available_bytes / filesystem.total_bytes;
+    if (freeRatio < 0.15) {
+      const freePercent = Math.round(freeRatio * 100);
+      recommendations.push({
+        id: 'low-disk-space',
+        level: 'warning',
+        title: 'Knapper Festplattenspeicher',
+        message: `Nur noch ${freePercent} % Speicherplatz auf der Daten-Partition frei. Bitte alte Recordings oder Logs bereinigen.`,
+        action_url: '/system/settings',
+      });
+    }
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      id: 'optimal-status',
+      level: 'info',
+      title: 'System optimal konfiguriert',
+      message: 'Hardware-Ressourcen, Speicher und Encoder-Einstellungen befinden sich im optimalen Bereich.',
+    });
+  }
+
+  return recommendations;
+}
+
 export interface DiagnosticsSnapshot {
   collected_at: string;
   version: string;
@@ -33,6 +147,8 @@ export interface DiagnosticsSnapshot {
     heap_used_bytes: number;
     heap_total_bytes: number;
   };
+  specs: SystemHardwareSpecs;
+  recommendations: SystemRecommendation[];
   tools: {
     ffmpeg: string | null;
     ytdlp: string | null;
@@ -195,6 +311,18 @@ export async function collectDiagnostics(params: {
   const rootBackups = join(config.paths.root, 'backups');
   const dataBackups = join(config.paths.dataDir, 'backups');
   const backupsDir = existsSync(rootBackups) ? rootBackups : dataBackups;
+  const fsStats = filesystemUsage(config.paths.dataDir);
+  const activeEncoder = currentVideoEncoder();
+  const availableEncoders = availableVideoEncoders();
+  const specs = buildSystemHardwareSpecs();
+  const recommendations = buildSystemRecommendations({
+    specs,
+    activeEncoder,
+    availableEncoders,
+    filesystem: fsStats,
+    videoEncoderSetting: config.settings.video.encoder,
+    videoPreset: config.settings.video.preset,
+  });
 
   return {
     collected_at: new Date().toISOString(),
@@ -208,10 +336,12 @@ export async function collectDiagnostics(params: {
       heap_used_bytes: mem.heapUsed,
       heap_total_bytes: mem.heapTotal,
     },
+    specs,
+    recommendations,
     tools,
     encoder: {
-      active: currentVideoEncoder(),
-      available: availableVideoEncoders(),
+      active: activeEncoder,
+      available: availableEncoders,
     },
     ports: {
       http: config.server.port,
@@ -224,7 +354,7 @@ export async function collectDiagnostics(params: {
       logs: measureDirectory(config.paths.logsDir),
       backups: measureDirectory(backupsDir),
       data: measureDirectory(config.paths.dataDir),
-      filesystem: filesystemUsage(config.paths.dataDir),
+      filesystem: fsStats,
     },
     metrics: metricsSnapshot(),
     recent_errors: ring.list({ level: 'error', limit: 25 }).reverse(),

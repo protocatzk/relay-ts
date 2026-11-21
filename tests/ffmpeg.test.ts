@@ -207,7 +207,7 @@ describe('ffmpeg command builders', () => {
     expect(line).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1');
     expect(line).toContain('-force_key_frames expr:gte(t,n_forced*2)');
     expect(line).toContain(
-      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
+      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:first_pts=0:osr=48000:osf=fltp:ochl=stereo',
     );
     expect(line).toContain('-avoid_negative_ts make_zero');
     expect(line).toContain('-max_interleave_delta 500000');
@@ -645,7 +645,7 @@ describe('runCommand', () => {
 describe('buildAudioFilter', () => {
   it('uses async resampling only when normalization, gain, and silence detection are off', () => {
     expect(buildAudioFilter(DEFAULT_SETTINGS)).toBe(
-      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:osr=48000:osf=fltp:ochl=stereo',
+      'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:first_pts=0:osr=48000:osf=fltp:ochl=stereo',
     );
   });
 
@@ -692,5 +692,25 @@ describe('buildAudioFilter', () => {
     const loglevelIndex = args.indexOf('-loglevel');
     expect(loglevelIndex).toBeGreaterThan(-1);
     expect(args[loglevelIndex + 1]).toBe('info');
+  });
+
+  it('enforces AAC-LC profile and first_pts=0 in audio filter for iOS compatibility (#66)', () => {
+    const filter = buildAudioFilter(DEFAULT_SETTINGS);
+    expect(filter).toContain('first_pts=0');
+    expect(filter).toContain('aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:first_pts=0');
+
+    const sinkArgs = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'abc-def',
+      relay,
+    });
+    const profileIdx = sinkArgs.indexOf('-profile:a');
+    expect(profileIdx).toBeGreaterThan(-1);
+    expect(sinkArgs[profileIdx + 1]).toBe('aac_low');
+    expect(sinkArgs).toContain('-ar');
+    expect(sinkArgs).toContain('48000');
+    expect(sinkArgs).toContain('-ac');
+    expect(sinkArgs).toContain('2');
   });
 });
