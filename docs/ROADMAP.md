@@ -92,6 +92,16 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 - Auslieferung über `GET /api/openapi.json`, Generator und CI-Frischecheck.
 - Route-Coverage-, Ref- und Typ-Paritätstests.
 
+### v0.24.0 – Stream Protection, Discovery & Mobile Fixes
+
+| Issue | Priorität | Bereich |
+|---|---|---|
+| Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) | P1 | Reliability/Ops |
+| Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren | P1 | Reliability/YouTube |
+| YouTube: Thumbnails über Cockpit einfügen | P2 | YouTube/UI |
+| Stream: Discovery für neue Streamer einbauen | P2 | Playlists/Queue |
+| Systemspecs prüfen und Optimierungsempfehlungen ausgeben | P3 | Ops/Diagnostics |
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:

@@ -20,3 +20,8 @@
 {"title":"Tech Debt: Supervisor-Rest und große Vue-Views modularisieren","file":"20-supervisor-ui-refactor.md","labels":["tech-debt","reliability","P4"]}
 {"title":"Relay: Puffer-Abbau durch 1.01x-Catch-Up-Pacing erzwingen","file":"21-relay-catchup-pacing.md","labels":["reliability","P1"]}
 {"title":"Sink: Signal zum YouTube-RTMP-Endpoint stabilisieren","file":"22-youtube-rtmp-stability.md","labels":["reliability","youtube","P1"]}
+{"title":"Stream absichern: Endlosbild senden bei Verbindungsverlust (Disconnect Protection)","file":"23-disconnect-protection.md","labels":["reliability","P1","observability","media","recording","performance"]}
+{"title":"YouTube: Thumbnails über Cockpit einfügen","file":"24-youtube-cockpit-thumbnails.md","labels":["youtube","enhancement","accessibility","mobile","P2"]}
+{"title":"System: Hardwarespezifikationen prüfen und Optimierungsempfehlungen ausgeben","file":"25-system-specs-recommendations.md","labels":["ops","observability","diagnostics","P3"]}
+{"title":"Stream: Automatisches Auffinden und Hinzufügen neuer Streamer (Discovery)","file":"26-stream-discovery.md","labels":["enhancement","playlists","queue","streaming","api","accessibility","P2"]}
+{"title":"Bug: YouTube-Audio-Encoding für iOS-Clients analysieren und stabilisieren","file":"27-youtube-ios-audio-encoding.md","labels":["bug","reliability","youtube","P1"]}
