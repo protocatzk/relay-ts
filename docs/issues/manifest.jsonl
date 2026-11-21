@@ -27,3 +27,4 @@
 {"title":"Dashboard: Polling- und Preview-Timer bei verstecktem Tab pausieren","file":"27-dashboard-visible-tab-polling.md","labels":["performance","P4"]}
 {"title":"Sink: h264-Tune konfigurierbar machen (zerolatency hinterfragen)","file":"28-sink-tune-configurable.md","labels":["performance","streaming","P3"]}
 {"title":"Tech Debt: Sync-FS-Zugriffe, Disk-Check und Preview-Signatur entschärfen","file":"29-sync-fs-periodic-checks.md","labels":["performance","tech-debt","P4"]}
+{"title":"Ops: Rotation für das Haupt-Logfile ergänzen","file":"30-main-log-rotation.md","labels":["ops","observability","P3"]}

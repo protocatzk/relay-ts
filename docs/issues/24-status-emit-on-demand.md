@@ -7,7 +7,7 @@ Das 2-s-Status-Emit (`emitStatus()`) nur dann ein vollständiges Status-Snapshot
 - `supervisor.ts` startet einen `setInterval` mit 2000 ms, der immer `emitStatus()` aufruft, egal ob Dashboards verbunden sind.
 - `emitStatus()` baut über `buildStatus()` das komplette Snapshot-Objekt; der Event-Bus serialisiert die Daten zu JSON.
 - Der SSE-Fanout in `src/api/routes/system.ts` ist bereits optimiert (eine geteilte Bus-Subscription, Coalescing pro Tick) – aber ohne verbundene Clients entsteht der komplette Build-/Serialisierungs-Aufwand trotzdem, rund um die Uhr, auch im Idle-Betrieb.
-- Zusätzlich procct der Timer alle 5 Ticks `persistMediaProgress()` und liest den Recording-Disk-Status; das kann wie heute bleiben, nur der teure Snapshot-Bau soll entfallen.
+- Zusätzlich prüft der Timer alle 5 Ticks `persistMediaProgress()` und liest den Recording-Disk-Status; das kann wie heute bleiben, nur der teure Snapshot-Bau soll entfallen.
 
 ## Umfang
 

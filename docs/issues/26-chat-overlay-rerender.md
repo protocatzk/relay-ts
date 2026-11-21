@@ -14,6 +14,7 @@ Die Render-Kosten des Canvas-Chat-Overlays senken, indem Neu-Renderings nur bei 
 - **ChatOverlayEngine (`src/core/overlays/chat-engine.ts`):**
   - `setMessages()` nur dann `dirty` setzen, wenn sich die sichtbare Liste tatsächlich geändert hat (z. B. Vergleich über Länge + IDs; O(n) mit kleinem n ist ausreichend).
   - Frame-Extraktion möglichst auf den geänderten Bereich beschränken (Dirty-Rect) oder mindestens die Animation-Fenster (Slide) von den statischen Phasen trennen, sodass im statischen Zustand kein Full-Panel-Kopieren stattfindet.
+  - Die `show_stats`-Zeile (MSG/CHATTER/TOP): `filter` + `Map` + `sort` + `[...entries].sort` laufen bei jedem Animation-Frame (~10/s) neu (`src/core/overlays/chat-engine.ts`, `show_stats`-Block im `render()`), obwohl sich die Daten nur mit Nachrichten-Änderungen ändern. Aggregation cachen und nur bei `setMessages` neu berechnen.
 - **ChatAnalytics (`src/core/overlays/chat-analytics.ts`):**
   - `prune()` über Head-Index statt `filter()`-Neuallokation.
   - Optional: Top-Chatter/-Badges inkrementell pflegen, damit `snapshot()` nicht bei jedem Abruf das ganze Fenster re-aggregiert.

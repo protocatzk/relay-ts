@@ -24,6 +24,7 @@ Kleinere, belegte Performance-Baustellen in einem Rutsch entschärfen: blockiere
   - Audit-Log-Schreiben asynchron bzw. gepuffert/serialisiert umstellen (Reihenfolge der Einträge erhalten!); SQLite-artiges Batching nicht nötig, `appendFile`-Queue reicht.
   - `broadcast-store.ts`/andere Sync-Writer in Request-Pfaden prüfen und asynchronisieren, wo keine Invarianten dagegen sprechen (atomarer Rename-Ablauf muss erhalten bleiben).
   - `QueueController.setPlayback()` persistiert während Medienwiedergabe alle 10 s per Sync-Write (`src/core/supervisor/queue-controller.ts:301`, aufgerufen über den Status-Timer in `supervisor.ts:460`): asynchronisieren oder Dirty-Writes dedupen.
+  - `OverlayManager.updateChat()` schreibt bei jeder Chat-Änderung per `writeFileAtomic` (Sync-Write + Rename, `src/core/overlays/overlay-manager.ts`). Im Canvas-Engine-Modus ist die Datei (`chat.txt`) gar nicht gebunden und der Write reine Verschwendung; der Guard prüft nur `config.enabled`, nicht `config.engine`. Write auf Drawtext-Engine beschränken bzw. asynchronisieren.
 - **Drosselung:**
   - Filesystem-Check (`statfs`) auf max. 15–30 s cachen; Auslösen der `disk_warning`-Webhooks bleibt unmittelbar nach Check.
 - **Signatur:**
