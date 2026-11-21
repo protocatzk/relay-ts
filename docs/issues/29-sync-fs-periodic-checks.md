@@ -23,6 +23,7 @@ Kleinere, belegte Performance-Baustellen in einem Rutsch entschärfen: blockiere
   - `listRecordings()` und Call Sites auf `fs/promises` umstellen (`src/api/routes/recordings.ts`, `src/core/recording/recording-controller.ts`).
   - Audit-Log-Schreiben asynchron bzw. gepuffert/serialisiert umstellen (Reihenfolge der Einträge erhalten!); SQLite-artiges Batching nicht nötig, `appendFile`-Queue reicht.
   - `broadcast-store.ts`/andere Sync-Writer in Request-Pfaden prüfen und asynchronisieren, wo keine Invarianten dagegen sprechen (atomarer Rename-Ablauf muss erhalten bleiben).
+  - `QueueController.setPlayback()` persistiert während Medienwiedergabe alle 10 s per Sync-Write (`src/core/supervisor/queue-controller.ts:301`, aufgerufen über den Status-Timer in `supervisor.ts:460`): asynchronisieren oder Dirty-Writes dedupen.
 - **Drosselung:**
   - Filesystem-Check (`statfs`) auf max. 15–30 s cachen; Auslösen der `disk_warning`-Webhooks bleibt unmittelbar nach Check.
 - **Signatur:**
