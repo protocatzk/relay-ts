@@ -33,3 +33,4 @@
 {"title":"Discovery: TikTok Live-Zapper (Feed-Player mit Pfeil-Navigation & HTTP-FLV-Preview)","file":"33-discovery-live-zapper.md","labels":["enhancement","P2","stream","discovery"]}
 {"title":"Agenten-Steuerung: Intern (Regie-Agent) und extern per MCP (Model Context Protocol)","file":"34-agent-control-mcp.md","labels":["enhancement","api","P2","ops"]}
 {"title":"Streamer: Gruppenverwaltung und automatische Discovery-Gruppe","file":"35-streamer-groups.md","labels":["enhancement","playlists","streaming","P2"]}
+{"title":"Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher","file":"36-webcast-direct-pillar-following-accounts.md","labels":["enhancement","chat","earnings","overlay","P2"]}

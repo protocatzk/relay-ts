@@ -153,6 +153,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Discovery: TikTok Live-Zapper (Feed-Player mit Pfeil-Navigation & HTTP-FLV-Preview) (#76) | P2 | Discovery/UI | abgeschlossen |
 | Agenten-Steuerung: Intern (Regie-Agent) und extern per MCP (#77) | P2 | Agent/MCP/API | geplant |
 | Streamer: Gruppenverwaltung und automatische Discovery-Gruppe (#78) | P2 | Playlists/Streaming | abgeschlossen |
+| Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher (#79) | P2 | Chat/Overlay/Discovery | geplant |
 
 ## Definition of Done
 
