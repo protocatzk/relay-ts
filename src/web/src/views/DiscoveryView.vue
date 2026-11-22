@@ -4,6 +4,10 @@ import { api, errorMessage } from '@/src/api/client';
 import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import {
+  DEFAULT_AVATAR_SVG_URL,
+  resolveAvatarSrc,
+} from '@/src/composables/useAvatarFallback';
 
 type ZapperPlayerStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'unsupported';
 type Mpegts = typeof import('mpegts.js').default;
@@ -29,6 +33,33 @@ const providers = ref<DiscoveryProviderStatus[]>([]);
 const lastFetchedAt = ref<number>(0);
 const actionBusy = ref<string | null>(null);
 const justAdded = ref<Map<string, Streamer>>(new Map());
+const failedAvatars = ref<Set<string>>(new Set());
+
+function avatarSrcFor(hit: DiscoveryHit): string | null {
+  return resolveAvatarSrc(hit.avatar_url, failedAvatars.value.has(hit.handle));
+}
+
+function isUsingFallbackAvatar(hit: DiscoveryHit): boolean {
+  return !hit.avatar_url || failedAvatars.value.has(hit.handle);
+}
+
+function onAvatarError(handle: string, event: Event): void {
+  if (!failedAvatars.value.has(handle)) {
+    const next = new Set(failedAvatars.value);
+    next.add(handle);
+    failedAvatars.value = next;
+    return;
+  }
+  const img = event.target as HTMLImageElement | null;
+  if (img && img.src && !img.src.endsWith(DEFAULT_AVATAR_SVG_URL)) {
+    img.src = DEFAULT_AVATAR_SVG_URL;
+  }
+}
+
+function zapperPosterFor(hit: DiscoveryHit): string {
+  if (hit.cover_url) return hit.cover_url;
+  return avatarSrcFor(hit) ?? DEFAULT_AVATAR_SVG_URL;
+}
 
 // Live-Zapper state
 const zapperIndex = ref(0);
@@ -676,9 +707,8 @@ onUnmounted(() => {
       <div class="zapper-stage">
         <!-- Blurred Ambient Backdrop -->
         <div
-          v-if="currentZapperHit.cover_url || currentZapperHit.avatar_url"
           class="zapper-backdrop"
-          :style="{ backgroundImage: `url(${currentZapperHit.cover_url || currentZapperHit.avatar_url})` }"
+          :style="{ backgroundImage: `url(${zapperPosterFor(currentZapperHit)})` }"
           aria-hidden="true"
         ></div>
 
@@ -689,7 +719,7 @@ onUnmounted(() => {
           playsinline
           autoplay
           :muted="zapperMuted"
-          :poster="currentZapperHit.cover_url || currentZapperHit.avatar_url || undefined"
+          :poster="zapperPosterFor(currentZapperHit)"
         ></video>
 
         <!-- Top HUD Bar -->
@@ -753,11 +783,13 @@ onUnmounted(() => {
           <div class="zapper-streamer-info">
             <div class="avatar-wrap">
               <img
-                v-if="currentZapperHit.avatar_url"
-                :src="currentZapperHit.avatar_url"
+                v-if="avatarSrcFor(currentZapperHit)"
+                :src="avatarSrcFor(currentZapperHit)!"
                 :alt="`Avatar von ${currentZapperHit.display_name}`"
                 class="avatar-img"
+                :class="{ 'is-fallback-avatar': isUsingFallbackAvatar(currentZapperHit) }"
                 referrerpolicy="no-referrer"
+                @error="onAvatarError(currentZapperHit.handle, $event)"
               />
               <div v-else class="avatar-fallback">
                 {{ (currentZapperHit.display_name || currentZapperHit.handle).slice(0, 2).toUpperCase() }}
@@ -903,12 +935,14 @@ onUnmounted(() => {
         <div class="hit-header">
           <div class="avatar-wrap">
             <img
-              v-if="hit.avatar_url"
-              :src="hit.avatar_url"
+              v-if="avatarSrcFor(hit)"
+              :src="avatarSrcFor(hit)!"
               :alt="`Avatar von ${hit.display_name}`"
               class="avatar-img"
+              :class="{ 'is-fallback-avatar': isUsingFallbackAvatar(hit) }"
               loading="lazy"
               referrerpolicy="no-referrer"
+              @error="onAvatarError(hit.handle, $event)"
             />
             <div v-else class="avatar-fallback" aria-hidden="true">
               {{ (hit.display_name || hit.handle).slice(0, 2).toUpperCase() }}

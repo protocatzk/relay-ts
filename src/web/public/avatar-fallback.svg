@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="avatar-fallback-title">
+  <title id="avatar-fallback-title">Streamer Avatar</title>
+  <defs>
+    <linearGradient id="av-bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0C1320"/>
+      <stop offset="0.55" stop-color="#111C2D"/>
+      <stop offset="1" stop-color="#18122B"/>
+    </linearGradient>
+    <linearGradient id="av-ring" x1="24" y1="24" x2="232" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DFFF4F"/>
+      <stop offset="0.45" stop-color="#4CE07F"/>
+      <stop offset="0.75" stop-color="#26E3FF"/>
+      <stop offset="1" stop-color="#B05CFF"/>
+    </linearGradient>
+    <radialGradient id="av-glow" cx="128" cy="112" r="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26E3FF" stop-opacity="0.24"/>
+      <stop offset="0.65" stop-color="#4CE07F" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#26E3FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="av-user" x1="82" y1="68" x2="176" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8F9FF"/>
+      <stop offset="0.55" stop-color="#9BE8FF"/>
+      <stop offset="1" stop-color="#4CE07F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="36" fill="url(#av-bg)"/>
+  <circle cx="128" cy="112" r="96" fill="url(#av-glow)"/>
+  <rect x="6" y="6" width="244" height="244" rx="30" fill="none" stroke="url(#av-ring)" stroke-opacity="0.38" stroke-width="3"/>
+
+  <!-- Broadcast signal waves -->
+  <path d="M58 78a78 78 0 0 0 0 72" fill="none" stroke="#26E3FF" stroke-opacity="0.45" stroke-width="5" stroke-linecap="round"/>
+  <path d="M198 78a78 78 0 0 1 0 72" fill="none" stroke="#4CE07F" stroke-opacity="0.45" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Streamer head & shoulders silhouette -->
+  <circle cx="128" cy="98" r="34" fill="url(#av-user)"/>
+  <path
+    d="M68 198c4-31 28-50 60-50s56 19 60 50c1 7-4 13-11 13H79c-7 0-12-6-11-13Z"
+    fill="url(#av-user)"
+    opacity="0.92"
+  />
+</svg>
