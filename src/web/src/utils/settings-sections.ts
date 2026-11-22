@@ -12,7 +12,8 @@ export type EditableSettingsSectionId =
   | 'earnings'
   | 'chat'
   | 'title'
-  | 'webhooks';
+  | 'webhooks'
+  | 'mcp';
 
 export type SettingsSectionId =
   | EditableSettingsSectionId
@@ -42,6 +43,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'chat', domId: 'settings-chat', label: 'Chat-Overlay', editable: true },
   { id: 'title', domId: 'settings-title', label: 'YouTube & Stream-Key', editable: true },
   { id: 'webhooks', domId: 'settings-webhooks', label: 'Webhooks', editable: true },
+  { id: 'mcp', domId: 'settings-mcp', label: 'MCP-Server & KI-Agenten', editable: true },
   { id: 'tiktok_accounts', domId: 'settings-tiktok-accounts', label: 'TikTok-Konten', editable: false },
   { id: 'appearance', domId: 'settings-appearance', label: 'Erscheinungsbild', editable: false },
   { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
@@ -61,6 +63,7 @@ export const EDITABLE_SETTINGS_SECTIONS: readonly EditableSettingsSectionId[] = 
   'chat',
   'title',
   'webhooks',
+  'mcp',
 ];
 
 export interface SettingsSecretsDraft {
@@ -253,6 +256,22 @@ export function buildSectionPayload(
         },
       };
     }
+    case 'mcp': {
+      const mcp = current.mcp ?? {
+        enabled: true,
+        allow_destructive: true,
+        require_auth: false,
+        server_name: 'relay-mcp-server',
+      };
+      return {
+        mcp: {
+          enabled: mcp.enabled,
+          allow_destructive: mcp.allow_destructive,
+          require_auth: mcp.require_auth,
+          server_name: mcp.server_name.trim() || 'relay-mcp-server',
+        },
+      };
+    }
   }
 }
 
@@ -320,6 +339,8 @@ export function isSectionDirty(
         (secrets.webhookSecret?.length ?? 0) > 0 ||
         JSON.stringify(current.webhooks ?? null) !== JSON.stringify(baseline.webhooks ?? null)
       );
+    case 'mcp':
+      return JSON.stringify(current.mcp ?? null) !== JSON.stringify(baseline.mcp ?? null);
   }
 }
 
@@ -366,6 +387,9 @@ export function applySavedSection(
       return;
     case 'webhooks':
       if (saved.webhooks) target.webhooks = clone(saved.webhooks);
+      return;
+    case 'mcp':
+      if (saved.mcp) target.mcp = clone(saved.mcp);
       return;
   }
 }

@@ -3,9 +3,19 @@ import { z } from 'zod';
 import type { AgentToolRegistry, AgentToolContext } from './tool-registry.js';
 import { VERSION } from '../../version.js';
 
-export function createRelayMcpServer(registry: AgentToolRegistry, ctx: AgentToolContext): McpServer {
+export function createRelayMcpServer(
+  registry: AgentToolRegistry,
+  ctx: AgentToolContext,
+  getSettings?: () => { enabled: boolean; allow_destructive: boolean; server_name: string },
+): McpServer {
+  const settings = getSettings?.() ?? {
+    enabled: true,
+    allow_destructive: true,
+    server_name: 'relay-mcp-server',
+  };
+
   const server = new McpServer({
-    name: 'relay-mcp-server',
+    name: settings.server_name || 'relay-mcp-server',
     version: VERSION,
   });
 
@@ -49,6 +59,13 @@ export function createRelayMcpServer(registry: AgentToolRegistry, ctx: AgentTool
       rawSchema,
       async (params: any) => {
         try {
+          const currentSettings = getSettings?.();
+          if (currentSettings && !currentSettings.enabled) {
+            throw new Error('MCP Server ist deaktiviert');
+          }
+          if (tool.destructive && currentSettings && !currentSettings.allow_destructive) {
+            throw new Error(`Tool ${tool.name} ist destruktiv und derzeit in RELAY deaktiviert`);
+          }
           const res = await registry.execute(tool.name, params, ctx, 'mcp');
           return {
             content: [

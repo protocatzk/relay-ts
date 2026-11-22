@@ -36,6 +36,7 @@ import SettingsEarningsCard from '@/src/components/settings/SettingsEarningsCard
 import SettingsChatCard from '@/src/components/settings/SettingsChatCard.vue';
 import SettingsTitleCard from '@/src/components/settings/SettingsTitleCard.vue';
 import SettingsWebhooksCard from '@/src/components/settings/SettingsWebhooksCard.vue';
+import SettingsMcpCard from '@/src/components/settings/SettingsMcpCard.vue';
 import SettingsAppearanceCard from '@/src/components/settings/SettingsAppearanceCard.vue';
 import SettingsTikTokAccountsCard from '@/src/components/settings/SettingsTikTokAccountsCard.vue';
 import SettingsSessionsCard from '@/src/components/settings/SettingsSessionsCard.vue';
@@ -735,6 +736,15 @@ onBeforeUnmount(() => {
         @test="sendTestWebhook"
         @toggle-event="toggleWebhookEvent"
         @save="saveSection('webhooks')"
+      />
+
+      <SettingsMcpCard
+        v-if="form.mcp"
+        :mcp="form.mcp"
+        :dirty="sectionDirty('mcp')"
+        :saving="savingSection === 'mcp'"
+        :busy-saving="busySaving"
+        @save="saveSection('mcp')"
       />
 
       <SettingsTikTokAccountsCard />

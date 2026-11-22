@@ -10776,6 +10776,35 @@
                 "maxLength": 8
               }
             }
+          },
+          "mcp": {
+            "default": {
+              "enabled": true,
+              "allow_destructive": true,
+              "require_auth": false,
+              "server_name": "relay-mcp-server"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "allow_destructive": {
+                "default": true,
+                "type": "boolean"
+              },
+              "require_auth": {
+                "default": false,
+                "type": "boolean"
+              },
+              "server_name": {
+                "default": "relay-mcp-server",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            }
           }
         }
       },
@@ -12322,6 +12351,35 @@
                 "type": "string",
                 "minLength": 2,
                 "maxLength": 8
+              }
+            }
+          },
+          "mcp": {
+            "default": {
+              "enabled": true,
+              "allow_destructive": true,
+              "require_auth": false,
+              "server_name": "relay-mcp-server"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "allow_destructive": {
+                "default": true,
+                "type": "boolean"
+              },
+              "require_auth": {
+                "default": false,
+                "type": "boolean"
+              },
+              "server_name": {
+                "default": "relay-mcp-server",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
               }
             }
           }

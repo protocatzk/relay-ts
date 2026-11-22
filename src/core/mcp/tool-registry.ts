@@ -18,6 +18,7 @@ export interface AgentToolContext {
 export interface ToolDefinition<TParams extends z.ZodTypeAny = z.ZodTypeAny, TResult = unknown> {
   name: string;
   description: string;
+  destructive?: boolean;
   schema: TParams;
   execute: (params: z.infer<TParams>, ctx: AgentToolContext, source?: 'mcp' | 'agent') => Promise<TResult>;
 }
@@ -93,6 +94,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_start_streamer',
     description: 'Startet das Restreaming eines bestimmten konfigurierten Streamers anhand seiner ID.',
+    destructive: true,
     schema: z.object({ streamer_id: z.string().describe('ID des Streamers') }),
     execute: async ({ streamer_id }, ctx) => ctx.supervisor.start(streamer_id),
   });
@@ -101,6 +103,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_stop_stream',
     description: 'Beendet den aktuellen Stream oder aktiven Screen und setzt RELAY in den Idle-Zustand.',
+    destructive: true,
     schema: z.object({}),
     execute: async (_params, ctx) => ctx.supervisor.stop(),
   });
@@ -109,6 +112,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_show_screen',
     description: 'Zeigt den Pausenscreen oder den Startbildschirm manuell an.',
+    destructive: true,
     schema: z.object({
       screen: z.enum(['pause', 'startup']).describe('Screen-Typ (pause oder startup)'),
     }),
@@ -119,6 +123,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_hide_screen',
     description: 'Blendet den manuellen Pausen- oder Startbildschirm aus.',
+    destructive: true,
     schema: z.object({}),
     execute: async (_params, ctx) => ctx.supervisor.hideScreen(),
   });
@@ -127,6 +132,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_restart_sink',
     description: 'Startet den YouTube-Sink-Prozess kontrolliert neu (z. B. bei DTS-Fehlern).',
+    destructive: true,
     schema: z.object({}),
     execute: async (_params, ctx) => ctx.supervisor.restartSink(),
   });
@@ -143,6 +149,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_queue_play_now',
     description: 'Schiebt ein Video ("file:..."), einen Streamer oder Screen sofort als nächsten Eintrag in die Regie-Queue und startet die Wiedergabe.',
+    destructive: true,
     schema: z.object({
       channel: z.string().describe('z. B. "file:trailer.mp4" oder Streamer-ID oder "screen:pause"'),
     }),
@@ -153,6 +160,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_queue_next',
     description: 'Springt in der Regie-Queue zum nächsten Element.',
+    destructive: true,
     schema: z.object({}),
     execute: async (_params, ctx) => ctx.supervisor.queueNext(),
   });
@@ -161,6 +169,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_queue_stop',
     description: 'Stoppt die Wiedergabe der Regie-Queue.',
+    destructive: true,
     schema: z.object({}),
     execute: async (_params, ctx) => ctx.supervisor.queueStop(),
   });
@@ -169,6 +178,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_playlist_play',
     description: 'Startet das Abspielen einer konfigurierten Playlist.',
+    destructive: true,
     schema: z.object({ playlist_id: z.string().describe('ID der Playlist') }),
     execute: async ({ playlist_id }, ctx) => ctx.supervisor.playPlaylist(playlist_id),
   });
@@ -177,6 +187,7 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
   registry.register({
     name: 'relay_activate_scene',
     description: 'Aktiviert eine gespeicherte Overlay-Szene atomar (Layout & Overlays).',
+    destructive: true,
     schema: z.object({ scene_id: z.string().describe('ID der Overlay-Szene') }),
     execute: async ({ scene_id }, ctx) => ctx.supervisor.activateScene(scene_id),
   });

@@ -711,6 +711,14 @@ export interface Settings {
   webhooks?: WebhooksSettings;
   logging?: LoggingSettings;
   discovery?: DiscoverySettings;
+  mcp: McpSettings;
+}
+
+export interface McpSettings {
+  enabled: boolean;
+  allow_destructive: boolean;
+  require_auth: boolean;
+  server_name: string;
 }
 
 export interface StreamingSettings {
@@ -895,6 +903,7 @@ export interface SettingsUpdate {
     api_key?: string;
   };
   logging?: Partial<LoggingSettings>;
+  mcp?: Partial<McpSettings>;
 }
 
 export interface MediaFile {

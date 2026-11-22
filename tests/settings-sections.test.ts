@@ -167,6 +167,12 @@ function makeSettings(): Settings {
         offset_y: 0,
       },
     },
+    mcp: {
+      enabled: true,
+      allow_destructive: true,
+      require_auth: false,
+      server_name: 'relay-mcp-server',
+    },
   };
 }
 
@@ -313,6 +319,7 @@ describe('settings sections partial updates', () => {
       'chat',
       'delay_buffer',
       'earnings',
+      'mcp',
       'online',
       'pause',
       'source',

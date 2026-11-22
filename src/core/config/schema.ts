@@ -410,6 +410,13 @@ export const DiscoverySettingsSchema = z.object({
   language: z.string().min(2).max(8).default('de'),
 });
 
+export const McpSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  allow_destructive: z.boolean().default(true),
+  require_auth: z.boolean().default(false),
+  server_name: z.string().min(1).max(64).default('relay-mcp-server'),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -430,6 +437,7 @@ export const SettingsSchema = z.object({
   webhooks: WebhooksSettingsSchema.default(WebhooksSettingsSchema.parse({})),
   logging: LoggingSettingsSchema.default(LoggingSettingsSchema.parse({})),
   discovery: DiscoverySettingsSchema.default(DiscoverySettingsSchema.parse({})),
+  mcp: McpSettingsSchema.default(McpSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -450,6 +458,7 @@ export type SecondarySinkSettings = z.infer<typeof SecondarySinkSettingsSchema>;
 export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;
 export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
 export type DiscoverySettings = z.infer<typeof DiscoverySettingsSchema>;
+export type McpSettings = z.infer<typeof McpSettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

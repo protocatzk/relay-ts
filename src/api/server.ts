@@ -75,7 +75,8 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       path === '/api/auth/methods' ||
       path === '/api/auth/telegram/request' ||
       path === '/api/auth/telegram/check' ||
-      path === '/api/youtube/oauth/callback'
+      path === '/api/youtube/oauth/callback' ||
+      (path.startsWith('/api/mcp') && !ctx.settingsService.get().mcp.require_auth)
     ) {
       return;
     }
