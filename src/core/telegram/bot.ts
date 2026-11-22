@@ -1,5 +1,5 @@
 import type { Logger } from 'pino';
-import type { EventBus, StatusSnapshot } from '../events.js';
+import type { EventBus, QueueSnapshot, QueueViewEntry, StatusSnapshot } from '../events.js';
 import type { LogEntry } from '../../utils/logger.js';
 import { TelegramAuthStore } from './auth-store.js';
 import {
@@ -10,6 +10,13 @@ import {
 import { ConfirmationStore, type PendingAction } from './confirmations.js';
 import { ConversationStore } from './conversations.js';
 import { RefStore } from './refs.js';
+import { formatBitrate, formatDuration, renderLiveStatusCard } from './views.js';
+import { buildActionableAlertKeyboard } from './keyboards.js';
+
+export * from './types.js';
+export { TelegramApiClient, TelegramApiError } from './api.js';
+export * from './keyboards.js';
+export * from './views.js';
 
 interface TelegramUser {
   id: number;
@@ -169,6 +176,14 @@ export interface TelegramControl {
   scenes?(): { id: string; name: string; active: boolean }[];
   activateScene?(id: string): Promise<unknown>;
   addMarker?(label?: string): Promise<{ id: string; label: string; offset_seconds: number } | null> | { id: string; label: string; offset_seconds: number } | null;
+  previewFrame?(): Promise<Buffer | null> | Buffer | null;
+  queue?(): QueueSnapshot | null;
+  queuePlay?(index?: number): Promise<unknown>;
+  queueNext?(): Promise<unknown>;
+  queueStop?(): Promise<unknown>;
+  queueRemove?(id: string): Promise<unknown>;
+  queueSeek?(seconds: number): Promise<unknown>;
+  queuePlayNow?(channel: string): Promise<unknown>;
 }
 
 export interface TelegramBotOptions {
@@ -275,6 +290,7 @@ export class TelegramBot {
     number,
     { title: string; start: string; privacy: 'public' | 'unlisted' | 'private' }
   >();
+  private pinnedMessage: { chatId: number; messageId: number } | null = null;
 
   constructor(options: TelegramBotOptions) {
     this.options = options;
@@ -373,12 +389,30 @@ export class TelegramBot {
             { command: 'screens', description: 'Start-/Pausenscreen' },
             { command: 'overlays', description: 'Overlays umschalten' },
             { command: 'scene', description: 'Overlay-Szene wechseln' },
+            { command: 'preview', description: 'Live-Vorschau als Foto' },
+            { command: 'queue', description: 'Regie-Queue steuern' },
+            { command: 'pin', description: 'Live-Dashboard anpinnen' },
+            { command: 'unpin', description: 'Live-Dashboard lösen' },
             { command: 'notify', description: 'Benachrichtigungen' },
             { command: 'id', description: 'Telegram-ID anzeigen' },
           ],
         },
         10_000,
       );
+
+      if (this.options.dashboardUrl) {
+        await this.call(
+          'setChatMenuButton',
+          {
+            menu_button: {
+              type: 'web_app',
+              text: 'RELAY Cockpit',
+              web_app: { url: this.options.dashboardUrl },
+            },
+          },
+          10_000,
+        );
+      }
     } catch {
       /* command setup is optional */
     }
@@ -469,6 +503,18 @@ export class TelegramBot {
         return;
       case '/scene':
         await this.handleSceneCommand(chatId, text.slice('/scene'.length).trim());
+        return;
+      case '/preview':
+        await this.sendPreview(chatId);
+        return;
+      case '/queue':
+        await this.sendQueue(chatId);
+        return;
+      case '/pin':
+        await this.handlePinCommand(chatId);
+        return;
+      case '/unpin':
+        await this.handleUnpinCommand(chatId);
         return;
       case '/marker':
         await this.handleMarkerCommand(chatId, text.slice('/marker'.length).trim());
@@ -567,6 +613,10 @@ export class TelegramBot {
           { text: '🎬 Playlists', callback_data: 'nav:playlists' },
         ],
         [
+          { text: '🎬 Queue', callback_data: 'nav:queue' },
+          { text: '🎨 Szenen', callback_data: 'nav:scene' },
+        ],
+        [
           { text: '🖥 Screens', callback_data: 'nav:screens' },
           { text: '🎚 Overlays', callback_data: 'nav:overlays' },
         ],
@@ -583,6 +633,9 @@ export class TelegramBot {
           { text: '📜 Logs', callback_data: 'nav:logs' },
         ],
         [{ text: '🔔 Benachrichtigungen', callback_data: 'cmd:notify' }],
+        ...(this.options.dashboardUrl
+          ? [[{ text: '🚀 Web Cockpit (Mini App)', web_app: { url: this.options.dashboardUrl } }]]
+          : []),
       ],
     };
   }
@@ -882,24 +935,112 @@ export class TelegramBot {
     chatId: number,
     query: TelegramCallbackQuery | null = null,
   ): Promise<void> {
+    await this.sendChatAction(chatId, 'upload_photo');
+    const control = this.options.control;
+    let frame: Buffer | null = null;
+    try {
+      frame = (await control?.previewFrame?.()) ?? null;
+    } catch (err) {
+      this.logger.warn({ err: errorName(err) }, 'Telegram previewFrame fehlgeschlagen');
+    }
+
     const base = this.options.dashboardUrl;
     const keyboard: Record<string, unknown> = {
       inline_keyboard: [
-        base ? [{ text: '🖼 Dashboard öffnen', url: `${base}/#/` }] : [],
+        [
+          { text: '🔄 Neu laden', callback_data: 'act:preview:refresh' },
+          ...(base ? [{ text: '🚀 Cockpit öffnen', web_app: { url: base } }] : []),
+        ],
         this.backRow(),
       ].filter((row) => row.length > 0),
     };
+
+    const status = control?.status();
+    const streamer = status?.active_streamer_name ?? status?.active_streamer_id ?? 'Keiner';
+    const bitrate = formatBitrate(status?.sink?.bitrate_kbps ?? status?.source?.bitrate_kbps);
+    const caption = [
+      `📸 <b>RELAY Live-Vorschau</b>`,
+      `👤 <b>${escapeHtml(streamer)}</b> · ${bitrate} · ⏱ <code>${formatDuration(status?.uptime_seconds ?? 0)}</code>`,
+    ].join('\n');
+
+    if (frame && Buffer.isBuffer(frame)) {
+      if (query) {
+        await this.answerCallback(query.id, 'Vorschau geladen');
+      }
+      await this.sendPhoto(chatId, frame, caption, keyboard);
+      return;
+    }
+
     await this.showView(
       chatId,
       query,
       [
-        '📺 <b>LIVE-VORSCHAU</b>',
+        caption,
         '',
-        'Die Vorschau läuft im Browser (MSE) und zeigt die Quelle vor dem DelayBuffer, ohne Sink-Overlays.',
-        base ? '' : 'DASHBOARD_URL ist nicht gesetzt.',
+        '<i>Kein Live-Frame verfügbar (Stream idle oder Quelle getrennt).</i>',
       ].join('\n'),
       keyboard,
     );
+  }
+
+  private async sendQueue(
+    chatId: number,
+    query: TelegramCallbackQuery | null = null,
+  ): Promise<void> {
+    const control = this.options.control;
+    const queue = control?.queue?.();
+    if (!queue || queue.entries.length === 0) {
+      await this.showView(
+        chatId,
+        query,
+        '🎬 <b>REGIE-QUEUE</b>\n\nDie Queue ist aktuell leer.',
+        {
+          inline_keyboard: [
+            ...(this.options.dashboardUrl
+              ? [[{ text: '🚀 Im Web Cockpit füllen', web_app: { url: `${this.options.dashboardUrl}/#/queue` } }]]
+              : []),
+            this.backRow(),
+          ],
+        },
+      );
+      return;
+    }
+
+    const lines: string[] = [
+      `🎬 <b>REGIE-QUEUE</b> · ${queue.entries.length} Einträge`,
+      queue.playing ? '▶️ <i>Wiedergabe aktiv</i>' : '⏸ <i>Pausiert</i>',
+      '',
+    ];
+
+    const keyboardRows: Record<string, unknown>[][] = [];
+
+    queue.entries.slice(0, 8).forEach((entry: QueueViewEntry, idx: number) => {
+      const isCurrent = queue.index === idx;
+      const marker = isCurrent ? '▶️ ' : `${idx + 1}. `;
+      const dur = entry.duration_seconds ? ` (${formatDuration(entry.duration_seconds)})` : '';
+      lines.push(`${marker}<b>${escapeHtml(entry.label || entry.channel)}</b>${dur}`);
+
+      const ref = this.refs.get('queue', entry.id);
+      const actionRow: Record<string, unknown>[] = [
+        { text: isCurrent ? '⏹ Stop' : '▶️ Play', callback_data: `queue:${isCurrent ? 'stop' : 'play'}:${idx}` },
+        { text: '🗑 Löschen', callback_data: `queue:rm:${ref}` },
+      ];
+      keyboardRows.push(actionRow);
+    });
+
+    if (queue.playing) {
+      keyboardRows.unshift([
+        { text: '⏮ -30s', callback_data: 'queue:seek:-30' },
+        { text: '⏭ +30s', callback_data: 'queue:seek:30' },
+        { text: '⏭ Nächster', callback_data: 'queue:next' },
+      ]);
+    }
+
+    keyboardRows.push(this.backRow());
+
+    await this.showView(chatId, query, lines.join('\n'), {
+      inline_keyboard: keyboardRows,
+    });
   }
 
   private async sendLogsView(
@@ -1735,7 +1876,7 @@ export class TelegramBot {
     userId: number,
     query: TelegramCallbackQuery,
   ): Promise<boolean> {
-    if (!['nav', 'str', 'pl', 'set', 'media', 'log', 'yt'].includes(action)) return false;
+    if (!['nav', 'str', 'pl', 'set', 'media', 'log', 'yt', 'queue', 'act'].includes(action)) return false;
     await this.answerCallback(query.id, '');
     const control = this.options.control;
 
@@ -1777,8 +1918,81 @@ export class TelegramBot {
         case 'preview':
           await this.sendPreview(chatId, query);
           break;
+        case 'queue':
+          await this.sendQueue(chatId, query);
+          break;
       }
       return true;
+    }
+
+    if (action === 'queue') {
+      const control = this.options.control;
+      if (first === 'play') {
+        const index = parseInt(second ?? '0', 10);
+        await this.answerCallback(query.id, 'Starte Queue-Eintrag…');
+        await control?.queuePlay?.(index);
+        await this.sendQueue(chatId, query);
+        return true;
+      }
+      if (first === 'stop') {
+        await this.answerCallback(query.id, 'Queue gestoppt');
+        await control?.queueStop?.();
+        await this.sendQueue(chatId, query);
+        return true;
+      }
+      if (first === 'next') {
+        await this.answerCallback(query.id, 'Nächster Eintrag');
+        await control?.queueNext?.();
+        await this.sendQueue(chatId, query);
+        return true;
+      }
+      if (first === 'seek' && second) {
+        const secs = parseInt(second, 10);
+        await this.answerCallback(query.id, `Seek ${secs > 0 ? '+' : ''}${secs}s`);
+        await control?.queueSeek?.(secs);
+        return true;
+      }
+      if (first === 'rm' && second) {
+        const entryId = this.refs.resolve(second, 'queue');
+        if (entryId) {
+          await this.answerCallback(query.id, 'Eintrag entfernt');
+          await control?.queueRemove?.(entryId);
+          await this.sendQueue(chatId, query);
+        }
+        return true;
+      }
+    }
+
+    if (action === 'act') {
+      if (first === 'screen' && second === 'pause') {
+        await this.answerCallback(query.id, 'Pause aktiv');
+        await control?.showScreen?.('pause');
+        return true;
+      }
+      if (first === 'streamer' && second === 'next') {
+        await this.answerCallback(query.id, 'Nächster Streamer…');
+        await control?.playlistNext?.();
+        return true;
+      }
+      if (first === 'stream' && second === 'stop') {
+        await this.answerCallback(query.id, 'Stoppe Stream…');
+        await control?.stop?.();
+        return true;
+      }
+      if (first === 'source' && second === 'reconnect') {
+        await this.answerCallback(query.id, 'Reconnect ausgelöst');
+        await control?.resume?.();
+        return true;
+      }
+      if (first === 'sink' && second === 'restart') {
+        await this.answerCallback(query.id, 'Neustart Sink…');
+        await control?.resume?.();
+        return true;
+      }
+      if (first === 'preview' && second === 'refresh') {
+        await this.sendPreview(chatId, query);
+        return true;
+      }
     }
 
     if (action === 'str') {
@@ -2063,11 +2277,16 @@ export class TelegramBot {
       } else if (status.state === 'reconnecting') {
         this.notify('reconnect', `🔄 <b>RECONNECT</b>\n${escapeHtml(name)} – Verbindung wird wiederhergestellt.`);
       } else if (status.state === 'paused' && previous.state !== 'paused') {
-        this.notify('reconnect', `🟡 <b>PAUSE</b>\n${escapeHtml(name)} – Quelle offline, Pausenscreen läuft.`);
+        this.notify(
+          'reconnect',
+          `🟡 <b>PAUSE</b>\n${escapeHtml(name)} – Quelle offline, Pausenscreen läuft.`,
+          buildActionableAlertKeyboard('source_offline'),
+        );
       } else if (status.state === 'error') {
         this.notify(
           'error',
           `🔴 <b>FEHLER</b>\n${escapeHtml(status.watchdog.last_error ?? 'Unbekannter Fehler')}`,
+          buildActionableAlertKeyboard('sink_error'),
         );
       } else if (status.state === 'idle' && previous.state !== 'idle') {
         const category = previous.state === 'paused' ? 'reconnect' : 'live';
@@ -2077,11 +2296,97 @@ export class TelegramBot {
 
     const lastError = status.watchdog.last_error;
     if (lastError && lastError !== previous.watchdog.last_error) {
-      this.notify('error', `⚠️ ${escapeHtml(lastError)}`);
+      this.notify(
+        'error',
+        `⚠️ ${escapeHtml(lastError)}`,
+        buildActionableAlertKeyboard('source_stall'),
+      );
+    }
+
+    if (this.pinnedMessage) {
+      const card = renderLiveStatusCard(status, {
+        dashboardUrl: this.options.dashboardUrl,
+        streamerName: status.active_streamer_name ?? status.active_streamer_id ?? undefined,
+      });
+      void this.call(
+        'editMessageText',
+        {
+          chat_id: this.pinnedMessage.chatId,
+          message_id: this.pinnedMessage.messageId,
+          text: card,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        },
+        5_000,
+      ).catch(() => {});
     }
   }
 
-  private notify(category: NotifyCategory, text: string): void {
+  private async handlePinCommand(chatId: number): Promise<void> {
+    const snap = this.options.control?.status();
+    if (!snap) {
+      await this.sendMessage(chatId, '⚠️ Kein Status verfügbar.');
+      return;
+    }
+    const text = renderLiveStatusCard(snap, {
+      dashboardUrl: this.options.dashboardUrl,
+      streamerName: snap.active_streamer_name ?? snap.active_streamer_id ?? undefined,
+    });
+    try {
+      const res = await this.call<{ message_id: number }>(
+        'sendMessage',
+        {
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        },
+        10_000,
+      );
+      if (res?.message_id) {
+        this.pinnedMessage = { chatId, messageId: res.message_id };
+        await this.call(
+          'pinChatMessage',
+          {
+            chat_id: chatId,
+            message_id: res.message_id,
+            disable_notification: true,
+          },
+          5_000,
+        );
+        await this.sendMessage(chatId, '📌 Live-Dashboard angepinnt.');
+      }
+    } catch (err) {
+      this.logger.warn({ err: errorName(err) }, 'Telegram pinChatMessage fehlgeschlagen');
+    }
+  }
+
+  private async handleUnpinCommand(chatId: number): Promise<void> {
+    if (!this.pinnedMessage) {
+      await this.sendMessage(chatId, '📌 Aktuell ist kein Live-Dashboard angepinnt.');
+      return;
+    }
+    try {
+      await this.call(
+        'unpinChatMessage',
+        {
+          chat_id: this.pinnedMessage.chatId,
+          message_id: this.pinnedMessage.messageId,
+        },
+        5_000,
+      );
+      this.pinnedMessage = null;
+      await this.sendMessage(chatId, '✅ Live-Dashboard gelöst.');
+    } catch {
+      this.pinnedMessage = null;
+    }
+  }
+
+  private notify(
+    category: NotifyCategory,
+    text: string,
+    replyMarkup?: Record<string, unknown>,
+  ): void {
     const settings = this.options.notify?.store.get();
     if (!settings?.enabled || !settings[category]) return;
     const now = Date.now();
@@ -2090,7 +2395,7 @@ export class TelegramBot {
     this.lastNotifyAt.set(category, now);
     const chatId = this.options.notify?.chatId ?? [...this.allowed][0];
     if (!chatId) return;
-    void this.sendMessage(chatId, text);
+    void this.sendMessage(chatId, text, replyMarkup);
   }
 
   private async handleLoginRequest(chatId: number, user: TelegramUser, token: string): Promise<void> {
@@ -2309,6 +2614,54 @@ export class TelegramBot {
   private userLabel(user: TelegramUser): string {
     if (user.username) return `@${user.username}`;
     return [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Telegram';
+  }
+
+  private async sendChatAction(chatId: number, action: string): Promise<void> {
+    try {
+      await this.call('sendChatAction', { chat_id: chatId, action }, 5_000);
+    } catch {
+      /* action indicator is best-effort */
+    }
+  }
+
+  private async sendPhoto(
+    chatId: number,
+    photo: Buffer,
+    caption?: string,
+    replyMarkup?: Record<string, unknown>,
+  ): Promise<void> {
+    const formData = new FormData();
+    formData.append('chat_id', String(chatId));
+    if (caption) {
+      formData.append('caption', caption);
+      formData.append('parse_mode', 'HTML');
+    }
+    if (replyMarkup) {
+      formData.append('reply_markup', JSON.stringify(replyMarkup));
+    }
+    const blob = new Blob([photo], { type: 'image/png' });
+    formData.append('photo', blob, 'preview.png');
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    const onStop = () => controller.abort();
+    this.stopController.signal.addEventListener('abort', onStop, { once: true });
+    try {
+      const response = await fetch(`${API_BASE}${this.token}/sendPhoto`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+      const data = (await response.json()) as TelegramResponse<unknown>;
+      if (!response.ok || !data.ok) {
+        throw new Error(data.description ?? response.statusText);
+      }
+    } catch (error) {
+      this.logger.warn({ err: errorName(error) }, 'Telegram sendPhoto fehlgeschlagen');
+    } finally {
+      clearTimeout(timer);
+      this.stopController.signal.removeEventListener('abort', onStop);
+    }
   }
 
   private async sendMessage(

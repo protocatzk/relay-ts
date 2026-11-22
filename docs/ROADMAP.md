@@ -101,6 +101,18 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 - **#68 (Säulen-Monitor Layout):** Optionales Layout-Modell (`layout_mode: 'pillar_monitor'`) mit Top-Banner (Status, Uptime, Streamer, Stats, Coins, EUR und Zielbalken) und vertikalem Chat-Monitor in der linken ungenutzten Säule bei 9:16-Quellen (0 % Verdeckung des Videos, minimaler Overhead über dieselbe Canvas-Pipe).
 - **Stream-Umschalt-Fix (Blink/Vanish):** Streamer verschwinden beim Live-Schalten im Dashboard nicht mehr kurzzeitig aus dem Live-Menü oder der Übersicht, da `startingStreamerId` den Status nahtlos aktiv und online hält.
 
+### v0.26.0 – Telegram Bot Modernisierung & Web App
+
+**Status: veröffentlicht in 0.26.0.**
+
+- **#73 (Telegram Bot Modernisierung):**
+  - Vollständige Ausschöpfung der Telegram Bot API (Mini App / Web App Menü-Button `setChatMenuButton` für direktes Öffnen des RELAY Cockpits, Web App Inline-Buttons).
+  - Live-Stream Vorschau (`/preview`) mit Multipart-Form-Data `sendPhoto`, `sendChatAction('upload_photo')` und In-Place Refresh (`act:preview:refresh`).
+  - Interaktive Regie-Queue Steuerung (`/queue`) mit Steuerungs-Buttons (▶️ Play, ⏹ Stop, ⏮ -30s, ⏭ +30s, ⏭ Nächster, 🗑 Löschen) über `TelegramControl`.
+  - Actionable Stream Alerts bei Ausfällen (Offline, Stall, Sink-Fehler) mit direkten Aktionsbuttons (`[⏸ Pause halten]`, `[⏭ Nächster Sender]`, `[🔄 Reconnect]`, `[⏹ Stream stoppen]`, `[🔄 Sink neustarten]`).
+  - Pinned Live Status-Karte (`/pin` & `/unpin`) mit dynamischen Updates über `editMessageText` bei Status-Events.
+  - Modulare Architektur in `src/core/telegram/` (`types.ts`, `api.ts`, `keyboards.ts`, `views.ts`).
+
 | Issue | Priorität | Bereich | Status |
 |---|---|---|---|
 | Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren (#66) | P1 | Reliability/YouTube | abgeschlossen |
@@ -111,7 +123,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
 | UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | abgeschlossen |
-| Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | geplant |
+| Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | abgeschlossen |
 
 ## Definition of Done
 
