@@ -21,6 +21,8 @@ export interface ChatServiceOptions {
   settings: Settings;
   logger: Logger;
   onMessages: (messages: ChatMessage[]) => void;
+  onViewerUpdate?: (viewers: number) => void;
+  onRoomStats?: (stats: { roomId: string | null; isLive: boolean; viewers: number | null; title: string | null }) => void;
 }
 
 interface ParsedMessage {
@@ -65,7 +67,7 @@ export class ChatService {
   start(): void {
     if (!this.config.enabled) return;
 
-    // Start direct Webcast IM Fetch client for real-time messages
+    // Start direct Webcast client for real-time messages and viewer stats
     this.webcastClient = new WebcastLiveRoomClient({
       handle: this.options.streamer.tiktok,
       logger: this.options.logger,
@@ -75,6 +77,12 @@ export class ChatService {
         this.seenOrder.push(msg.id);
         this.messages.push(msg);
         this.options.onMessages([...this.messages]);
+      },
+      onViewerUpdate: (viewers) => {
+        this.options.onViewerUpdate?.(viewers);
+      },
+      onRoomStats: (stats) => {
+        this.options.onRoomStats?.(stats);
       },
     });
     this.webcastClient.start();

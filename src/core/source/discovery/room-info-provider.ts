@@ -72,7 +72,14 @@ export function parseRoomInfoPayload(payload: unknown, handle: string): Discover
       liveRoom.roomAuditStatus && (liveRoom.roomAuditStatus as Record<string, unknown>).isAgeRestricted,
     );
 
-  const rawViewers = liveRoom.userCount ?? liveRoom.user_count ?? liveRoom.aliveUserCount;
+  const rawViewers =
+    liveRoom.userCount ??
+    liveRoom.user_count ??
+    liveRoom.aliveUserCount ??
+    (liveRoom.liveRoomStats && typeof liveRoom.liveRoomStats === 'object'
+      ? (liveRoom.liveRoomStats as Record<string, unknown>).userCount ??
+        (liveRoom.liveRoomStats as Record<string, unknown>).user_count
+      : undefined);
   const viewers =
     typeof rawViewers === 'number'
       ? rawViewers

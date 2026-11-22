@@ -811,6 +811,33 @@ export class EarningsMonitor {
     };
   }
 
+  /**
+   * Directly updates live room statistics (viewers, isLive, roomId) from the active live connection.
+   */
+  updateLiveRoomStats(stats: { roomId?: string | null; isLive?: boolean | null; viewers?: number | null; title?: string | null }): void {
+    let changed = false;
+    const next = { ...this.snapshot };
+
+    if (stats.viewers !== undefined && stats.viewers !== null && stats.viewers !== next.viewers) {
+      next.viewers = stats.viewers;
+      changed = true;
+    }
+    if (stats.isLive !== undefined && stats.isLive !== null && stats.isLive !== next.is_live) {
+      next.is_live = stats.isLive;
+      changed = true;
+    }
+    if (stats.roomId !== undefined && stats.roomId !== null && stats.roomId !== next.room_id) {
+      next.room_id = stats.roomId;
+      changed = true;
+    }
+
+    if (changed) {
+      next.updated_at = new Date().toISOString();
+      this.snapshot = next;
+      this.emit();
+    }
+  }
+
   async refresh(): Promise<EarningsSnapshot> {
     await this.poll();
     return this.get();

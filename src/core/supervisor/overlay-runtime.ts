@@ -245,6 +245,12 @@ export class OverlayRuntime {
           messages.map((message) => `${message.displayName || message.username}: ${message.text}`),
         );
       },
+      onViewerUpdate: (viewers) => {
+        this.earnings.updateLiveRoomStats({ viewers, isLive: true });
+      },
+      onRoomStats: (stats) => {
+        this.earnings.updateLiveRoomStats(stats);
+      },
     });
     this.chat.start();
   }

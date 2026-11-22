@@ -1,5 +1,13 @@
 import type { Logger } from 'pino';
+import { TikTokLiveConnection } from 'tiktok-live-connector';
 import type { ChatMessage } from '../../overlays/chat-service.js';
+
+export interface WebcastLiveRoomStats {
+  roomId: string | null;
+  isLive: boolean;
+  viewers: number | null;
+  title: string | null;
+}
 
 export interface WebcastLiveRoomOptions {
   handle: string;
@@ -7,117 +15,255 @@ export interface WebcastLiveRoomOptions {
   cookiesFile?: string;
   onChatMessage?: (msg: ChatMessage) => void;
   onGift?: (gift: { username: string; giftName: string; coins: number; count: number }) => void;
+  onViewerUpdate?: (viewers: number) => void;
+  onRoomStats?: (stats: WebcastLiveRoomStats) => void;
 }
+
+type LiveConnectionInstance = InstanceType<typeof TikTokLiveConnection> & {
+  removeAllListeners: () => void;
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+  disconnect: () => Promise<void>;
+  connect: (roomId?: string) => Promise<{ roomId?: string }>;
+};
 
 export class WebcastLiveRoomClient {
   private readonly handle: string;
   private readonly logger: Logger;
   private running = false;
   private pollTimer?: NodeJS.Timeout;
+  private reconnectTimer?: NodeJS.Timeout;
   private roomId: string | null = null;
+  private liveConnection?: LiveConnectionInstance;
+  private isLive = false;
+  private currentViewers: number | null = null;
+  private currentTitle: string | null = null;
+
   private onChatMessage?: (msg: ChatMessage) => void;
   private onGift?: (gift: { username: string; giftName: string; coins: number; count: number }) => void;
+  private onViewerUpdate?: (viewers: number) => void;
+  private onRoomStats?: (stats: WebcastLiveRoomStats) => void;
 
   constructor(options: WebcastLiveRoomOptions) {
     this.handle = options.handle.replace(/^@+/, '');
     this.logger = options.logger;
     this.onChatMessage = options.onChatMessage;
     this.onGift = options.onGift;
+    this.onViewerUpdate = options.onViewerUpdate;
+    this.onRoomStats = options.onRoomStats;
   }
 
   start(): void {
     if (this.running) return;
     this.running = true;
-    void this.initRoom();
+    void this.pollRoomInfo();
+    // Poll room info every 15 seconds to update viewer counts / title / live status reliably
+    this.pollTimer = setInterval(() => void this.pollRoomInfo(), 15_000);
   }
 
   stop(): void {
     this.running = false;
     if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.pollTimer = undefined;
+    this.reconnectTimer = undefined;
+    this.disconnectLiveConnection();
   }
 
-  private async initRoom(): Promise<void> {
+  private disconnectLiveConnection(): void {
+    if (this.liveConnection) {
+      try {
+        this.liveConnection.removeAllListeners();
+        void this.liveConnection.disconnect();
+      } catch {
+        // Best-effort cleanup
+      }
+      this.liveConnection = undefined;
+    }
+  }
+
+  /**
+   * Polls api-live/user/room to get current room status, viewer count and roomId.
+   * On live room discovery, connects the real-time WebSocket connection.
+   */
+  private async pollRoomInfo(): Promise<void> {
+    if (!this.running) return;
     try {
-      // 1. Resolve room ID from tiktok web info
       const url = `https://www.tiktok.com/api-live/user/room?aid=1988&sourceType=54&uniqueId=${encodeURIComponent(this.handle)}`;
       const res = await fetch(url, {
         headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'user-agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           referer: `https://www.tiktok.com/@${this.handle}/live`,
+          accept: 'application/json',
         },
         signal: AbortSignal.timeout(6000),
       });
 
       if (!res.ok) return;
       const json = (await res.json()) as Record<string, unknown>;
-      const liveRoom = (json.data as Record<string, unknown>)?.liveRoom as Record<string, unknown> | undefined;
-      const roomId = liveRoom?.roomId ? String(liveRoom.roomId) : null;
+      const data = json.data as Record<string, unknown> | undefined;
+      if (!data) return;
 
-      if (!roomId) {
-        return;
+      const user = data.user as Record<string, unknown> | undefined;
+      const liveRoom = data.liveRoom as Record<string, unknown> | undefined;
+
+      const status = Number(user?.status ?? liveRoom?.status ?? 0);
+      const isLive = status === 2;
+      this.isLive = isLive;
+
+      const liveRoomStats = liveRoom?.liveRoomStats as Record<string, unknown> | undefined;
+      const rawViewers =
+        liveRoom?.userCount ??
+        liveRoom?.user_count ??
+        liveRoom?.aliveUserCount ??
+        liveRoomStats?.userCount ??
+        liveRoomStats?.user_count;
+
+      const viewers =
+        typeof rawViewers === 'number'
+          ? rawViewers
+          : typeof rawViewers === 'string'
+            ? parseInt(rawViewers, 10) || null
+            : null;
+
+      if (viewers !== null && viewers >= 0) {
+        this.currentViewers = viewers;
+        this.onViewerUpdate?.(viewers);
       }
 
-      this.roomId = roomId;
-      this.logger.info({ handle: this.handle, roomId }, 'Webcast Live-Room Client initialisiert');
+      const title = typeof liveRoom?.title === 'string' ? liveRoom.title.trim() : null;
+      if (title) this.currentTitle = title;
 
-      // Poll Webcast IM Fetch
-      void this.pollWebcast();
-      this.pollTimer = setInterval(() => void this.pollWebcast(), 3000);
-    } catch {
-      // Best-effort
+      const roomId = user?.roomId ? String(user.roomId) : liveRoom?.roomId ? String(liveRoom.roomId) : null;
+      if (roomId) this.roomId = roomId;
+
+      this.onRoomStats?.({
+        roomId: this.roomId,
+        isLive: this.isLive,
+        viewers: this.currentViewers,
+        title: this.currentTitle,
+      });
+
+      // If live and WebSocket not yet connected, initiate connection
+      if (isLive && !this.liveConnection && this.running) {
+        this.connectWebSocket(this.roomId);
+      } else if (!isLive && this.liveConnection) {
+        this.disconnectLiveConnection();
+      }
+    } catch (err) {
+      this.logger.debug({ handle: this.handle, err }, 'Live-Room Info Poll fehlgeschlagen');
     }
   }
 
-  private async pollWebcast(): Promise<void> {
-    if (!this.running || !this.roomId) return;
-    try {
-      const imUrl = new URL('https://webcast.tiktok.com/webcast/im/fetch/');
-      imUrl.searchParams.set('room_id', this.roomId);
-      imUrl.searchParams.set('aid', '1988');
-      imUrl.searchParams.set('device_platform', 'web');
+  private connectWebSocket(roomId: string | null): void {
+    if (!this.running || this.liveConnection) return;
 
-      const res = await fetch(imUrl.toString(), {
-        headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          referer: 'https://www.tiktok.com/',
-        },
-        signal: AbortSignal.timeout(4000),
+    try {
+      const conn = new TikTokLiveConnection(this.handle, {
+        processInitialData: true,
+      }) as unknown as LiveConnectionInstance;
+
+      this.liveConnection = conn;
+
+      conn.on('chat', (raw: unknown) => {
+        if (!this.running) return;
+        const data = raw as Record<string, unknown>;
+        const userObj = data.user as Record<string, unknown> | undefined;
+        const username = String(userObj?.uniqueId || userObj?.displayId || userObj?.nickname || 'Gast');
+        const displayName = String(userObj?.nickname || username);
+        const text = String(data.content || data.comment || '');
+        if (!text) return;
+
+        const common = data.common as Record<string, unknown> | undefined;
+        const msgId = String(common?.msgId || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+
+        this.onChatMessage?.({
+          id: msgId,
+          username,
+          displayName,
+          text,
+          receivedAt: new Date(),
+        });
       });
 
-      if (!res.ok) return;
-      const json = (await res.json()) as Record<string, unknown>;
-      const messages = Array.isArray((json.data as { messages?: unknown[] })?.messages)
-        ? (json.data as { messages: Record<string, unknown>[] }).messages
-        : [];
-
-      for (const m of messages) {
-        const type = String(m.method || '');
-        if (type === 'WebcastChatMessage' && this.onChatMessage) {
-          const userObj = m.user as { nickname?: string; display_id?: string } | undefined;
-          const user = String(userObj?.nickname || userObj?.display_id || 'Gast');
-          const content = String(m.content || '');
-          if (content) {
-            this.onChatMessage({
-              id: String(m.id || Date.now()),
-              username: user,
-              displayName: user,
-              text: content,
-              receivedAt: new Date(),
-            });
-          }
-        } else if (type === 'WebcastGiftMessage' && this.onGift) {
-          const userObj = m.user as { nickname?: string; display_id?: string } | undefined;
-          const user = String(userObj?.nickname || userObj?.display_id || 'Supporter');
-          const giftObj = m.gift as { name?: string; diamond_count?: number; coins?: number } | undefined;
-          const giftName = String(giftObj?.name || 'Geschenk');
-          const coins = Number(giftObj?.diamond_count || giftObj?.coins || 1);
-          const count = Number((m as { repeat_count?: number; combo_count?: number }).repeat_count || (m as { combo_count?: number }).combo_count || 1);
-          this.onGift({ username: user, giftName, coins, count });
+      conn.on('roomUser', (raw: unknown) => {
+        if (!this.running) return;
+        const data = raw as Record<string, unknown>;
+        const viewerCount = Number(data.totalUser ?? data.total ?? data.viewerCount);
+        if (Number.isFinite(viewerCount) && viewerCount >= 0) {
+          this.currentViewers = viewerCount;
+          this.onViewerUpdate?.(viewerCount);
+          this.onRoomStats?.({
+            roomId: this.roomId,
+            isLive: this.isLive,
+            viewers: viewerCount,
+            title: this.currentTitle,
+          });
         }
-      }
-    } catch {
-      // Silent on background errors
+      });
+
+      conn.on('gift', (raw: unknown) => {
+        if (!this.running || !this.onGift) return;
+        const data = raw as Record<string, unknown>;
+        const userObj = data.user as Record<string, unknown> | undefined;
+        const username = String(userObj?.nickname || userObj?.uniqueId || 'Supporter');
+        const giftName = String(data.giftName || (data.gift as Record<string, unknown>)?.name || 'Geschenk');
+        const coins = Number(data.diamondCount || (data.gift as Record<string, unknown>)?.diamond_count || 1);
+        const count = Number(data.repeatCount || data.comboCount || 1);
+        this.onGift({ username, giftName, coins, count });
+      });
+
+      conn.on('streamEnd', () => {
+        this.logger.info({ handle: this.handle }, 'TikTok Live Stream beendet (streamEnd)');
+        this.isLive = false;
+        this.onRoomStats?.({
+          roomId: this.roomId,
+          isLive: false,
+          viewers: 0,
+          title: this.currentTitle,
+        });
+        this.disconnectLiveConnection();
+      });
+
+      conn.on('disconnected', () => {
+        this.logger.debug({ handle: this.handle }, 'TikTok Live WebSocket getrennt');
+        this.disconnectLiveConnection();
+        // Reconnect after delay if still marked live and running
+        if (this.running && this.isLive && !this.reconnectTimer) {
+          this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = undefined;
+            if (this.running && this.isLive) {
+              this.connectWebSocket(this.roomId);
+            }
+          }, 5000);
+        }
+      });
+
+      conn.on('error', (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.debug({ handle: this.handle, err: msg }, 'TikTok Live WebSocket Fehler');
+      });
+
+      // Connect asynchronously
+      void (roomId ? conn.connect(roomId) : conn.connect())
+        .then((state) => {
+          if (!this.running) {
+            void conn.disconnect();
+            return;
+          }
+          if (state?.roomId) this.roomId = String(state.roomId);
+          this.logger.info({ handle: this.handle, roomId: this.roomId }, 'TikTok Live Room verbunden (WebSocket)');
+        })
+        .catch((err) => {
+          this.logger.debug(
+            { handle: this.handle, err: err instanceof Error ? err.message : String(err) },
+            'TikTok Live WebSocket Verbindungsaufbau fehlgeschlagen (nutze Polling-Fallback)',
+          );
+          this.disconnectLiveConnection();
+        });
+    } catch (err) {
+      this.logger.debug({ handle: this.handle, err }, 'Fehler beim Initialisieren der TikTok Live Verbindung');
+      this.disconnectLiveConnection();
     }
   }
 }
