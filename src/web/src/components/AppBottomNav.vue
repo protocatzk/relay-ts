@@ -6,7 +6,6 @@ import {
   desktopNavSide,
   sectionEntry,
   sectionFor,
-  toggleDesktopNavSide,
 } from '@/src/navigation';
 
 const route = useRoute();
@@ -80,20 +79,5 @@ function onKeydown(event: KeyboardEvent): void {
       </svg>
       <span class="bnav-label">{{ section.label }}</span>
     </RouterLink>
-
-    <div class="bnav-divider" aria-hidden="true" />
-
-    <button
-      type="button"
-      class="bnav-toggle-side"
-      :title="desktopNavSide === 'left' ? 'Navigation nach rechts verschieben' : 'Navigation nach links verschieben'"
-      :aria-label="desktopNavSide === 'left' ? 'Navigation nach rechts verschieben' : 'Navigation nach links verschieben'"
-      @click="toggleDesktopNavSide"
-    >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path v-if="desktopNavSide === 'left'" d="M9 18l6-6-6-6" />
-        <path v-else d="M15 18l-6-6 6-6" />
-      </svg>
-    </button>
   </nav>
 </template>

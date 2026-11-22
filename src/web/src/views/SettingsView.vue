@@ -36,6 +36,7 @@ import SettingsEarningsCard from '@/src/components/settings/SettingsEarningsCard
 import SettingsChatCard from '@/src/components/settings/SettingsChatCard.vue';
 import SettingsTitleCard from '@/src/components/settings/SettingsTitleCard.vue';
 import SettingsWebhooksCard from '@/src/components/settings/SettingsWebhooksCard.vue';
+import SettingsAppearanceCard from '@/src/components/settings/SettingsAppearanceCard.vue';
 import SettingsSessionsCard from '@/src/components/settings/SettingsSessionsCard.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
@@ -716,6 +717,8 @@ onBeforeUnmount(() => {
         @toggle-event="toggleWebhookEvent"
         @save="saveSection('webhooks')"
       />
+
+      <SettingsAppearanceCard />
 
       <TotpSection />
 
