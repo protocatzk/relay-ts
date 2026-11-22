@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { StreamerSchema, type StreamerConfig } from '../src/core/config/schema.js';
+import {
+  StreamerSchema,
+  resolveStreamKey,
+  setGlobalStreamKeyOverride,
+  type StreamerConfig,
+} from '../src/core/config/schema.js';
 import { resolveRelayIngestKey } from '../src/core/youtube/ingest.js';
 import type { StreamerStore } from '../src/core/store/streamer-store.js';
 
@@ -12,6 +17,7 @@ function storeOf(streamers: StreamerConfig[]): Pick<StreamerStore, 'list'> {
 }
 
 afterEach(() => {
+  setGlobalStreamKeyOverride({ enabled: false, key: '' });
   vi.unstubAllEnvs();
 });
 
@@ -59,5 +65,38 @@ describe('resolveRelayIngestKey', () => {
     vi.stubEnv('YOUTUBE_STREAM_KEY', '');
     const store = storeOf([makeStreamer({ id: 'alpha' })]);
     expect(() => resolveRelayIngestKey(store, null)).toThrow(/Kein RELAY-Ingest/);
+  });
+
+  it('overrides individual streamer keys when global stream key override is enabled', () => {
+    setGlobalStreamKeyOverride({ enabled: true, key: 'global-override-key' });
+    const withOwnKey = makeStreamer({ id: 'alpha', youtube_key: 'individual-key' });
+    const withoutKey = makeStreamer({ id: 'beta' });
+
+    expect(resolveStreamKey(withOwnKey)).toEqual({
+      key: 'global-override-key',
+      source: 'global',
+    });
+    expect(resolveStreamKey(withoutKey)).toEqual({
+      key: 'global-override-key',
+      source: 'global',
+    });
+
+    const store = storeOf([withOwnKey, withoutKey]);
+    expect(resolveRelayIngestKey(store, 'alpha')).toBe('global-override-key');
+  });
+
+  it('acts as fallback for keyless streamers when global key is set but override toggle is off', () => {
+    setGlobalStreamKeyOverride({ enabled: false, key: 'global-fallback-key' });
+    const withOwnKey = makeStreamer({ id: 'alpha', youtube_key: 'individual-key' });
+    const withoutKey = makeStreamer({ id: 'beta' });
+
+    expect(resolveStreamKey(withOwnKey)).toEqual({
+      key: 'individual-key',
+      source: 'streamer',
+    });
+    expect(resolveStreamKey(withoutKey)).toEqual({
+      key: 'global-fallback-key',
+      source: 'global',
+    });
   });
 });

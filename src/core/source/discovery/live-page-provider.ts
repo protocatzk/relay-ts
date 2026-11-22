@@ -16,6 +16,133 @@ export interface LivePageProviderOptions {
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+const ALLOWED_STREAM_HOST_SUFFIXES = [
+  '.tiktokcdn.com',
+  '.tiktokcdn-eu.com',
+  '.tiktokcdn-us.com',
+  '.tiktokv.com',
+  '.ttwstatic.com',
+];
+
+const streamUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+export function isAllowedTikTokStreamUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return ALLOWED_STREAM_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  } catch {
+    return false;
+  }
+}
+
+export function rememberStreamUrl(handle: string, url: string): void {
+  const norm = normalizeHandle(handle);
+  if (!norm || !isAllowedTikTokStreamUrl(url)) return;
+  if (streamUrlCache.size > 500) {
+    const oldestKey = streamUrlCache.keys().next().value;
+    if (oldestKey) streamUrlCache.delete(oldestKey);
+  }
+  streamUrlCache.set(norm, { url, expiresAt: Date.now() + 10 * 60_000 });
+}
+
+export function getRememberedStreamUrl(handle: string): string | null {
+  const norm = normalizeHandle(handle);
+  if (!norm) return null;
+  const entry = streamUrlCache.get(norm);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    streamUrlCache.delete(norm);
+    return null;
+  }
+  return entry.url;
+}
+
+export function extractFlvStreamUrl(record: Record<string, unknown>): string | null {
+  const innerData =
+    record.data && typeof record.data === 'object' && !Array.isArray(record.data)
+      ? (record.data as Record<string, unknown>)
+      : record;
+  const liveRoom = (innerData.liveRoom || innerData.room || innerData) as Record<string, unknown>;
+
+  // 1. Webcast feed format: liveRoom.stream_url.flv_pull_url.{HD1, SD1, SD2, FULL_HD1}
+  const streamUrlObj =
+    liveRoom.stream_url && typeof liveRoom.stream_url === 'object'
+      ? (liveRoom.stream_url as Record<string, unknown>)
+      : null;
+
+  if (streamUrlObj) {
+    if (streamUrlObj.flv_pull_url && typeof streamUrlObj.flv_pull_url === 'object') {
+      const flvMap = streamUrlObj.flv_pull_url as Record<string, unknown>;
+      const preferredOrder = ['HD1', 'SD2', 'SD1', 'FULL_HD1'];
+      for (const key of preferredOrder) {
+        const candidate = flvMap[key];
+        if (typeof candidate === 'string' && isAllowedTikTokStreamUrl(candidate)) {
+          return candidate;
+        }
+      }
+      for (const val of Object.values(flvMap)) {
+        if (typeof val === 'string' && isAllowedTikTokStreamUrl(val)) {
+          return val;
+        }
+      }
+    }
+
+    const coreSdk =
+      streamUrlObj.live_core_sdk_data && typeof streamUrlObj.live_core_sdk_data === 'object'
+        ? (streamUrlObj.live_core_sdk_data as Record<string, unknown>)
+        : null;
+    const pullData =
+      coreSdk?.pull_data && typeof coreSdk.pull_data === 'object'
+        ? (coreSdk.pull_data as Record<string, unknown>)
+        : null;
+    const fromCore = parseFlvFromStreamDataJson(pullData?.stream_data);
+    if (fromCore) return fromCore;
+  }
+
+  // 2. Room info format: liveRoom.streamData.pull_data.stream_data
+  const streamData =
+    liveRoom.streamData && typeof liveRoom.streamData === 'object'
+      ? (liveRoom.streamData as Record<string, unknown>)
+      : null;
+  const roomPull =
+    streamData?.pull_data && typeof streamData.pull_data === 'object'
+      ? (streamData.pull_data as Record<string, unknown>)
+      : null;
+  const fromRoom = parseFlvFromStreamDataJson(roomPull?.stream_data);
+  if (fromRoom) return fromRoom;
+
+  return null;
+}
+
+function parseFlvFromStreamDataJson(rawStreamData: unknown): string | null {
+  let parsed = rawStreamData;
+  if (typeof rawStreamData === 'string' && rawStreamData.trim()) {
+    try {
+      parsed = JSON.parse(rawStreamData);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const data = (parsed as Record<string, unknown>).data;
+  if (!data || typeof data !== 'object') return null;
+  const dataRec = data as Record<string, unknown>;
+
+  for (const quality of ['hd', 'sd', 'ld', 'origin', ...Object.keys(dataRec)]) {
+    const entry = dataRec[quality];
+    if (!entry || typeof entry !== 'object') continue;
+    const main = (entry as Record<string, unknown>).main;
+    if (!main || typeof main !== 'object') continue;
+    const flv = (main as Record<string, unknown>).flv;
+    if (typeof flv === 'string' && isAllowedTikTokStreamUrl(flv)) {
+      return flv;
+    }
+  }
+  return null;
+}
+
 export interface RegionLocaleConfig {
   language: string;
   tz: string;
@@ -207,6 +334,13 @@ export function extractHitFromRoomRecord(
     extractImageUrl(liveRoom.cover) ??
     extractImageUrl(innerData.avatar);
 
+  const coverUrl = extractImageUrl(liveRoom.cover) ?? avatarUrl;
+
+  const flvUrl = extractFlvStreamUrl(innerData);
+  if (flvUrl) {
+    rememberStreamUrl(handle, flvUrl);
+  }
+
   const bio =
     typeof user.bio_description === 'string' && user.bio_description.trim()
       ? user.bio_description.trim()
@@ -258,6 +392,7 @@ export function extractHitFromRoomRecord(
     handle,
     display_name: displayName,
     avatar_url: avatarUrl,
+    cover_url: coverUrl,
     bio,
     title,
     live: isLive,
@@ -426,7 +561,7 @@ export class LivePageProvider implements DiscoveryProvider {
     };
   }
 
-  async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryHit[]> {
+  async trending(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryHit[]> {
     const resolved = resolveRegionLocale(
       opts?.region ?? this.options.defaultRegion,
       opts?.language,
@@ -434,11 +569,24 @@ export class LivePageProvider implements DiscoveryProvider {
     const lang = resolved.language;
     const region = resolved.region;
     const userAgent = this.options.userAgent ?? DEFAULT_USER_AGENT;
+    const isLoadMore = (opts?.page ?? 0) > 0;
 
     const feedChannels = [
-      { channel_id: '87', req_from: 'live_mt_pc_web_rec_tab_refresh', related_live_tag: '' },
-      { channel_id: '89', req_from: 'pc_web_game_feed_refresh', related_live_tag: '' },
-      { channel_id: '1222001', req_from: 'webapp_taxonomy_drawer_enter_feed', related_live_tag: 'chatting' },
+      {
+        channel_id: '87',
+        req_from: isLoadMore ? 'live_mt_pc_web_rec_tab_loadmore' : 'live_mt_pc_web_rec_tab_refresh',
+        related_live_tag: '',
+      },
+      {
+        channel_id: '89',
+        req_from: isLoadMore ? 'pc_web_game_feed_loadmore' : 'pc_web_game_feed_refresh',
+        related_live_tag: '',
+      },
+      {
+        channel_id: '1222001',
+        req_from: isLoadMore ? 'webapp_taxonomy_drawer_feed_loadmore' : 'webapp_taxonomy_drawer_enter_feed',
+        related_live_tag: 'chatting',
+      },
     ];
 
     const hitsMap = new Map<string, DiscoveryHit>();

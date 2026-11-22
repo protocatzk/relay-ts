@@ -17,7 +17,7 @@ import YouTubeLiveChat from '@/src/components/YouTubeLiveChat.vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 
 const { pushToast } = useToast();
-const { store } = useStore();
+const { store, refreshStreamers } = useStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -39,6 +39,12 @@ const automationSaving = ref(false);
 const automationMode = ref<'off' | 'relay_only' | 'all'>('relay_only');
 const autoStart = ref(true);
 const autoStop = ref(true);
+
+const globalKeyEnabled = ref(false);
+const globalKeySet = ref(false);
+const globalKeyInput = ref('');
+const globalKeyTitleTemplate = ref('{name} – LIVE');
+const globalKeySaving = ref(false);
 
 const BROADCAST_STATUS: Record<string, { label: string; tone: string }> = {
   live: { label: 'Live', tone: 'tone-success' },
@@ -135,7 +141,16 @@ async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    status.value = await api.youtube.status();
+    const [ytStatus, settings] = await Promise.all([
+      api.youtube.status(),
+      api.settings.get().catch(() => null),
+    ]);
+    status.value = ytStatus;
+    if (settings?.streaming) {
+      globalKeyEnabled.value = Boolean(settings.streaming.global_key_enabled);
+      globalKeySet.value = Boolean(settings.streaming.global_youtube_key_set);
+      globalKeyTitleTemplate.value = settings.streaming.title_template || '{name} – LIVE';
+    }
   } catch (err) {
     error.value = errorMessage(err);
   } finally {
@@ -143,7 +158,41 @@ async function load(): Promise<void> {
   }
 }
 
-async function loadBroadcasts(): Promise<void> {
+async function saveGlobalKey(options?: { clearKey?: boolean; enabled?: boolean }): Promise<void> {
+  globalKeySaving.value = true;
+  try {
+    const nextEnabled = options?.enabled ?? globalKeyEnabled.value;
+    const trimmedKey = globalKeyInput.value.trim();
+    const saved = await api.settings.update({
+      streaming: {
+        title_template: globalKeyTitleTemplate.value,
+        global_key_enabled: nextEnabled,
+        ...(options?.clearKey
+          ? { global_youtube_key: '' }
+          : trimmedKey
+            ? { global_youtube_key: trimmedKey }
+            : {}),
+      },
+    });
+    globalKeyEnabled.value = Boolean(saved.streaming.global_key_enabled);
+    globalKeySet.value = Boolean(saved.streaming.global_youtube_key_set);
+    globalKeyTitleTemplate.value = saved.streaming.title_template;
+    globalKeyInput.value = '';
+    await refreshStreamers().catch(() => undefined);
+    pushToast(
+      options?.clearKey
+        ? 'Globaler YouTube-Key gelöscht.'
+        : 'Globaler YouTube-Stream-Key gespeichert.',
+      'success',
+    );
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    globalKeySaving.value = false;
+  }
+}
+
+async function loadBroadcasts(preserveItem?: YouTubeBroadcast): Promise<void> {
   if (!status.value?.connected) {
     broadcasts.value = [];
     return;
@@ -152,7 +201,11 @@ async function loadBroadcasts(): Promise<void> {
   broadcastsError.value = '';
   try {
     const data = await api.youtube.broadcasts();
-    broadcasts.value = data.items;
+    const items = [...data.items];
+    if (preserveItem && !items.some((item) => item.id === preserveItem.id)) {
+      items.unshift(preserveItem);
+    }
+    broadcasts.value = items;
     broadcastsFetchedAt.value = data.fetched_at;
   } catch (err) {
     broadcastsError.value = errorMessage(err);
@@ -206,12 +259,26 @@ async function runAction(
   broadcast: YouTubeBroadcast,
   action: () => Promise<unknown>,
   message: string,
+  options?: { nextStatus?: string; nextPrivacy?: string; deleted?: boolean },
 ): Promise<void> {
   actingId.value = broadcast.id;
   try {
     await action();
+    let optimisticItem: YouTubeBroadcast | undefined;
+    if (options?.deleted) {
+      broadcasts.value = broadcasts.value.filter((item) => item.id !== broadcast.id);
+    } else if (options?.nextStatus || options?.nextPrivacy) {
+      optimisticItem = {
+        ...broadcast,
+        ...(options.nextStatus ? { status: options.nextStatus } : {}),
+        ...(options.nextPrivacy ? { privacy: options.nextPrivacy } : {}),
+      };
+      broadcasts.value = broadcasts.value.map((item) =>
+        item.id === broadcast.id ? optimisticItem! : item,
+      );
+    }
     pushToast(message, 'success');
-    await loadBroadcasts();
+    await loadBroadcasts(optimisticItem);
   } catch (err) {
     pushToast(errorMessage(err), 'error');
   } finally {
@@ -283,6 +350,7 @@ async function startBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
     broadcast,
     () => api.youtube.transitionBroadcast(broadcast.id, 'live'),
     'Broadcast ist live.',
+    { nextStatus: 'live' },
   );
 }
 
@@ -299,6 +367,7 @@ async function completeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
     broadcast,
     () => api.youtube.transitionBroadcast(broadcast.id, 'complete'),
     'Broadcast beendet.',
+    { nextStatus: 'complete' },
   );
 }
 
@@ -316,6 +385,7 @@ async function publishBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
     broadcast,
     () => api.youtube.publishBroadcast(broadcast.id),
     'Broadcast ist jetzt öffentlich.',
+    { nextPrivacy: 'public' },
   );
 }
 
@@ -332,6 +402,7 @@ async function removeBroadcast(broadcast: YouTubeBroadcast): Promise<void> {
     broadcast,
     () => api.youtube.deleteBroadcast(broadcast.id),
     'Broadcast gelöscht.',
+    { deleted: true },
   );
 }
 
@@ -485,6 +556,89 @@ onMounted(async () => {
           <button v-if="connected" type="button" class="btn btn-ghost" @click="connect">
             Erneut verbinden
           </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">Globaler YouTube-Stream-Key</h2>
+            <p class="card-sub">
+              Überschreibt bei Aktivierung alle individuellen Streamer-Keys mit einem zentralen
+              Ingest-Key.
+            </p>
+          </div>
+          <span
+            class="badge"
+            :class="
+              globalKeyEnabled && globalKeySet
+                ? 'tone-success'
+                : globalKeySet
+                  ? 'tone-info'
+                  : 'tone-neutral'
+            "
+          >
+            {{
+              globalKeyEnabled && globalKeySet
+                ? 'Override aktiv'
+                : globalKeySet
+                  ? 'Fallback-Key gesetzt'
+                  : 'Aus'
+            }}
+          </span>
+        </div>
+        <div class="settings-grid">
+          <ToggleField
+            :model-value="globalKeyEnabled"
+            label="Globalen Stream-Key verwenden"
+            description="Alle Streamer senden auf den globalen YouTube-Key."
+            :disabled="globalKeySaving"
+            @update:model-value="
+              globalKeyEnabled = $event;
+              saveGlobalKey({ enabled: $event });
+            "
+          />
+          <div class="field">
+            <label for="yt-global-stream-key">Stream-Key</label>
+            <div class="input-badge-row">
+              <input
+                id="yt-global-stream-key"
+                v-model="globalKeyInput"
+                type="password"
+                maxlength="300"
+                autocomplete="new-password"
+                :placeholder="
+                  globalKeySet
+                    ? 'Gespeichert – zum Ändern neuen Key eingeben'
+                    : 'xxxx-xxxx-xxxx-xxxx-xxxx'
+                "
+                :disabled="globalKeySaving"
+                @keydown.enter.prevent="globalKeyInput.trim() && saveGlobalKey()"
+              />
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                :disabled="globalKeySaving || !globalKeyInput.trim()"
+                @click="saveGlobalKey()"
+              >
+                <span v-if="globalKeySaving" class="spinner" aria-hidden="true"></span>
+                Key speichern
+              </button>
+              <button
+                v-if="globalKeySet"
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="globalKeySaving"
+                @click="saveGlobalKey({ clearKey: true })"
+              >
+                Löschen
+              </button>
+            </div>
+            <p class="field-hint">
+              Ist der Schalter aktiv, überschreibt dieser Key jeden individuellen Streamer-Key. Ist
+              er deaktiviert, dient der Key als Fallback für Streamer ohne eigenen Key.
+            </p>
+          </div>
         </div>
       </section>
 

@@ -261,6 +261,25 @@ describe('YouTube routes', () => {
     expect(transition.statusCode).toBe(200);
     expect(transition.json()).toEqual({ ok: true, status: 'live' });
 
+    // Even when YouTube's mine=true list endpoint has eventual consistency and
+    // momentarily omits bc-1 right after transitioning to live, RELAY preserves
+    // the broadcast with status 'live' so it never vanishes from the YouTube tab.
+    const broadcastsAfterLive = await app.inject({
+      method: 'GET',
+      url: '/api/youtube/broadcasts',
+      headers: auth,
+    });
+    expect(broadcastsAfterLive.statusCode).toBe(200);
+    expect(broadcastsAfterLive.json().items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'bc-1',
+          title: 'Neu',
+          status: 'live',
+        }),
+      ]),
+    );
+
     const invalid = await app.inject({
       method: 'POST',
       url: '/api/youtube/broadcasts/bc-1/transition',

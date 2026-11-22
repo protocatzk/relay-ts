@@ -39,7 +39,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'monitor', domId: 'settings-monitor', label: 'Online-Monitor', editable: true },
   { id: 'earnings', domId: 'settings-earnings', label: 'Einnahmen', editable: true },
   { id: 'chat', domId: 'settings-chat', label: 'Chat-Overlay', editable: true },
-  { id: 'title', domId: 'settings-title', label: 'YouTube-Titel', editable: true },
+  { id: 'title', domId: 'settings-title', label: 'YouTube & Stream-Key', editable: true },
   { id: 'webhooks', domId: 'settings-webhooks', label: 'Webhooks', editable: true },
   { id: 'appearance', domId: 'settings-appearance', label: 'Erscheinungsbild', editable: false },
   { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
@@ -65,6 +65,8 @@ export interface SettingsSecretsDraft {
   onlineApiKey: string;
   chatApiKey: string;
   earningsApiKey: string;
+  globalYoutubeKey?: string;
+  clearGlobalYoutubeKey?: boolean;
   webhookUrl?: string;
   webhookSecret?: string;
 }
@@ -212,12 +214,20 @@ export function buildSectionPayload(
           ...(secrets.chatApiKey.trim() ? { api_key: secrets.chatApiKey.trim() } : {}),
         },
       };
-    case 'title':
+    case 'title': {
+      const nextGlobalKey = secrets.globalYoutubeKey?.trim() ?? '';
       return {
         streaming: {
           title_template: current.streaming.title_template,
+          global_key_enabled: Boolean(current.streaming.global_key_enabled),
+          ...(secrets.clearGlobalYoutubeKey
+            ? { global_youtube_key: '' }
+            : nextGlobalKey
+              ? { global_youtube_key: nextGlobalKey }
+              : {}),
         },
       };
+    }
     case 'webhooks': {
       const hooks = current.webhooks ?? {
         enabled: false,
@@ -297,7 +307,11 @@ export function isSectionDirty(
         JSON.stringify(current.chat) !== JSON.stringify(baseline.chat)
       );
     case 'title':
-      return JSON.stringify(current.streaming) !== JSON.stringify(baseline.streaming);
+      return (
+        (secrets.globalYoutubeKey?.trim().length ?? 0) > 0 ||
+        Boolean(secrets.clearGlobalYoutubeKey) ||
+        JSON.stringify(current.streaming) !== JSON.stringify(baseline.streaming)
+      );
     case 'webhooks':
       return (
         (secrets.webhookUrl?.length ?? 0) > 0 ||

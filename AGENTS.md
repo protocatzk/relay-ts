@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.27.2**
+- Aktuelle Version: **0.28.0**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -217,7 +217,14 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - `SETTINGS_ENV_OVERRIDES=true` stellt die alte Priorität wieder her: `.env`
   überschreibt `settings.yml` bei jedem Start.
 - `config/settings.yml` wird atomar mit Modus `0600` geschrieben.
-- Secrets werden in API-Antworten durch `api_key_set` ersetzt.
+- Secrets werden in API-Antworten durch `api_key_set` (bzw. `global_youtube_key_set`, `stream_key_set`) ersetzt.
+- `settings.streaming.global_youtube_key` und `settings.streaming.global_key_enabled`
+  ermöglichen einen zentralen YouTube-Stream-Key: Ist `global_key_enabled=true` und
+  ein Key hinterlegt, überschreibt `resolveStreamKey` alle individuellen
+  Streamer-Keys (`source: 'global'`); ist der Schalter aus, dient ein gesetzter
+  globaler Key als Fallback für Streamer ohne eigenen Key (vor `YOUTUBE_STREAM_KEY`).
+  Editierbar sowohl auf dem YouTube-Tab (`YouTubeView.vue`) als auch in den
+  Einstellungen (`SettingsTitleCard.vue`).
 - Overlays (`chat`, `clock`, `text`, `logo`) sind **global** in `settings.yml`.
 - Das Logo-Overlay (`settings.overlays.logo`) läuft als eigener Canvas-Stream
   (zweite rawvideo-Pipe, fd 4) durch den Sink; Position/Breite/Deckkraft werden
@@ -312,6 +319,16 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   - **Guards:** `addStreamer` legt entdeckte Kanäle immer deaktiviert an
     (`enabled: false, priority: 999, source: 'discovery'`). `queueNow` und
     `switchToStreamer` erzwingen einen frischen Live-Check (`409 Conflict` bei Offline).
+  - **TikTok Live-Zapper (`GET /api/discovery/preview/:handle`, `DiscoveryView.vue`):**
+    Aus den Webcast-Antworten (`stream_url.flv_pull_url` bzw. `live_core_sdk_data`)
+    werden signierte HTTP-FLV-URLs extrahiert, gegen TikTok-CDN-Domains
+    (`isAllowedTikTokStreamUrl`, SSRF-Schutz) geprüft und über
+    `GET /api/discovery/preview/:handle` ohne Re-Encoding (0 % CPU, reiner
+    Bytestream-Passthrough mit sofortigem `AbortController`-Cleanup beim
+    Umschalten) an `mpegts.js` (`type: 'flv'`) im Dashboard-Zapper gestreamt.
+    Mit den Pfeil-Buttons rechts (`▲` / `▼`) oder Pfeiltasten (`ArrowUp` / `ArrowDown`)
+    wird durch die Live-Räume gezappt; am Listenende lädt `page` automatisch
+    weitere Räume nach (Infinite Feed).
 
 ## YouTube-Verwaltung
 

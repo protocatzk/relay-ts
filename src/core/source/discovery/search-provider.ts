@@ -87,12 +87,12 @@ export class SearchProvider implements DiscoveryProvider {
     };
   }
 
-  async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryHit[]> {
+  async trending(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryHit[]> {
     const { defaultKeyword, region } = resolveRegionLocale(opts?.region, opts?.language);
-    return this.search(defaultKeyword, { limit: opts?.limit ?? 20, region });
+    return this.search(defaultKeyword, { limit: opts?.limit ?? 20, region, page: opts?.page });
   }
 
-  async search(q: string, opts?: { limit?: number; region?: string }): Promise<DiscoveryHit[]> {
+  async search(q: string, opts?: { limit?: number; region?: string; page?: number }): Promise<DiscoveryHit[]> {
     const trimmed = q.trim();
     if (!trimmed) return [];
 
@@ -100,6 +100,7 @@ export class SearchProvider implements DiscoveryProvider {
     if (!cleanQuery) return [];
 
     const limit = opts?.limit ?? 20;
+    const page = Math.max(0, opts?.page ?? 0);
     const { region, language, locale } = resolveRegionLocale(opts?.region);
     const userAgent =
       this.options.userAgent ??
@@ -123,7 +124,7 @@ export class SearchProvider implements DiscoveryProvider {
         req_from: 'pc_web_seo_query_room',
         channel_id: '86',
         need_room_count: String(Math.max(12, limit)),
-        last_page: '0',
+        last_page: String(page),
         search_keywords: cleanQuery,
       },
       { region, language, userAgent },

@@ -50,6 +50,7 @@ function onlineClass(streamer: Streamer): string {
 
 function keyLabel(streamer: Streamer): string {
   if (!streamer.youtube_key_set) return 'Fehlt';
+  if (streamer.youtube_key_source === 'global') return 'Globaler Key';
   return streamer.youtube_key_source === 'env' ? 'Aus Umgebung' : 'Gesetzt';
 }
 

@@ -124,6 +124,20 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   - **DiscoveryView (#70, #75):** Neuer Sub-Tab unter *Inhalte* im TokTracker-Design mit Provider-Status-Leiste, Trending/Suche-Umschalter, Themen-Schnellwahl-Chips (`Deutsch`, `Gaming`, `Musik`, `Talk`, `Fortnite`, `Lifestyle`), Live-Filter, Streamer-Karten und Quick-Actions (*Speichern* + *Aktivieren*, *In Queue*, *Umschalten*) inkl. `document.hidden`-Pausierung.
   - End-to-End API- und Parser-Tests sowie Audit-Log-Integration für alle Discovery-Aktionen.
 
+### v0.28.0 – TikTok Live-Zapper, Globaler YouTube-Stream-Key & Broadcast-Persistenz
+
+**Status: veröffentlicht in 0.28.0.**
+
+- **#76 (TikTok Live-Zapper):**
+  - Interaktiver Live-Feed-Player in `DiscoveryView.vue` mit Rechts-Pfeil-Navigation (`▲` / `▼`), Tastatur-Shortcuts (`ArrowUp` / `ArrowDown`), Infinite-Feed-Nachladen (`page`) und Regie-Quick-Actions direkt im Zapper.
+  - Zero-CPU HTTP-FLV-Stream-Passthrough (`GET /api/discovery/preview/:handle`) mit TikTok-CDN-Host-Allowlist (`isAllowedTikTokStreamUrl`, SSRF-Schutz) und sofortigem `AbortController`-Cleanup beim Weiterzappen.
+- **Globaler YouTube-Stream-Key mit Override-Schalter (`settings.streaming`):**
+  - `global_youtube_key` und `global_key_enabled` direkt auf dem YouTube-Tab (`YouTubeView.vue`) sowie in den Einstellungen (`SettingsTitleCard.vue`) konfigurierbar.
+  - Überschreibt bei aktivem Schalter alle individuellen Streamer-Keys (`source: 'global'`) und schaltet aktive Sinks im laufenden Betrieb um; bei deaktiviertem Schalter dient er als Fallback für Streamer ohne eigenen Key.
+- **YouTube-Broadcast- & Live-Switch-Persistenz:**
+  - `YouTubeAuthService` hält kürzlich angelegte oder umgeschaltete Broadcasts (`recentBroadcasts`, `recentTransitions`) über die Eventual-Consistency-Lücke der YouTube-`mine=true`-API hinweg stabil sichtbar, sodass live geschaltete Broadcasts auf dem YouTube-Tab nicht mehr verschwinden.
+  - `DiscoveryService.switchToStreamer` und `queueNow` aktivieren neu entdeckte Streamer automatisch (`enabled: true`) und benachrichtigen den Supervisor.
+
 | Issue | Priorität | Bereich | Status |
 |---|---|---|---|
 | Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren (#66) | P1 | Reliability/YouTube | abgeschlossen |
@@ -136,6 +150,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | abgeschlossen |
 | Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | abgeschlossen |
 | Discovery: Trending-Feed reparieren und Freitext-/Keyword-Suche ermöglichen (#75) | P1 | Discovery/Stream | abgeschlossen |
+| Discovery: TikTok Live-Zapper (Feed-Player mit Pfeil-Navigation & HTTP-FLV-Preview) (#76) | P2 | Discovery/UI | abgeschlossen |
 
 ## Definition of Done
 

@@ -13,7 +13,7 @@ import type {
   DiscoveryProviderStatus,
   DiscoveryResponse,
 } from './types.js';
-import { LivePageProvider } from './live-page-provider.js';
+import { getRememberedStreamUrl, LivePageProvider } from './live-page-provider.js';
 import { RoomInfoProvider } from './room-info-provider.js';
 import { SearchProvider } from './search-provider.js';
 
@@ -77,16 +77,19 @@ export class DiscoveryService {
     return hits.filter((h) => Boolean(h.handle) && !h.age_restricted);
   }
 
-  async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryResponse> {
+  async trending(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryResponse> {
     const settings = this.deps.settingsService.get().discovery;
     const now = Date.now();
     const effectiveRegion = (opts?.region ?? settings.region ?? 'DE').toUpperCase();
     const effectiveLanguage = opts?.language ?? (opts?.region ? undefined : settings.language);
+    const page = Math.max(0, opts?.page ?? 0);
     const cacheKey = `${effectiveRegion}::${effectiveLanguage ?? ''}`;
 
-    const cached = this.trendingCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) {
-      return cached.response;
+    if (page === 0) {
+      const cached = this.trendingCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.response;
+      }
     }
 
     const hitsMap = new Map<string, DiscoveryHit>();
@@ -102,6 +105,7 @@ export class DiscoveryService {
           region: effectiveRegion,
           language: effectiveLanguage,
           limit,
+          page,
         });
 
         for (const hit of this.filterHits(results)) {
@@ -144,27 +148,28 @@ export class DiscoveryService {
       fetched_at: new Date().toISOString(),
     };
 
-    // Only cache for full TTL when hits were found; avoid locking into empty cache on transient failures
-    if (hits.length > 0) {
+    // Only cache page 0 for full TTL when hits were found; avoid locking into empty cache on transient failures
+    if (page === 0 && hits.length > 0) {
       const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
       this.trendingCache.set(cacheKey, { response, expiresAt: now + ttlMs });
     }
 
-    if (effectiveRegion === (settings.region ?? 'DE').toUpperCase()) {
+    if (page === 0 && effectiveRegion === (settings.region ?? 'DE').toUpperCase()) {
       this.deps.bus.emit({ type: 'discovery', data: response });
     }
     return response;
   }
 
-  async search(q: string, opts?: { limit?: number; region?: string }): Promise<DiscoveryResponse> {
+  async search(q: string, opts?: { limit?: number; region?: string; page?: number }): Promise<DiscoveryResponse> {
     const trimmed = q.trim();
     if (!trimmed) {
-      return this.trending({ region: opts?.region, limit: opts?.limit });
+      return this.trending({ region: opts?.region, limit: opts?.limit, page: opts?.page });
     }
 
     const settings = this.deps.settingsService.get().discovery;
     const now = Date.now();
-    const cacheKey = `${trimmed.toLowerCase()}::${opts?.region ?? ''}`;
+    const page = Math.max(0, opts?.page ?? 0);
+    const cacheKey = `${trimmed.toLowerCase()}::${opts?.region ?? ''}::${page}`;
     const cached = this.searchCache.get(cacheKey);
 
     if (cached && cached.expiresAt > now) {
@@ -180,7 +185,7 @@ export class DiscoveryService {
     const looksLikeHandle = /^[a-zA-Z0-9._]{2,32}$/.test(cleanedHandle);
 
     let directHandleHit: DiscoveryHit | null = null;
-    if (looksLikeHandle) {
+    if (page === 0 && looksLikeHandle) {
       directHandleHit = await this.roomInfo(cleanedHandle);
       if (directHandleHit && !directHandleHit.age_restricted && (isExplicitHandle || directHandleHit.live)) {
         hitsMap.set(directHandleHit.handle, directHandleHit);
@@ -196,6 +201,7 @@ export class DiscoveryService {
         const results = await provider.search(trimmed, {
           limit,
           region: opts?.region ?? settings.region,
+          page,
         });
 
         for (const hit of this.filterHits(results)) {
@@ -280,6 +286,23 @@ export class DiscoveryService {
     return validHit;
   }
 
+  async resolvePreviewStreamUrl(handle: string): Promise<string | null> {
+    const normalized = normalizeHandle(handle);
+    if (!normalized) return null;
+
+    const cachedUrl = getRememberedStreamUrl(normalized);
+    if (cachedUrl) {
+      return cachedUrl;
+    }
+
+    const hit = await this.roomInfo(normalized, { forceFresh: true });
+    if (!hit || !hit.live || hit.age_restricted) {
+      return null;
+    }
+
+    return getRememberedStreamUrl(normalized);
+  }
+
   addStreamer(handle: string, name?: string): { streamer: StreamerConfig; created: boolean } {
     const normalized = normalizeHandle(handle);
     if (!normalized) {
@@ -321,6 +344,7 @@ export class DiscoveryService {
       source: 'discovery',
     });
 
+    this.deps.supervisor.notifyStreamersChanged?.();
     return { streamer: created, created: true };
   }
 
@@ -335,7 +359,13 @@ export class DiscoveryService {
       throw new ConflictError(`Streamer „${handle}“ ist aktuell nicht live`);
     }
 
-    const { streamer, created } = this.addStreamer(handle, hit.display_name);
+    const added = this.addStreamer(handle, hit.display_name);
+    let streamer = added.streamer;
+    const { created } = added;
+    if (!streamer.enabled) {
+      streamer = this.deps.store.update(streamer.id, { enabled: true });
+      this.deps.supervisor.notifyStreamersChanged?.();
+    }
 
     let statusResult: unknown;
     if (mode === 'now') {
@@ -364,7 +394,13 @@ export class DiscoveryService {
       throw new ConflictError(`Streamer „${handle}“ ist aktuell nicht live`);
     }
 
-    const { streamer, created } = this.addStreamer(handle, hit.display_name);
+    const added = this.addStreamer(handle, hit.display_name);
+    let streamer = added.streamer;
+    const { created } = added;
+    if (!streamer.enabled) {
+      streamer = this.deps.store.update(streamer.id, { enabled: true });
+      this.deps.supervisor.notifyStreamersChanged?.();
+    }
     const statusResult = await this.deps.supervisor.start(streamer.id);
 
     return {

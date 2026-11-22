@@ -138,6 +138,7 @@ const BROADCAST_STATUS_ORDER: Record<string, number> = {
   revoked: 5,
 };
 const BROADCAST_CACHE_MS = 20_000;
+const RECENT_BROADCAST_HOLD_MS = 90_000;
 
 interface PendingAuthorization {
   verifier: string;
@@ -166,6 +167,8 @@ export class YouTubeAuthService {
   private readonly pending = new Map<string, PendingAuthorization>();
   private refreshPromise: Promise<string> | null = null;
   private broadcastsCache: { at: number; data: BroadcastList } | null = null;
+  private readonly recentBroadcasts = new Map<string, { summary: BroadcastSummary; at: number }>();
+  private readonly recentTransitions = new Map<string, { status: BroadcastTransition; at: number }>();
   private readonly liveChatIdCache = new Map<string, string>();
   private readonly now: () => number;
 
@@ -331,6 +334,8 @@ export class YouTubeAuthService {
     this.options.store.clear();
     this.refreshPromise = null;
     this.broadcastsCache = null;
+    this.recentBroadcasts.clear();
+    this.recentTransitions.clear();
     this.liveChatIdCache.clear();
     this.options.logger.info('YouTube-Konto getrennt');
   }
@@ -371,18 +376,69 @@ export class YouTubeAuthService {
         return [] as LiveStreamResource[];
       }),
     ]);
+    const now = this.now();
+    this.pruneRecentBroadcasts(now);
     const managed = this.options.broadcasts?.ids();
+    const byId = new Map<string, BroadcastSummary>();
+
+    for (const broadcast of broadcasts) {
+      const recentTransition = this.recentTransitions.get(broadcast.id);
+      const mapped = mapBroadcast(broadcast, streams);
+      const summary: BroadcastSummary = {
+        ...mapped,
+        status:
+          recentTransition && now - recentTransition.at < RECENT_BROADCAST_HOLD_MS
+            ? recentTransition.status
+            : mapped.status,
+        relay_managed: managed?.has(broadcast.id) ?? false,
+      };
+      byId.set(summary.id, summary);
+      this.recentBroadcasts.set(summary.id, { summary, at: now });
+    }
+
+    // YouTube's mine=true broadcast list has eventual consistency right after a
+    // state transition (created/ready -> testing -> live) or creation and can
+    // briefly omit the broadcast. Preserve recently known broadcasts so they do
+    // not disappear from the dashboard while transitioning.
+    for (const [id, entry] of this.recentBroadcasts) {
+      if (byId.has(id) || now - entry.at >= RECENT_BROADCAST_HOLD_MS) continue;
+      const recentTransition = this.recentTransitions.get(id);
+      byId.set(id, {
+        ...entry.summary,
+        status:
+          recentTransition && now - recentTransition.at < RECENT_BROADCAST_HOLD_MS
+            ? recentTransition.status
+            : entry.summary.status,
+        relay_managed: managed?.has(id) ?? entry.summary.relay_managed,
+      });
+    }
+
     const data: BroadcastList = {
-      items: broadcasts
-        .map((broadcast) => ({
-          ...mapBroadcast(broadcast, streams),
-          relay_managed: managed?.has(broadcast.id) ?? false,
-        }))
-        .sort(compareBroadcasts),
-      fetched_at: new Date(this.now()).toISOString(),
+      items: Array.from(byId.values()).sort(compareBroadcasts),
+      fetched_at: new Date(now).toISOString(),
     };
-    this.broadcastsCache = { at: this.now(), data };
+    this.broadcastsCache = { at: now, data };
     return data;
+  }
+
+  private rememberCachedBroadcasts(now = this.now()): void {
+    if (!this.broadcastsCache) return;
+    for (const item of this.broadcastsCache.data.items) {
+      this.recentBroadcasts.set(item.id, { summary: item, at: now });
+    }
+  }
+
+  private pruneRecentBroadcasts(now = this.now()): void {
+    for (const [id, entry] of this.recentBroadcasts) {
+      if (now - entry.at >= RECENT_BROADCAST_HOLD_MS) {
+        this.recentBroadcasts.delete(id);
+      }
+    }
+    for (const [id, entry] of this.recentTransitions) {
+      if (now - entry.at >= RECENT_BROADCAST_HOLD_MS) {
+        this.recentTransitions.delete(id);
+      }
+    }
   }
 
   async createBroadcast(
@@ -424,6 +480,7 @@ export class YouTubeAuthService {
       throw error;
     }
 
+    this.rememberCachedBroadcasts();
     this.broadcastsCache = null;
     this.options.broadcasts?.upsert({
       id: created.id,
@@ -441,10 +498,12 @@ export class YouTubeAuthService {
       },
       'YouTube-Broadcast angelegt',
     );
-    return {
+    const summary: BroadcastSummary = {
       ...mapBroadcast({ ...created, contentDetails: { boundStreamId: stream.id } }, [stream]),
       relay_managed: true,
     };
+    this.recentBroadcasts.set(summary.id, { summary, at: this.now() });
+    return summary;
   }
 
   async updateBroadcastById(
@@ -473,9 +532,10 @@ export class YouTubeAuthService {
     }
 
     const updated = await updateBroadcast(token, id, body);
+    this.rememberCachedBroadcasts();
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast aktualisiert');
-    return {
+    const summary: BroadcastSummary = {
       ...mapBroadcast(
         {
           ...updated,
@@ -485,6 +545,8 @@ export class YouTubeAuthService {
       ),
       relay_managed: this.options.broadcasts?.ids().has(id) ?? false,
     };
+    this.recentBroadcasts.set(id, { summary, at: this.now() });
+    return summary;
   }
 
   /** Makes a previously unlisted broadcast public; one write costs ~50 quota units. */
@@ -513,6 +575,34 @@ export class YouTubeAuthService {
       }
       throw error;
     }
+    const now = this.now();
+    this.rememberCachedBroadcasts(now);
+    const existing = this.recentBroadcasts.get(id);
+    if (existing) {
+      this.recentBroadcasts.set(id, {
+        summary: {
+          ...existing.summary,
+          status,
+          ...(status === 'live' && !existing.summary.actual_start
+            ? { actual_start: new Date(now).toISOString() }
+            : {}),
+        },
+        at: now,
+      });
+    } else {
+      const fetched = await getBroadcast(token, id).catch(() => null);
+      if (fetched) {
+        this.recentBroadcasts.set(id, {
+          summary: {
+            ...mapBroadcast(fetched, []),
+            status,
+            relay_managed: this.options.broadcasts?.ids().has(id) ?? false,
+          },
+          at: now,
+        });
+      }
+    }
+    this.recentTransitions.set(id, { status, at: now });
     this.broadcastsCache = null;
     this.options.broadcasts?.updateStatus(id, status);
     this.options.logger.info({ broadcast: id, status }, 'YouTube-Broadcast-Status gesetzt');
@@ -523,6 +613,8 @@ export class YouTubeAuthService {
     const token = await this.accessToken();
     await deleteBroadcast(token, id);
     this.options.broadcasts?.remove(id);
+    this.recentBroadcasts.delete(id);
+    this.recentTransitions.delete(id);
     this.broadcastsCache = null;
     this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast gelöscht');
   }
@@ -636,6 +728,18 @@ export class YouTubeAuthService {
         await transitionBroadcast(token, candidate.id, 'testing').catch(() => undefined);
       }
       await transitionBroadcast(token, candidate.id, 'live');
+      const now = this.now();
+      this.rememberCachedBroadcasts(now);
+      this.recentBroadcasts.set(candidate.id, {
+        summary: {
+          ...mapBroadcast(candidate, [stream]),
+          status: 'live',
+          actual_start: candidate.snippet?.actualStartTime ?? new Date(now).toISOString(),
+          relay_managed: managedIds ? managedIds.has(candidate.id) : true,
+        },
+        at: now,
+      });
+      this.recentTransitions.set(candidate.id, { status: 'live', at: now });
       this.options.broadcasts?.updateStatus(candidate.id, 'live');
       this.broadcastsCache = null;
       this.options.logger.info(
@@ -668,9 +772,21 @@ export class YouTubeAuthService {
       const live = pickBroadcastsToComplete(broadcasts, stream.id, policy, undefined, {
         managedIds,
       });
+      const now = this.now();
+      if (live.length > 0) this.rememberCachedBroadcasts(now);
       for (const item of live) {
         await transitionBroadcast(token, item.id, 'complete')
-          .then(() => this.options.broadcasts?.updateStatus(item.id, 'complete'))
+          .then(() => {
+            this.options.broadcasts?.updateStatus(item.id, 'complete');
+            this.recentTransitions.set(item.id, { status: 'complete', at: now });
+            const existing = this.recentBroadcasts.get(item.id);
+            if (existing) {
+              this.recentBroadcasts.set(item.id, {
+                summary: { ...existing.summary, status: 'complete' },
+                at: now,
+              });
+            }
+          })
           .catch(() => undefined);
       }
       if (live.length > 0) this.broadcastsCache = null;

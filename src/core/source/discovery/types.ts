@@ -14,6 +14,7 @@ export interface DiscoveryHit {
   handle: string;
   display_name: string;
   avatar_url: string | null;
+  cover_url?: string | null;
   bio: string | null;
   title: string | null;
   live: boolean;
@@ -31,8 +32,8 @@ export interface DiscoveryResponse {
 
 export interface DiscoveryProvider {
   readonly name: string;
-  search?(q: string, opts?: { limit?: number; region?: string }): Promise<DiscoveryHit[]>;
-  trending?(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryHit[]>;
+  search?(q: string, opts?: { limit?: number; region?: string; page?: number }): Promise<DiscoveryHit[]>;
+  trending?(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryHit[]>;
   roomInfo?(handle: string): Promise<DiscoveryHit | null>;
   health(): DiscoveryProviderStatus;
 }

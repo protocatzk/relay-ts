@@ -34,7 +34,7 @@ export interface StreamerView {
   source?: 'manual' | 'discovery';
   video_mode: StreamerConfig['video_mode'];
   youtube_key_set: boolean;
-  youtube_key_source: 'streamer' | 'env' | 'none';
+  youtube_key_source: 'global' | 'streamer' | 'env' | 'none';
   status: { online: boolean | null; active: boolean };
 }
 

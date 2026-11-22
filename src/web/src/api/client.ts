@@ -783,18 +783,20 @@ export const api = {
       request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
   },
   discovery: {
-    trending: (opts?: { region?: string; language?: string; limit?: number }) => {
+    trending: (opts?: { region?: string; language?: string; limit?: number; page?: number }) => {
       const search = new URLSearchParams();
       if (opts?.region) search.set('region', opts.region);
       if (opts?.language) search.set('language', opts.language);
       if (opts?.limit) search.set('limit', String(opts.limit));
+      if (opts?.page !== undefined) search.set('page', String(opts.page));
       const qs = search.toString();
       return request<DiscoveryResponse>(`/api/discovery/trending${qs ? `?${qs}` : ''}`);
     },
-    search: (q: string, opts?: { limit?: number; region?: string }) => {
+    search: (q: string, opts?: { limit?: number; region?: string; page?: number }) => {
       const search = new URLSearchParams({ q });
       if (opts?.limit) search.set('limit', String(opts.limit));
       if (opts?.region) search.set('region', opts.region);
+      if (opts?.page !== undefined) search.set('page', String(opts.page));
       return request<DiscoveryResponse>(`/api/discovery/search?${search.toString()}`);
     },
     room: (handle: string) =>

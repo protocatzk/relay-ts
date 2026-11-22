@@ -6,7 +6,12 @@ import type {
 } from './types.js';
 import { normalizeHandle } from '../../../utils/format.js';
 import { readCookieHeader } from '../resolver.js';
-import { extractImageUrl, isAgeRestrictedValue } from './live-page-provider.js';
+import {
+  extractFlvStreamUrl,
+  extractImageUrl,
+  isAgeRestrictedValue,
+  rememberStreamUrl,
+} from './live-page-provider.js';
 
 export interface RoomInfoProviderOptions {
   cookiesFile?: string;
@@ -84,6 +89,13 @@ export function parseRoomInfoPayload(payload: unknown, handle: string): Discover
     extractImageUrl(user.avatarThumb) ??
     extractImageUrl(user.avatar_thumb);
 
+  const coverUrl = extractImageUrl(liveRoom.cover) ?? avatarUrl;
+
+  const flvUrl = extractFlvStreamUrl(dataRecord);
+  if (flvUrl) {
+    rememberStreamUrl(normalized, flvUrl);
+  }
+
   const bio =
     typeof user.bioDescription === 'string' && user.bioDescription.trim()
       ? user.bioDescription.trim()
@@ -97,6 +109,7 @@ export function parseRoomInfoPayload(payload: unknown, handle: string): Discover
     handle: normalized,
     display_name: displayName,
     avatar_url: avatarUrl,
+    cover_url: coverUrl,
     bio,
     title,
     live: isLive,

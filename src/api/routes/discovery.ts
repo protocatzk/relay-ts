@@ -1,19 +1,24 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { PassThrough, Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { ApiContext } from '../context.js';
 import { formatZodError } from '../../core/config/schema.js';
+import { isAllowedTikTokStreamUrl } from '../../core/source/discovery/live-page-provider.js';
 import { ValidationError, NotFoundError } from '../../utils/errors.js';
 
 const TrendingQuerySchema = z.object({
   region: z.string().max(10).optional(),
   language: z.string().max(10).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
+  page: z.coerce.number().int().min(0).max(50).optional(),
 });
 
 const SearchQuerySchema = z.object({
   q: z.string().max(200).optional().default(''),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   region: z.string().max(10).optional(),
+  page: z.coerce.number().int().min(0).max(50).optional(),
 });
 
 const RoomParamsSchema = z.object({
@@ -70,7 +75,64 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
       return getDiscovery().search(parsed.data.q, {
         limit: parsed.data.limit,
         region: parsed.data.region,
+        page: parsed.data.page,
       });
+    },
+  );
+
+  app.get(
+    '/api/discovery/preview/:handle',
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = RoomParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        throw new ValidationError(`Ungültiger Handle-Parameter: ${formatZodError(parsed.error)}`, parsed.error.issues);
+      }
+
+      const flvUrl = await getDiscovery().resolvePreviewStreamUrl(parsed.data.handle);
+      if (!flvUrl || !isAllowedTikTokStreamUrl(flvUrl)) {
+        throw new NotFoundError(`Kein aktiver Live-Stream für „${parsed.data.handle}“ verfügbar`);
+      }
+
+      const ac = new AbortController();
+      const upstream = await fetch(flvUrl, {
+        headers: {
+          'user-agent':
+            ctx.config.media.sourceUserAgent ||
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          referer: 'https://www.tiktok.com/',
+          accept: '*/*',
+        },
+        signal: ac.signal,
+      }).catch(() => null);
+
+      if (!upstream || !upstream.ok || !upstream.body) {
+        ac.abort();
+        throw new NotFoundError(`Live-Vorschau für „${parsed.data.handle}“ konnte nicht geöffnet werden`);
+      }
+
+      const pass = new PassThrough({ highWaterMark: 512 * 1024 });
+      const nodeStream = Readable.fromWeb(upstream.body as unknown as WebReadableStream);
+      let closed = false;
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        ac.abort();
+        nodeStream.destroy();
+        pass.end();
+      };
+
+      request.raw.once('close', cleanup);
+      nodeStream.once('error', cleanup);
+      pass.once('error', cleanup);
+      nodeStream.pipe(pass);
+
+      reply
+        .header('content-type', 'video/x-flv')
+        .header('cache-control', 'no-store')
+        .header('x-accel-buffering', 'no')
+        .header('connection', 'keep-alive');
+      return reply.send(pass);
     },
   );
 

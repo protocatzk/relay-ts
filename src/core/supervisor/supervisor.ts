@@ -1007,7 +1007,7 @@ export class Supervisor {
     return buildStreamersView(
       this.deps.store.list(),
       this.activeStreamer?.id ?? null,
-      this.state === 'live',
+      this.state === 'live' || this.state === 'starting' || this.state === 'reconnecting',
       this.online,
       this.deps.store,
       this.startingStreamerId,

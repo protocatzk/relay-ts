@@ -1,6 +1,11 @@
 import type { Logger } from 'pino';
 import type { LoadedConfig } from '../config/loader.js';
-import type { Settings, StreamerConfig } from '../config/schema.js';
+import {
+  resolveStreamKey,
+  setGlobalStreamKeyOverride,
+  type Settings,
+  type StreamerConfig,
+} from '../config/schema.js';
 import type { StatusSnapshot, StreamState } from '../events.js';
 import {
   configureVideoEncoder,
@@ -137,6 +142,13 @@ export async function applySupervisorSettings(
   if (next.webhooks.secret) {
     host.deps.registerSecret?.(next.webhooks.secret);
   }
+  setGlobalStreamKeyOverride({
+    enabled: next.streaming.global_key_enabled,
+    key: next.streaming.global_youtube_key,
+  });
+  if (next.streaming.global_youtube_key) {
+    host.deps.registerSecret?.(next.streaming.global_youtube_key);
+  }
   const sessionActive = host.sinkController.running || host.sinkController.starting;
   await host.outputFanout.syncWithSettings(
     previous,
@@ -188,6 +200,16 @@ export async function applySupervisorSettings(
   if (diff.videoEncodeChanged) {
     host.rebuildChatEngineLocked();
     needsSinkRestart = true;
+  }
+  const globalKeyChanged =
+    previous.streaming.global_key_enabled !== next.streaming.global_key_enabled ||
+    previous.streaming.global_youtube_key !== next.streaming.global_youtube_key;
+  if (globalKeyChanged && host.activeStreamer) {
+    const resolvedKey = resolveStreamKey(host.activeStreamer).key;
+    if (resolvedKey && resolvedKey !== host.sinkController.key) {
+      host.sinkController.key = resolvedKey;
+      needsSinkRestart = true;
+    }
   }
   if (needsSinkRestart && host.sinkController.running) await host.restartSinkLocked();
   if (diff.videoEncodeChanged && host.sourceSession.running && host.sourceSession.resolved) {

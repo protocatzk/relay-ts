@@ -308,6 +308,8 @@ export const ChatSettingsSchema = z.object({
 
 export const StreamingSettingsSchema = z.object({
   title_template: z.string().max(200).default('{name} – LIVE'),
+  global_key_enabled: z.boolean().default(false),
+  global_youtube_key: z.string().max(300).default(''),
 });
 
 export const EarningsSettingsSchema = z.object({
@@ -462,17 +464,43 @@ export function formatZodError(error: z.ZodError): string {
     .join('; ');
 }
 
+export type StreamKeySource = 'global' | 'streamer' | 'env' | 'none';
+
+export interface GlobalStreamKeyOverride {
+  enabled: boolean;
+  key: string;
+}
+
+let globalKeyOverride: GlobalStreamKeyOverride = { enabled: false, key: '' };
+
+export function setGlobalStreamKeyOverride(override: GlobalStreamKeyOverride): void {
+  globalKeyOverride = {
+    enabled: Boolean(override.enabled),
+    key: (override.key ?? '').trim(),
+  };
+}
+
+export function getGlobalStreamKeyOverride(): GlobalStreamKeyOverride {
+  return { ...globalKeyOverride };
+}
+
 /** Resolve the effective YouTube stream key for a streamer. */
 export function resolveStreamKey(
   streamer: Pick<StreamerConfig, 'youtube_key' | 'youtube_key_env'>,
   env: NodeJS.ProcessEnv = process.env,
-): { key: string; source: 'streamer' | 'env' | 'none' } {
+): { key: string; source: StreamKeySource } {
+  if (globalKeyOverride.enabled && globalKeyOverride.key) {
+    return { key: globalKeyOverride.key, source: 'global' };
+  }
   if (streamer.youtube_key && streamer.youtube_key.trim()) {
     return { key: streamer.youtube_key.trim(), source: 'streamer' };
   }
   const envName = streamer.youtube_key_env?.trim();
   if (envName && env[envName]?.trim()) {
     return { key: env[envName]!.trim(), source: 'env' };
+  }
+  if (globalKeyOverride.key) {
+    return { key: globalKeyOverride.key, source: 'global' };
   }
   if (env.YOUTUBE_STREAM_KEY?.trim()) {
     return { key: env.YOUTUBE_STREAM_KEY.trim(), source: 'env' };

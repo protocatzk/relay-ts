@@ -158,6 +158,16 @@ describe('Discovery API Routes', () => {
     expect(body.hit?.live).toBe(true);
   });
 
+  it('GET /api/discovery/preview/:handle returns 404 when no FLV stream URL is available', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/preview/offline_streamer',
+      headers: { authorization: 'Bearer test-token' },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
   it('POST /api/discovery/add creates streamer disabled with priority 999 and source discovery', async () => {
     const res = await app.inject({
       method: 'POST',

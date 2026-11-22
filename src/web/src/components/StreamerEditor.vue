@@ -76,6 +76,8 @@ const modalTitle = computed(() =>
 const keySourceLabel = computed(() => {
   if (!source) return 'Optional';
   switch (source.youtube_key_source) {
+    case 'global':
+      return 'Globaler Key aktiv';
     case 'streamer':
       return 'Im Streamer gesetzt';
     case 'env':

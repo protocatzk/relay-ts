@@ -65,6 +65,8 @@ function makeSettings(): Settings {
     },
     streaming: {
       title_template: '{name} live',
+      global_key_enabled: false,
+      global_youtube_key_set: false,
     },
     audio: {
       normalize: 'off',
@@ -195,6 +197,30 @@ describe('settings sections partial updates', () => {
 
     const titlePayload = buildSectionPayload('title', settings, emptySecrets);
     expect(Object.keys(titlePayload)).toEqual(['streaming']);
+    expect(titlePayload.streaming).toEqual({
+      title_template: '{name} live',
+      global_key_enabled: false,
+    });
+
+    const titleWithGlobalKey = buildSectionPayload('title', settings, {
+      ...emptySecrets,
+      globalYoutubeKey: '  global-yt-key-123  ',
+    });
+    expect(titleWithGlobalKey.streaming).toEqual({
+      title_template: '{name} live',
+      global_key_enabled: false,
+      global_youtube_key: 'global-yt-key-123',
+    });
+
+    const titleClearedKey = buildSectionPayload('title', settings, {
+      ...emptySecrets,
+      clearGlobalYoutubeKey: true,
+    });
+    expect(titleClearedKey.streaming).toEqual({
+      title_template: '{name} live',
+      global_key_enabled: false,
+      global_youtube_key: '',
+    });
   });
 
   it('includes secrets only when non-empty', () => {

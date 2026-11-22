@@ -71,6 +71,7 @@ async function main(): Promise<void> {
   redactor.add(config.media.tiktokSessionId);
   redactor.add(config.settings.online.api_key);
   redactor.add(config.settings.chat.api_key);
+  redactor.add(config.settings.streaming.global_youtube_key);
   redactor.add(config.settings.webhooks.url);
   redactor.add(config.settings.webhooks.secret);
 

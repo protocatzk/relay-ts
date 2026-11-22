@@ -91,6 +91,8 @@ const loadError = ref('');
 const apiKey = ref('');
 const chatApiKey = ref('');
 const earningsApiKey = ref('');
+const globalYoutubeKey = ref('');
+const clearGlobalYoutubeKey = ref(false);
 const webhookUrl = ref('');
 const webhookSecret = ref('');
 const testingWebhook = ref(false);
@@ -128,6 +130,8 @@ const secretsDraft = computed<SettingsSecretsDraft>(() => ({
   onlineApiKey: apiKey.value,
   chatApiKey: chatApiKey.value,
   earningsApiKey: earningsApiKey.value,
+  globalYoutubeKey: globalYoutubeKey.value,
+  clearGlobalYoutubeKey: clearGlobalYoutubeKey.value,
   webhookUrl: webhookUrl.value,
   webhookSecret: webhookSecret.value,
 }));
@@ -411,6 +415,8 @@ function normalizeSettingsDefaults(settings: Settings): Settings {
     cooldown_seconds: 60,
     events: ['stream_error', 'pause_limit', 'reconnect_failed', 'youtube_auth_required', 'disk_warning'],
   };
+  settings.streaming.global_key_enabled ??= false;
+  settings.streaming.global_youtube_key_set ??= false;
   return settings;
 }
 
@@ -424,6 +430,8 @@ async function loadSettings(silent = false): Promise<void> {
     apiKey.value = '';
     chatApiKey.value = '';
     earningsApiKey.value = '';
+    globalYoutubeKey.value = '';
+    clearGlobalYoutubeKey.value = false;
     webhookUrl.value = '';
     webhookSecret.value = '';
   } catch (error) {
@@ -479,6 +487,10 @@ async function saveSection(section: EditableSettingsSectionId): Promise<void> {
     if (section === 'monitor') apiKey.value = '';
     if (section === 'chat') chatApiKey.value = '';
     if (section === 'earnings') earningsApiKey.value = '';
+    if (section === 'title') {
+      globalYoutubeKey.value = '';
+      clearGlobalYoutubeKey.value = false;
+    }
     if (section === 'webhooks') {
       webhookUrl.value = '';
       webhookSecret.value = '';
@@ -504,6 +516,8 @@ async function save(): Promise<void> {
     apiKey.value = '';
     chatApiKey.value = '';
     earningsApiKey.value = '';
+    globalYoutubeKey.value = '';
+    clearGlobalYoutubeKey.value = false;
     webhookUrl.value = '';
     webhookSecret.value = '';
     pushToast('Einstellungen gespeichert.', 'success');
@@ -695,9 +709,13 @@ onBeforeUnmount(() => {
 
       <SettingsTitleCard
         :streaming="form.streaming"
+        :global-youtube-key="globalYoutubeKey"
+        :clear-global-youtube-key="clearGlobalYoutubeKey"
         :dirty="sectionDirty('title')"
         :saving="savingSection === 'title'"
         :busy-saving="busySaving"
+        @update:global-youtube-key="globalYoutubeKey = $event"
+        @update:clear-global-youtube-key="clearGlobalYoutubeKey = $event"
         @save="saveSection('title')"
       />
 

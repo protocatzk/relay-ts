@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RELAY Restreamer API",
-    "version": "0.27.2",
+    "version": "0.28.0",
     "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
   },
   "servers": [
@@ -6530,6 +6530,14 @@
               "type": "integer",
               "example": 30
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
           }
         ],
         "responses": {
@@ -6584,6 +6592,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
           }
         ],
         "responses": {
@@ -6593,6 +6609,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DiscoveryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/preview/:handle": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "HTTP-FLV Live-Vorschau für einen TikTok-Streamer streamen",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "video/x-flv": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -7616,7 +7672,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.27.2"
+            "example": "0.28.0"
           }
         }
       },
@@ -7728,7 +7784,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.27.2"
+            "example": "0.28.0"
           },
           "uptime_seconds": {
             "type": "number"
@@ -7940,6 +7996,12 @@
             "type": "string"
           },
           "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cover_url": {
             "type": [
               "string",
               "null"
@@ -8761,7 +8823,9 @@
           },
           "streaming": {
             "default": {
-              "title_template": "{name} – LIVE"
+              "title_template": "{name} – LIVE",
+              "global_key_enabled": false,
+              "global_youtube_key": ""
             },
             "type": "object",
             "properties": {
@@ -8769,6 +8833,15 @@
                 "default": "{name} – LIVE",
                 "type": "string",
                 "maxLength": 200
+              },
+              "global_key_enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "global_youtube_key": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
               }
             }
           },
@@ -10298,7 +10371,9 @@
           },
           "streaming": {
             "default": {
-              "title_template": "{name} – LIVE"
+              "title_template": "{name} – LIVE",
+              "global_key_enabled": false,
+              "global_youtube_key": ""
             },
             "type": "object",
             "properties": {
@@ -10306,6 +10381,15 @@
                 "default": "{name} – LIVE",
                 "type": "string",
                 "maxLength": 200
+              },
+              "global_key_enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "global_youtube_key": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
               }
             }
           },

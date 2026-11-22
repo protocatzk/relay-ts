@@ -466,6 +466,8 @@ export function applyEnvSettings(
   set(['chat', 'api_url'], env.CHAT_API_URL?.trim() || undefined);
   set(['chat', 'api_key'], env.CHAT_API_KEY?.trim() || undefined);
   set(['streaming', 'title_template'], env.YOUTUBE_TITLE_TEMPLATE?.trim() || undefined);
+  set(['streaming', 'global_key_enabled'], parseBoolean(env.YOUTUBE_GLOBAL_KEY_ENABLED));
+  set(['streaming', 'global_youtube_key'], env.YOUTUBE_GLOBAL_STREAM_KEY?.trim() || undefined);
   set(['earnings', 'enabled'], parseBoolean(env.EARNINGS_ENABLED));
   set(['earnings', 'source_url'], env.EARNINGS_SOURCE_URL?.trim() || undefined);
   set(['earnings', 'api_key'], env.EARNINGS_SOURCE_API_KEY?.trim() || undefined);

@@ -468,6 +468,8 @@ export function createLogger(options: LoggerOptions = {}): LoggerBundle {
           'req.headers.cookie',
           'youtube_key',
           '*.youtube_key',
+          'global_youtube_key',
+          '*.global_youtube_key',
           'streamKey',
           '*.streamKey',
           'stream_key',

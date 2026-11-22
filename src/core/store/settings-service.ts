@@ -1,12 +1,17 @@
 import type { Logger } from 'pino';
-import { SettingsSchema, formatZodError, type Settings } from '../config/schema.js';
+import {
+  SettingsSchema,
+  formatZodError,
+  setGlobalStreamKeyOverride,
+  type Settings,
+} from '../config/schema.js';
 import { ValidationError } from '../../utils/errors.js';
 import { readYamlFile, writeYamlFile } from '../../utils/fs.js';
 import { deepMerge } from '../../utils/format.js';
 
 export type SanitizedSettings = Omit<
   Settings,
-  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink' | 'webhooks'
+  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink' | 'webhooks' | 'streaming'
 > & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
@@ -15,6 +20,7 @@ export type SanitizedSettings = Omit<
     chat: Omit<Settings['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
   };
   secondary_sink: Omit<Settings['secondary_sink'], 'stream_key'> & { stream_key_set: boolean };
+  streaming: Omit<Settings['streaming'], 'global_youtube_key'> & { global_youtube_key_set: boolean };
   webhooks: Omit<Settings['webhooks'], 'url' | 'secret'> & {
     url_set: boolean;
     url_host: string;
@@ -41,6 +47,10 @@ export class SettingsService {
     this.path = path;
     this.current = structuredClone(initial);
     this.logger = logger;
+    setGlobalStreamKeyOverride({
+      enabled: this.current.streaming.global_key_enabled,
+      key: this.current.streaming.global_youtube_key,
+    });
   }
 
   get(): Settings {
@@ -53,6 +63,10 @@ export class SettingsService {
     const parsed = SettingsSchema.safeParse(raw ?? {});
     if (parsed.success) {
       this.current = parsed.data;
+      setGlobalStreamKeyOverride({
+        enabled: this.current.streaming.global_key_enabled,
+        key: this.current.streaming.global_youtube_key,
+      });
     }
     return this.get();
   }
@@ -82,6 +96,11 @@ export class SettingsService {
         stream_key: undefined,
         stream_key_set: Boolean(settings.secondary_sink.stream_key),
       },
+      streaming: {
+        ...settings.streaming,
+        global_youtube_key: undefined,
+        global_youtube_key_set: Boolean(settings.streaming.global_youtube_key),
+      },
       webhooks: {
         ...settings.webhooks,
         url: undefined,
@@ -109,6 +128,9 @@ export class SettingsService {
     if (raw.secondary_sink && !('stream_key' in raw.secondary_sink)) {
       merged.secondary_sink.stream_key = this.current.secondary_sink.stream_key;
     }
+    if (raw.streaming && !('global_youtube_key' in raw.streaming)) {
+      merged.streaming.global_youtube_key = this.current.streaming.global_youtube_key;
+    }
     if (raw.webhooks) {
       if (!('url' in raw.webhooks)) merged.webhooks.url = this.current.webhooks.url;
       if (!('secret' in raw.webhooks)) merged.webhooks.secret = this.current.webhooks.secret;
@@ -119,6 +141,10 @@ export class SettingsService {
     }
     const previous = this.current;
     this.current = parsed.data;
+    setGlobalStreamKeyOverride({
+      enabled: this.current.streaming.global_key_enabled,
+      key: this.current.streaming.global_youtube_key,
+    });
     this.persist();
     return { previous, next: this.get() };
   }
@@ -147,6 +173,10 @@ function stripSecretFlags(input: Record<string, unknown>): Record<string, unknow
   const secondary = result.secondary_sink;
   if (secondary && typeof secondary === 'object' && !Array.isArray(secondary)) {
     delete (secondary as Record<string, unknown>).stream_key_set;
+  }
+  const streaming = result.streaming;
+  if (streaming && typeof streaming === 'object' && !Array.isArray(streaming)) {
+    delete (streaming as Record<string, unknown>).global_youtube_key_set;
   }
   const webhooks = result.webhooks;
   if (webhooks && typeof webhooks === 'object' && !Array.isArray(webhooks)) {

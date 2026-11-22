@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildWebcastFeedUrl,
+  extractFlvStreamUrl,
+  getRememberedStreamUrl,
+  isAllowedTikTokStreamUrl,
   parseLivePageHtml,
   parseWebcastFeedPayload,
   resolveRegionLocale,
@@ -271,6 +274,46 @@ describe('Discovery Parsers (Pure Functions)', () => {
     expect(url.searchParams.get('webcast_language')).toBe('tr-TR');
     expect(url.searchParams.get('tz_name')).toBe('Europe/Istanbul');
   });
+
+  it('extracts and validates TikTok CDN FLV stream URLs and blocks non-TikTok SSRF hosts', () => {
+    const validFlv = 'https://pull-flv-f77-tt03.fcdn.eu.tiktokcdn.com/stage/stream-123_hd.flv?expire=1796557084';
+    expect(isAllowedTikTokStreamUrl(validFlv)).toBe(true);
+    expect(isAllowedTikTokStreamUrl('https://evil.example.com/stream.flv')).toBe(false);
+    expect(isAllowedTikTokStreamUrl('http://127.0.0.1:3000/internal')).toBe(false);
+
+    const extracted = extractFlvStreamUrl({
+      stream_url: {
+        flv_pull_url: {
+          HD1: validFlv,
+        },
+      },
+    });
+    expect(extracted).toBe(validFlv);
+
+    parseWebcastFeedPayload({
+      status_code: 0,
+      data: [
+        {
+          type: 1,
+          data: {
+            title: 'Zapper Test Room',
+            status: 2,
+            user_count: 100,
+            age_restricted: {},
+            stream_url: {
+              flv_pull_url: { HD1: validFlv },
+            },
+            owner: {
+              display_id: 'zapper_streamer',
+              nickname: 'Zapper Streamer',
+            },
+          },
+        },
+      ],
+    });
+
+    expect(getRememberedStreamUrl('zapper_streamer')).toBe(validFlv);
+  });
 });
 
 describe('DiscoveryService & Provider Fallback', () => {
@@ -279,9 +322,21 @@ describe('DiscoveryService & Provider Fallback', () => {
   function createMockStore() {
     const listMock = vi.fn().mockReturnValue([]);
     const createMock = vi.fn().mockImplementation((input) => input);
+    const updateMock = vi.fn().mockImplementation((id, patch) => ({
+      id,
+      name: id,
+      tiktok: id,
+      enabled: true,
+      priority: 999,
+      auto_start: false,
+      preferred: false,
+      source: 'discovery',
+      ...patch,
+    }));
     return {
       list: listMock,
       create: createMock,
+      update: updateMock,
       view: vi.fn((s) => ({ ...s, status: { online: null, active: false } })),
     } as unknown as StreamerStore;
   }
@@ -293,6 +348,7 @@ describe('DiscoveryService & Provider Fallback', () => {
       buildQueueSnapshot: vi.fn().mockReturnValue({ entries: [], playing: false, index: null, loop: false }),
       buildStatus: vi.fn().mockReturnValue({ state: 'idle' }),
       start: vi.fn().mockResolvedValue({ state: 'live' }),
+      notifyStreamersChanged: vi.fn(),
     } as any;
   }
 
@@ -638,6 +694,48 @@ describe('DiscoveryService & Provider Fallback', () => {
 
     const result = await service.queueNow('live_person', 'now');
     expect(result.created).toBe(true);
+    expect(result.streamer.enabled).toBe(true);
+    expect(store.update).toHaveBeenCalledWith('live_person', { enabled: true });
+    expect(supervisor.notifyStreamersChanged).toHaveBeenCalled();
     expect(supervisor.queuePlayNow).toHaveBeenCalledWith('live_person');
+  });
+
+  it('auto-enables a newly discovered streamer and notifies supervisor on switchToStreamer', async () => {
+    const bus = new EventBus();
+    const store = createMockStore();
+    const supervisor = createMockSupervisor();
+    const settingsService = createMockSettings();
+
+    const mockRoomInfo: DiscoveryProvider = {
+      name: 'room_info',
+      health: () => ({ name: 'room_info', status: 'online', last_error: null, last_ok_at: null }),
+      roomInfo: async (handle: string) => ({
+        handle,
+        display_name: 'Switch Streamer',
+        avatar_url: null,
+        bio: null,
+        title: 'Live Switch',
+        live: true,
+        viewers: 400,
+        source: 'room_info',
+        fetched_at: new Date().toISOString(),
+      }),
+    };
+
+    const service = new DiscoveryService({
+      store,
+      settingsService,
+      supervisor,
+      bus,
+      logger,
+      providers: new Map([['room_info', mockRoomInfo]]) as any,
+    });
+
+    const result = await service.switchToStreamer('switch_person');
+    expect(result.created).toBe(true);
+    expect(result.streamer.enabled).toBe(true);
+    expect(store.update).toHaveBeenCalledWith('switch_person', { enabled: true });
+    expect(supervisor.notifyStreamersChanged).toHaveBeenCalled();
+    expect(supervisor.start).toHaveBeenCalledWith('switch_person');
   });
 });

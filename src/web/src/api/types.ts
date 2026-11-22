@@ -123,7 +123,7 @@ export interface Streamer {
   name: string;
   tiktok: string;
   youtube_key_set: boolean;
-  youtube_key_source: 'streamer' | 'env' | 'none';
+  youtube_key_source: 'global' | 'streamer' | 'env' | 'none';
   quality: StreamQuality;
   auto_start: boolean;
   preferred: boolean;
@@ -675,6 +675,7 @@ export interface DiscoveryHit {
   handle: string;
   display_name: string;
   avatar_url: string | null;
+  cover_url?: string | null;
   bio: string | null;
   title: string | null;
   live: boolean;
@@ -713,6 +714,8 @@ export interface Settings {
 
 export interface StreamingSettings {
   title_template: string;
+  global_key_enabled: boolean;
+  global_youtube_key_set: boolean;
 }
 
 export interface YouTubeAutomationStatus {
@@ -852,6 +855,8 @@ export interface SettingsUpdate {
   };
   streaming: {
     title_template: string;
+    global_key_enabled?: boolean;
+    global_youtube_key?: string;
   };
   overlays?: StreamerOverlaysInput;
   secondary_sink?: {
