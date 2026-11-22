@@ -6,7 +6,7 @@ import { appendFile, chmod, rename, stat, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ensureDir } from '../utils/fs.js';
 
-export type AuditSource = 'web' | 'api' | 'telegram' | 'system';
+export type AuditSource = 'web' | 'api' | 'telegram' | 'system' | 'mcp' | 'agent';
 export type AuditResult = 'ok' | 'error';
 
 export interface AuditEntry {

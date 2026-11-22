@@ -1254,6 +1254,57 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/mcp/sse',
+    tag: 'mcp',
+    summary: 'Model Context Protocol (MCP) Server-Sent Events Transport',
+    response: {
+      type: 'string',
+      description: 'SSE Event Stream',
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/mcp/message',
+    tag: 'mcp',
+    summary: 'MCP JSON-RPC Nachricht senden',
+    parameters: [{ name: 'sessionId', in: 'query', schema: { type: 'string' } }],
+    response: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    method: 'get',
+    path: '/api/mcp/tools',
+    tag: 'mcp',
+    summary: 'Liste aller registrierten MCP/Agent Tools',
+    response: {
+      type: 'object',
+      required: ['tools'],
+      properties: {
+        tools: { type: 'array', items: { type: 'object' } },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/mcp/tools/:name',
+    tag: 'mcp',
+    summary: 'MCP Tool direkt ausführen',
+    parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+    response: {
+      type: 'object',
+      required: ['ok', 'result'],
+      properties: {
+        ok: { type: 'boolean' },
+        result: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'get',
     path: '/api/discovery/search',
     tag: 'discovery',
     summary: 'Live-Streams oder Handles suchen',

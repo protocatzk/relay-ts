@@ -32,6 +32,7 @@ import { registerSceneRoutes } from './routes/scenes.js';
 import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerDiscoveryRoutes } from './routes/discovery.js';
 import { registerAutomationRoutes } from './routes/automations.js';
+import { registerMcpRoutes } from './routes/mcp.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -154,6 +155,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerScheduleRoutes(app, ctx);
   await registerDiscoveryRoutes(app, ctx);
   await registerAutomationRoutes(app, ctx);
+  await registerMcpRoutes(app, ctx);
   await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;

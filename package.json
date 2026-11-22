@@ -1,6 +1,6 @@
 {
   "name": "restreamer-ts",
-  "version": "0.30.0",
+  "version": "0.30.1",
   "private": true,
   "description": "TikTok to YouTube restreaming service with delay buffer, watchdog and web dashboard",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "build:server": "tsc -p tsconfig.build.json",
     "build:web": "vite build",
     "start": "node dist/main.js",
+    "mcp": "node dist/mcp-cli.js",
     "typecheck": "tsc --noEmit",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
@@ -33,6 +34,7 @@
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^10.1.12",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@napi-rs/canvas": "^1.1.1",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",

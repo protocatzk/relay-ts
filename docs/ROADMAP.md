@@ -151,7 +151,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | abgeschlossen |
 | Discovery: Trending-Feed reparieren und Freitext-/Keyword-Suche ermöglichen (#75) | P1 | Discovery/Stream | abgeschlossen |
 | Discovery: TikTok Live-Zapper (Feed-Player mit Pfeil-Navigation & HTTP-FLV-Preview) (#76) | P2 | Discovery/UI | abgeschlossen |
-| Agenten-Steuerung: Intern (Regie-Agent) und extern per MCP (#77) | P2 | Agent/MCP/API | geplant |
+| Agenten-Steuerung: Intern (Regie-Agent) und extern per MCP (#77) | P2 | Agent/MCP/API | abgeschlossen |
 | Streamer: Gruppenverwaltung und automatische Discovery-Gruppe (#78) | P2 | Playlists/Streaming | abgeschlossen |
 | Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher (#79) | P2 | Chat/Overlay/Discovery | abgeschlossen |
 | Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions) (#80) | P2 | Automation/UI/API | geplant |
