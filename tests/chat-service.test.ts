@@ -43,12 +43,14 @@ describe('ChatService', () => {
     service.injectMessage('user1', 'Hallo Welt');
     expect(updates.at(-1)).toHaveLength(1);
 
-    // Incoming duplicate via different ID but same user and text within time window
+    // Incoming duplicate via different ID, nickname vs username, and 15s poll skew
     (service as any).addIncomingMessage({
       id: 'webcast-msg-123',
-      username: 'user1',
+      username: 'User One',
+      displayName: 'user1',
       text: 'Hallo Welt',
-      receivedAt: new Date(),
+      receivedAt: new Date(Date.now() + 15_000),
+      timestamp: new Date(Date.now() - 15_000),
     });
 
     // Should remain 1 because it is deduplicated

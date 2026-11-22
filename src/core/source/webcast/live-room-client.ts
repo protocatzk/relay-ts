@@ -176,6 +176,11 @@ export class WebcastLiveRoomClient {
 
         const common = data.common as Record<string, unknown> | undefined;
         const msgId = String(common?.msgId || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+        const rawCreateTime = Number(common?.createTime);
+        const timestamp =
+          Number.isFinite(rawCreateTime) && rawCreateTime > 0
+            ? new Date(rawCreateTime < 1e12 ? rawCreateTime * 1000 : rawCreateTime)
+            : undefined;
 
         this.onChatMessage?.({
           id: msgId,
@@ -183,13 +188,17 @@ export class WebcastLiveRoomClient {
           displayName,
           text,
           receivedAt: new Date(),
+          timestamp,
         });
       });
 
       conn.on('roomUser', (raw: unknown) => {
         if (!this.running) return;
         const data = raw as Record<string, unknown>;
-        const viewerCount = Number(data.totalUser ?? data.total ?? data.viewerCount);
+        // viewerCount is the active viewer count; totalUser/total is cumulative.
+        const rawCount = data.viewerCount;
+        if (rawCount === undefined || rawCount === null) return;
+        const viewerCount = Number(rawCount);
         if (Number.isFinite(viewerCount) && viewerCount >= 0) {
           this.currentViewers = viewerCount;
           this.onViewerUpdate?.(viewerCount);

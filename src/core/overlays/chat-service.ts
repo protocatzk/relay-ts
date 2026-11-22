@@ -120,21 +120,30 @@ export class ChatService {
   private addIncomingMessage(msg: ChatMessage, immediatePublish = true): boolean {
     if (this.seen.has(msg.id)) return false;
 
-    // Deduplication by user + text within a 5-second window
-    // (Prevents identical messages coming from both WebSocket Webcast & REST API polling)
-    const normalizedUser = (msg.username || '').toLowerCase().trim();
+    // Deduplication by user (username or displayName) + text within a 60-second window
+    // (Prevents identical messages coming from both WebSocket Webcast & REST API polling
+    // even when IDs, username vs nickname, or poll/clock timestamps differ)
+    const msgNames = [msg.username, msg.displayName]
+      .filter((v): v is string => Boolean(v && v.trim()))
+      .map((v) => v.toLowerCase().trim());
     const normalizedText = (msg.text || '').trim();
     const msgTime = (msg.timestamp ?? msg.receivedAt).getTime();
+    const msgReceived = msg.receivedAt.getTime();
 
     const isDuplicate = this.messages.some((existing) => {
       if (existing.id === msg.id) return true;
-      const existingUser = (existing.username || '').toLowerCase().trim();
       const existingText = (existing.text || '').trim();
-      if (existingUser === normalizedUser && existingText === normalizedText) {
-        const existingTime = (existing.timestamp ?? existing.receivedAt).getTime();
-        return Math.abs(msgTime - existingTime) < 5000;
-      }
-      return false;
+      if (existingText !== normalizedText) return false;
+      const existingNames = [existing.username, existing.displayName]
+        .filter((v): v is string => Boolean(v && v.trim()))
+        .map((v) => v.toLowerCase().trim());
+      if (!msgNames.some((n) => existingNames.includes(n))) return false;
+      const existingTime = (existing.timestamp ?? existing.receivedAt).getTime();
+      const existingReceived = existing.receivedAt.getTime();
+      return (
+        Math.abs(msgTime - existingTime) < 60_000 ||
+        Math.abs(msgReceived - existingReceived) < 60_000
+      );
     });
 
     if (isDuplicate) return false;
