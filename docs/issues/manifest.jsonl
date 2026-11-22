@@ -28,3 +28,4 @@
 {"title":"Overlay: Optionaler Säulen-Monitor (Top-Banner für Stats/Ziel + Chat-Monitor links)","file":"28-top-banner-overlay.md","labels":["overlay","enhancement","P2","chat","earnings"]}
 {"title":"Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie)","file":"29-cockpit-canvas-starship.md","labels":["overlay","enhancement","performance","P2","chat","earnings"]}
 {"title":"UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden","file":"30-desktop-side-nav-pill.md","labels":["enhancement","accessibility","mobile","P3"]}
+{"title":"Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API","file":"31-telegram-bot-modernization.md","labels":["telegram","enhancement","P2","api","ops"]}

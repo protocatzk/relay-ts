@@ -111,6 +111,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
 | UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | abgeschlossen |
+| Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | geplant |
 
 ## Definition of Done
 
