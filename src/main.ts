@@ -13,6 +13,7 @@ import { AuditLogStore } from './core/audit-log.js';
 import { SceneStore } from './core/overlays/scene-store.js';
 import { StreamScheduler } from './core/scheduler/scheduler.js';
 import { WebhookDispatcher } from './core/notifications/webhooks.js';
+import { TikTokAccountStore } from './core/account/tiktok-account-store.js';
 import { DiscoveryService } from './core/source/discovery/discovery-service.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
@@ -403,6 +404,14 @@ async function main(): Promise<void> {
     return;
   }
 
+  const tiktokAccounts = new TikTokAccountStore({
+    filePath: join(config.paths.dataDir, 'tiktok-accounts.json'),
+    cookiesFile: config.paths.cookiesFile,
+    logger: logger.child({ module: 'tiktok-accounts' }),
+    initialSessionId: config.media.tiktokSessionId,
+    initialTargetIdc: config.media.tiktokTargetIdc,
+  });
+
   const discovery = new DiscoveryService({
     store,
     settingsService,
@@ -432,6 +441,7 @@ async function main(): Promise<void> {
     scheduler,
     webhooks,
     discovery,
+    tiktokAccounts,
   });
 
   scheduler.start();

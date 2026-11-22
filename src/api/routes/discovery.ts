@@ -21,6 +21,18 @@ const SearchQuerySchema = z.object({
   page: z.coerce.number().int().min(0).max(50).optional(),
 });
 
+const FollowingQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  page: z.coerce.number().int().min(0).max(50).optional(),
+});
+
+const AddAccountBodySchema = z.object({
+  label: z.string().min(1).max(100),
+  sessionId: z.string().min(1).max(500),
+  targetIdc: z.string().max(50).optional(),
+  username: z.string().max(100).optional(),
+});
+
 const RoomParamsSchema = z.object({
   handle: z.string().min(1).max(100),
 });
@@ -133,6 +145,64 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
         .header('x-accel-buffering', 'no')
         .header('connection', 'keep-alive');
       return reply.send(pass);
+    },
+  );
+
+  app.get(
+    '/api/discovery/following',
+    { config: { rateLimit: RATE_LIMIT_CONFIG } },
+    async (request: FastifyRequest) => {
+      const parsed = FollowingQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        throw new ValidationError(`Ungültige Query-Parameter: ${formatZodError(parsed.error)}`, parsed.error.issues);
+      }
+      return getDiscovery().following(parsed.data);
+    },
+  );
+
+  app.get(
+    '/api/discovery/accounts',
+    async () => {
+      return {
+        accounts: ctx.tiktokAccounts ? ctx.tiktokAccounts.list() : [],
+        active: ctx.tiktokAccounts ? ctx.tiktokAccounts.getActive() : null,
+      };
+    },
+  );
+
+  app.post(
+    '/api/discovery/accounts',
+    async (request: FastifyRequest) => {
+      if (!ctx.tiktokAccounts) throw new NotFoundError('TikTok-Account-Store nicht verfügbar');
+      const parsed = AddAccountBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw new ValidationError(`Ungültige Account-Daten: ${formatZodError(parsed.error)}`, parsed.error.issues);
+      }
+      const account = ctx.tiktokAccounts.create(parsed.data);
+      getDiscovery().clearCaches();
+      return { ok: true, account };
+    },
+  );
+
+  app.post(
+    '/api/discovery/accounts/:id/activate',
+    async (request: FastifyRequest) => {
+      if (!ctx.tiktokAccounts) throw new NotFoundError('TikTok-Account-Store nicht verfügbar');
+      const { id } = request.params as { id: string };
+      const account = ctx.tiktokAccounts.activate(id);
+      getDiscovery().clearCaches();
+      return { ok: true, account };
+    },
+  );
+
+  app.delete(
+    '/api/discovery/accounts/:id',
+    async (request: FastifyRequest) => {
+      if (!ctx.tiktokAccounts) throw new NotFoundError('TikTok-Account-Store nicht verfügbar');
+      const { id } = request.params as { id: string };
+      ctx.tiktokAccounts.remove(id);
+      getDiscovery().clearCaches();
+      return { ok: true };
     },
   );
 

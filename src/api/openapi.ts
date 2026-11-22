@@ -1050,6 +1050,97 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/discovery/following',
+    tag: 'discovery',
+    summary: 'Gefolgte Live-Streams des aktiven TikTok-Accounts abrufen',
+    parameters: [
+      { name: 'limit', in: 'query', schema: { type: 'integer', example: 20 } },
+      { name: 'page', in: 'query', schema: { type: 'integer', example: 0 } },
+    ],
+    response: ref('DiscoveryResponse'),
+  },
+  {
+    method: 'get',
+    path: '/api/discovery/accounts',
+    tag: 'discovery',
+    summary: 'Liste hinterlegter TikTok-Accounts abrufen',
+    response: {
+      type: 'object',
+      required: ['accounts'],
+      properties: {
+        accounts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['id', 'label', 'active'],
+            properties: {
+              id: { type: 'string' },
+              label: { type: 'string' },
+              username: { type: 'string' },
+              targetIdc: { type: 'string' },
+              active: { type: 'boolean' },
+              has_cookie: { type: 'boolean' },
+              created_at: { type: 'string' },
+            },
+          },
+        },
+        active: { type: ['object', 'null'] },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/discovery/accounts',
+    tag: 'discovery',
+    summary: 'Neuen TikTok-Account hinzufügen',
+    body: {
+      type: 'object',
+      required: ['label', 'sessionId'],
+      properties: {
+        label: { type: 'string' },
+        sessionId: { type: 'string' },
+        targetIdc: { type: 'string' },
+        username: { type: 'string' },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['ok', 'account'],
+      properties: {
+        ok: { type: 'boolean' },
+        account: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/discovery/accounts/:id/activate',
+    tag: 'discovery',
+    summary: 'TikTok-Account aktivieren',
+    response: {
+      type: 'object',
+      required: ['ok', 'account'],
+      properties: {
+        ok: { type: 'boolean' },
+        account: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'delete',
+    path: '/api/discovery/accounts/:id',
+    tag: 'discovery',
+    summary: 'TikTok-Account entfernen',
+    response: {
+      type: 'object',
+      required: ['ok'],
+      properties: {
+        ok: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    method: 'get',
     path: '/api/discovery/search',
     tag: 'discovery',
     summary: 'Live-Streams oder Handles suchen',

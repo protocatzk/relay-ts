@@ -6,6 +6,7 @@ import type { StreamerConfig } from '../../config/schema.js';
 import type { Supervisor } from '../../supervisor/supervisor.js';
 import { ConflictError, ValidationError } from '../../../utils/errors.js';
 import { normalizeHandle } from '../../../utils/format.js';
+import { FollowingProvider } from './following-provider.js';
 import type {
   DiscoveryHit,
   DiscoveryProvider,
@@ -51,6 +52,10 @@ export class DiscoveryService {
       this.providers.set(
         'search_api',
         new SearchProvider({ userAgent: deps.userAgent, cookiesFile: deps.cookiesFile }),
+      );
+      this.providers.set(
+        'following',
+        new FollowingProvider({ userAgent: deps.userAgent, cookiesFile: deps.cookiesFile }),
       );
     }
   }
@@ -258,6 +263,20 @@ export class DiscoveryService {
     }
 
     return response;
+  }
+
+  async following(opts?: { limit?: number; page?: number }): Promise<DiscoveryResponse> {
+    const provider = this.providers.get('following');
+    const hits: DiscoveryHit[] = [];
+    if (provider?.following) {
+      const results = await provider.following(opts);
+      hits.push(...this.filterHits(results));
+    }
+    return {
+      hits,
+      providers: this.providerStatuses(),
+      fetched_at: new Date().toISOString(),
+    };
   }
 
   async roomInfo(handle: string, opts?: { forceFresh?: boolean }): Promise<DiscoveryHit | null> {

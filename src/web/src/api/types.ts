@@ -1227,6 +1227,21 @@ export interface DiagnosticsSnapshot {
   recent_errors: LogEntry[];
 }
 
+export interface TikTokAccountPublic {
+  id: string;
+  label: string;
+  username: string;
+  targetIdc: string;
+  active: boolean;
+  has_cookie: boolean;
+  created_at: string;
+}
+
+export interface TikTokAccountsResponse {
+  accounts: TikTokAccountPublic[];
+  active: TikTokAccountPublic | null;
+}
+
 export interface StreamersResponse {
   streamers: Streamer[];
 }

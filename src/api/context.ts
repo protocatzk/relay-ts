@@ -14,6 +14,7 @@ import type { SceneStore } from '../core/overlays/scene-store.js';
 import type { StreamScheduler } from '../core/scheduler/scheduler.js';
 import type { WebhookDispatcher } from '../core/notifications/webhooks.js';
 import type { DiscoveryService } from '../core/source/discovery/discovery-service.js';
+import type { TikTokAccountStore } from '../core/account/tiktok-account-store.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -34,4 +35,5 @@ export interface ApiContext {
   scheduler?: StreamScheduler;
   webhooks?: WebhookDispatcher;
   discovery?: DiscoveryService;
+  tiktokAccounts?: TikTokAccountStore;
 }

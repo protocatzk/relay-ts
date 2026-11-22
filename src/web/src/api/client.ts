@@ -12,6 +12,8 @@ import type {
   BulkAddResult,
   ChatAnalyticsSnapshot,
   DiagnosticsSnapshot,
+  TikTokAccountPublic,
+  TikTokAccountsResponse,
   DiscoveryHit,
   DiscoveryProviderStatus,
   DiscoveryResponse,
@@ -792,6 +794,28 @@ export const api = {
       const qs = search.toString();
       return request<DiscoveryResponse>(`/api/discovery/trending${qs ? `?${qs}` : ''}`);
     },
+    following: (opts?: { limit?: number; page?: number }) => {
+      const search = new URLSearchParams();
+      if (opts?.limit) search.set('limit', String(opts.limit));
+      if (opts?.page !== undefined) search.set('page', String(opts.page));
+      const qs = search.toString();
+      return request<DiscoveryResponse>(`/api/discovery/following${qs ? `?${qs}` : ''}`);
+    },
+    accounts: () =>
+      request<TikTokAccountsResponse>('/api/discovery/accounts'),
+    addAccount: (body: { label: string; sessionId: string; targetIdc?: string; username?: string }) =>
+      request<{ ok: true; account: TikTokAccountPublic }>('/api/discovery/accounts', {
+        method: 'POST',
+        body,
+      }),
+    activateAccount: (id: string) =>
+      request<{ ok: true; account: TikTokAccountPublic }>(`/api/discovery/accounts/${encodeURIComponent(id)}/activate`, {
+        method: 'POST',
+      }),
+    removeAccount: (id: string) =>
+      request<{ ok: true }>(`/api/discovery/accounts/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
     search: (q: string, opts?: { limit?: number; region?: string; page?: number }) => {
       const search = new URLSearchParams({ q });
       if (opts?.limit) search.set('limit', String(opts.limit));

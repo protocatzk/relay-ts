@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
+import ModalDialog from '@/src/components/ModalDialog.vue';
+import type { DiscoveryHit, DiscoveryProviderStatus, Streamer, TikTokAccountPublic } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import {
@@ -17,7 +18,7 @@ const { store, refreshStreamers, refreshStatus } = useStore();
 const { pushToast } = useToast();
 
 const query = ref('');
-const mode = ref<'trending' | 'search'>('trending');
+const mode = ref<'trending' | 'search' | 'following'>('trending');
 const viewMode = ref<'grid' | 'zapper'>('grid');
 const selectedRegion = ref('DE');
 const onlyLive = ref(false);
@@ -27,6 +28,12 @@ const currentPage = ref(0);
 const hasMorePages = ref(true);
 const error = ref<string | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+
+const accounts = ref<TikTokAccountPublic[]>([]);
+const activeAccount = ref<TikTokAccountPublic | null>(null);
+const accountModalOpen = ref(false);
+const accountForm = ref({ label: '', sessionId: '', targetIdc: '', username: '' });
+const accountSaving = ref(false);
 
 const hits = ref<DiscoveryHit[]>([]);
 const providers = ref<DiscoveryProviderStatus[]>([]);
@@ -223,6 +230,8 @@ async function loadMoreHits(): Promise<void> {
     const res =
       mode.value === 'search' && trimmed
         ? await api.discovery.search(trimmed, { region: selectedRegion.value, page: nextPage, limit: 20 })
+        : mode.value === 'following'
+        ? await api.discovery.following({ page: nextPage, limit: 20 })
         : await api.discovery.trending({ region: selectedRegion.value, page: nextPage, limit: 30 });
 
     const existingHandles = new Set(hits.value.map((h) => h.handle));
@@ -338,6 +347,86 @@ async function runSearch(): Promise<void> {
   }
 }
 
+async function loadAccounts(): Promise<void> {
+  try {
+    const res = await api.discovery.accounts();
+    accounts.value = res.accounts;
+    activeAccount.value = res.active;
+  } catch {
+    // optional
+  }
+}
+
+async function activateAccount(id: string): Promise<void> {
+  try {
+    const res = await api.discovery.activateAccount(id);
+    pushToast(`Account „${res.account.label}“ aktiviert.`, 'success');
+    await loadAccounts();
+    if (mode.value === 'following') {
+      void loadFollowing();
+    }
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  }
+}
+
+async function removeAccount(id: string): Promise<void> {
+  try {
+    await api.discovery.removeAccount(id);
+    pushToast('Account entfernt.', 'success');
+    await loadAccounts();
+    if (mode.value === 'following') {
+      void loadFollowing();
+    }
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  }
+}
+
+async function saveAccount(): Promise<void> {
+  if (!accountForm.value.label.trim() || !accountForm.value.sessionId.trim()) {
+    pushToast('Bitte Label und sessionid angeben.', 'error');
+    return;
+  }
+  accountSaving.value = true;
+  try {
+    const res = await api.discovery.addAccount(accountForm.value);
+    pushToast(`Account „${res.account.label}“ gespeichert.`, 'success');
+    accountModalOpen.value = false;
+    accountForm.value = { label: '', sessionId: '', targetIdc: '', username: '' };
+    await loadAccounts();
+    if (mode.value === 'following') {
+      void loadFollowing();
+    }
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    accountSaving.value = false;
+  }
+}
+
+async function loadFollowing(): Promise<void> {
+  mode.value = 'following';
+  currentPage.value = 0;
+  hasMorePages.value = true;
+  loading.value = true;
+  error.value = null;
+  try {
+    const res = await api.discovery.following();
+    hits.value = res.hits;
+    providers.value = res.providers;
+    lastFetchedAt.value = Date.now();
+    zapperIndex.value = 0;
+    if (viewMode.value === 'zapper') {
+      void startZapperPlayer();
+    }
+  } catch (err) {
+    error.value = errorMessage(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
 function handleRegionChange(): void {
   if (mode.value === 'trending' || !query.value.trim()) {
     void loadTrending();
@@ -367,11 +456,14 @@ function handleSearchInput(): void {
   }
 }
 
-function switchMode(newMode: 'trending' | 'search'): void {
+function switchMode(newMode: 'trending' | 'search' | 'following'): void {
   mode.value = newMode;
   if (newMode === 'trending') {
     query.value = '';
     void loadTrending();
+  } else if (newMode === 'following') {
+    query.value = '';
+    void loadFollowing();
   } else if (query.value.trim()) {
     void runSearch();
   } else {
@@ -503,6 +595,7 @@ function onVisibilityChange(): void {
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('keydown', onKeyDown);
+  void loadAccounts();
   if (hits.value.length === 0) {
     void loadTrending();
   }
@@ -585,6 +678,14 @@ onUnmounted(() => {
           <button
             type="button"
             class="btn btn-sm"
+            :class="mode === 'following' ? 'btn-primary' : 'btn-ghost'"
+            @click="switchMode('following')"
+          >
+            👥 Gefolgt
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm"
             :class="mode === 'search' ? 'btn-primary' : 'btn-ghost'"
             @click="switchMode('search')"
           >
@@ -627,6 +728,20 @@ onUnmounted(() => {
               {{ r.label }}
             </option>
           </select>
+        </div>
+
+        <!-- TikTok Account Switcher Pill -->
+        <div class="account-pill-wrapper">
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost account-pill"
+            :title="activeAccount ? `Aktiver TikTok-Account: ${activeAccount.label}` : 'TikTok-Account verwalten'"
+            @click="accountModalOpen = true"
+          >
+            <span>👤</span>
+            <span class="account-label">{{ activeAccount?.label || 'Kein Account' }}</span>
+            <span v-if="accounts.length > 1" class="badge badge-xs tone-neutral">{{ accounts.length }}</span>
+          </button>
         </div>
 
         <div class="topic-chips" role="group" aria-label="Schnellfilter nach Themen">
@@ -1067,10 +1182,164 @@ onUnmounted(() => {
         </div>
       </article>
     </div>
+
+    <!-- TikTok Account Management Modal -->
+    <ModalDialog
+      :open="accountModalOpen"
+      title="TikTok Accounts verwalten"
+      size="md"
+      @close="accountModalOpen = false"
+    >
+      <div class="account-manager-content">
+        <p class="small muted">
+          Hier hinterlegte TikTok-Accounts versorgen den Tab <strong>„Gefolgt“</strong> und ermöglichen den Wechsel zwischen mehreren Profilen.
+        </p>
+
+        <div v-if="accounts.length > 0" class="account-list">
+          <div
+            v-for="acc in accounts"
+            :key="acc.id"
+            class="account-row"
+            :class="{ 'account-active': acc.active }"
+          >
+            <div class="account-info">
+              <span class="account-name">
+                {{ acc.label }}
+                <span v-if="acc.username" class="mono small muted">(@{{ acc.username }})</span>
+              </span>
+              <span v-if="acc.active" class="badge tone-success badge-xs">Aktiv</span>
+              <span v-else class="badge tone-neutral badge-xs">Inaktiv</span>
+            </div>
+            <div class="account-actions">
+              <button
+                v-if="!acc.active"
+                type="button"
+                class="btn btn-sm btn-ghost"
+                @click="activateAccount(acc.id)"
+              >
+                Aktivieren
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-danger btn-icon-only"
+                title="Account entfernen"
+                @click="removeAccount(acc.id)"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <form class="account-form card" @submit.prevent="saveAccount">
+          <h4 class="form-title">Account hinzufügen</h4>
+          <div class="field">
+            <label for="acc-label">Bezeichnung / Label *</label>
+            <input
+              id="acc-label"
+              v-model="accountForm.label"
+              type="text"
+              placeholder="z. B. Hauptaccount, Zweitprofil…"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="acc-sessionid">TikTok SessionId Cookie *</label>
+            <input
+              id="acc-sessionid"
+              v-model="accountForm.sessionId"
+              type="password"
+              placeholder="sessionid aus dem TikTok-Web-Cookie"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="acc-targetidc">Target IDC (optional)</label>
+            <input
+              id="acc-targetidc"
+              v-model="accountForm.targetIdc"
+              type="text"
+              placeholder="z. B. useast2a"
+            />
+          </div>
+          <button type="submit" class="btn btn-primary" :disabled="accountSaving">
+            <span v-if="accountSaving" class="spinner" aria-hidden="true"></span>
+            Speichern & Hinzufügen
+          </button>
+        </form>
+      </div>
+    </ModalDialog>
   </div>
 </template>
 
 <style scoped>
+.account-pill-wrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.account-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border-color, #333);
+  background: var(--bg-surface, #1e1e1e);
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+}
+
+.account-manager-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 4px;
+  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.04));
+}
+
+.account-row.account-active {
+  border-color: var(--primary-color, #38bdf8);
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.account-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.account-form {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+}
+
+.form-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .discovery-view {
   display: flex;
   flex-direction: column;

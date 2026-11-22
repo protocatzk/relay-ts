@@ -1,6 +1,6 @@
 import type { DiscoverySettings } from '../../config/schema.js';
 
-export type DiscoveryProviderName = 'live_page' | 'room_info' | 'search_api';
+export type DiscoveryProviderName = 'live_page' | 'room_info' | 'search_api' | 'following';
 export type DiscoveryProviderState = 'online' | 'offline' | 'rate_limited';
 
 export interface DiscoveryProviderStatus {
@@ -35,6 +35,7 @@ export interface DiscoveryProvider {
   search?(q: string, opts?: { limit?: number; region?: string; page?: number }): Promise<DiscoveryHit[]>;
   trending?(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryHit[]>;
   roomInfo?(handle: string): Promise<DiscoveryHit | null>;
+  following?(opts?: { limit?: number; page?: number }): Promise<DiscoveryHit[]>;
   health(): DiscoveryProviderStatus;
 }
 

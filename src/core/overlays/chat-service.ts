@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { ChatOverlayConfig, Settings, StreamerConfig } from '../config/schema.js';
 import { normalizeHandle } from '../../utils/format.js';
 import { incMetric } from '../metrics.js';
+import { WebcastLiveRoomClient } from '../source/webcast/live-room-client.js';
 
 export interface ChatMessage {
   id: string;
@@ -46,6 +47,7 @@ export class ChatService {
   private lastErrorLog = 0;
   private lastFingerprint = '';
   private config: ChatOverlayConfig;
+  private webcastClient?: WebcastLiveRoomClient;
 
   constructor(options: ChatServiceOptions) {
     this.options = options;
@@ -62,6 +64,21 @@ export class ChatService {
 
   start(): void {
     if (!this.config.enabled) return;
+
+    // Start direct Webcast IM Fetch client for real-time messages
+    this.webcastClient = new WebcastLiveRoomClient({
+      handle: this.options.streamer.tiktok,
+      logger: this.options.logger,
+      onChatMessage: (msg) => {
+        if (this.seen.has(msg.id)) return;
+        this.seen.add(msg.id);
+        this.seenOrder.push(msg.id);
+        this.messages.push(msg);
+        this.options.onMessages([...this.messages]);
+      },
+    });
+    this.webcastClient.start();
+
     if (!this.apiUrl && !this.config.api_url) {
       this.options.logger.info(
         { streamer: this.options.streamer.id },
@@ -81,6 +98,10 @@ export class ChatService {
 
   stop(clear = true): void {
     this.stopped = true;
+    if (this.webcastClient) {
+      this.webcastClient.stop();
+      this.webcastClient = undefined;
+    }
     if (this.timer) clearInterval(this.timer);
     if (this.pump) clearInterval(this.pump);
     this.timer = undefined;

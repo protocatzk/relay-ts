@@ -577,47 +577,70 @@ export class ChatOverlayEngine {
 
     const card = this.shouldRenderEarningsCard(isPreviewSample);
 
-    // 1. Top Banner (RELAY TokTracker Style: hard edges rx=2, neon accent #00ff88, dark surface #0b0f19)
+    // 1. Top Banner: Modern, refined frosted dark glass with subtle gradient accent
     if (cfg.top_banner_enabled !== false) {
       const bx = 16;
       const by = 12;
       const bw = width - 32;
-      const bh = 56;
+      const bh = 54;
+      const radius = 6;
 
       ctx.save();
-      // Banner outer container
+      // Banner outer container with soft drop shadow
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 3;
+
       ctx.fillStyle = 'rgba(11, 15, 25, 0.94)';
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-      ctx.lineWidth = 1;
-      roundedRect(ctx, bx, by, bw, bh, 2);
+      roundedRect(ctx, bx, by, bw, bh, radius);
       ctx.fill();
+
+      // Clear shadow for borders and content
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, bx, by, bw, bh, radius);
       ctx.stroke();
 
-      // Left neon accent bar
+      // Top subtle highlight border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx + radius, by + 1);
+      ctx.lineTo(bx + bw - radius, by + 1);
+      ctx.stroke();
+
+      // Left vibrant neon cyan/green accent bar
       ctx.fillStyle = '#00ff88';
-      roundedRect(ctx, bx, by, 4, bh, 2);
+      roundedRect(ctx, bx + 1, by + 4, 4, bh - 8, 2);
       ctx.fill();
 
-      // Red LIVE pill
+      // LIVE pill
       const liveBadgeX = bx + 16;
-      const liveBadgeY = by + 17;
-      const liveBadgeW = 42;
-      const liveBadgeH = 22;
+      const liveBadgeY = by + (bh - 24) / 2;
+      const liveBadgeW = 46;
+      const liveBadgeH = 24;
       ctx.fillStyle = '#dc2626';
-      roundedRect(ctx, liveBadgeX, liveBadgeY, liveBadgeW, liveBadgeH, 2);
+      roundedRect(ctx, liveBadgeX, liveBadgeY, liveBadgeW, liveBadgeH, 4);
+      ctx.fill();
+
+      // Inner pulsating neon live dot
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(liveBadgeX + 9, liveBadgeY + 12, 3, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = `800 10px ${fontFamily}`;
+      ctx.font = `800 11px ${fontFamily}`;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
-      ctx.fillText('LIVE', liveBadgeX + liveBadgeW / 2, liveBadgeY + liveBadgeH / 2);
+      ctx.fillText('LIVE', liveBadgeX + 26, liveBadgeY + 12);
       ctx.textAlign = 'left';
 
       // Streamer Title & Status
-      let cursorX = liveBadgeX + liveBadgeW + 12;
-      ctx.font = `700 13px ${fontFamily}`;
-      ctx.fillStyle = '#ffffff';
+      let cursorX = liveBadgeX + liveBadgeW + 14;
+      ctx.font = `700 14px ${fontFamily}`;
+      ctx.fillStyle = '#f8fafc';
 
       const template = this.options.settings.streaming?.title_template || '{name} – LIVE';
       const streamerName = this.streamerInfo?.name || (isPreviewSample ? 'RELAY Studio Live' : '');
@@ -639,39 +662,44 @@ export class ChatOverlayEngine {
         titleText = streamerName ? `${streamerName} – LIVE` : 'RELAY Stream';
       }
 
-      const truncatedTitle = titleText.length > 28 ? `${titleText.slice(0, 26)}…` : titleText;
+      const maxTitleLen = bw < 800 ? 18 : bw < 1200 ? 26 : 38;
+      const truncatedTitle = titleText.length > maxTitleLen ? `${titleText.slice(0, maxTitleLen - 1)}…` : titleText;
       ctx.fillText(truncatedTitle, cursorX, by + bh / 2);
-      cursorX += ctx.measureText(truncatedTitle).width + 20;
+      cursorX += ctx.measureText(truncatedTitle).width + 16;
 
-      // Stats: Viewers & Messages
+      // Stats: Messages & Activity
       if (cfg.banner_show_stats !== false) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.fillRect(cursorX, by + 16, 1, bh - 32);
+        cursorX += 14;
+
         ctx.font = `600 12px ${fontFamily}`;
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = '#94a3b8';
         const msgStat = `💬 ${messages.length}`;
         ctx.fillText(msgStat, cursorX, by + bh / 2);
-        cursorX += ctx.measureText(msgStat).width + 16;
+        cursorX += ctx.measureText(msgStat).width + 14;
 
         ctx.fillStyle = '#00ff88';
-        ctx.fillText('⏱ LIVE', cursorX, by + bh / 2);
+        ctx.fillText('⚡ STREAM', cursorX, by + bh / 2);
       }
 
       // Center Mode Tag (only in preview sample)
       if (bw >= 1000 && isPreviewSample) {
         const tagW = 160;
-        const tagH = 20;
+        const tagH = 22;
         const tagX = bx + (bw - tagW) / 2;
         const tagY = by + (bh - tagH) / 2;
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 0.8;
-        roundedRect(ctx, tagX, tagY, tagW, tagH, 2);
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+        ctx.lineWidth = 1;
+        roundedRect(ctx, tagX, tagY, tagW, tagH, 4);
         ctx.fill();
         ctx.stroke();
 
         ctx.font = `600 9px ${fontFamily}`;
         ctx.fillStyle = '#94a3b8';
         ctx.textAlign = 'center';
-        ctx.fillText('KOPFZEILE (STATS & ZIEL)', tagX + tagW / 2, tagY + tagH / 2);
+        ctx.fillText('TOP-BANNER (STATS & ZIEL)', tagX + tagW / 2, tagY + tagH / 2);
         ctx.textAlign = 'left';
       }
 
@@ -682,11 +710,11 @@ export class ChatOverlayEngine {
         // Goal progress bar
         if (cfg.banner_show_goal !== false && card.goalAmount && card.goalAmount > 0) {
           const goalW = 160;
-          const goalH = 6;
+          const goalH = 8;
           const current = card.net ?? 0;
           const ratio = Math.max(0, Math.min(1, current / card.goalAmount));
           const goalX = rightCursor - goalW;
-          const goalY = by + (bh - goalH) / 2 + 8;
+          const goalY = by + (bh - goalH) / 2 + 7;
 
           // Goal label & percent above bar
           ctx.font = `500 10px ${fontFamily}`;
@@ -695,7 +723,7 @@ export class ChatOverlayEngine {
           ctx.fillText(`${card.goalLabel || 'Ziel'}:`, goalX, goalY - 3);
 
           ctx.textAlign = 'right';
-          ctx.font = `600 10px ${fontFamily}`;
+          ctx.font = `700 10px ${fontFamily}`;
           ctx.fillStyle = '#f8fafc';
           ctx.fillText(`${Math.round(ratio * 100)} %`, goalX + goalW, goalY - 3);
           ctx.textAlign = 'left';
@@ -704,14 +732,14 @@ export class ChatOverlayEngine {
           ctx.fillStyle = '#1e293b';
           ctx.strokeStyle = '#334155';
           ctx.lineWidth = 0.8;
-          roundedRect(ctx, goalX, goalY, goalW, goalH, 2);
+          roundedRect(ctx, goalX, goalY, goalW, goalH, 4);
           ctx.fill();
           ctx.stroke();
 
           // Bar fill
           if (ratio > 0) {
             ctx.fillStyle = '#00ff88';
-            roundedRect(ctx, goalX, goalY, Math.round(goalW * ratio), goalH, 2);
+            roundedRect(ctx, goalX, goalY, Math.max(4, Math.round(goalW * ratio)), goalH, 4);
             ctx.fill();
           }
 
@@ -742,97 +770,114 @@ export class ChatOverlayEngine {
         const totalEarnW = labelW + 8 + coinsW + netW + (periodStr ? 4 + periodW : 0);
         const earnStartX = rightCursor - totalEarnW;
 
-        ctx.font = `500 11px ${fontFamily}`;
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillText(labelText, earnStartX, by + bh / 2);
-
-        let curX = earnStartX + labelW + 6;
-        if (coinsStr) {
-          ctx.font = `600 12px ${fontFamily}`;
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillText(coinsStr, curX, by + bh / 2);
-          curX += coinsW;
-        }
-
-        if (netStr) {
-          ctx.font = `700 12px ${fontFamily}`;
-          ctx.fillStyle = '#00ff88';
-          ctx.fillText(netStr, curX, by + bh / 2);
-          curX += netW;
-        }
-
-        if (periodStr) {
-          ctx.font = `600 11px ${fontFamily}`;
+        if (earnStartX > cursorX + 20) {
+          ctx.font = `500 11px ${fontFamily}`;
           ctx.fillStyle = '#94a3b8';
-          ctx.fillText(periodStr, curX + 4, by + bh / 2);
+          ctx.fillText(labelText, earnStartX, by + bh / 2);
+
+          let curX = earnStartX + labelW + 6;
+          if (coinsStr) {
+            ctx.font = `600 12px ${fontFamily}`;
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillText(coinsStr, curX, by + bh / 2);
+            curX += coinsW;
+          }
+
+          if (netStr) {
+            ctx.font = `700 12px ${fontFamily}`;
+            ctx.fillStyle = '#00ff88';
+            ctx.fillText(netStr, curX, by + bh / 2);
+            curX += netW;
+          }
+
+          if (periodStr) {
+            ctx.font = `600 11px ${fontFamily}`;
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText(periodStr, curX + 4, by + bh / 2);
+          }
         }
       }
       ctx.restore();
     }
 
-    // 2. Chat Monitor on Left Pillarbox (TokTracker Style: rx=2, dark panel, hard borders, role badges)
+    // 2. Chat Monitor on Left Pillarbox: Refined aesthetics, smooth cards, clean spacing
     if (cfg.chat_monitor_enabled !== false) {
       const mx = 16;
-      const my = 78;
-      const mw = Math.min(410, Math.max(300, Math.round(width * 0.22)));
-      const mh = height - 90;
+      const my = 76;
+      const mw = Math.min(420, Math.max(300, Math.round(width * 0.22)));
+      const mh = height - 88;
+      const radius = 6;
 
       ctx.save();
       // Outer Monitor Container
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 1;
-      roundedRect(ctx, mx, my, mw, mh, 2);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      roundedRect(ctx, mx, my, mw, mh, radius);
       ctx.fill();
+
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, mx, my, mw, mh, radius);
       ctx.stroke();
 
       // Monitor Header
-      const headerH = 34;
+      const headerH = 36;
       ctx.fillStyle = '#1e293b';
-      roundedRect(ctx, mx, my, mw, headerH, 2);
+      roundedRect(ctx, mx, my, mw, headerH, radius);
       ctx.fill();
 
-      // Neon dot
+      // Header bottom border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(mx, my + headerH);
+      ctx.lineTo(mx + mw, my + headerH);
+      ctx.stroke();
+
+      // Neon pulse dot
       ctx.fillStyle = '#00ff88';
       ctx.beginPath();
-      ctx.arc(mx + 16, my + 17, 4, 0, Math.PI * 2);
+      ctx.arc(mx + 16, my + 18, 4, 0, Math.PI * 2);
       ctx.fill();
 
       // Header title
       ctx.font = `700 11px ${fontFamily}`;
       ctx.fillStyle = '#ffffff';
       ctx.textBaseline = 'middle';
-      ctx.fillText('CHAT-MONITOR (LINKE SÄULE)', mx + 28, my + 18);
+      ctx.fillText('LIVE-CHAT MONITOR', mx + 28, my + 19);
 
       // Header right badge
-      const tagW = 76;
-      const tagH = 18;
-      const tagX = mx + mw - tagW - 12;
+      const tagW = 68;
+      const tagH = 20;
+      const tagX = mx + mw - tagW - 10;
       const tagY = my + 8;
-      ctx.fillStyle = '#0f172a';
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 0.8;
-      roundedRect(ctx, tagX, tagY, tagW, tagH, 2);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+      ctx.lineWidth = 1;
+      roundedRect(ctx, tagX, tagY, tagW, tagH, 4);
       ctx.fill();
       ctx.stroke();
 
       ctx.font = `600 9px ${fontFamily}`;
       ctx.fillStyle = '#94a3b8';
       ctx.textAlign = 'center';
-      ctx.fillText('MINIMAL O/H', tagX + tagW / 2, tagY + tagH / 2);
+      ctx.fillText('PILLARBOX', tagX + tagW / 2, tagY + tagH / 2);
       ctx.textAlign = 'left';
 
       // Chat Messages Stack
-      const innerX = mx + 12;
-      const innerW = mw - 24;
+      const innerX = mx + 10;
+      const innerW = mw - 20;
       const maxLines = Math.max(4, cfg.max_lines);
       const visible = messages.slice(-maxLines);
 
       const textSize = 11;
-      const textLineHeight = 15;
+      const textLineHeight = 16;
       const nameSize = 11;
 
-      let curY = my + mh - 26;
+      let curY = my + mh - 24;
       for (let i = visible.length - 1; i >= 0; i--) {
         const msg = visible[i]!;
         ctx.font = `400 ${textSize}px ${fontFamily}`;
@@ -841,11 +886,11 @@ export class ChatOverlayEngine {
         const cardY = curY - cardH;
         if (cardY < my + headerH + 10) break;
 
-        // Message card
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        ctx.strokeStyle = '#1e293b';
+        // Message card with subtle rounding and clean border
+        ctx.fillStyle = 'rgba(23, 33, 53, 0.85)';
+        ctx.strokeStyle = 'rgba(51, 65, 85, 0.7)';
         ctx.lineWidth = 0.8;
-        roundedRect(ctx, innerX, cardY, innerW, cardH, 2);
+        roundedRect(ctx, innerX, cardY, innerW, cardH, 4);
         ctx.fill();
         ctx.stroke();
 
@@ -867,9 +912,9 @@ export class ChatOverlayEngine {
           const badgeColor = tier === 'MOD' ? '#e11d48' : tier === 'VIP' ? '#d97706' : '#0284c7';
           const badgeText = tier === 'MOD' ? 'MOD' : tier === 'VIP' ? 'VIP' : 'SUB';
           const bW = 28;
-          const bH = 14;
+          const bH = 15;
           ctx.fillStyle = badgeColor;
-          roundedRect(ctx, headX, cardY + 5, bW, bH, 2);
+          roundedRect(ctx, headX, cardY + 4, bW, bH, 3);
           ctx.fill();
 
           ctx.font = `800 8px ${fontFamily}`;
@@ -896,16 +941,8 @@ export class ChatOverlayEngine {
           ctx.fillText(line, innerX + 8, cardY + 22 + lineIdx * textLineHeight);
         });
 
-        curY = cardY - 8;
+        curY = cardY - 6;
       }
-
-      // Footer Note inside Monitor
-      ctx.font = `500 10px ${fontFamily}`;
-      ctx.fillStyle = '#94a3b8';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Nutzt die ungenutzte Pillarbox-Fläche (0 % Video-Cover)', mx + mw / 2, my + mh - 12);
-      ctx.textAlign = 'left';
 
       ctx.restore();
     }
