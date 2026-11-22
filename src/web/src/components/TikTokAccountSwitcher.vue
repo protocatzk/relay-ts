@@ -31,6 +31,12 @@ async function handleSave(): Promise<void> {
 onMounted(() => {
   void refreshAccounts();
 });
+
+defineExpose({
+  openDialog: () => {
+    modalOpen.value = true;
+  },
+});
 </script>
 
 <template>
