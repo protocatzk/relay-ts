@@ -1,6 +1,12 @@
-import type { DiscoveryHit, DiscoveryProvider, DiscoveryProviderStatus, DiscoveryProviderState } from './types.js';
+import type {
+  DiscoveryHit,
+  DiscoveryProvider,
+  DiscoveryProviderState,
+  DiscoveryProviderStatus,
+} from './types.js';
 import { normalizeHandle } from '../../../utils/format.js';
 import { readCookieHeader } from '../resolver.js';
+import { extractImageUrl, isAgeRestrictedValue } from './live-page-provider.js';
 
 export interface RoomInfoProviderOptions {
   cookiesFile?: string;
@@ -13,47 +19,79 @@ export function parseRoomInfoPayload(payload: unknown, handle: string): Discover
   if (!data || typeof data !== 'object') return null;
 
   const dataRecord = data as Record<string, unknown>;
-  const user = dataRecord.user && typeof dataRecord.user === 'object'
-    ? (dataRecord.user as Record<string, unknown>)
-    : {};
-  const liveRoom = dataRecord.liveRoom && typeof dataRecord.liveRoom === 'object'
-    ? (dataRecord.liveRoom as Record<string, unknown>)
-    : {};
+  const user =
+    dataRecord.user && typeof dataRecord.user === 'object'
+      ? (dataRecord.user as Record<string, unknown>)
+      : {};
+  const liveRoom =
+    dataRecord.liveRoom && typeof dataRecord.liveRoom === 'object'
+      ? (dataRecord.liveRoom as Record<string, unknown>)
+      : {};
 
-  const rawHandle = typeof user.uniqueId === 'string' && user.uniqueId.trim()
-    ? user.uniqueId
-    : handle;
+  const hasUserFields =
+    typeof user.uniqueId === 'string' ||
+    typeof user.unique_id === 'string' ||
+    typeof user.display_id === 'string' ||
+    typeof user.nickname === 'string' ||
+    typeof user.id === 'string';
+  const hasRoomFields =
+    typeof liveRoom.title === 'string' ||
+    typeof liveRoom.status === 'number' ||
+    typeof liveRoom.userCount === 'number';
+
+  if (!hasUserFields && !hasRoomFields) {
+    return null;
+  }
+
+  const rawHandle =
+    typeof user.uniqueId === 'string' && user.uniqueId.trim()
+      ? user.uniqueId
+      : typeof user.unique_id === 'string' && user.unique_id.trim()
+        ? user.unique_id
+        : typeof user.display_id === 'string' && user.display_id.trim()
+          ? user.display_id
+          : handle;
+
   const normalized = normalizeHandle(rawHandle);
   if (!normalized) return null;
 
   const liveStatus = Number(user.status ?? liveRoom.status ?? 0);
   const isLive = liveStatus === 2;
 
-  const ageRestricted = Boolean(
-    liveRoom.ageRestricted ||
-    liveRoom.isAgeRestricted ||
-    dataRecord.ageRestricted ||
-    (liveRoom.roomAuditStatus && (liveRoom.roomAuditStatus as Record<string, unknown>).isAgeRestricted)
-  );
+  const ageRestricted =
+    isAgeRestrictedValue(liveRoom.ageRestricted) ||
+    isAgeRestrictedValue(liveRoom.isAgeRestricted) ||
+    isAgeRestrictedValue(liveRoom.age_restricted) ||
+    isAgeRestrictedValue(dataRecord.ageRestricted) ||
+    isAgeRestrictedValue(
+      liveRoom.roomAuditStatus && (liveRoom.roomAuditStatus as Record<string, unknown>).isAgeRestricted,
+    );
 
-  const rawViewers = liveRoom.userCount ?? liveRoom.aliveUserCount;
-  const viewers = typeof rawViewers === 'number'
-    ? rawViewers
-    : (typeof rawViewers === 'string' ? parseInt(rawViewers, 10) || null : null);
+  const rawViewers = liveRoom.userCount ?? liveRoom.user_count ?? liveRoom.aliveUserCount;
+  const viewers =
+    typeof rawViewers === 'number'
+      ? rawViewers
+      : typeof rawViewers === 'string'
+        ? parseInt(rawViewers, 10) || null
+        : null;
 
-  const displayName = typeof user.nickname === 'string' && user.nickname.trim()
-    ? user.nickname
-    : normalized;
+  const displayName =
+    typeof user.nickname === 'string' && user.nickname.trim() ? user.nickname.trim() : normalized;
 
-  const avatarUrl = typeof user.avatarLarger === 'string'
-    ? user.avatarLarger
-    : (typeof user.avatarThumb === 'string' ? user.avatarThumb : null);
+  const avatarUrl =
+    extractImageUrl(user.avatarLarger) ??
+    extractImageUrl(user.avatar_large) ??
+    extractImageUrl(user.avatarThumb) ??
+    extractImageUrl(user.avatar_thumb);
 
-  const bio = typeof user.bioDescription === 'string'
-    ? user.bioDescription
-    : (typeof user.signature === 'string' ? user.signature : null);
+  const bio =
+    typeof user.bioDescription === 'string' && user.bioDescription.trim()
+      ? user.bioDescription.trim()
+      : typeof user.signature === 'string' && user.signature.trim()
+        ? user.signature.trim()
+        : null;
 
-  const title = typeof liveRoom.title === 'string' ? liveRoom.title : null;
+  const title = typeof liveRoom.title === 'string' && liveRoom.title.trim() ? liveRoom.title.trim() : null;
 
   return {
     handle: normalized,
@@ -98,7 +136,9 @@ export class RoomInfoProvider implements DiscoveryProvider {
     const headers: Record<string, string> = {
       accept: 'application/json',
       referer: `https://www.tiktok.com/@${normalized}/live`,
-      'user-agent': this.options.userAgent ?? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'user-agent':
+        this.options.userAgent ??
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     };
 
     if (this.options.cookiesFile) {
@@ -135,7 +175,11 @@ export class RoomInfoProvider implements DiscoveryProvider {
     } catch (error) {
       const isTimeout = (error as Error).name === 'TimeoutError' || (error as Error).name === 'AbortError';
       this.state = 'offline';
-      this.lastError = isTimeout ? 'Request timeout (10s)' : (error instanceof Error ? error.message : String(error));
+      this.lastError = isTimeout
+        ? 'Request timeout (10s)'
+        : error instanceof Error
+          ? error.message
+          : String(error);
       return null;
     }
   }
@@ -144,11 +188,13 @@ export class RoomInfoProvider implements DiscoveryProvider {
     const trimmed = q.trim();
     if (!trimmed) return [];
 
-    // If query looks like a handle (@username or a typical username)
+    const isExplicitHandle = trimmed.startsWith('@');
     const cleaned = trimmed.replace(/^@/, '');
     if (/^[a-zA-Z0-9._]{2,32}$/.test(cleaned)) {
       const hit = await this.roomInfo(cleaned);
-      if (hit) return [hit];
+      if (hit && (isExplicitHandle || hit.live)) {
+        return [hit];
+      }
     }
     return [];
   }

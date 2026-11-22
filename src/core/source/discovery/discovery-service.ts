@@ -87,6 +87,7 @@ export class DiscoveryService {
 
     const hitsMap = new Map<string, DiscoveryHit>();
     const providerOrder = settings.providers;
+    const limit = opts?.limit ?? 30;
 
     for (const name of providerOrder) {
       const provider = this.providers.get(name);
@@ -96,7 +97,7 @@ export class DiscoveryService {
         const results = await provider.trending({
           region: opts?.region ?? settings.region,
           language: opts?.language ?? settings.language,
-          limit: opts?.limit ?? 30,
+          limit,
         });
 
         for (const hit of this.filterHits(results)) {
@@ -104,20 +105,46 @@ export class DiscoveryService {
             hitsMap.set(hit.handle, hit);
           }
         }
+
+        // Stop cascading once we have a solid trending feed
+        if (hitsMap.size > 0) {
+          break;
+        }
       } catch (err) {
         this.deps.logger.warn({ provider: name, err }, 'Discovery Provider trending() fehlgeschlagen');
       }
     }
 
-    const hits = Array.from(hitsMap.values());
+    // Fallback: if external feeds returned nothing, check known configured streamers
+    if (hitsMap.size === 0) {
+      const configured = this.deps.store.list().slice(0, 8);
+      const checks = await Promise.allSettled(
+        configured.map((s) => this.roomInfo(s.tiktok)),
+      );
+      for (const res of checks) {
+        if (res.status === 'fulfilled' && res.value && !res.value.age_restricted) {
+          if (!hitsMap.has(res.value.handle)) {
+            hitsMap.set(res.value.handle, res.value);
+          }
+        }
+      }
+    }
+
+    const hits = Array.from(hitsMap.values())
+      .sort((a, b) => Number(b.live) - Number(a.live) || (b.viewers ?? 0) - (a.viewers ?? 0))
+      .slice(0, limit);
+
     const response: DiscoveryResponse = {
       hits,
       providers: this.providerStatuses(),
       fetched_at: new Date().toISOString(),
     };
 
-    const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
-    this.cachedTrending = { response, expiresAt: now + ttlMs };
+    // Only cache for full TTL when hits were found; avoid locking into empty cache on transient failures
+    if (hits.length > 0) {
+      const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
+      this.cachedTrending = { response, expiresAt: now + ttlMs };
+    }
 
     this.deps.bus.emit({ type: 'discovery', data: response });
     return response;
@@ -140,24 +167,28 @@ export class DiscoveryService {
 
     const hitsMap = new Map<string, DiscoveryHit>();
     const providerOrder = settings.providers;
+    const limit = opts?.limit ?? 20;
 
-    // 1. Direct handle search if query looks like a handle
+    const isExplicitHandle = trimmed.startsWith('@');
     const cleanedHandle = trimmed.replace(/^@/, '');
-    if (/^[a-zA-Z0-9._]{2,32}$/.test(cleanedHandle)) {
-      const direct = await this.roomInfo(cleanedHandle);
-      if (direct && !direct.age_restricted) {
-        hitsMap.set(direct.handle, direct);
+    const looksLikeHandle = /^[a-zA-Z0-9._]{2,32}$/.test(cleanedHandle);
+
+    let directHandleHit: DiscoveryHit | null = null;
+    if (looksLikeHandle) {
+      directHandleHit = await this.roomInfo(cleanedHandle);
+      if (directHandleHit && !directHandleHit.age_restricted && (isExplicitHandle || directHandleHit.live)) {
+        hitsMap.set(directHandleHit.handle, directHandleHit);
       }
     }
 
-    // 2. Query search providers
+    // Query search providers
     for (const name of providerOrder) {
       const provider = this.providers.get(name);
       if (!provider?.search) continue;
 
       try {
         const results = await provider.search(trimmed, {
-          limit: opts?.limit ?? 20,
+          limit,
           region: opts?.region ?? settings.region,
         });
 
@@ -171,29 +202,48 @@ export class DiscoveryService {
       }
     }
 
-    // 3. Fallback: search in cached trending items if search returned very few
-    if (hitsMap.size === 0 && this.cachedTrending) {
-      const lower = trimmed.toLowerCase();
+    // Fallback 1: search in cached trending items
+    if (this.cachedTrending) {
+      const lower = trimmed.toLowerCase().replace(/^[#@]+/, '');
       for (const hit of this.cachedTrending.response.hits) {
         if (
-          hit.handle.toLowerCase().includes(lower) ||
-          hit.display_name.toLowerCase().includes(lower) ||
-          (hit.title && hit.title.toLowerCase().includes(lower))
+          !hitsMap.has(hit.handle) &&
+          (hit.handle.toLowerCase().includes(lower) ||
+            hit.display_name.toLowerCase().includes(lower) ||
+            (hit.title && hit.title.toLowerCase().includes(lower)) ||
+            (hit.bio && hit.bio.toLowerCase().includes(lower)))
         ) {
           hitsMap.set(hit.handle, hit);
         }
       }
     }
 
-    const hits = Array.from(hitsMap.values());
+    // Fallback 2: if no live hits matched the keyword, include the offline direct handle hit if one existed
+    if (hitsMap.size === 0 && directHandleHit && !directHandleHit.age_restricted) {
+      hitsMap.set(directHandleHit.handle, directHandleHit);
+    }
+
+    const hits = Array.from(hitsMap.values())
+      .sort((a, b) => {
+        if (isExplicitHandle) {
+          const aExact = a.handle === normalizeHandle(cleanedHandle);
+          const bExact = b.handle === normalizeHandle(cleanedHandle);
+          if (aExact !== bExact) return aExact ? -1 : 1;
+        }
+        return Number(b.live) - Number(a.live) || (b.viewers ?? 0) - (a.viewers ?? 0);
+      })
+      .slice(0, limit);
+
     const response: DiscoveryResponse = {
       hits,
       providers: this.providerStatuses(),
       fetched_at: new Date().toISOString(),
     };
 
-    const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
-    this.searchCache.set(cacheKey, { response, expiresAt: now + ttlMs });
+    if (hits.length > 0) {
+      const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
+      this.searchCache.set(cacheKey, { response, expiresAt: now + ttlMs });
+    }
 
     return response;
   }

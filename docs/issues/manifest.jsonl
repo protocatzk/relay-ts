@@ -29,3 +29,4 @@
 {"title":"Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie)","file":"29-cockpit-canvas-starship.md","labels":["overlay","enhancement","performance","P2","chat","earnings"]}
 {"title":"UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden","file":"30-desktop-side-nav-pill.md","labels":["enhancement","accessibility","mobile","P3"]}
 {"title":"Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API","file":"31-telegram-bot-modernization.md","labels":["telegram","enhancement","P2","api","ops"]}
+{"title":"Discovery: Trending-Feed reparieren und Freitext-/Keyword-Suche ermöglichen","file":"32-discovery-trending-and-keyword-search.md","labels":["bug","enhancement","P1","stream","discovery"]}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
@@ -13,12 +13,22 @@ const mode = ref<'trending' | 'search'>('trending');
 const onlyLive = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const searchInputRef = ref<HTMLInputElement | null>(null);
 
 const hits = ref<DiscoveryHit[]>([]);
 const providers = ref<DiscoveryProviderStatus[]>([]);
 const lastFetchedAt = ref<number>(0);
 const actionBusy = ref<string | null>(null);
 const justAdded = ref<Map<string, Streamer>>(new Map());
+
+const quickTopics = [
+  { label: '🇩🇪 Deutsch', keyword: 'deutsch' },
+  { label: '🎮 Gaming', keyword: 'gaming' },
+  { label: '🎵 Musik', keyword: 'musik' },
+  { label: '💬 Talk', keyword: 'talk' },
+  { label: ' Fortnite', keyword: 'fortnite' },
+  { label: '🍳 Lifestyle', keyword: 'kochen' },
+];
 
 // Keep in sync with store.discovery if SSE pushes updates
 watch(
@@ -34,6 +44,7 @@ watch(
 );
 
 async function loadTrending(): Promise<void> {
+  mode.value = 'trending';
   loading.value = true;
   error.value = null;
   try {
@@ -51,7 +62,6 @@ async function loadTrending(): Promise<void> {
 async function runSearch(): Promise<void> {
   const trimmed = query.value.trim();
   if (!trimmed) {
-    mode.value = 'trending';
     await loadTrending();
     return;
   }
@@ -70,9 +80,25 @@ async function runSearch(): Promise<void> {
   }
 }
 
+function selectTopic(keyword: string): void {
+  if (mode.value === 'search' && query.value.trim().toLowerCase() === keyword.toLowerCase()) {
+    query.value = '';
+    void loadTrending();
+    return;
+  }
+  query.value = keyword;
+  void runSearch();
+}
+
 function handleSearchSubmit(event: Event): void {
   event.preventDefault();
   void runSearch();
+}
+
+function handleSearchInput(): void {
+  if (!query.value.trim() && mode.value === 'search') {
+    void loadTrending();
+  }
 }
 
 function switchMode(newMode: 'trending' | 'search'): void {
@@ -82,6 +108,10 @@ function switchMode(newMode: 'trending' | 'search'): void {
     void loadTrending();
   } else if (query.value.trim()) {
     void runSearch();
+  } else {
+    void nextTick(() => {
+      searchInputRef.value?.focus();
+    });
   }
 }
 
@@ -100,6 +130,10 @@ const displayedHits = computed(() => {
   }
   return list;
 });
+
+const providerErrors = computed(() =>
+  providers.value.filter((p) => p.status !== 'online' && p.last_error),
+);
 
 function getExisting(handle: string): Streamer | undefined {
   const normalized = handle.toLowerCase().replace(/^@/, '');
@@ -190,7 +224,7 @@ onUnmounted(() => {
       <div>
         <h1 class="page-title">Discovery</h1>
         <p class="page-description">
-          Neue TikTok-Live-Streamer durchsuchen, prüfen und per Klick übernehmen.
+          Neue TikTok-Live-Streamer nach Themen, Begriffen oder @Handle durchsuchen und per Klick übernehmen.
         </p>
       </div>
 
@@ -223,11 +257,13 @@ onUnmounted(() => {
           </span>
           <input
             id="discovery-search"
+            ref="searchInputRef"
             v-model="query"
             type="search"
-            placeholder="TikTok-Handle (@name), Raumtitel oder Begriff…"
+            placeholder="Begriff (z. B. Gaming, Musik, Talk) oder @handle…"
             autocomplete="off"
             spellcheck="false"
+            @input="handleSearchInput"
           />
         </div>
         <button type="submit" class="btn btn-primary" :disabled="loading">
@@ -253,6 +289,24 @@ onUnmounted(() => {
             @click="switchMode('search')"
           >
             🔍 Suche
+          </button>
+        </div>
+
+        <div class="topic-chips" role="group" aria-label="Schnellfilter nach Themen">
+          <button
+            v-for="topic in quickTopics"
+            :key="topic.keyword"
+            type="button"
+            class="btn btn-sm topic-chip"
+            :class="
+              mode === 'search' && query.trim().toLowerCase() === topic.keyword
+                ? 'btn-primary'
+                : 'btn-ghost'
+            "
+            :disabled="loading"
+            @click="selectTopic(topic.keyword)"
+          >
+            {{ topic.label }}
           </button>
         </div>
 
@@ -302,6 +356,9 @@ onUnmounted(() => {
       </svg>
       <p v-if="query.trim()">Keine passenden Streamer für „{{ query }}“ gefunden.</p>
       <p v-else>Aktuell sind keine Live-Streams verfügbar.</p>
+      <p v-if="providerErrors.length > 0" class="empty-hint mono">
+        Provider-Hinweis: {{ providerErrors.map((p) => `${p.name} (${p.last_error})`).join(', ') }}
+      </p>
     </div>
 
     <!-- Cards Grid -->
@@ -549,6 +606,17 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.topic-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.topic-chip {
+  border: 1px solid var(--border-color, #2b2b2b);
+  font-size: 0.78rem;
+}
+
 .toggle-label {
   display: inline-flex;
   align-items: center;
@@ -760,5 +828,11 @@ onUnmounted(() => {
   padding: 3rem 1rem;
   color: var(--text-muted, #777);
   text-align: center;
+}
+
+.empty-hint {
+  font-size: 0.75rem;
+  color: var(--color-warning, #eab308);
+  margin-top: 0.25rem;
 }
 </style>

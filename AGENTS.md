@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.27.0**
+- Aktuelle Version: **0.27.1**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -274,6 +274,44 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   `DELETE /api/queue/entries/:id`, `POST /api/queue/move`,
   `DELETE /api/queue`, `POST /api/queue/play|next|stop|now|seek`.
 - Dashboard-Karte `RegieQueue.vue`; das SSE-Event `queue` hält den Stand aktuell.
+
+## Stream Discovery (Eigene Webcast-Implementierung)
+
+- Eigene, aus dem TikTok-Web-Bundle (`webapp-live-discover`) analysierte
+  Implementierung unter `src/core/source/discovery/` ohne externe Scraper-Dependencies:
+  - **Trending (`LivePageProvider`):** Da `https://www.tiktok.com/live` im
+    Initial-HTML (SSR `__UNIVERSAL_DATA_FOR_REHYDRATION__`) keine Live-Räume mehr
+    ausliefert, fragt `LivePageProvider` parallel die internen Webcast-Feeds
+    `https://webcast.tiktok.com/webcast/feed/` über die Channels
+    `Recommend` (`channel_id=87`, `req_from=live_mt_pc_web_rec_tab_refresh`),
+    `Gaming` (`channel_id=89`, `req_from=pc_web_game_feed_refresh`) und
+    `Vertical/Chatting` (`channel_id=1222001`, `req_from=webapp_taxonomy_drawer_enter_feed`,
+    `related_live_tag=chatting`) inklusive vollständiger Web-Client-Parameter
+    (`buildWebcastFeedUrl`) ab. SSR-HTML bleibt als Fallback erhalten.
+  - **Keyword- & Freitext-Suche (`SearchProvider`):** Nutzt den Webcast-SEO-Feed
+    (`https://webcast.tiktok.com/webcast/feed/` mit `channel_id=86`,
+    `req_from=pc_web_seo_query_room`, `search_keywords=<q>`, `need_room_count`,
+    `last_page=0`) für echte Live-Raum-Suchen nach beliebigen Begriffen
+    (z. B. `gaming`, `musik`, `talk`, `deutsch`, `fortnite`, `kochen`) sowie
+    `/api/comment/search/sug/user/` als Profil-Fallback.
+  - **Handle- vs. Begriff-Disambiguierung (`DiscoveryService`, `RoomInfoProvider`):**
+    Einzelwörter ohne `@` werden primär als Schlagwortsuche behandelt; ein
+    direkter Raum-Check (`api-live/user/room` mit `aid=1988&sourceType=54`)
+    wird bei Suchbegriffen ohne `@` nur vorangestellt, wenn der Account
+    tatsächlich **live** ist (verhindert, dass inaktive Offline-Accounts wie
+    `@gaming` die Schlagwortsuche überdecken). Mit explizitem `@handle` wird das
+    Nutzerprofil auch im Offline-Zustand an Position 1 geliefert.
+  - **Protobuf-/Webcast-Besonderheiten (`extractHitFromRoomRecord`):**
+    - `age_restricted` ist im Webcast-JSON ein Objekt (`{}` bei normalen Streams,
+      `{ restricted: true, age_interval: 4 }` bei 18+); `isAgeRestrictedValue`
+      prüft gezielt die Flags statt `Boolean({})`.
+    - Handles liegen unter `owner.display_id` (bzw. `uniqueId`/`unique_id`),
+      Avatare unter `owner.avatar_large.url_list[0]`.
+    - Bei `0` Zuschauern lässt Protobuf `user_count` weg; existiert `room.stats`
+      bei `status === 2`, wird `viewers: 0` gesetzt.
+  - **Guards:** `addStreamer` legt entdeckte Kanäle immer deaktiviert an
+    (`enabled: false, priority: 999, source: 'discovery'`). `queueNow` und
+    `switchToStreamer` erzwingen einen frischen Live-Check (`409 Conflict` bei Offline).
 
 ## YouTube-Verwaltung
 

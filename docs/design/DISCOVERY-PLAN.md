@@ -63,16 +63,22 @@ Kurz-Spezifikation für den ausführenden Agenten. `#65` ist das Umbrella-Issue 
   }
   ```
 - **Tier 1 – `live-page-provider.ts` (`live_page`):**
-  - Fetcht `https://www.tiktok.com/live` mit `AbortSignal.timeout(12_000)`, `User-Agent` aus `config.media.sourceUserAgent`, `Accept-Language` aus Settings.
-  - Pure Parser-Funktion `parseLivePageHtml(html: string): DiscoveryHit[]` extrahiert `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">` bzw. `SIGI_STATE` und liest empfohlene Live-Räume aus.
+  - **Eigene Webcast-Feed-Implementierung (#75):** Da TikTok auf `https://www.tiktok.com/live` im initialen SSR-HTML (`__UNIVERSAL_DATA_FOR_REHYDRATION__`) keine Live-Räume mehr einbettet, fragt `LivePageProvider` parallel `https://webcast.tiktok.com/webcast/feed/` über drei Kanäle ab:
+    1. `channel_id=87`, `req_from=live_mt_pc_web_rec_tab_refresh` (Recommend Feed)
+    2. `channel_id=89`, `req_from=pc_web_game_feed_refresh` (Gaming Feed)
+    3. `channel_id=1222001`, `req_from=webapp_taxonomy_drawer_enter_feed`, `related_live_tag=chatting` (Vertical Chatting Feed)
+  - `buildWebcastFeedUrl` erzeugt die vom TikTok-Web-Client (`webapp-live-discover`) erwarteten Query-Parameter (`aid=1988`, `app_name=tiktok_web`, `device_platform=web_pc`, `device_type=web_h264`, `region`, `app_language`, `webcast_language` usw.).
+  - `parseWebcastFeedPayload` & `extractHitFromRoomRecord` verarbeiten die Webcast-Protobuf-JSON-Struktur (`owner.display_id`, `owner.avatar_large.url_list`, `age_restricted: {}` via `isAgeRestrictedValue`, `stats.total_user` bei ausgelassenem `user_count = 0`).
+  - `parseLivePageHtml(html: string)` bleibt als SSR-Fallback erhalten.
 - **Tier 2 – `room-info-provider.ts` (`room_info`):**
   - Nutzt denselben Endpunkt wie `src/core/source/resolver.ts` (`https://www.tiktok.com/api-live/user/room?aid=1988&sourceType=54&uniqueId=<handle>`), inkl. `readCookieHeader(cookiesFile)`.
-  - Gemeinsame Helper (`normalizeHandle`, `readCookieHeader`) aus `resolver.ts` exportieren und wiederverwenden.
-  - Pure Parser-Funktion `parseRoomInfoPayload(payload: unknown, handle: string): DiscoveryHit | null`.
-  - Dient außerdem als Handle-Direktsuche in `search(q)`, wenn `q` wie ein Handle aussieht (`@handle` oder `[a-z0-9._]{2,24}`).
+  - Gemeinsame Helper (`normalizeHandle`, `readCookieHeader`) aus `resolver.ts` wiederverwenden.
+  - Pure Parser-Funktion `parseRoomInfoPayload(payload: unknown, handle: string): DiscoveryHit | null` prüft, ob echte Nutzer-/Raumdaten vorliegen (verwirft leere `{ user: {}, liveRoom: {} }`-Payloads).
+  - Bei Suchbegriffen ohne `@` liefert `RoomInfoProvider.search(q)` nur dann einen Treffer, wenn der Kanal tatsächlich **live** ist; mit `@handle` auch im Offline-Zustand.
 - **Tier 3 – `search-provider.ts` (`search_api`):**
-  - Optionaler Adapter gegen `https://www.tiktok.com/api/live/search/?aid=1988&keyword=...` mit Cookie-Header aus `cookiesFile`.
-  - Bei 403/Signatur-Ablehnung oder leerem Body: Status auf `offline`/`rate_limited` setzen und leer zurückgeben (kein Wurf nach außen).
+  - **Eigene Webcast-SEO-Suchimplementierung (#75):** Nutzt den aus dem TikTok-Live-Explore-Bundle (`live.explore.(keywords)`) analysierten Endpunkt `https://webcast.tiktok.com/webcast/feed/` mit `channel_id=86`, `req_from=pc_web_seo_query_room`, `need_room_count`, `last_page=0` und `search_keywords=<q>`.
+  - Ermöglicht echte Freitext- und Schlagwortsuche nach aktiven Live-Streams (z. B. `gaming`, `musik`, `talk`, `deutsch`, `fortnite`, `kochen`).
+  - Liefert der Live-Raum-Feed 0 Treffer, wird `/api/comment/search/sug/user/` als Fallback für die Profilsuche abgefragt.
 
 ### 3. Discovery-Service (`src/core/source/discovery/discovery-service.ts`)
 - Verwaltet Provider-Kette gemäß `settings.discovery.providers`.

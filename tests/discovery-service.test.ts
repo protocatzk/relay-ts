@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseLivePageHtml } from '../src/core/source/discovery/live-page-provider.js';
+import {
+  parseLivePageHtml,
+  parseWebcastFeedPayload,
+} from '../src/core/source/discovery/live-page-provider.js';
 import { parseRoomInfoPayload } from '../src/core/source/discovery/room-info-provider.js';
 import { parseSearchPayload } from '../src/core/source/discovery/search-provider.js';
 import { DiscoveryService } from '../src/core/source/discovery/discovery-service.js';
@@ -73,18 +76,96 @@ describe('Discovery Parsers (Pure Functions)', () => {
     expect(hits[0]?.age_restricted).toBe(true);
   });
 
-  it('parses room info payload from api-live/user/room', () => {
+  it('parses webcast/feed payload with display_id, avatar url_list and empty age_restricted object', () => {
+    const payload = {
+      status_code: 0,
+      data: [
+        {
+          type: 1,
+          rid: '7710942965179042592',
+          data: {
+            id_str: '7710942965179042592',
+            title: 'GTA6 Der hype ist da!',
+            status: 2,
+            user_count: 163,
+            age_restricted: {},
+            owner: {
+              display_id: 'doalumar',
+              nickname: 'Doalumar',
+              bio_description: 'Daily Gaming Streams',
+              avatar_large: {
+                url_list: ['https://example.com/doalumar-large.webp'],
+              },
+            },
+          },
+        },
+        {
+          type: 1,
+          rid: '7710942965179042593',
+          data: {
+            id_str: '7710942965179042593',
+            title: 'Zero viewers protobuf room',
+            status: 2,
+            stats: { total_user: 8 },
+            age_restricted: { age_interval: 0, restricted: false },
+            owner: {
+              display_id: 'kevtekk25',
+              nickname: 'KevTekk',
+            },
+          },
+        },
+        {
+          type: 1,
+          rid: '7710942965179042594',
+          data: {
+            id_str: '7710942965179042594',
+            title: '18+ Room',
+            status: 2,
+            user_count: 50,
+            age_restricted: { age_interval: 4, restricted: true },
+            owner: {
+              display_id: 'adult_room',
+              nickname: 'Adult Room',
+            },
+          },
+        },
+      ],
+    };
+
+    const hits = parseWebcastFeedPayload(payload, 'live_page');
+    expect(hits).toHaveLength(3);
+    expect(hits[0]).toMatchObject({
+      handle: 'doalumar',
+      display_name: 'Doalumar',
+      avatar_url: 'https://example.com/doalumar-large.webp',
+      bio: 'Daily Gaming Streams',
+      title: 'GTA6 Der hype ist da!',
+      live: true,
+      viewers: 163,
+      age_restricted: false,
+      source: 'live_page',
+    });
+    expect(hits[1]).toMatchObject({
+      handle: 'kevtekk25',
+      live: true,
+      viewers: 0,
+      age_restricted: false,
+    });
+    expect(hits[2]?.age_restricted).toBe(true);
+  });
+
+  it('parses room info payload from api-live/user/room and returns null on empty user', () => {
     const payload = {
       data: {
         user: {
-          uniqueId: "cool_gamer",
-          nickname: "Cool Gamer",
-          avatarLarger: "https://example.com/cool.jpg",
+          uniqueId: 'cool_gamer',
+          nickname: 'Cool Gamer',
+          avatarLarger: 'https://example.com/cool.jpg',
           status: 2,
-          bioDescription: "Gamer aus Leidenschaft",
+          bioDescription: 'Gamer aus Leidenschaft',
         },
         liveRoom: {
-          title: "Ranked Grind",
+          title: 'Ranked Grind',
           status: 2,
           userCount: 500,
           ageRestricted: false,
@@ -104,19 +185,22 @@ describe('Discovery Parsers (Pure Functions)', () => {
       source: 'room_info',
       age_restricted: false,
     });
+
+    expect(parseRoomInfoPayload({ data: { user: {}, liveRoom: {} } }, 'unknown_term')).toBeNull();
+    expect(parseRoomInfoPayload({ data: null, message: 'params_error' }, 'unknown_term')).toBeNull();
   });
 
-  it('parses search payload into structured discovery hits', () => {
+  it('parses search payload into structured discovery hits (legacy & webcast SEO format)', () => {
     const payload = {
       data: {
         live_list: [
           {
             author: {
-              uniqueId: "search_hit_1",
-              nickname: "Search Result 1",
+              uniqueId: 'search_hit_1',
+              nickname: 'Search Result 1',
             },
             liveRoom: {
-              title: "Gaming Session",
+              title: 'Gaming Session',
               status: 2,
               userCount: 88,
             },
@@ -130,6 +214,35 @@ describe('Discovery Parsers (Pure Functions)', () => {
     expect(hits[0]?.handle).toBe('search_hit_1');
     expect(hits[0]?.display_name).toBe('Search Result 1');
     expect(hits[0]?.live).toBe(true);
+
+    const seoPayload = {
+      status_code: 0,
+      data: [
+        {
+          type: 1,
+          data: {
+            title: 'Dein SongWunsch',
+            status: 2,
+            user_count: 56,
+            age_restricted: {},
+            owner: {
+              display_id: 'voicepotmusic',
+              nickname: 'VOICEPOT MUSIC',
+            },
+          },
+        },
+      ],
+    };
+    const seoHits = parseSearchPayload(seoPayload);
+    expect(seoHits).toHaveLength(1);
+    expect(seoHits[0]).toMatchObject({
+      handle: 'voicepotmusic',
+      display_name: 'VOICEPOT MUSIC',
+      title: 'Dein SongWunsch',
+      live: true,
+      viewers: 56,
+      source: 'search_api',
+    });
   });
 });
 
@@ -277,6 +390,77 @@ describe('DiscoveryService & Provider Fallback', () => {
     const statuses = service.providerStatuses();
     const liveStatus = statuses.find((s) => s.name === 'live_page');
     expect(liveStatus?.status).toBe('offline');
+  });
+
+  it('returns live keyword hits for single-term searches without polluting with offline handle match, unless prefixed with @', async () => {
+    const bus = new EventBus();
+    const store = createMockStore();
+    const supervisor = createMockSupervisor();
+    const settingsService = createMockSettings(['room_info', 'search_api']);
+
+    const offlineGamingUser = {
+      handle: 'gaming',
+      display_name: 'Inactive Gaming User',
+      avatar_url: null,
+      bio: null,
+      title: null,
+      live: false,
+      viewers: null,
+      age_restricted: false,
+      source: 'room_info' as const,
+      fetched_at: new Date().toISOString(),
+    };
+
+    const liveGamerHit = {
+      handle: 'pro_gamer_de',
+      display_name: 'Pro Gamer DE',
+      avatar_url: null,
+      bio: 'Daily Gaming',
+      title: 'GTA 6 Hype Stream',
+      live: true,
+      viewers: 312,
+      age_restricted: false,
+      source: 'search_api' as const,
+      fetched_at: new Date().toISOString(),
+    };
+
+    const mockRoomInfo: DiscoveryProvider = {
+      name: 'room_info',
+      health: () => ({ name: 'room_info', status: 'online', last_error: null, last_ok_at: null }),
+      roomInfo: async (handle: string) => (handle === 'gaming' ? offlineGamingUser : null),
+      search: async (q: string) => (q.startsWith('@gaming') ? [offlineGamingUser] : []),
+    };
+
+    const mockSearchApi: DiscoveryProvider = {
+      name: 'search_api',
+      health: () => ({ name: 'search_api', status: 'online', last_error: null, last_ok_at: null }),
+      search: async () => [liveGamerHit],
+    };
+
+    const providers = new Map<string, DiscoveryProvider>([
+      ['room_info', mockRoomInfo],
+      ['search_api', mockSearchApi],
+    ]);
+
+    const service = new DiscoveryService({
+      store,
+      settingsService,
+      supervisor,
+      bus,
+      logger,
+      providers: providers as any,
+    });
+
+    // 1. Keyword search "gaming" (no @): only live keyword stream, no dead offline @gaming account
+    const keywordRes = await service.search('gaming');
+    expect(keywordRes.hits).toHaveLength(1);
+    expect(keywordRes.hits[0]?.handle).toBe('pro_gamer_de');
+
+    // 2. Explicit handle search "@gaming": includes @gaming at index 0
+    const handleRes = await service.search('@gaming');
+    expect(handleRes.hits).toHaveLength(2);
+    expect(handleRes.hits[0]?.handle).toBe('gaming');
+    expect(handleRes.hits[1]?.handle).toBe('pro_gamer_de');
   });
 
   it('strictly adheres to Add-Flow-Guard invariants (enabled: false, priority: 999, source: discovery)', () => {

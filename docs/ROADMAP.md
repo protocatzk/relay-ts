@@ -113,14 +113,15 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   - Pinned Live Status-Karte (`/pin` & `/unpin`) mit dynamischen Updates über `editMessageText` bei Status-Events.
   - Modulare Architektur in `src/core/telegram/` (`types.ts`, `api.ts`, `keyboards.ts`, `views.ts`).
 
-### v0.27.0 – Stream Discovery & Provider Fallback
+### v0.27.0 / v0.27.1 – Stream Discovery & Provider Fallback
 
-**Status: veröffentlicht in 0.27.0.**
+**Status: veröffentlicht in 0.27.1.**
 
-- **#65 / #69 / #70 (Stream Discovery):**
-  - **DiscoveryService & Provider-Kette (#69):** 3-stufige Adapter-Kette (`live_page` via Public Live JSON, `room_info` via User-Room API, `search_api` für Keywords) mit Provider-Status-Tracking (`online`, `offline`, `rate_limited`).
+- **#65 / #69 / #70 / #75 (Stream Discovery & Webcast-Suche):**
+  - **DiscoveryService & Provider-Kette (#69, #75):** 3-stufige Adapter-Kette (`live_page` via parallelem Webcast-Live-Feed `channel_id=87/89/1222001` + SSR-Fallback, `room_info` via User-Room API mit `sourceType=54`, `search_api` via Webcast-SEO-Raumsuche `pc_web_seo_query_room` / `channel_id=86` + User-Suggest-Fallback) mit Provider-Status-Tracking (`online`, `offline`, `rate_limited`).
+  - **Protobuf-Parser & Disambiguierung (#75):** Korrekte Auswertung von `age_restricted: {}`-Objekten (`isAgeRestrictedValue`), `owner.display_id`, `avatar_large.url_list` sowie Trennung zwischen Freitext-Schlagwortsuche (`gaming`, `musik`, `talk`) und expliziter `@handle`-Suche.
   - **Add-Flow- & Queue-Live-Guards:** Neu entdeckte Streamer werden strikt mit `enabled: false, priority: 999, source: 'discovery'` angelegt; Queuing/Switching prüft vorab den echten Live-Status (409 Conflict bei Offline-Streams). Hard 18+-Filter vor Cache und API.
-  - **DiscoveryView (#70):** Neuer Sub-Tab unter *Inhalte* im TokTracker-Design mit Provider-Status-Leiste, Trending/Suche-Umschalter, Live-Filter, Streamer-Karten und Quick-Actions (*Speichern* + *Aktivieren*, *In Queue*, *Umschalten*) inkl. `document.hidden`-Pausierung.
+  - **DiscoveryView (#70, #75):** Neuer Sub-Tab unter *Inhalte* im TokTracker-Design mit Provider-Status-Leiste, Trending/Suche-Umschalter, Themen-Schnellwahl-Chips (`Deutsch`, `Gaming`, `Musik`, `Talk`, `Fortnite`, `Lifestyle`), Live-Filter, Streamer-Karten und Quick-Actions (*Speichern* + *Aktivieren*, *In Queue*, *Umschalten*) inkl. `document.hidden`-Pausierung.
   - End-to-End API- und Parser-Tests sowie Audit-Log-Integration für alle Discovery-Aktionen.
 
 | Issue | Priorität | Bereich | Status |
@@ -134,6 +135,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | abgeschlossen |
 | UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | abgeschlossen |
 | Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | abgeschlossen |
+| Discovery: Trending-Feed reparieren und Freitext-/Keyword-Suche ermöglichen (#75) | P1 | Discovery/Stream | abgeschlossen |
 
 ## Definition of Done
 
