@@ -31,3 +31,4 @@
 {"title":"Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API","file":"31-telegram-bot-modernization.md","labels":["telegram","enhancement","P2","api","ops"]}
 {"title":"Discovery: Trending-Feed reparieren und Freitext-/Keyword-Suche ermöglichen","file":"32-discovery-trending-and-keyword-search.md","labels":["bug","enhancement","P1","stream","discovery"]}
 {"title":"Discovery: TikTok Live-Zapper (Feed-Player mit Pfeil-Navigation & HTTP-FLV-Preview)","file":"33-discovery-live-zapper.md","labels":["enhancement","P2","stream","discovery"]}
+{"title":"Agenten-Steuerung: Intern (Regie-Agent) und extern per MCP (Model Context Protocol)","file":"34-agent-control-mcp.md","labels":["enhancement","api","P2","ops"]}
