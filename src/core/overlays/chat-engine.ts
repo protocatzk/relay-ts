@@ -804,8 +804,13 @@ export class ChatOverlayEngine {
     if (cfg.chat_monitor_enabled !== false) {
       const mx = 16;
       const my = 76;
-      const mw = Math.min(420, Math.max(300, Math.round(width * 0.22)));
-      const mh = height - 88;
+      const autoMw = Math.min(420, Math.max(300, Math.round(width * 0.22)));
+      const mw = cfg.panel_width > 0
+        ? Math.min(Math.round(width * 0.45), Math.max(200, cfg.panel_width))
+        : autoMw;
+      const mh = cfg.panel_height > 0
+        ? Math.min(height - 88, Math.max(120, cfg.panel_height))
+        : height - 88;
       const radius = 6;
 
       ctx.save();
@@ -870,24 +875,31 @@ export class ChatOverlayEngine {
       // Chat Messages Stack
       const innerX = mx + 10;
       const innerW = mw - 20;
-      const maxLines = Math.max(4, cfg.max_lines);
+      const maxLines = Math.max(2, cfg.max_lines);
       const visible = messages.slice(-maxLines);
 
-      const textSize = 11;
-      const textLineHeight = 16;
-      const nameSize = 11;
+      // Scale font sizes based on user's chat font_size setting (default 22 maps to ~12px in pillarbox)
+      const baseFontSize = cfg.font_size > 0 ? cfg.font_size : 22;
+      const textSize = Math.max(9, Math.min(28, Math.round(baseFontSize * 0.55)));
+      const textLineHeight = Math.round(textSize * 1.35);
+      const nameSize = Math.max(9, Math.round(textSize * 0.95));
+
+      const boxColor = parseColor(cfg.box_color, { r: 23, g: 33, b: 53, a: 0.85 });
+      const cardOpacity = Math.max(0.1, Math.min(1, cfg.bubble_opacity));
+      const cardBg = `rgba(${boxColor.r}, ${boxColor.g}, ${boxColor.b}, ${(boxColor.a * cardOpacity).toFixed(2)})`;
+      const textColor = rgba(parseColor(cfg.font_color, { r: 226, g: 232, b: 240, a: 1 }));
 
       let curY = my + mh - 24;
       for (let i = visible.length - 1; i >= 0; i--) {
         const msg = visible[i]!;
         ctx.font = `400 ${textSize}px ${fontFamily}`;
         const lines = wrapText(ctx, msg.text, innerW - 16, 3);
-        const cardH = 22 + lines.length * textLineHeight + 4;
+        const cardH = Math.max(34, nameSize + 12 + lines.length * textLineHeight + 6);
         const cardY = curY - cardH;
         if (cardY < my + headerH + 10) break;
 
         // Message card with subtle rounding and clean border
-        ctx.fillStyle = 'rgba(23, 33, 53, 0.85)';
+        ctx.fillStyle = cardBg;
         ctx.strokeStyle = 'rgba(51, 65, 85, 0.7)';
         ctx.lineWidth = 0.8;
         roundedRect(ctx, innerX, cardY, innerW, cardH, 4);
@@ -895,14 +907,16 @@ export class ChatOverlayEngine {
         ctx.stroke();
 
         let headX = innerX + 8;
+        const headCenterY = cardY + Math.round(nameSize / 2) + 6;
 
         // Timestamp
         if (cfg.show_timestamps) {
-          ctx.font = `500 9px ${fontFamily}`;
+          const timeSize = Math.max(8, Math.round(nameSize * 0.82));
+          ctx.font = `500 ${timeSize}px ${fontFamily}`;
           ctx.fillStyle = '#94a3b8';
           ctx.textBaseline = 'middle';
           const timeStr = formatTime(msg);
-          ctx.fillText(timeStr, headX, cardY + 12);
+          ctx.fillText(timeStr, headX, headCenterY);
           headX += ctx.measureText(timeStr).width + 6;
         }
 
@@ -911,16 +925,16 @@ export class ChatOverlayEngine {
           const tier = msg.tier.toUpperCase();
           const badgeColor = tier === 'MOD' ? '#e11d48' : tier === 'VIP' ? '#d97706' : '#0284c7';
           const badgeText = tier === 'MOD' ? 'MOD' : tier === 'VIP' ? 'VIP' : 'SUB';
-          const bW = 28;
-          const bH = 15;
+          const bW = Math.max(26, Math.round(nameSize * 2.4));
+          const bH = Math.max(14, nameSize + 3);
           ctx.fillStyle = badgeColor;
-          roundedRect(ctx, headX, cardY + 4, bW, bH, 3);
+          roundedRect(ctx, headX, headCenterY - Math.round(bH / 2), bW, bH, 3);
           ctx.fill();
 
-          ctx.font = `800 8px ${fontFamily}`;
+          ctx.font = `800 ${Math.max(7, Math.round(nameSize * 0.73))}px ${fontFamily}`;
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
-          ctx.fillText(badgeText, headX + bW / 2, cardY + 12);
+          ctx.fillText(badgeText, headX + bW / 2, headCenterY);
           ctx.textAlign = 'left';
           headX += bW + 6;
         }
@@ -931,14 +945,15 @@ export class ChatOverlayEngine {
         ctx.fillStyle = senderColor;
         ctx.textBaseline = 'middle';
         const senderName = `${msg.displayName || msg.username || 'Gast'}:`;
-        ctx.fillText(senderName, headX, cardY + 12);
+        ctx.fillText(senderName, headX, headCenterY, innerW - (headX - innerX) - 8);
 
         // Text lines
         ctx.font = `400 ${textSize}px ${fontFamily}`;
-        ctx.fillStyle = '#e2e8f0';
+        ctx.fillStyle = textColor;
         ctx.textBaseline = 'top';
+        const textStartY = cardY + nameSize + 12;
         lines.forEach((line, lineIdx) => {
-          ctx.fillText(line, innerX + 8, cardY + 22 + lineIdx * textLineHeight);
+          ctx.fillText(line, innerX + 8, textStartY + lineIdx * textLineHeight, innerW - 16);
         });
 
         curY = cardY - 6;

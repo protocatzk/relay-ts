@@ -218,6 +218,48 @@ describe('Canvas chat overlay', () => {
     const png = engine.previewPng(false);
     expect(png.length).toBeGreaterThan(1000);
     expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    // Test custom panel_width, font_size, box_color and bubble_opacity
+    const customPillarSettings = {
+      ...pillarSettings,
+      overlays: {
+        ...pillarSettings.overlays,
+        chat: {
+          ...pillarSettings.overlays.chat,
+          panel_width: 360,
+          panel_height: 500,
+          font_size: 28,
+          max_lines: 6,
+          box_color: '#1e1b4b',
+          bubble_opacity: 0.9,
+          font_color: '#fef08a',
+          show_timestamps: true,
+          show_badges: true,
+          name_colors: true,
+        },
+      },
+    };
+    const customEngine = new ChatOverlayEngine({
+      settings: customPillarSettings,
+      overlays: customPillarSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    customEngine.setMessages([
+      {
+        id: 'msg-1',
+        username: 'mod_user',
+        displayName: 'ModUser',
+        text: 'Großer Text im Pillarbox-Chat',
+        tier: 'mod',
+        receivedAt: new Date(),
+        timestamp: new Date(),
+      },
+    ]);
+    const customPng = customEngine.previewPng(false);
+    expect(customPng.length).toBeGreaterThan(1000);
+    expect(customPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    customEngine.stop();
     engine.stop();
   });
 
