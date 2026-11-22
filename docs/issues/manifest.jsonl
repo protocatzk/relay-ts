@@ -29,3 +29,5 @@
 {"title":"Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie)","file":"29-cockpit-canvas-starship.md","labels":["overlay","enhancement","performance","P2","chat","earnings"]}
 {"title":"UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden","file":"30-desktop-side-nav-pill.md","labels":["enhancement","accessibility","mobile","P3"]}
 {"title":"Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API","file":"31-telegram-bot-modernization.md","labels":["telegram","enhancement","P2","api","ops"]}
+{"title":"Stream: Discovery-Service-Grundgerüst mit Provider-Fallback (Teil 1 zu #65)","file":"32-discovery-service.md","labels":["enhancement","api","streaming","P2"]}
+{"title":"Stream: Discovery-Tab im Dashboard (Teil 2 zu #65)","file":"33-discovery-ui.md","labels":["enhancement","api","accessibility","P3"]}
