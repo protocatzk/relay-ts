@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router';
 import LiveMenu from '@/src/components/LiveMenu.vue';
 import TikTokAccountSwitcher from '@/src/components/TikTokAccountSwitcher.vue';
+import { openOmniSearch } from '@/src/composables/useOmniSearch';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
 import { useTheme } from '@/src/composables/useTheme';
@@ -42,6 +43,20 @@ async function handleLogout(): Promise<void> {
     </div>
 
     <div class="header-actions">
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm omni-search-trigger"
+        aria-label="Universalsuche öffnen (Strg+K)"
+        title="Universalsuche (Einstellungen, Funktionen, Streamer) · Strg+K"
+        @click="openOmniSearch"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8" />
+          <path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span class="hide-xs">Suche</span>
+        <kbd class="header-kbd hide-xs">⌘K</kbd>
+      </button>
       <button
         type="button"
         class="btn btn-ghost btn-sm"
@@ -103,3 +118,21 @@ async function handleLogout(): Promise<void> {
     </div>
   </header>
 </template>
+
+<style scoped>
+.omni-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.header-kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.65rem;
+  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--border-color, #444);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  color: var(--text-muted, #aaa);
+}
+</style>
