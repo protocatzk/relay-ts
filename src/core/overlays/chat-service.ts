@@ -72,11 +72,7 @@ export class ChatService {
       handle: this.options.streamer.tiktok,
       logger: this.options.logger,
       onChatMessage: (msg) => {
-        if (this.seen.has(msg.id)) return;
-        this.seen.add(msg.id);
-        this.seenOrder.push(msg.id);
-        this.messages.push(msg);
-        this.options.onMessages([...this.messages]);
+        this.addIncomingMessage(msg);
       },
       onViewerUpdate: (viewers) => {
         this.options.onViewerUpdate?.(viewers);
@@ -119,6 +115,51 @@ export class ChatService {
     this.seen.clear();
     this.seenOrder = [];
     this.options.onMessages([]);
+  }
+
+  private addIncomingMessage(msg: ChatMessage, immediatePublish = true): boolean {
+    if (this.seen.has(msg.id)) return false;
+
+    // Deduplication by user + text within a 5-second window
+    // (Prevents identical messages coming from both WebSocket Webcast & REST API polling)
+    const normalizedUser = (msg.username || '').toLowerCase().trim();
+    const normalizedText = (msg.text || '').trim();
+    const msgTime = (msg.timestamp ?? msg.receivedAt).getTime();
+
+    const isDuplicate = this.messages.some((existing) => {
+      if (existing.id === msg.id) return true;
+      const existingUser = (existing.username || '').toLowerCase().trim();
+      const existingText = (existing.text || '').trim();
+      if (existingUser === normalizedUser && existingText === normalizedText) {
+        const existingTime = (existing.timestamp ?? existing.receivedAt).getTime();
+        return Math.abs(msgTime - existingTime) < 5000;
+      }
+      return false;
+    });
+
+    if (isDuplicate) return false;
+
+    this.seen.add(msg.id);
+    this.seenOrder.push(msg.id);
+    if (this.seenOrder.length > MAX_SEEN) {
+      const dropped = this.seenOrder.shift();
+      if (dropped) this.seen.delete(dropped);
+    }
+
+    this.messages.push(msg);
+    if (this.messages.length > 80) this.messages = this.messages.slice(-80);
+
+    if (immediatePublish) {
+      // If delay is 0, publish directly; otherwise timer pump or publish handles it
+      const delayMs = this.delayMilliseconds();
+      if (delayMs === 0) {
+        this.publish();
+      } else {
+        // Also call onMessages directly for real-time subscribers if delay is disabled
+        this.publish();
+      }
+    }
+    return true;
   }
 
   private buildUrl(): string {
@@ -176,14 +217,7 @@ export class ChatService {
         if (!item.text) continue;
         if (item.streamer && normalizeHandle(item.streamer) !== activeHandle) continue;
         const id = item.id || `${item.user ?? ''}:${item.text}:${item.timestamp ?? ''}`;
-        if (this.seen.has(id)) continue;
-        this.seen.add(id);
-        this.seenOrder.push(id);
-        if (this.seenOrder.length > MAX_SEEN) {
-          const dropped = this.seenOrder.shift();
-          if (dropped) this.seen.delete(dropped);
-        }
-        this.messages.push({
+        const didAdd = this.addIncomingMessage({
           id,
           username: (item.user || 'Chat').slice(0, 40),
           displayName: item.displayName?.slice(0, 60),
@@ -195,10 +229,9 @@ export class ChatService {
             item.timestamp !== undefined
               ? new Date(item.timestamp < 1e12 ? item.timestamp * 1000 : item.timestamp)
               : undefined,
-        });
-        added += 1;
+        }, false);
+        if (didAdd) added += 1;
       }
-      if (this.messages.length > 80) this.messages = this.messages.slice(-80);
       if (added > 0) this.publish();
     } catch (error) {
       this.logError(error instanceof Error ? error.message : String(error));

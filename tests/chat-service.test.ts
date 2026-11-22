@@ -29,4 +29,41 @@ describe('ChatService', () => {
     service.stop();
     expect(updates.at(-1)).toEqual([]);
   });
+
+  it('deduplicates identical messages arriving via different IDs or channels', () => {
+    const updates: ChatMessage[][] = [];
+    const service = new ChatService({
+      streamer,
+      chat: DEFAULT_SETTINGS.overlays.chat,
+      settings: DEFAULT_SETTINGS,
+      logger,
+      onMessages: (messages) => updates.push(messages),
+    });
+
+    service.injectMessage('user1', 'Hallo Welt');
+    expect(updates.at(-1)).toHaveLength(1);
+
+    // Incoming duplicate via different ID but same user and text within time window
+    (service as any).addIncomingMessage({
+      id: 'webcast-msg-123',
+      username: 'user1',
+      text: 'Hallo Welt',
+      receivedAt: new Date(),
+    });
+
+    // Should remain 1 because it is deduplicated
+    expect(updates.at(-1)).toHaveLength(1);
+
+    // Different message should be added
+    const delayMs = (service as any).delayMilliseconds();
+    (service as any).addIncomingMessage({
+      id: 'webcast-msg-456',
+      username: 'user2',
+      text: 'Zweite Nachricht',
+      receivedAt: new Date(Date.now() - delayMs - 1000),
+    });
+    expect(updates.at(-1)).toHaveLength(2);
+
+    service.stop();
+  });
 });
