@@ -35,6 +35,7 @@ import { SourceRecoveryController } from './source-recovery.js';
 import { StreamerLauncher, type StartStreamerOptions } from './streamer-launcher.js';
 import { SinkWatchdogCoordinator } from './sink-watchdog-coordinator.js';
 import { QueuePlaybackCoordinator } from './queue-playback-coordinator.js';
+import type { RtmpIngestServer } from '../ingest/rtmp-server.js';
 import {
   formatStreamTitle,
   buildStreamersView,
@@ -109,6 +110,7 @@ export class Supervisor {
   private sourceRecovery!: SourceRecoveryController;
   private streamerLauncher!: StreamerLauncher;
   private sinkWatchdog!: SinkWatchdogCoordinator;
+  private rtmpIngest!: RtmpIngestServer;
 
   private readonly stateMachine: SupervisorStateMachine;
   private activeStreamer: StreamerConfig | null = null;
@@ -204,6 +206,41 @@ export class Supervisor {
     this.sourceRecovery = subsystems.sourceRecovery;
     this.streamerLauncher = subsystems.streamerLauncher;
     this.sinkWatchdog = subsystems.sinkWatchdog;
+    this.rtmpIngest = subsystems.rtmpIngest;
+
+    if (this.settings.rtmp_ingest.enabled) {
+      this.rtmpIngest.start();
+    }
+
+    this.rtmpIngest.on('publish_started', () => {
+      this.deps.logger.info('RTMP-Ingest: Gaming-Streamer hat Übertragung gestartet!');
+      this.emitStatus();
+      if (this.settings.rtmp_ingest.auto_takeover && this.state !== 'live') {
+        // Auto-Takeover: Start sink if idle or in pause
+        const resolved = resolveStreamKey({});
+        const key = resolved.key;
+        if (key) {
+          const prepared = this.overlays.prepare();
+          const logoEngine = this.overlayRuntime.createLogoEngine();
+          const signature = this.overlayRuntime.signature(prepared.filters, undefined, logoEngine);
+          this.sinkController.key = key;
+          this.sinkController.filters = prepared.filters;
+          this.sinkController.logoInput = logoEngine?.panel;
+          this.sinkController.signature = signature;
+          this.startSinkOrPrefillLocked(key, prepared.filters, signature, undefined, logoEngine?.panel);
+          this.transitionTo('live', 'rtmp_ingest_takeover');
+        }
+      }
+    });
+
+    this.rtmpIngest.on('publish_stopped', () => {
+      this.deps.logger.info('RTMP-Ingest: Gaming-Streamer hat Übertragung beendet.');
+      this.emitStatus();
+      if (this.settings.rtmp_ingest.auto_takeover && this.state === 'live' && !this.activeStreamer && !this.media.file) {
+        // Switch to pause screen gracefully
+        void this.startPauseLocked();
+      }
+    });
 
     this.online.start();
     this.earnings.start();
@@ -1098,6 +1135,17 @@ export class Supervisor {
       media: this.media.status(),
       secondarySink: fanout.secondarySink,
       recording: fanout.recording,
+      rtmpIngest: this.rtmpIngest?.stats()
+        ? {
+            enabled: this.settings.rtmp_ingest.enabled,
+            running: this.rtmpIngest.isRunning,
+            port: this.settings.rtmp_ingest.port,
+            active_client: this.rtmpIngest.hasActiveStream,
+            client_ip: null,
+            connected_at: null,
+            ingest_url: `rtmp://<host>:${this.settings.rtmp_ingest.port}/live/${this.settings.rtmp_ingest.stream_key}`,
+          }
+        : undefined,
     });
   }
 }

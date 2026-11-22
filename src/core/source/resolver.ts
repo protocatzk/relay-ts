@@ -215,6 +215,18 @@ export class TikTokResolver {
   }
 
   async resolve(streamer: StreamerConfig): Promise<ResolvedStream> {
+    if (streamer.tiktok.startsWith('rtmp://') || streamer.tiktok.startsWith('rtmps://')) {
+      return {
+        url: streamer.tiktok,
+        vcodec: 'h264',
+        height: 720,
+        formatId: 'rtmp',
+        isH264: true,
+        title: streamer.name,
+        resolvedAt: new Date(),
+      };
+    }
+
     try {
       return await this.resolveWithYtDlp(streamer);
     } catch (error) {

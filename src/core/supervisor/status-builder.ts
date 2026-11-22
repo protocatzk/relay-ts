@@ -33,6 +33,7 @@ export interface StatusBuilderContext {
   media: StatusSnapshot['media'];
   secondarySink?: StatusSnapshot['secondary_sink'];
   recording?: StatusSnapshot['recording'];
+  rtmpIngest?: StatusSnapshot['rtmp_ingest'];
 }
 
 /** Builds the API/SSE status snapshot from the current supervisor state. */
@@ -134,6 +135,7 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     media,
     ...(secondarySink ? { secondary_sink: secondarySink } : {}),
     ...(recording ? { recording } : {}),
+    ...(context.rtmpIngest ? { rtmp_ingest: context.rtmpIngest } : {}),
     version: VERSION,
   };
 }

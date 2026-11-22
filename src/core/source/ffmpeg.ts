@@ -50,6 +50,7 @@ export interface SourceCommandOptions {
 export function buildSourceCommand(options: SourceCommandOptions): string[] {
   const { media, settings, stream, relay, forceReencode } = options;
   const localFile = stream.url.startsWith('/') || /^file:/i.test(stream.url);
+  const isRtmp = stream.url.startsWith('rtmp://') || stream.url.startsWith('rtmps://');
   const args = [
     '-hide_banner',
     '-nostdin',
@@ -69,6 +70,13 @@ export function buildSourceCommand(options: SourceCommandOptions): string[] {
       args.push('-ss', options.seekSeconds.toFixed(3));
     }
     args.push('-re', '-i', stream.url);
+  } else if (isRtmp) {
+    args.push(
+      '-rw_timeout',
+      '15000000',
+      '-i',
+      stream.url,
+    );
   } else {
     args.push(
       '-rw_timeout',

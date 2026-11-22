@@ -13,7 +13,8 @@ export type EditableSettingsSectionId =
   | 'chat'
   | 'title'
   | 'webhooks'
-  | 'mcp';
+  | 'mcp'
+  | 'rtmp_ingest';
 
 export type SettingsSectionId =
   | EditableSettingsSectionId
@@ -44,6 +45,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'title', domId: 'settings-title', label: 'YouTube & Stream-Key', editable: true },
   { id: 'webhooks', domId: 'settings-webhooks', label: 'Webhooks', editable: true },
   { id: 'mcp', domId: 'settings-mcp', label: 'MCP-Server & KI-Agenten', editable: true },
+  { id: 'rtmp_ingest', domId: 'settings-rtmp-ingest', label: 'RTMP Ingest (Gaming)', editable: true },
   { id: 'tiktok_accounts', domId: 'settings-tiktok-accounts', label: 'TikTok-Konten', editable: false },
   { id: 'appearance', domId: 'settings-appearance', label: 'Erscheinungsbild', editable: false },
   { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
@@ -272,6 +274,22 @@ export function buildSectionPayload(
         },
       };
     }
+    case 'rtmp_ingest': {
+      const rtmp = current.rtmp_ingest ?? {
+        enabled: false,
+        port: 1935,
+        stream_key: 'gaming-live',
+        auto_takeover: true,
+      };
+      return {
+        rtmp_ingest: {
+          enabled: rtmp.enabled,
+          port: toNumber(rtmp.port, 1935),
+          stream_key: rtmp.stream_key.trim() || 'gaming-live',
+          auto_takeover: Boolean(rtmp.auto_takeover),
+        },
+      };
+    }
   }
 }
 
@@ -341,6 +359,8 @@ export function isSectionDirty(
       );
     case 'mcp':
       return JSON.stringify(current.mcp ?? null) !== JSON.stringify(baseline.mcp ?? null);
+    case 'rtmp_ingest':
+      return JSON.stringify(current.rtmp_ingest ?? null) !== JSON.stringify(baseline.rtmp_ingest ?? null);
   }
 }
 
@@ -390,6 +410,9 @@ export function applySavedSection(
       return;
     case 'mcp':
       if (saved.mcp) target.mcp = clone(saved.mcp);
+      return;
+    case 'rtmp_ingest':
+      if (saved.rtmp_ingest) target.rtmp_ingest = clone(saved.rtmp_ingest);
       return;
   }
 }

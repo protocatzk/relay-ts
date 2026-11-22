@@ -25,6 +25,7 @@ import type { OnlineMonitor } from '../online/monitor.js';
 import type { EarningsMonitor } from '../earnings/monitor.js';
 import type { SceneStore } from '../overlays/scene-store.js';
 import type { MediaPlaybackController } from './media-playback-controller.js';
+import type { RtmpIngestServer } from '../ingest/rtmp-server.js';
 
 export interface SettingsDiff {
   videoEncoderChanged: boolean;
@@ -95,6 +96,7 @@ export interface SettingsApplyHost {
   earnings: EarningsMonitor;
   scenes: SceneStore;
   media: MediaPlaybackController;
+  rtmpIngest: RtmpIngestServer;
   state: StreamState;
   activeStreamer: StreamerConfig | null;
   applyingScene: boolean;
@@ -136,6 +138,7 @@ export async function applySupervisorSettings(
   host.sourceSession.updateSettings(next);
   host.pauseController.updateSettings(next);
   host.earnings.updateSettings(next);
+  host.rtmpIngest?.updateSettings(next.rtmp_ingest);
   if (next.webhooks.url) {
     host.deps.registerSecret?.(next.webhooks.url);
   }

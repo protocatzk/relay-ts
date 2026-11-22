@@ -417,6 +417,13 @@ export const McpSettingsSchema = z.object({
   server_name: z.string().min(1).max(64).default('relay-mcp-server'),
 });
 
+export const RtmpIngestSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  port: z.number().int().min(1).max(65535).default(1935),
+  stream_key: z.string().max(256).default('gaming-live'),
+  auto_takeover: z.boolean().default(true),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -438,6 +445,7 @@ export const SettingsSchema = z.object({
   logging: LoggingSettingsSchema.default(LoggingSettingsSchema.parse({})),
   discovery: DiscoverySettingsSchema.default(DiscoverySettingsSchema.parse({})),
   mcp: McpSettingsSchema.default(McpSettingsSchema.parse({})),
+  rtmp_ingest: RtmpIngestSettingsSchema.default(RtmpIngestSettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -459,6 +467,7 @@ export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;
 export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
 export type DiscoverySettings = z.infer<typeof DiscoverySettingsSchema>;
 export type McpSettings = z.infer<typeof McpSettingsSchema>;
+export type RtmpIngestSettings = z.infer<typeof RtmpIngestSettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

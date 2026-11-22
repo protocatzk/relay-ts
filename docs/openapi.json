@@ -10805,6 +10805,36 @@
                 "maxLength": 64
               }
             }
+          },
+          "rtmp_ingest": {
+            "default": {
+              "enabled": false,
+              "port": 1935,
+              "stream_key": "gaming-live",
+              "auto_takeover": true
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "port": {
+                "default": 1935,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "stream_key": {
+                "default": "gaming-live",
+                "type": "string",
+                "maxLength": 256
+              },
+              "auto_takeover": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
           }
         }
       },
@@ -12380,6 +12410,36 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 64
+              }
+            }
+          },
+          "rtmp_ingest": {
+            "default": {
+              "enabled": false,
+              "port": 1935,
+              "stream_key": "gaming-live",
+              "auto_takeover": true
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "port": {
+                "default": 1935,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "stream_key": {
+                "default": "gaming-live",
+                "type": "string",
+                "maxLength": 256
+              },
+              "auto_takeover": {
+                "default": true,
+                "type": "boolean"
               }
             }
           }

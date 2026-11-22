@@ -100,6 +100,15 @@ export interface StatusSnapshot {
     disk_warning: string | null;
     last_error: string | null;
   };
+  rtmp_ingest?: {
+    enabled: boolean;
+    running: boolean;
+    port: number;
+    active_client: boolean;
+    client_ip: string | null;
+    connected_at: string | null;
+    ingest_url: string;
+  };
   version: string;
 }
 

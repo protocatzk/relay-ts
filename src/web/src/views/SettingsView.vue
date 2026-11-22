@@ -12,6 +12,7 @@ import type {
   WebhookEventType,
 } from '@/src/api/types';
 import { formatDateTime } from '@/src/utils/format';
+import { useStore } from '@/src/composables/useStore';
 import {
   EDITABLE_SETTINGS_SECTIONS,
   SETTINGS_SECTIONS,
@@ -37,6 +38,7 @@ import SettingsChatCard from '@/src/components/settings/SettingsChatCard.vue';
 import SettingsTitleCard from '@/src/components/settings/SettingsTitleCard.vue';
 import SettingsWebhooksCard from '@/src/components/settings/SettingsWebhooksCard.vue';
 import SettingsMcpCard from '@/src/components/settings/SettingsMcpCard.vue';
+import SettingsRtmpIngestCard from '@/src/components/settings/SettingsRtmpIngestCard.vue';
 import SettingsAppearanceCard from '@/src/components/settings/SettingsAppearanceCard.vue';
 import SettingsTikTokAccountsCard from '@/src/components/settings/SettingsTikTokAccountsCard.vue';
 import SettingsSessionsCard from '@/src/components/settings/SettingsSessionsCard.vue';
@@ -45,6 +47,7 @@ import { useToast } from '@/src/composables/useToast';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 
 const { pushToast } = useToast();
+const { store } = useStore();
 
 const RESOLUTIONS = [
   '720x1280',
@@ -745,6 +748,16 @@ onBeforeUnmount(() => {
         :saving="savingSection === 'mcp'"
         :busy-saving="busySaving"
         @save="saveSection('mcp')"
+      />
+
+      <SettingsRtmpIngestCard
+        v-if="form.rtmp_ingest"
+        :rtmp="form.rtmp_ingest"
+        :dirty="sectionDirty('rtmp_ingest')"
+        :saving="savingSection === 'rtmp_ingest'"
+        :busy-saving="busySaving"
+        :active-status="store.status?.rtmp_ingest ?? null"
+        @save="saveSection('rtmp_ingest')"
       />
 
       <SettingsTikTokAccountsCard />

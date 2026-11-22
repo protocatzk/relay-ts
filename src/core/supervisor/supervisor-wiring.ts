@@ -25,6 +25,7 @@ import { ScreenPlaybackController } from './screen-controller.js';
 import { SourceRecoveryController } from './source-recovery.js';
 import { StreamerLauncher } from './streamer-launcher.js';
 import { SinkWatchdogCoordinator } from './sink-watchdog-coordinator.js';
+import { RtmpIngestServer } from '../ingest/rtmp-server.js';
 import type { SupervisorDeps } from './supervisor.js';
 import type { AsyncLock } from '../../utils/process.js';
 import type { PlaylistController } from './playlist-controller.js';
@@ -94,6 +95,7 @@ export interface SupervisorSubsystems {
   sourceRecovery: SourceRecoveryController;
   streamerLauncher: StreamerLauncher;
   sinkWatchdog: SinkWatchdogCoordinator;
+  rtmpIngest: RtmpIngestServer;
 }
 
 export async function createSupervisorSubsystems(
@@ -485,6 +487,13 @@ export async function createSupervisorSubsystems(
     },
   });
 
+  const rtmpIngest = new RtmpIngestServer({
+    settings: host.settings.rtmp_ingest,
+    relay: relayEndpoint,
+    logger,
+    ffmpegLogLevel: config.media.ffmpegLogLevel,
+  });
+
   return {
     buffer,
     relay,
@@ -502,5 +511,6 @@ export async function createSupervisorSubsystems(
     sourceRecovery,
     streamerLauncher,
     sinkWatchdog,
+    rtmpIngest,
   };
 }
