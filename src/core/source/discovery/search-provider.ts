@@ -8,6 +8,7 @@ import { readCookieHeader } from '../resolver.js';
 import {
   buildWebcastFeedUrl,
   extractHitFromRoomRecord,
+  resolveRegionLocale,
 } from './live-page-provider.js';
 
 export interface SearchProviderOptions {
@@ -87,8 +88,8 @@ export class SearchProvider implements DiscoveryProvider {
   }
 
   async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryHit[]> {
-    const defaultKeyword = (opts?.language ?? 'de').toLowerCase().startsWith('de') ? 'deutsch' : 'live';
-    return this.search(defaultKeyword, { limit: opts?.limit ?? 20, region: opts?.region });
+    const { defaultKeyword, region } = resolveRegionLocale(opts?.region, opts?.language);
+    return this.search(defaultKeyword, { limit: opts?.limit ?? 20, region });
   }
 
   async search(q: string, opts?: { limit?: number; region?: string }): Promise<DiscoveryHit[]> {
@@ -99,14 +100,14 @@ export class SearchProvider implements DiscoveryProvider {
     if (!cleanQuery) return [];
 
     const limit = opts?.limit ?? 20;
-    const region = (opts?.region ?? 'DE').toUpperCase();
+    const { region, language, locale } = resolveRegionLocale(opts?.region);
     const userAgent =
       this.options.userAgent ??
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     const headers: Record<string, string> = {
       accept: 'application/json, text/plain, */*',
-      'accept-language': `de-${region},de;q=0.9,en;q=0.8`,
+      'accept-language': `${locale},${language};q=0.9,en;q=0.8`,
       referer: `https://www.tiktok.com/live/explore/${encodeURIComponent(cleanQuery)}`,
       origin: 'https://www.tiktok.com',
       'user-agent': userAgent,
@@ -125,7 +126,7 @@ export class SearchProvider implements DiscoveryProvider {
         last_page: '0',
         search_keywords: cleanQuery,
       },
-      { region, language: 'de', userAgent },
+      { region, language, userAgent },
     );
 
     try {

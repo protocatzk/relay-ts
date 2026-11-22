@@ -30,7 +30,7 @@ export interface DiscoveryServiceDeps {
 
 export class DiscoveryService {
   private readonly providers = new Map<DiscoveryProviderName, DiscoveryProvider>();
-  private cachedTrending: { response: DiscoveryResponse; expiresAt: number } | null = null;
+  private readonly trendingCache = new Map<string, { response: DiscoveryResponse; expiresAt: number }>();
   private readonly searchCache = new Map<string, { response: DiscoveryResponse; expiresAt: number }>();
   private readonly roomCache = new Map<string, { hit: DiscoveryHit | null; expiresAt: number }>();
 
@@ -68,7 +68,7 @@ export class DiscoveryService {
   }
 
   clearCaches(): void {
-    this.cachedTrending = null;
+    this.trendingCache.clear();
     this.searchCache.clear();
     this.roomCache.clear();
   }
@@ -80,9 +80,13 @@ export class DiscoveryService {
   async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryResponse> {
     const settings = this.deps.settingsService.get().discovery;
     const now = Date.now();
+    const effectiveRegion = (opts?.region ?? settings.region ?? 'DE').toUpperCase();
+    const effectiveLanguage = opts?.language ?? (opts?.region ? undefined : settings.language);
+    const cacheKey = `${effectiveRegion}::${effectiveLanguage ?? ''}`;
 
-    if (this.cachedTrending && this.cachedTrending.expiresAt > now) {
-      return this.cachedTrending.response;
+    const cached = this.trendingCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.response;
     }
 
     const hitsMap = new Map<string, DiscoveryHit>();
@@ -95,8 +99,8 @@ export class DiscoveryService {
 
       try {
         const results = await provider.trending({
-          region: opts?.region ?? settings.region,
-          language: opts?.language ?? settings.language,
+          region: effectiveRegion,
+          language: effectiveLanguage,
           limit,
         });
 
@@ -143,10 +147,12 @@ export class DiscoveryService {
     // Only cache for full TTL when hits were found; avoid locking into empty cache on transient failures
     if (hits.length > 0) {
       const ttlMs = settings.cache_seconds * 1000 * (0.9 + Math.random() * 0.2);
-      this.cachedTrending = { response, expiresAt: now + ttlMs };
+      this.trendingCache.set(cacheKey, { response, expiresAt: now + ttlMs });
     }
 
-    this.deps.bus.emit({ type: 'discovery', data: response });
+    if (effectiveRegion === (settings.region ?? 'DE').toUpperCase()) {
+      this.deps.bus.emit({ type: 'discovery', data: response });
+    }
     return response;
   }
 
@@ -203,9 +209,9 @@ export class DiscoveryService {
     }
 
     // Fallback 1: search in cached trending items
-    if (this.cachedTrending) {
+    for (const cachedEntry of this.trendingCache.values()) {
       const lower = trimmed.toLowerCase().replace(/^[#@]+/, '');
-      for (const hit of this.cachedTrending.response.hits) {
+      for (const hit of cachedEntry.response.hits) {
         if (
           !hitsMap.has(hit.handle) &&
           (hit.handle.toLowerCase().includes(lower) ||

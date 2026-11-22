@@ -10,6 +10,7 @@ const { pushToast } = useToast();
 
 const query = ref('');
 const mode = ref<'trending' | 'search'>('trending');
+const selectedRegion = ref('DE');
 const onlyLive = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -21,20 +22,36 @@ const lastFetchedAt = ref<number>(0);
 const actionBusy = ref<string | null>(null);
 const justAdded = ref<Map<string, Streamer>>(new Map());
 
+const regionOptions = [
+  { code: 'DE', label: '🇩🇪 Deutschland (DE)' },
+  { code: 'AT', label: '🇦🇹 Österreich (AT)' },
+  { code: 'CH', label: '🇨🇭 Schweiz (CH)' },
+  { code: 'US', label: '🇺🇸 USA (US)' },
+  { code: 'GB', label: '🇬🇧 Großbritannien (GB)' },
+  { code: 'FR', label: '🇫🇷 Frankreich (FR)' },
+  { code: 'ES', label: '🇪🇸 Spanien (ES)' },
+  { code: 'IT', label: '🇮🇹 Italien (IT)' },
+  { code: 'NL', label: '🇳🇱 Niederlande (NL)' },
+  { code: 'PL', label: '🇵🇱 Polen (PL)' },
+  { code: 'TR', label: '🇹🇷 Türkei (TR)' },
+  { code: 'BR', label: '🇧🇷 Brasilien (BR)' },
+  { code: 'JP', label: '🇯🇵 Japan (JP)' },
+];
+
 const quickTopics = [
   { label: '🇩🇪 Deutsch', keyword: 'deutsch' },
   { label: '🎮 Gaming', keyword: 'gaming' },
   { label: '🎵 Musik', keyword: 'musik' },
   { label: '💬 Talk', keyword: 'talk' },
-  { label: ' Fortnite', keyword: 'fortnite' },
+  { label: 'Fortnite', keyword: 'fortnite' },
   { label: '🍳 Lifestyle', keyword: 'kochen' },
 ];
 
-// Keep in sync with store.discovery if SSE pushes updates
+// Keep in sync with store.discovery if SSE pushes updates for default region
 watch(
   () => store.discovery,
   (val) => {
-    if (val && mode.value === 'trending' && !query.value.trim()) {
+    if (val && mode.value === 'trending' && !query.value.trim() && selectedRegion.value === 'DE') {
       hits.value = val.hits;
       providers.value = val.providers;
       lastFetchedAt.value = Date.now();
@@ -48,7 +65,7 @@ async function loadTrending(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    const res = await api.discovery.trending();
+    const res = await api.discovery.trending({ region: selectedRegion.value });
     hits.value = res.hits;
     providers.value = res.providers;
     lastFetchedAt.value = Date.now();
@@ -69,7 +86,7 @@ async function runSearch(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    const res = await api.discovery.search(trimmed);
+    const res = await api.discovery.search(trimmed, { region: selectedRegion.value });
     hits.value = res.hits;
     providers.value = res.providers;
     lastFetchedAt.value = Date.now();
@@ -77,6 +94,14 @@ async function runSearch(): Promise<void> {
     error.value = errorMessage(err);
   } finally {
     loading.value = false;
+  }
+}
+
+function handleRegionChange(): void {
+  if (mode.value === 'trending' || !query.value.trim()) {
+    void loadTrending();
+  } else {
+    void runSearch();
   }
 }
 
@@ -290,6 +315,22 @@ onUnmounted(() => {
           >
             🔍 Suche
           </button>
+        </div>
+
+        <div class="region-filter">
+          <label class="sr-only" for="discovery-region">Land / Region wählen</label>
+          <select
+            id="discovery-region"
+            v-model="selectedRegion"
+            class="region-select"
+            :disabled="loading"
+            aria-label="Länderfilter"
+            @change="handleRegionChange"
+          >
+            <option v-for="r in regionOptions" :key="r.code" :value="r.code">
+              {{ r.label }}
+            </option>
+          </select>
         </div>
 
         <div class="topic-chips" role="group" aria-label="Schnellfilter nach Themen">
@@ -604,6 +645,27 @@ onUnmounted(() => {
   border: 1px solid var(--border-color, #333);
   border-radius: 2px;
   overflow: hidden;
+}
+
+.region-filter {
+  display: inline-flex;
+  align-items: center;
+}
+
+.region-select {
+  height: 32px;
+  padding: 0 1.75rem 0 0.6rem;
+  font-size: 0.82rem;
+  border-radius: 2px;
+  border: 1px solid var(--border-color, #333);
+  background-color: var(--bg-surface, #1e1e1e);
+  color: var(--text-primary, #f0f0f0);
+  cursor: pointer;
+}
+
+.region-select:focus-visible {
+  outline: 2px solid var(--color-accent, #38bdf8);
+  outline-offset: 1px;
 }
 
 .topic-chips {

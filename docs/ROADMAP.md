@@ -113,9 +113,9 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   - Pinned Live Status-Karte (`/pin` & `/unpin`) mit dynamischen Updates über `editMessageText` bei Status-Events.
   - Modulare Architektur in `src/core/telegram/` (`types.ts`, `api.ts`, `keyboards.ts`, `views.ts`).
 
-### v0.27.0 / v0.27.1 – Stream Discovery & Provider Fallback
+### v0.27.0 – v0.27.2 – Stream Discovery & Provider Fallback
 
-**Status: veröffentlicht in 0.27.1.**
+**Status: veröffentlicht in 0.27.2.**
 
 - **#65 / #69 / #70 / #75 (Stream Discovery & Webcast-Suche):**
   - **DiscoveryService & Provider-Kette (#69, #75):** 3-stufige Adapter-Kette (`live_page` via parallelem Webcast-Live-Feed `channel_id=87/89/1222001` + SSR-Fallback, `room_info` via User-Room API mit `sourceType=54`, `search_api` via Webcast-SEO-Raumsuche `pc_web_seo_query_room` / `channel_id=86` + User-Suggest-Fallback) mit Provider-Status-Tracking (`online`, `offline`, `rate_limited`).

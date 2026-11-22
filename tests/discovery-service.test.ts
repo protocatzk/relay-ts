@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildWebcastFeedUrl,
   parseLivePageHtml,
   parseWebcastFeedPayload,
+  resolveRegionLocale,
 } from '../src/core/source/discovery/live-page-provider.js';
 import { parseRoomInfoPayload } from '../src/core/source/discovery/room-info-provider.js';
 import { parseSearchPayload } from '../src/core/source/discovery/search-provider.js';
@@ -244,6 +246,31 @@ describe('Discovery Parsers (Pure Functions)', () => {
       source: 'search_api',
     });
   });
+
+  it('builds regional webcast feed URLs with country-specific locale, carrier_region and timezone', () => {
+    expect(resolveRegionLocale('AT')).toEqual({
+      region: 'AT',
+      language: 'de',
+      locale: 'de-AT',
+      tz: 'Europe/Vienna',
+      defaultKeyword: 'österreich',
+    });
+    expect(resolveRegionLocale('US')).toEqual({
+      region: 'US',
+      language: 'en',
+      locale: 'en-US',
+      tz: 'America/New_York',
+      defaultKeyword: 'live',
+    });
+
+    const url = buildWebcastFeedUrl({ channel_id: '87', req_from: 'live_mt_pc_web_rec_tab_refresh' }, { region: 'TR' });
+    expect(url.searchParams.get('region')).toBe('TR');
+    expect(url.searchParams.get('priority_region')).toBe('TR');
+    expect(url.searchParams.get('carrier_region')).toBe('TR');
+    expect(url.searchParams.get('app_language')).toBe('tr-TR');
+    expect(url.searchParams.get('webcast_language')).toBe('tr-TR');
+    expect(url.searchParams.get('tz_name')).toBe('Europe/Istanbul');
+  });
 });
 
 describe('DiscoveryService & Provider Fallback', () => {
@@ -390,6 +417,52 @@ describe('DiscoveryService & Provider Fallback', () => {
     const statuses = service.providerStatuses();
     const liveStatus = statuses.find((s) => s.name === 'live_page');
     expect(liveStatus?.status).toBe('offline');
+  });
+
+  it('caches trending results separately per country/region filter', async () => {
+    const bus = new EventBus();
+    const store = createMockStore();
+    const supervisor = createMockSupervisor();
+    const settingsService = createMockSettings(['live_page']);
+
+    const trendingSpy = vi.fn().mockImplementation(async (opts?: { region?: string }) => [
+      {
+        handle: `streamer_${(opts?.region ?? 'DE').toLowerCase()}`,
+        display_name: `Streamer ${opts?.region ?? 'DE'}`,
+        avatar_url: null,
+        bio: null,
+        title: `Live in ${opts?.region ?? 'DE'}`,
+        live: true,
+        viewers: 120,
+        age_restricted: false,
+        source: 'live_page' as const,
+        fetched_at: new Date().toISOString(),
+      },
+    ]);
+
+    const mockLivePage: DiscoveryProvider = {
+      name: 'live_page',
+      health: () => ({ name: 'live_page', status: 'online', last_error: null, last_ok_at: null }),
+      trending: trendingSpy,
+    };
+
+    const service = new DiscoveryService({
+      store,
+      settingsService,
+      supervisor,
+      bus,
+      logger,
+      providers: new Map([['live_page', mockLivePage]]) as any,
+    });
+
+    const deRes = await service.trending({ region: 'DE' });
+    const usRes = await service.trending({ region: 'US' });
+    const deCached = await service.trending({ region: 'DE' });
+
+    expect(deRes.hits[0]?.handle).toBe('streamer_de');
+    expect(usRes.hits[0]?.handle).toBe('streamer_us');
+    expect(deCached.hits[0]?.handle).toBe('streamer_de');
+    expect(trendingSpy).toHaveBeenCalledTimes(2);
   });
 
   it('returns live keyword hits for single-term searches without polluting with offline handle match, unless prefixed with @', async () => {

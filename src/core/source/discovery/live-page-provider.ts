@@ -16,6 +16,49 @@ export interface LivePageProviderOptions {
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+export interface RegionLocaleConfig {
+  language: string;
+  tz: string;
+  defaultKeyword: string;
+}
+
+export const REGION_LOCALE_MAP: Record<string, RegionLocaleConfig> = {
+  DE: { language: 'de', tz: 'Europe/Berlin', defaultKeyword: 'deutsch' },
+  AT: { language: 'de', tz: 'Europe/Vienna', defaultKeyword: 'österreich' },
+  CH: { language: 'de', tz: 'Europe/Zurich', defaultKeyword: 'schweiz' },
+  US: { language: 'en', tz: 'America/New_York', defaultKeyword: 'live' },
+  GB: { language: 'en', tz: 'Europe/London', defaultKeyword: 'uk' },
+  FR: { language: 'fr', tz: 'Europe/Paris', defaultKeyword: 'france' },
+  ES: { language: 'es', tz: 'Europe/Madrid', defaultKeyword: 'español' },
+  IT: { language: 'it', tz: 'Europe/Rome', defaultKeyword: 'italia' },
+  NL: { language: 'nl', tz: 'Europe/Amsterdam', defaultKeyword: 'nederland' },
+  PL: { language: 'pl', tz: 'Europe/Warsaw', defaultKeyword: 'polska' },
+  TR: { language: 'tr', tz: 'Europe/Istanbul', defaultKeyword: 'türkiye' },
+  BR: { language: 'pt', tz: 'America/Sao_Paulo', defaultKeyword: 'brasil' },
+  JP: { language: 'ja', tz: 'Asia/Tokyo', defaultKeyword: '日本' },
+};
+
+export function resolveRegionLocale(region?: string, language?: string): {
+  region: string;
+  language: string;
+  locale: string;
+  tz: string;
+  defaultKeyword: string;
+} {
+  const normRegion = (region && region.trim() ? region.trim() : 'DE').toUpperCase();
+  const preset = REGION_LOCALE_MAP[normRegion];
+  const normLang = (
+    language && language.trim() ? language.trim() : (preset?.language ?? 'de')
+  ).toLowerCase();
+  return {
+    region: normRegion,
+    language: normLang,
+    locale: `${normLang}-${normRegion}`,
+    tz: preset?.tz ?? 'Europe/Berlin',
+    defaultKeyword: preset?.defaultKeyword ?? 'live',
+  };
+}
+
 export function extractImageUrl(val: unknown): string | null {
   if (typeof val === 'string' && val.trim()) {
     return val.trim();
@@ -56,9 +99,7 @@ export function buildWebcastFeedUrl(
   feedParams: Record<string, string>,
   opts?: { region?: string; language?: string; userAgent?: string },
 ): URL {
-  const region = (opts?.region ?? 'DE').toUpperCase();
-  const lang = opts?.language ?? 'de';
-  const locale = `${lang}-${region}`;
+  const { region, locale, tz } = resolveRegionLocale(opts?.region, opts?.language);
   const ua = opts?.userAgent ?? DEFAULT_USER_AGENT;
 
   const url = new URL('https://webcast.tiktok.com/webcast/feed/');
@@ -71,6 +112,7 @@ export function buildWebcastFeedUrl(
     browser_online: 'true',
     browser_platform: 'Win32',
     browser_version: ua.replace(/^Mozilla\//, ''),
+    carrier_region: region,
     channel: 'tiktok_web',
     cookie_enabled: 'true',
     cpu_number: '8',
@@ -91,7 +133,7 @@ export function buildWebcastFeedUrl(
     root_referer: 'https://www.tiktok.com/',
     screen_height: '1080',
     screen_width: '1920',
-    tz_name: 'Europe/Berlin',
+    tz_name: tz,
     user_is_login: 'false',
     webcast_language: locale,
     ...feedParams,
@@ -385,8 +427,12 @@ export class LivePageProvider implements DiscoveryProvider {
   }
 
   async trending(opts?: { region?: string; language?: string; limit?: number }): Promise<DiscoveryHit[]> {
-    const lang = opts?.language ?? this.options.defaultLanguage ?? 'de';
-    const region = (opts?.region ?? this.options.defaultRegion ?? 'DE').toUpperCase();
+    const resolved = resolveRegionLocale(
+      opts?.region ?? this.options.defaultRegion,
+      opts?.language,
+    );
+    const lang = resolved.language;
+    const region = resolved.region;
     const userAgent = this.options.userAgent ?? DEFAULT_USER_AGENT;
 
     const feedChannels = [
