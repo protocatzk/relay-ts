@@ -82,6 +82,28 @@ export default defineConfig({
             urlPattern: /^https?:\/\/[^/]+\/api\/.*/,
             handler: 'NetworkOnly',
           },
+          {
+            urlPattern: /\.(?:woff2|woff|ttf|eot)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 Jahr
+              },
+            },
+          },
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|webp|ico)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'images-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Tage
+              },
+            },
+          },
         ],
       },
     }),

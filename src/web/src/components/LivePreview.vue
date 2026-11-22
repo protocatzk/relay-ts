@@ -134,11 +134,43 @@ watch(
   },
 );
 
+let previewObserver: IntersectionObserver | null = null;
+let autoPausedByScroll = false;
+
 onMounted(() => {
   void loadChat();
+  if ('IntersectionObserver' in window && video.value) {
+    previewObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        if (!entry.isIntersecting && player.value && status.value === 'playing') {
+          // Out of viewport: pause to save CPU, battery, and buffer churn
+          try {
+            player.value.pause();
+            autoPausedByScroll = true;
+          } catch {
+            /* ignore */
+          }
+        } else if (entry.isIntersecting && autoPausedByScroll && player.value) {
+          // Back in viewport: resume playback
+          autoPausedByScroll = false;
+          void player.value.play()?.catch(() => {
+            /* ignore */
+          });
+        }
+      },
+      { threshold: 0.1 },
+    );
+    previewObserver.observe(video.value);
+  }
 });
 
 onBeforeUnmount(() => {
+  if (previewObserver) {
+    previewObserver.disconnect();
+    previewObserver = null;
+  }
   stop();
 });
 </script>

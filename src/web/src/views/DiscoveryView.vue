@@ -766,6 +766,13 @@ onUnmounted(() => {
   gap: var(--space-3, 0.75rem);
 }
 
+@media (max-width: 720px) {
+  .cards-grid > * {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 160px;
+  }
+}
+
 .empty {
   display: flex;
   flex-direction: column;

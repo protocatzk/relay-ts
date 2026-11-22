@@ -162,6 +162,21 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
       prefix: '/',
       wildcard: false,
       maxAge: 0,
+      setHeaders: (res, pathName) => {
+        // Hashed assets (JS/CSS chunks) and webfonts are immutable and can be aggressively cached
+        if (pathName.includes('/assets/') || pathName.includes('/fonts/')) {
+          res.header('cache-control', 'public, max-age=31536000, immutable');
+        } else if (
+          pathName.endsWith('sw.js') ||
+          pathName.endsWith('manifest.webmanifest') ||
+          pathName.endsWith('index.html')
+        ) {
+          res.header('cache-control', 'no-cache, no-store, must-revalidate');
+        } else {
+          // Static images, icons, logos
+          res.header('cache-control', 'public, max-age=86400');
+        }
+      },
     });
     app.setNotFoundHandler((request, reply) => {
       const pathname = (request.url ?? '').split('?')[0] ?? '/';
