@@ -617,6 +617,7 @@ describe('DiscoveryService & Provider Fallback', () => {
         priority: 999,
         auto_start: false,
         preferred: false,
+        group: 'Discovery',
         source: 'discovery',
       }),
     );

@@ -9,6 +9,7 @@ const props = defineProps<{
   streamer: Streamer | null;
   saving: boolean;
   error: string;
+  existingGroups?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ interface StreamerForm {
   name: string;
   tiktok: string;
   youtube_key: string;
+  group: string;
   quality: StreamQuality;
   auto_start: boolean;
   preferred: boolean;
@@ -44,6 +46,7 @@ const form = reactive<StreamerForm>({
   name: source?.name ?? '',
   tiktok: source?.tiktok ?? '',
   youtube_key: '',
+  group: source?.group ?? '',
   quality: source?.quality ?? 'best',
   auto_start: source?.auto_start ?? false,
   preferred: source?.preferred ?? false,
@@ -117,6 +120,7 @@ function buildBody(): StreamerInput {
       : 0,
     enabled: form.enabled,
     own_stream: form.own_stream,
+    group: form.group.trim(),
   };
 
   const youtubeKey = form.youtube_key.trim();
@@ -228,6 +232,24 @@ function submit(): void {
               {{ option.label }}
             </option>
           </select>
+        </div>
+
+        <div class="field">
+          <label for="streamer-group">Gruppe</label>
+          <input
+            id="streamer-group"
+            v-model="form.group"
+            type="text"
+            list="streamer-group-suggestions"
+            placeholder="z. B. Gaming, Talk, Musik, Discovery…"
+            autocomplete="off"
+          />
+          <datalist id="streamer-group-suggestions">
+            <option v-for="grp in existingGroups" :key="grp" :value="grp" />
+          </datalist>
+          <p class="field-hint">
+            Frei wählbare Kategorie zur Organisation und Filterung.
+          </p>
         </div>
 
         <div class="field">

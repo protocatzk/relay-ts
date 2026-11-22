@@ -130,6 +130,7 @@ export interface Streamer {
   priority: number;
   enabled: boolean;
   own_stream: boolean;
+  group?: string;
   source?: 'manual' | 'discovery';
   video_mode: 'copy' | 'reencode';
   status: {
@@ -1062,6 +1063,7 @@ export interface StreamerInput {
   priority: number;
   enabled: boolean;
   own_stream: boolean;
+  group?: string;
 }
 
 export interface StudioPreviewInput {
@@ -1087,6 +1089,7 @@ export interface QuickStartInput {
 export interface BulkAddInput {
   channels: string[];
   playlist_id?: string;
+  group?: string;
 }
 
 export interface BulkAddResult {

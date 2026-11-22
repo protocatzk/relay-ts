@@ -12,6 +12,7 @@ const { store, refreshStreamers, refreshPlaylists, refreshStatus } = useStore();
 const { pushToast } = useToast();
 
 const search = ref('');
+const selectedGroup = ref<string>('all');
 const editorOpen = ref(false);
 const editing = ref<Streamer | null>(null);
 const saving = ref(false);
@@ -21,17 +22,47 @@ const deleteTarget = ref<Streamer | null>(null);
 const deleting = ref(false);
 const bulkInput = ref('');
 const bulkPlaylist = ref('');
+const bulkGroup = ref('');
 const bulkBusy = ref(false);
+
+const existingGroups = computed<string[]>(() => {
+  const set = new Set<string>();
+  for (const s of store.streamers) {
+    const grp = (s.group ?? '').trim();
+    if (grp) set.add(grp);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+});
+
+const groupCounts = computed<Record<string, number>>(() => {
+  const counts: Record<string, number> = { all: store.streamers.length, ungrouped: 0 };
+  for (const s of store.streamers) {
+    const grp = (s.group ?? '').trim();
+    if (!grp) {
+      counts.ungrouped = (counts.ungrouped ?? 0) + 1;
+    } else {
+      counts[grp] = (counts[grp] ?? 0) + 1;
+    }
+  }
+  return counts;
+});
 
 const filtered = computed(() => {
   const query = search.value.trim().toLowerCase();
-  const sorted = sortStreamersByLive(store.streamers);
+  let list = store.streamers;
+  if (selectedGroup.value === 'ungrouped') {
+    list = list.filter((s) => !(s.group ?? '').trim());
+  } else if (selectedGroup.value !== 'all') {
+    list = list.filter((s) => (s.group ?? '').trim() === selectedGroup.value);
+  }
+  const sorted = sortStreamersByLive(list);
   if (!query) return sorted;
   return sorted.filter((streamer) => {
     return (
       streamer.name.toLowerCase().includes(query) ||
       streamer.tiktok.toLowerCase().includes(query) ||
-      streamer.id.toLowerCase().includes(query)
+      streamer.id.toLowerCase().includes(query) ||
+      (streamer.group ?? '').toLowerCase().includes(query)
     );
   });
 });
@@ -157,6 +188,7 @@ async function submitBulk(): Promise<void> {
     const result = await api.streamers.bulkAdd({
       channels,
       ...(bulkPlaylist.value ? { playlist_id: bulkPlaylist.value } : {}),
+      ...(bulkGroup.value.trim() ? { group: bulkGroup.value.trim() } : {}),
     });
     await Promise.allSettled([refreshStreamers(), refreshStatus(), refreshPlaylists()]);
     bulkInput.value = '';
@@ -220,6 +252,20 @@ onMounted(() => {
             </option>
           </select>
         </div>
+        <div class="field">
+          <label for="bulk-group">Gruppe</label>
+          <input
+            id="bulk-group"
+            v-model="bulkGroup"
+            type="text"
+            list="bulk-group-suggestions"
+            placeholder="z. B. Standard, Gaming…"
+            autocomplete="off"
+          />
+          <datalist id="bulk-group-suggestions">
+            <option v-for="grp in existingGroups" :key="grp" :value="grp" />
+          </datalist>
+        </div>
         <button type="button" class="btn btn-primary" :disabled="bulkBusy || !bulkInput.trim()" @click="submitBulk">
           <span v-if="bulkBusy" class="spinner" aria-hidden="true"></span>
           Anlegen
@@ -229,6 +275,45 @@ onMounted(() => {
     </section>
 
     <section class="card">
+      <div v-if="existingGroups.length > 0" class="group-chips" role="tablist" aria-label="Streamer-Gruppen">
+        <button
+          type="button"
+          class="group-chip"
+          :class="{ active: selectedGroup === 'all' }"
+          role="tab"
+          :aria-selected="selectedGroup === 'all'"
+          @click="selectedGroup = 'all'"
+        >
+          Alle
+          <span class="chip-count">{{ groupCounts.all ?? 0 }}</span>
+        </button>
+        <button
+          v-for="grp in existingGroups"
+          :key="grp"
+          type="button"
+          class="group-chip"
+          :class="{ active: selectedGroup === grp }"
+          role="tab"
+          :aria-selected="selectedGroup === grp"
+          @click="selectedGroup = grp"
+        >
+          {{ grp }}
+          <span class="chip-count">{{ groupCounts[grp] ?? 0 }}</span>
+        </button>
+        <button
+          v-if="(groupCounts.ungrouped ?? 0) > 0"
+          type="button"
+          class="group-chip"
+          :class="{ active: selectedGroup === 'ungrouped' }"
+          role="tab"
+          :aria-selected="selectedGroup === 'ungrouped'"
+          @click="selectedGroup = 'ungrouped'"
+        >
+          Ohne Gruppe
+          <span class="chip-count">{{ groupCounts.ungrouped }}</span>
+        </button>
+      </div>
+
       <div class="toolbar">
         <div class="field field-search">
           <label class="sr-only" for="streamer-search">Streamer durchsuchen</label>
@@ -278,6 +363,7 @@ onMounted(() => {
           <thead>
             <tr role="row">
               <th scope="col" role="columnheader">Streamer</th>
+              <th scope="col" role="columnheader">Gruppe</th>
               <th scope="col" role="columnheader">Status</th>
               <th scope="col" role="columnheader">Qualität</th>
               <th scope="col" role="columnheader">YouTube-Key</th>
@@ -305,6 +391,18 @@ onMounted(() => {
                   <span v-if="!streamer.enabled" class="badge tone-muted badge-xs">Deaktiviert</span>
                 </div>
                 <div class="cell-sub mono">{{ streamer.id }} · @{{ streamer.tiktok.replace(/^@/, '') }}</div>
+              </td>
+              <td data-label="Gruppe" role="cell">
+                <button
+                  v-if="streamer.group"
+                  type="button"
+                  class="badge tone-neutral badge-clickable"
+                  title="Nach dieser Gruppe filtern"
+                  @click="selectedGroup = streamer.group"
+                >
+                  📁 {{ streamer.group }}
+                </button>
+                <span v-else class="muted small">–</span>
               </td>
               <td data-label="Status" role="cell">
                 <div class="cell-stack">
@@ -399,6 +497,7 @@ onMounted(() => {
       :streamer="editing"
       :saving="saving"
       :error="saveError"
+      :existing-groups="existingGroups"
       @close="closeEditor"
       @save="handleSave"
     />
@@ -425,3 +524,69 @@ onMounted(() => {
     </ModalDialog>
   </div>
 </template>
+
+<style scoped>
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.group-chip:hover {
+  background: var(--bg-surface-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-main, #f1f5f9);
+}
+
+.group-chip.active {
+  background: var(--primary-color, #38bdf8);
+  border-color: var(--primary-color, #38bdf8);
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.75rem;
+}
+
+.group-chip.active .chip-count {
+  background: rgba(0, 0, 0, 0.25);
+  color: #0f172a;
+}
+
+.badge-clickable {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  transition: transform 0.1s ease, filter 0.15s ease;
+}
+
+.badge-clickable:hover {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+</style>

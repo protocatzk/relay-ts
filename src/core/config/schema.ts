@@ -149,6 +149,7 @@ export const StreamerFieldsSchema = z
     priority: z.number().int().min(0).max(999).default(0),
     enabled: z.boolean().default(true),
     own_stream: z.boolean().default(false),
+    group: z.string().trim().max(64).default(''),
     source: z.enum(['manual', 'discovery']).optional(),
     // Kept for compatibility with the Python restreamer configuration.
     video_mode: z.enum(['copy', 'reencode']).default('copy'),
@@ -169,6 +170,7 @@ export const StreamerUpdateSchema = z
     priority: z.number().int().min(0).max(999).optional(),
     enabled: z.boolean().optional(),
     own_stream: z.boolean().optional(),
+    group: z.string().trim().max(64).optional(),
     source: z.enum(['manual', 'discovery']).optional(),
     video_mode: z.enum(['copy', 'reencode']).optional(),
   })

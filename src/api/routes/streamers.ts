@@ -16,6 +16,7 @@ const QuickStartBody = z.object({
 const BulkAddBody = z.object({
   channels: z.array(z.string().min(1)).min(1).max(200),
   playlist_id: z.string().optional(),
+  group: z.string().trim().max(64).optional(),
 });
 
 function slugify(value: string): string {
@@ -90,7 +91,14 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
         suffix += 1;
         id = `${base}-${suffix}`;
       }
-      ctx.store.create({ id, name: handle, tiktok: handle, quality: 'best', enabled: true });
+      ctx.store.create({
+        id,
+        name: handle,
+        tiktok: handle,
+        quality: 'best',
+        enabled: true,
+        ...(parsed.data.group ? { group: parsed.data.group } : {}),
+      });
       created.push(id);
     }
 
