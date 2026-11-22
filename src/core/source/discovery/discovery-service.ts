@@ -314,7 +314,7 @@ export class DiscoveryService {
       return cachedUrl;
     }
 
-    const hit = await this.roomInfo(normalized, { forceFresh: true });
+    const hit = await this.roomInfo(normalized);
     if (!hit || !hit.live || hit.age_restricted) {
       return null;
     }
