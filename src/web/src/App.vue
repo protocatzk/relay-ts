@@ -8,6 +8,7 @@ import ToastHost from '@/src/components/ToastHost.vue';
 import PwaPrompt from '@/src/components/PwaPrompt.vue';
 import ConfirmDialog from '@/src/components/ConfirmDialog.vue';
 import UnsavedChangesDialog from '@/src/components/UnsavedChangesDialog.vue';
+import { desktopNavSide } from '@/src/navigation';
 import { checkServerVersion } from '@/src/composables/usePwa';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
 
@@ -57,7 +58,7 @@ onBeforeUnmount(() => {
 
   <div v-else class="app-shell">
     <a class="skip-link" href="#main-content" @click="focusMain">Zum Inhalt springen</a>
-    <div class="app-main">
+    <div :class="['app-main', `nav-${desktopNavSide}`]">
       <AppHeader />
       <SectionTabs />
       <main id="main-content" ref="mainContent" class="content" tabindex="-1">

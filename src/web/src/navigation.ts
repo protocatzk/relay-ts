@@ -6,7 +6,38 @@
  * deep links keep working; the section is attached via `meta.section`.
  */
 
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
+
+export type DesktopNavSide = 'left' | 'right';
+
+const NAV_SIDE_STORAGE_KEY = 'relay_nav_position';
+
+function readDesktopNavSide(): DesktopNavSide {
+  try {
+    if (typeof localStorage === 'undefined') return 'left';
+    const raw = localStorage.getItem(NAV_SIDE_STORAGE_KEY);
+    return raw === 'right' ? 'right' : 'left';
+  } catch {
+    return 'left';
+  }
+}
+
+export const desktopNavSide = ref<DesktopNavSide>(readDesktopNavSide());
+
+export function setDesktopNavSide(side: DesktopNavSide): void {
+  desktopNavSide.value = side;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(NAV_SIDE_STORAGE_KEY, side);
+    }
+  } catch {
+    // Storage may be unavailable
+  }
+}
+
+export function toggleDesktopNavSide(): void {
+  setDesktopNavSide(desktopNavSide.value === 'left' ? 'right' : 'left');
+}
 
 export type SectionId = 'live' | 'inhalte' | 'studio' | 'system';
 
