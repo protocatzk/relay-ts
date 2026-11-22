@@ -51,6 +51,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Zeitplan', section: 'inhalte' },
   },
   {
+    path: '/automations',
+    name: 'automations',
+    component: () => import('@/src/views/AutomationsView.vue'),
+    meta: { title: 'Automation', section: 'inhalte' },
+  },
+  {
     path: '/youtube',
     name: 'youtube',
     component: () => import('@/src/views/YouTubeView.vue'),

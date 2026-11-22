@@ -1141,6 +1141,119 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/automations',
+    tag: 'automations',
+    summary: 'Liste aller Automatisierungs-Workflows und Logs',
+    response: {
+      type: 'object',
+      required: ['workflows', 'executions'],
+      properties: {
+        workflows: { type: 'array', items: { type: 'object' } },
+        executions: { type: 'array', items: { type: 'object' } },
+      },
+    },
+  },
+  {
+    method: 'get',
+    path: '/api/automations/:id',
+    tag: 'automations',
+    summary: 'Einzelnen Workflow abrufen',
+    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    response: {
+      type: 'object',
+      required: ['workflow'],
+      properties: {
+        workflow: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/automations',
+    tag: 'automations',
+    summary: 'Neuen Workflow anlegen',
+    body: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        enabled: { type: 'boolean' },
+        nodes: { type: 'array', items: { type: 'object' } },
+        connections: { type: 'array', items: { type: 'object' } },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['workflow'],
+      properties: {
+        workflow: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'put',
+    path: '/api/automations/:id',
+    tag: 'automations',
+    summary: 'Workflow aktualisieren',
+    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    body: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        enabled: { type: 'boolean' },
+        nodes: { type: 'array', items: { type: 'object' } },
+        connections: { type: 'array', items: { type: 'object' } },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['workflow'],
+      properties: {
+        workflow: { type: 'object' },
+      },
+    },
+  },
+  {
+    method: 'delete',
+    path: '/api/automations/:id',
+    tag: 'automations',
+    summary: 'Workflow löschen',
+    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    response: {
+      type: 'object',
+      required: ['ok'],
+      properties: {
+        ok: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/automations/:id/execute',
+    tag: 'automations',
+    summary: 'Workflow manuell oder testweise ausführen',
+    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    body: {
+      type: 'object',
+      properties: {
+        triggerNodeId: { type: 'string' },
+        payload: { type: 'object' },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['ok', 'execution', 'status'],
+      properties: {
+        ok: { type: 'boolean' },
+        execution: { type: 'object' },
+        status: ref('StatusEnvelope'),
+      },
+    },
+  },
+  {
+    method: 'get',
     path: '/api/discovery/search',
     tag: 'discovery',
     summary: 'Live-Streams oder Handles suchen',

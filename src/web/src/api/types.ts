@@ -1250,6 +1250,77 @@ export interface PlaylistsResponse {
   playlists: Playlist[];
 }
 
+export type AutomationNodeType =
+  | 'trigger_schedule'
+  | 'trigger_stream_state'
+  | 'trigger_streamer_status'
+  | 'trigger_vital_threshold'
+  | 'trigger_chat_event'
+  | 'trigger_webhook'
+  | 'flow_condition'
+  | 'flow_delay'
+  | 'flow_cooldown'
+  | 'action_switch_streamer'
+  | 'action_start_playlist'
+  | 'action_queue_item'
+  | 'action_screen'
+  | 'action_overlay_scene'
+  | 'action_send_chat'
+  | 'action_telegram'
+  | 'action_webhook'
+  | 'action_restart_sink';
+
+export interface WorkflowPosition {
+  x: number;
+  y: number;
+}
+
+export interface AutomationNode {
+  id: string;
+  type: AutomationNodeType;
+  name: string;
+  position: WorkflowPosition;
+  parameters: Record<string, unknown>;
+}
+
+export interface AutomationConnection {
+  id: string;
+  fromNode: string;
+  fromOutput: string;
+  toNode: string;
+  toInput: string;
+}
+
+export interface WorkflowExecutionLog {
+  id: string;
+  workflowId: string;
+  startedAt: string;
+  finishedAt: string;
+  status: 'success' | 'failed' | 'partial';
+  triggerNodeId: string;
+  executedNodeIds: string[];
+  error?: string;
+}
+
+export interface AutomationWorkflow {
+  id: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  nodes: AutomationNode[];
+  connections: AutomationConnection[];
+  createdAt: string;
+  updatedAt: string;
+  lastExecutedAt?: string;
+  executionCount: number;
+  lastExecutionStatus?: 'success' | 'failed' | 'partial';
+}
+
+export interface AutomationsListResponse {
+  workflows: AutomationWorkflow[];
+  executions: WorkflowExecutionLog[];
+}
+
 export interface ApiErrorDetail {
   code: string;
   message: string;

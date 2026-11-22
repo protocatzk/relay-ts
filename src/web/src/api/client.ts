@@ -14,6 +14,9 @@ import type {
   DiagnosticsSnapshot,
   TikTokAccountPublic,
   TikTokAccountsResponse,
+  AutomationsListResponse,
+  AutomationWorkflow,
+  WorkflowExecutionLog,
   DiscoveryHit,
   DiscoveryProviderStatus,
   DiscoveryResponse,
@@ -841,6 +844,32 @@ export const api = {
       request<{ ok: true; streamer: Streamer; created: boolean; status: StatusPayload }>(
         '/api/discovery/switch',
         { method: 'POST', body: { handle } },
+      ),
+  },
+  automations: {
+    list: () => request<AutomationsListResponse>('/api/automations'),
+    get: (id: string) => request<{ workflow: AutomationWorkflow }>(`/api/automations/${encodeURIComponent(id)}`),
+    create: (body: Partial<AutomationWorkflow>) =>
+      request<{ workflow: AutomationWorkflow }>('/api/automations', {
+        method: 'POST',
+        body,
+      }),
+    update: (id: string, body: Partial<AutomationWorkflow>) =>
+      request<{ workflow: AutomationWorkflow }>(`/api/automations/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        body,
+      }),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/api/automations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+    execute: (id: string, triggerNodeId?: string, payload?: Record<string, unknown>) =>
+      request<{ ok: boolean; execution: WorkflowExecutionLog; status: StatusPayload }>(
+        `/api/automations/${encodeURIComponent(id)}/execute`,
+        {
+          method: 'POST',
+          body: { triggerNodeId, payload },
+        },
       ),
   },
 };

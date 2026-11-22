@@ -12,6 +12,7 @@ import { TotpStore } from './api/totp-store.js';
 import { AuditLogStore } from './core/audit-log.js';
 import { SceneStore } from './core/overlays/scene-store.js';
 import { StreamScheduler } from './core/scheduler/scheduler.js';
+import { AutomationEngine } from './core/automations/automation-engine.js';
 import { WebhookDispatcher } from './core/notifications/webhooks.js';
 import { TikTokAccountStore } from './core/account/tiktok-account-store.js';
 import { DiscoveryService } from './core/source/discovery/discovery-service.js';
@@ -422,6 +423,17 @@ async function main(): Promise<void> {
     cookiesFile: config.paths.cookiesFile,
   });
 
+  const automations = new AutomationEngine({
+    filePath: join(config.paths.dataDir, 'automations.json'),
+    logger,
+    supervisor,
+    bus,
+    audit,
+    scenes,
+    webhooks,
+    telegramBot,
+  });
+
   const app = await buildServer({
     config,
     logger,
@@ -442,9 +454,11 @@ async function main(): Promise<void> {
     webhooks,
     discovery,
     tiktokAccounts,
+    automations,
   });
 
   scheduler.start();
+  await automations.start();
   telegramBot?.start();
 
   try {
@@ -482,6 +496,7 @@ async function main(): Promise<void> {
     try {
       await app.close();
       scheduler.stop();
+      automations.stop();
       await telegramBot?.stop();
       await supervisor.shutdown();
       await flush();
