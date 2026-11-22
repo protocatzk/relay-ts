@@ -35,3 +35,4 @@
 {"title":"Streamer: Gruppenverwaltung und automatische Discovery-Gruppe","file":"35-streamer-groups.md","labels":["enhancement","playlists","streaming","P2"]}
 {"title":"Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher","file":"36-webcast-direct-pillar-following-accounts.md","labels":["enhancement","chat","earnings","overlay","P2"]}
 {"title":"Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions)","file":"37-automations-builder-ui.md","labels":["enhancement","automation","ui","api","P2"]}
+{"title":"RTMP-Ingest: Externen RTMP-Endpoint für Gaming-Streams einbauen (mit konfigurierbarem Stream-Key)","file":"38-external-rtmp-ingest-endpoint.md","labels":["enhancement","streaming","source","P2"]}
