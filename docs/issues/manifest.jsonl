@@ -27,3 +27,4 @@
 {"title":"Bug: YouTube-Audio-Encoding für iOS-Clients analysieren und stabilisieren","file":"27-youtube-ios-audio-encoding.md","labels":["bug","reliability","youtube","P1"]}
 {"title":"Overlay: Optionaler Säulen-Monitor (Top-Banner für Stats/Ziel + Chat-Monitor links)","file":"28-top-banner-overlay.md","labels":["overlay","enhancement","P2","chat","earnings"]}
 {"title":"Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie)","file":"29-cockpit-canvas-starship.md","labels":["overlay","enhancement","performance","P2","chat","earnings"]}
+{"title":"UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden","file":"30-desktop-side-nav-pill.md","labels":["enhancement","accessibility","mobile","P3"]}

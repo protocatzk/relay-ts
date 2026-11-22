@@ -110,6 +110,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) (#62) | P1 | Reliability/Ops | geplant |
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
 | Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
+| UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | geplant |
 
 ## Definition of Done
 
