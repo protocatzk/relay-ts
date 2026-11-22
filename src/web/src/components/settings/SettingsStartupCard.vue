@@ -108,6 +108,27 @@ defineEmits<{
               />
               Hintergrund hochladen
             </label>
+            <select
+              class="btn btn-ghost btn-sm select-template"
+              aria-label="RELAY Vorlage auswählen"
+              @change="(e) => {
+                const val = (e.target as HTMLSelectElement).value;
+                if (val) {
+                  startup.background = val;
+                  (e.target as HTMLSelectElement).value = '';
+                }
+              }"
+            >
+              <option value="" disabled selected>🎨 RELAY-Vorlage wählen…</option>
+              <optgroup label="Hochformat (9:16 / 720x1280)">
+                <option value="/srv/relay/current/web/dist/slates/relay-startup-vertical-720x1280.png">Startbildschirm (PNG)</option>
+                <option value="/srv/relay/current/web/dist/slates/relay-slate-vertical-720x1280.png">Neutrales Slate (PNG)</option>
+              </optgroup>
+              <optgroup label="Querformat (16:9 / 1280x720)">
+                <option value="/srv/relay/current/web/dist/slates/relay-startup-horizontal-1280x720.png">Startbildschirm (PNG)</option>
+                <option value="/srv/relay/current/web/dist/slates/relay-slate-horizontal-1280x720.png">Neutrales Slate (PNG)</option>
+              </optgroup>
+            </select>
             <button
               v-if="startup.background"
               type="button"
