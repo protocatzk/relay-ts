@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RELAY Restreamer API",
-    "version": "0.26.0",
+    "version": "0.27.0",
     "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
   },
   "servers": [
@@ -51,6 +51,10 @@
     {
       "name": "media",
       "description": "Lokale Videos"
+    },
+    {
+      "name": "discovery",
+      "description": "Stream Discovery und Suche"
     },
     {
       "name": "preview",
@@ -6496,6 +6500,422 @@
         }
       }
     },
+    "/api/discovery/trending": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Trending Live-Streams abrufen",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "DE"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "de"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/search": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Live-Streams oder Handles suchen",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 20
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/room/:handle": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Live-Details zu einem TikTok-Handle abrufen",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hit": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/DiscoveryHit"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DiscoveryProviderStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/add": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Streamer aus Discovery deaktiviert hinzufügen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "streamer",
+                    "created"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "streamer": {
+                      "$ref": "#/components/schemas/Streamer"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/queue": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Streamer prüfen und in Regie-Queue einreihen",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "now",
+                      "next"
+                    ],
+                    "default": "now"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "streamer",
+                    "created",
+                    "queue",
+                    "status"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "streamer": {
+                      "$ref": "#/components/schemas/Streamer"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "queue": {
+                      "$ref": "#/components/schemas/Queue"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/Status"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/switch": {
+      "post": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Streamer prüfen und sofort umschalten",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "streamer",
+                    "created",
+                    "status"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "streamer": {
+                      "$ref": "#/components/schemas/Streamer"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/Status"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/youtube/status": {
       "get": {
         "tags": [
@@ -7196,7 +7616,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.26.0"
+            "example": "0.27.0"
           }
         }
       },
@@ -7308,7 +7728,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.26.0"
+            "example": "0.27.0"
           },
           "uptime_seconds": {
             "type": "number"
@@ -7480,6 +7900,13 @@
             "default": false,
             "type": "boolean"
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "discovery"
+            ]
+          },
           "video_mode": {
             "default": "copy",
             "type": "string",
@@ -7495,6 +7922,120 @@
           "tiktok"
         ],
         "additionalProperties": {}
+      },
+      "DiscoveryHit": {
+        "type": "object",
+        "required": [
+          "handle",
+          "display_name",
+          "live",
+          "source",
+          "fetched_at"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "viewers": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DiscoveryProviderStatus": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline",
+              "rate_limited"
+            ]
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_ok_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DiscoveryResponse": {
+        "type": "object",
+        "required": [
+          "hits",
+          "providers",
+          "fetched_at"
+        ],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryHit"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoveryProviderStatus"
+            }
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "StreamerUpdate": {
         "type": "object",
@@ -7543,6 +8084,13 @@
           },
           "own_stream": {
             "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "discovery"
+            ]
           },
           "video_mode": {
             "type": "string",
@@ -9220,6 +9768,60 @@
                 "maximum": 50
               }
             }
+          },
+          "discovery": {
+            "default": {
+              "enabled": true,
+              "providers": [
+                "live_page",
+                "room_info",
+                "search_api"
+              ],
+              "cache_seconds": 90,
+              "region": "DE",
+              "language": "de"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "providers": {
+                "default": [
+                  "live_page",
+                  "room_info",
+                  "search_api"
+                ],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "live_page",
+                    "room_info",
+                    "search_api"
+                  ]
+                }
+              },
+              "cache_seconds": {
+                "default": 90,
+                "type": "integer",
+                "minimum": 15,
+                "maximum": 600
+              },
+              "region": {
+                "default": "DE",
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 8
+              },
+              "language": {
+                "default": "de",
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 8
+              }
+            }
           }
         }
       },
@@ -10701,6 +11303,60 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 50
+              }
+            }
+          },
+          "discovery": {
+            "default": {
+              "enabled": true,
+              "providers": [
+                "live_page",
+                "room_info",
+                "search_api"
+              ],
+              "cache_seconds": 90,
+              "region": "DE",
+              "language": "de"
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "providers": {
+                "default": [
+                  "live_page",
+                  "room_info",
+                  "search_api"
+                ],
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "live_page",
+                    "room_info",
+                    "search_api"
+                  ]
+                }
+              },
+              "cache_seconds": {
+                "default": 90,
+                "type": "integer",
+                "minimum": 15,
+                "maximum": 600
+              },
+              "region": {
+                "default": "DE",
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 8
+              },
+              "language": {
+                "default": "de",
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 8
               }
             }
           }

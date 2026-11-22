@@ -149,6 +149,7 @@ export const StreamerFieldsSchema = z
     priority: z.number().int().min(0).max(999).default(0),
     enabled: z.boolean().default(true),
     own_stream: z.boolean().default(false),
+    source: z.enum(['manual', 'discovery']).optional(),
     // Kept for compatibility with the Python restreamer configuration.
     video_mode: z.enum(['copy', 'reencode']).default('copy'),
   })
@@ -168,6 +169,7 @@ export const StreamerUpdateSchema = z
     priority: z.number().int().min(0).max(999).optional(),
     enabled: z.boolean().optional(),
     own_stream: z.boolean().optional(),
+    source: z.enum(['manual', 'discovery']).optional(),
     video_mode: z.enum(['copy', 'reencode']).optional(),
   })
   .passthrough();
@@ -391,6 +393,19 @@ export const LoggingSettingsSchema = z.object({
   log_files: z.number().int().min(1).max(50).default(5),
 });
 
+export const DISCOVERY_PROVIDERS = ['live_page', 'room_info', 'search_api'] as const;
+export type DiscoveryProviderName = (typeof DISCOVERY_PROVIDERS)[number];
+
+export const DiscoverySettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  providers: z
+    .array(z.enum(DISCOVERY_PROVIDERS))
+    .default(['live_page', 'room_info', 'search_api']),
+  cache_seconds: z.number().int().min(15).max(600).default(90),
+  region: z.string().min(2).max(8).default('DE'),
+  language: z.string().min(2).max(8).default('de'),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
@@ -410,6 +425,7 @@ export const SettingsSchema = z.object({
   recording: RecordingSettingsSchema.default(RecordingSettingsSchema.parse({})),
   webhooks: WebhooksSettingsSchema.default(WebhooksSettingsSchema.parse({})),
   logging: LoggingSettingsSchema.default(LoggingSettingsSchema.parse({})),
+  discovery: DiscoverySettingsSchema.default(DiscoverySettingsSchema.parse({})),
 });
 
 export const StreamersFileSchema = z
@@ -429,6 +445,7 @@ export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettings
 export type SecondarySinkSettings = z.infer<typeof SecondarySinkSettingsSchema>;
 export type RecordingSettings = z.infer<typeof RecordingSettingsSchema>;
 export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
+export type DiscoverySettings = z.infer<typeof DiscoverySettingsSchema>;
 export type ChatOverlayConfig = z.infer<typeof ChatOverlaySchema>;
 export type ClockOverlayConfig = z.infer<typeof ClockOverlaySchema>;
 export type TextOverlayConfig = z.infer<typeof TextOverlaySchema>;

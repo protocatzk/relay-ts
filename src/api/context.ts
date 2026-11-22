@@ -13,6 +13,7 @@ import type { AuditLogStore } from '../core/audit-log.js';
 import type { SceneStore } from '../core/overlays/scene-store.js';
 import type { StreamScheduler } from '../core/scheduler/scheduler.js';
 import type { WebhookDispatcher } from '../core/notifications/webhooks.js';
+import type { DiscoveryService } from '../core/source/discovery/discovery-service.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -32,4 +33,5 @@ export interface ApiContext {
   scenes?: SceneStore;
   scheduler?: StreamScheduler;
   webhooks?: WebhookDispatcher;
+  discovery?: DiscoveryService;
 }

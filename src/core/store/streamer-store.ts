@@ -31,6 +31,7 @@ export interface StreamerView {
   priority: number;
   enabled: boolean;
   own_stream: boolean;
+  source?: 'manual' | 'discovery';
   video_mode: StreamerConfig['video_mode'];
   youtube_key_set: boolean;
   youtube_key_source: 'streamer' | 'env' | 'none';
@@ -284,6 +285,7 @@ export class StreamerStore {
       priority: streamer.priority,
       enabled: streamer.enabled,
       own_stream: streamer.own_stream,
+      source: streamer.source,
       video_mode: streamer.video_mode,
       youtube_key_set: key.source !== 'none',
       youtube_key_source: key.source,

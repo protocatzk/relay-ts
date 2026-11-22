@@ -30,6 +30,7 @@ import { registerYouTubeRoutes } from './routes/youtube.js';
 import { registerOpenApiRoutes } from './routes/openapi.js';
 import { registerSceneRoutes } from './routes/scenes.js';
 import { registerScheduleRoutes } from './routes/schedules.js';
+import { registerDiscoveryRoutes } from './routes/discovery.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -150,6 +151,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerYouTubeRoutes(app, ctx);
   await registerSceneRoutes(app, ctx);
   await registerScheduleRoutes(app, ctx);
+  await registerDiscoveryRoutes(app, ctx);
   await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;

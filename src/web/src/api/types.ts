@@ -130,6 +130,7 @@ export interface Streamer {
   priority: number;
   enabled: boolean;
   own_stream: boolean;
+  source?: 'manual' | 'discovery';
   video_mode: 'copy' | 'reencode';
   status: {
     online: boolean | null;
@@ -651,6 +652,44 @@ export interface LoggingSettings {
   log_files: number;
 }
 
+export type DiscoveryProviderName = 'live_page' | 'room_info' | 'search_api';
+
+export interface DiscoverySettings {
+  enabled: boolean;
+  providers: DiscoveryProviderName[];
+  cache_seconds: number;
+  region: string;
+  language: string;
+}
+
+export type DiscoveryProviderState = 'online' | 'offline' | 'rate_limited';
+
+export interface DiscoveryProviderStatus {
+  name: string;
+  status: DiscoveryProviderState;
+  last_error: string | null;
+  last_ok_at: string | null;
+}
+
+export interface DiscoveryHit {
+  handle: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  title: string | null;
+  live: boolean;
+  viewers: number | null;
+  age_restricted?: boolean;
+  source: string;
+  fetched_at: string;
+}
+
+export interface DiscoveryResponse {
+  hits: DiscoveryHit[];
+  providers: DiscoveryProviderStatus[];
+  fetched_at: string;
+}
+
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
@@ -669,6 +708,7 @@ export interface Settings {
   recording?: RecordingSettings;
   webhooks?: WebhooksSettings;
   logging?: LoggingSettings;
+  discovery?: DiscoverySettings;
 }
 
 export interface StreamingSettings {

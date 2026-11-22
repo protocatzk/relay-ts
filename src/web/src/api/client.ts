@@ -12,6 +12,9 @@ import type {
   BulkAddResult,
   ChatAnalyticsSnapshot,
   DiagnosticsSnapshot,
+  DiscoveryHit,
+  DiscoveryProviderStatus,
+  DiscoveryResponse,
   EarningsHistoryPoint,
   EarningsPeriod,
   EarningsSnapshot,
@@ -317,7 +320,7 @@ export const api = {
         await request<unknown>('/api/streamers', { method: 'POST', body }),
         'streamer',
       ),
-    update: async (id: string, body: StreamerInput) =>
+    update: async (id: string, body: Partial<StreamerInput>) =>
       unwrapResource<Streamer>(
         await request<unknown>(`/api/streamers/${encodeURIComponent(id)}`, { method: 'PUT', body }),
         'streamer',
@@ -778,6 +781,41 @@ export const api = {
       }),
     disconnect: () =>
       request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
+  },
+  discovery: {
+    trending: (opts?: { region?: string; language?: string; limit?: number }) => {
+      const search = new URLSearchParams();
+      if (opts?.region) search.set('region', opts.region);
+      if (opts?.language) search.set('language', opts.language);
+      if (opts?.limit) search.set('limit', String(opts.limit));
+      const qs = search.toString();
+      return request<DiscoveryResponse>(`/api/discovery/trending${qs ? `?${qs}` : ''}`);
+    },
+    search: (q: string, opts?: { limit?: number; region?: string }) => {
+      const search = new URLSearchParams({ q });
+      if (opts?.limit) search.set('limit', String(opts.limit));
+      if (opts?.region) search.set('region', opts.region);
+      return request<DiscoveryResponse>(`/api/discovery/search?${search.toString()}`);
+    },
+    room: (handle: string) =>
+      request<{ hit: DiscoveryHit | null; providers: DiscoveryProviderStatus[] }>(
+        `/api/discovery/room/${encodeURIComponent(handle)}`,
+      ),
+    add: (handle: string, name?: string) =>
+      request<{ ok: true; streamer: Streamer; created: boolean }>('/api/discovery/add', {
+        method: 'POST',
+        body: { handle, name },
+      }),
+    queue: (handle: string, mode: 'now' | 'next' = 'now') =>
+      request<{ ok: true; streamer: Streamer; created: boolean; queue: QueueSnapshot; status: StatusPayload }>(
+        '/api/discovery/queue',
+        { method: 'POST', body: { handle, mode } },
+      ),
+    switch: (handle: string) =>
+      request<{ ok: true; streamer: Streamer; created: boolean; status: StatusPayload }>(
+        '/api/discovery/switch',
+        { method: 'POST', body: { handle } },
+      ),
   },
 };
 

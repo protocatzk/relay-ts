@@ -1034,6 +1034,116 @@ const routes: RouteDoc[] = [
     response: { type: 'string' },
   },
 
+  // Discovery
+  {
+    method: 'get',
+    path: '/api/discovery/trending',
+    tag: 'discovery',
+    summary: 'Trending Live-Streams abrufen',
+    parameters: [
+      { name: 'region', in: 'query', schema: { type: 'string', example: 'DE' } },
+      { name: 'language', in: 'query', schema: { type: 'string', example: 'de' } },
+      { name: 'limit', in: 'query', schema: { type: 'integer', example: 30 } },
+    ],
+    response: ref('DiscoveryResponse'),
+  },
+  {
+    method: 'get',
+    path: '/api/discovery/search',
+    tag: 'discovery',
+    summary: 'Live-Streams oder Handles suchen',
+    parameters: [
+      { name: 'q', in: 'query', schema: { type: 'string' } },
+      { name: 'limit', in: 'query', schema: { type: 'integer', example: 20 } },
+      { name: 'region', in: 'query', schema: { type: 'string' } },
+    ],
+    response: ref('DiscoveryResponse'),
+  },
+  {
+    method: 'get',
+    path: '/api/discovery/room/:handle',
+    tag: 'discovery',
+    summary: 'Live-Details zu einem TikTok-Handle abrufen',
+    response: {
+      type: 'object',
+      properties: {
+        hit: { anyOf: [ref('DiscoveryHit'), { type: 'null' }] },
+        providers: { type: 'array', items: ref('DiscoveryProviderStatus') },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/discovery/add',
+    tag: 'discovery',
+    summary: 'Streamer aus Discovery deaktiviert hinzufügen',
+    body: {
+      type: 'object',
+      required: ['handle'],
+      properties: {
+        handle: { type: 'string' },
+        name: { type: 'string' },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['ok', 'streamer', 'created'],
+      properties: {
+        ok: { type: 'boolean' },
+        streamer: ref('Streamer'),
+        created: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/discovery/queue',
+    tag: 'discovery',
+    summary: 'Streamer prüfen und in Regie-Queue einreihen',
+    body: {
+      type: 'object',
+      required: ['handle'],
+      properties: {
+        handle: { type: 'string' },
+        mode: { type: 'string', enum: ['now', 'next'], default: 'now' },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['ok', 'streamer', 'created', 'queue', 'status'],
+      properties: {
+        ok: { type: 'boolean' },
+        streamer: ref('Streamer'),
+        created: { type: 'boolean' },
+        queue: ref('Queue'),
+        status: ref('Status'),
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/discovery/switch',
+    tag: 'discovery',
+    summary: 'Streamer prüfen und sofort umschalten',
+    body: {
+      type: 'object',
+      required: ['handle'],
+      properties: {
+        handle: { type: 'string' },
+      },
+    },
+    response: {
+      type: 'object',
+      required: ['ok', 'streamer', 'created', 'status'],
+      properties: {
+        ok: { type: 'boolean' },
+        streamer: ref('Streamer'),
+        created: { type: 'boolean' },
+        status: ref('Status'),
+      },
+    },
+  },
+
   // YouTube
   { method: 'get', path: '/api/youtube/status', tag: 'youtube', summary: 'YouTube-Verbindungsstatus' },
   {
@@ -1286,6 +1396,41 @@ const components = {
       },
     },
     Streamer: schemaOf(StreamerSchema),
+    DiscoveryHit: {
+      type: 'object',
+      required: ['handle', 'display_name', 'live', 'source', 'fetched_at'],
+      properties: {
+        handle: { type: 'string' },
+        display_name: { type: 'string' },
+        avatar_url: { type: ['string', 'null'] },
+        bio: { type: ['string', 'null'] },
+        title: { type: ['string', 'null'] },
+        live: { type: 'boolean' },
+        viewers: { type: ['number', 'null'] },
+        age_restricted: { type: 'boolean' },
+        source: { type: 'string' },
+        fetched_at: { type: 'string', format: 'date-time' },
+      },
+    },
+    DiscoveryProviderStatus: {
+      type: 'object',
+      required: ['name', 'status'],
+      properties: {
+        name: { type: 'string' },
+        status: { type: 'string', enum: ['online', 'offline', 'rate_limited'] },
+        last_error: { type: ['string', 'null'] },
+        last_ok_at: { type: ['string', 'null'], format: 'date-time' },
+      },
+    },
+    DiscoveryResponse: {
+      type: 'object',
+      required: ['hits', 'providers', 'fetched_at'],
+      properties: {
+        hits: { type: 'array', items: ref('DiscoveryHit') },
+        providers: { type: 'array', items: ref('DiscoveryProviderStatus') },
+        fetched_at: { type: 'string', format: 'date-time' },
+      },
+    },
     StreamerUpdate: schemaOf(StreamerUpdateSchema),
     StreamerList: {
       type: 'object',
@@ -1366,6 +1511,7 @@ export const openApiDocument = {
     { name: 'screens', description: 'Pause-/Startbildschirme und Assets' },
     { name: 'earnings', description: 'Einnahmen und Verlauf' },
     { name: 'media', description: 'Lokale Videos' },
+    { name: 'discovery', description: 'Stream Discovery und Suche' },
     { name: 'preview', description: 'Live-Vorschau' },
     { name: 'youtube', description: 'YouTube-Verbindung und Broadcasts' },
   ],

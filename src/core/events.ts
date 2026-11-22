@@ -1,5 +1,6 @@
 import { Subject, type Observable } from 'rxjs';
 import type { LogEntry } from '../utils/logger.js';
+import type { DiscoveryResponse } from './source/discovery/types.js';
 import type { StreamerView } from './store/streamer-store.js';
 import type { EarningsSnapshot } from './earnings/monitor.js';
 
@@ -126,7 +127,8 @@ export type SystemEvent =
   | { type: 'log'; data: LogEntry }
   | { type: 'earnings'; data: EarningsSnapshot }
   | { type: 'queue'; data: QueueSnapshot }
-  | { type: 'scene'; data: { active_scene_id: string | null; active_scene_name: string | null } };
+  | { type: 'scene'; data: { active_scene_id: string | null; active_scene_name: string | null } }
+  | { type: 'discovery'; data: DiscoveryResponse };
 
 export class EventBus {
   private readonly subject = new Subject<SystemEvent>();

@@ -13,6 +13,7 @@ import { AuditLogStore } from './core/audit-log.js';
 import { SceneStore } from './core/overlays/scene-store.js';
 import { StreamScheduler } from './core/scheduler/scheduler.js';
 import { WebhookDispatcher } from './core/notifications/webhooks.js';
+import { DiscoveryService } from './core/source/discovery/discovery-service.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
@@ -401,6 +402,16 @@ async function main(): Promise<void> {
     return;
   }
 
+  const discovery = new DiscoveryService({
+    store,
+    settingsService,
+    supervisor,
+    bus,
+    logger: logger.child({ module: 'discovery' }),
+    userAgent: config.media.sourceUserAgent,
+    cookiesFile: config.paths.cookiesFile,
+  });
+
   const app = await buildServer({
     config,
     logger,
@@ -419,6 +430,7 @@ async function main(): Promise<void> {
     scenes,
     scheduler,
     webhooks,
+    discovery,
   });
 
   scheduler.start();

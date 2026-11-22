@@ -113,6 +113,16 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   - Pinned Live Status-Karte (`/pin` & `/unpin`) mit dynamischen Updates über `editMessageText` bei Status-Events.
   - Modulare Architektur in `src/core/telegram/` (`types.ts`, `api.ts`, `keyboards.ts`, `views.ts`).
 
+### v0.27.0 – Stream Discovery & Provider Fallback
+
+**Status: veröffentlicht in 0.27.0.**
+
+- **#65 / #69 / #70 (Stream Discovery):**
+  - **DiscoveryService & Provider-Kette (#69):** 3-stufige Adapter-Kette (`live_page` via Public Live JSON, `room_info` via User-Room API, `search_api` für Keywords) mit Provider-Status-Tracking (`online`, `offline`, `rate_limited`).
+  - **Add-Flow- & Queue-Live-Guards:** Neu entdeckte Streamer werden strikt mit `enabled: false, priority: 999, source: 'discovery'` angelegt; Queuing/Switching prüft vorab den echten Live-Status (409 Conflict bei Offline-Streams). Hard 18+-Filter vor Cache und API.
+  - **DiscoveryView (#70):** Neuer Sub-Tab unter *Inhalte* im TokTracker-Design mit Provider-Status-Leiste, Trending/Suche-Umschalter, Live-Filter, Streamer-Karten und Quick-Actions (*Speichern* + *Aktivieren*, *In Queue*, *Umschalten*) inkl. `document.hidden`-Pausierung.
+  - End-to-End API- und Parser-Tests sowie Audit-Log-Integration für alle Discovery-Aktionen.
+
 | Issue | Priorität | Bereich | Status |
 |---|---|---|---|
 | Bug: YouTube-Audio-Encoding für iOS prüfen und stabilisieren (#66) | P1 | Reliability/YouTube | abgeschlossen |
@@ -121,7 +131,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Overlay: Starship-Cockpit Canvas (CPU-schonendes Sci-Fi HUD für Stream & Regie) (#71) | P2 | Overlay/Performance | abgeschlossen |
 | Stream absichern: Endlosbild bei Verbindungsverlust (Disconnect Protection) (#62) | P1 | Reliability/Ops | geplant |
 | YouTube: Thumbnails über Cockpit einfügen (#63) | P2 | YouTube/UI | geplant |
-| Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | geplant |
+| Stream: Discovery für neue Streamer einbauen (#65) | P2 | Playlists/Queue | abgeschlossen |
 | UI: Desktop-Navigation als vertikale Pille an der Seite statt am Boden (#72) | P3 | UI/Accessibility | abgeschlossen |
 | Telegram: Bot-Modernisierung und vollständige Ausschöpfung der Telegram Bot API (#73) | P2 | Telegram/Ops | abgeschlossen |
 

@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Streamer', section: 'inhalte' },
   },
   {
+    path: '/discovery',
+    name: 'discovery',
+    component: () => import('@/src/views/DiscoveryView.vue'),
+    meta: { title: 'Discovery', section: 'inhalte' },
+  },
+  {
     path: '/playlists',
     name: 'playlists',
     component: () => import('@/src/views/PlaylistsView.vue'),

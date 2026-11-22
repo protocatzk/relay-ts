@@ -2,6 +2,7 @@ import { markRaw, reactive } from 'vue';
 import { api } from '@/src/api/client';
 import type {
   AuthMe,
+  DiscoveryResponse,
   EarningsSnapshot,
   LogEntry,
   LoginResult,
@@ -23,6 +24,7 @@ export interface StoreState {
   playlists: Playlist[];
   earnings: EarningsSnapshot | null;
   queue: QueueSnapshot | null;
+  discovery: DiscoveryResponse | null;
   logs: LogEntry[];
   sseConnected: boolean;
   connectionMode: ConnectionMode;
@@ -45,6 +47,7 @@ export const store = reactive<StoreState>({
   playlists: [],
   earnings: null,
   queue: null,
+  discovery: null,
   logs: [],
   sseConnected: false,
   connectionMode: 'connecting',
@@ -246,6 +249,17 @@ function connectEvents(): void {
       const payload = JSON.parse((event as MessageEvent<string>).data) as QueueSnapshot;
       if (payload && Array.isArray(payload.entries)) {
         store.queue = markRaw(payload);
+      }
+    } catch {
+      /* ignore malformed events */
+    }
+  });
+
+  source.addEventListener('discovery', (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as DiscoveryResponse;
+      if (payload && Array.isArray(payload.hits)) {
+        store.discovery = markRaw(payload);
       }
     } catch {
       /* ignore malformed events */

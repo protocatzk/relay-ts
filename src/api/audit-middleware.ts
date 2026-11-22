@@ -109,6 +109,17 @@ export function mapHttpAuditAction(method: string, url: string): MappedAuditActi
   }
   if (path === '/api/queue' && method === 'DELETE') return { action: 'queue.clear', target: null };
 
+  // Discovery
+  if (path === '/api/discovery/add' && method === 'POST') {
+    return { action: 'discovery.add', target: null };
+  }
+  if (path === '/api/discovery/queue' && method === 'POST') {
+    return { action: 'discovery.queue', target: null };
+  }
+  if (path === '/api/discovery/switch' && method === 'POST') {
+    return { action: 'discovery.switch', target: null };
+  }
+
   // System, settings, overlays
   if (path === '/api/system/restart-sink' && method === 'POST') {
     return { action: 'system.restart_sink', target: 'sink' };
