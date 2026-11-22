@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import LiveMenu from '@/src/components/LiveMenu.vue';
+import TikTokAccountSwitcher from '@/src/components/TikTokAccountSwitcher.vue';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
 import { useTheme } from '@/src/composables/useTheme';
@@ -37,6 +38,7 @@ async function handleLogout(): Promise<void> {
 
     <div class="header-status" aria-label="Systemstatus">
       <LiveMenu />
+      <TikTokAccountSwitcher />
     </div>
 
     <div class="header-actions">

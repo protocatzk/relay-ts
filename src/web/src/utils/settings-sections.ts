@@ -16,6 +16,7 @@ export type EditableSettingsSectionId =
 
 export type SettingsSectionId =
   | EditableSettingsSectionId
+  | 'tiktok_accounts'
   | 'totp'
   | 'sessions'
   | 'appearance';
@@ -41,6 +42,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'chat', domId: 'settings-chat', label: 'Chat-Overlay', editable: true },
   { id: 'title', domId: 'settings-title', label: 'YouTube & Stream-Key', editable: true },
   { id: 'webhooks', domId: 'settings-webhooks', label: 'Webhooks', editable: true },
+  { id: 'tiktok_accounts', domId: 'settings-tiktok-accounts', label: 'TikTok-Konten', editable: false },
   { id: 'appearance', domId: 'settings-appearance', label: 'Erscheinungsbild', editable: false },
   { id: 'totp', domId: 'settings-totp', label: '2FA (TOTP)', editable: false },
   { id: 'sessions', domId: 'settings-sessions', label: 'Sessions', editable: false },

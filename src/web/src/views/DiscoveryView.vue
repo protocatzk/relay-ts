@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import ModalDialog from '@/src/components/ModalDialog.vue';
-import type { DiscoveryHit, DiscoveryProviderStatus, Streamer, TikTokAccountPublic } from '@/src/api/types';
+import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import {
@@ -28,12 +27,6 @@ const currentPage = ref(0);
 const hasMorePages = ref(true);
 const error = ref<string | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
-
-const accounts = ref<TikTokAccountPublic[]>([]);
-const activeAccount = ref<TikTokAccountPublic | null>(null);
-const accountModalOpen = ref(false);
-const accountForm = ref({ label: '', sessionId: '', targetIdc: '', username: '' });
-const accountSaving = ref(false);
 
 const hits = ref<DiscoveryHit[]>([]);
 const providers = ref<DiscoveryProviderStatus[]>([]);
@@ -347,64 +340,6 @@ async function runSearch(): Promise<void> {
   }
 }
 
-async function loadAccounts(): Promise<void> {
-  try {
-    const res = await api.discovery.accounts();
-    accounts.value = res.accounts;
-    activeAccount.value = res.active;
-  } catch {
-    // optional
-  }
-}
-
-async function activateAccount(id: string): Promise<void> {
-  try {
-    const res = await api.discovery.activateAccount(id);
-    pushToast(`Account „${res.account.label}“ aktiviert.`, 'success');
-    await loadAccounts();
-    if (mode.value === 'following') {
-      void loadFollowing();
-    }
-  } catch (err) {
-    pushToast(errorMessage(err), 'error');
-  }
-}
-
-async function removeAccount(id: string): Promise<void> {
-  try {
-    await api.discovery.removeAccount(id);
-    pushToast('Account entfernt.', 'success');
-    await loadAccounts();
-    if (mode.value === 'following') {
-      void loadFollowing();
-    }
-  } catch (err) {
-    pushToast(errorMessage(err), 'error');
-  }
-}
-
-async function saveAccount(): Promise<void> {
-  if (!accountForm.value.label.trim() || !accountForm.value.sessionId.trim()) {
-    pushToast('Bitte Label und sessionid angeben.', 'error');
-    return;
-  }
-  accountSaving.value = true;
-  try {
-    const res = await api.discovery.addAccount(accountForm.value);
-    pushToast(`Account „${res.account.label}“ gespeichert.`, 'success');
-    accountModalOpen.value = false;
-    accountForm.value = { label: '', sessionId: '', targetIdc: '', username: '' };
-    await loadAccounts();
-    if (mode.value === 'following') {
-      void loadFollowing();
-    }
-  } catch (err) {
-    pushToast(errorMessage(err), 'error');
-  } finally {
-    accountSaving.value = false;
-  }
-}
-
 async function loadFollowing(): Promise<void> {
   mode.value = 'following';
   currentPage.value = 0;
@@ -595,7 +530,6 @@ function onVisibilityChange(): void {
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('keydown', onKeyDown);
-  void loadAccounts();
   if (hits.value.length === 0) {
     void loadTrending();
   }
@@ -728,20 +662,6 @@ onUnmounted(() => {
               {{ r.label }}
             </option>
           </select>
-        </div>
-
-        <!-- TikTok Account Switcher Pill -->
-        <div class="account-pill-wrapper">
-          <button
-            type="button"
-            class="btn btn-sm btn-ghost account-pill"
-            :title="activeAccount ? `Aktiver TikTok-Account: ${activeAccount.label}` : 'TikTok-Account verwalten'"
-            @click="accountModalOpen = true"
-          >
-            <span>👤</span>
-            <span class="account-label">{{ activeAccount?.label || 'Kein Account' }}</span>
-            <span v-if="accounts.length > 1" class="badge badge-xs tone-neutral">{{ accounts.length }}</span>
-          </button>
         </div>
 
         <div class="topic-chips" role="group" aria-label="Schnellfilter nach Themen">
@@ -1183,92 +1103,7 @@ onUnmounted(() => {
       </article>
     </div>
 
-    <!-- TikTok Account Management Modal -->
-    <ModalDialog
-      :open="accountModalOpen"
-      title="TikTok Accounts verwalten"
-      size="md"
-      @close="accountModalOpen = false"
-    >
-      <div class="account-manager-content">
-        <p class="small muted">
-          Hier hinterlegte TikTok-Accounts versorgen den Tab <strong>„Gefolgt“</strong> und ermöglichen den Wechsel zwischen mehreren Profilen.
-        </p>
-
-        <div v-if="accounts.length > 0" class="account-list">
-          <div
-            v-for="acc in accounts"
-            :key="acc.id"
-            class="account-row"
-            :class="{ 'account-active': acc.active }"
-          >
-            <div class="account-info">
-              <span class="account-name">
-                {{ acc.label }}
-                <span v-if="acc.username" class="mono small muted">(@{{ acc.username }})</span>
-              </span>
-              <span v-if="acc.active" class="badge tone-success badge-xs">Aktiv</span>
-              <span v-else class="badge tone-neutral badge-xs">Inaktiv</span>
-            </div>
-            <div class="account-actions">
-              <button
-                v-if="!acc.active"
-                type="button"
-                class="btn btn-sm btn-ghost"
-                @click="activateAccount(acc.id)"
-              >
-                Aktivieren
-              </button>
-              <button
-                type="button"
-                class="btn btn-sm btn-danger btn-icon-only"
-                title="Account entfernen"
-                @click="removeAccount(acc.id)"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <form class="account-form card" @submit.prevent="saveAccount">
-          <h4 class="form-title">Account hinzufügen</h4>
-          <div class="field">
-            <label for="acc-label">Bezeichnung / Label *</label>
-            <input
-              id="acc-label"
-              v-model="accountForm.label"
-              type="text"
-              placeholder="z. B. Hauptaccount, Zweitprofil…"
-              required
-            />
-          </div>
-          <div class="field">
-            <label for="acc-sessionid">TikTok SessionId Cookie *</label>
-            <input
-              id="acc-sessionid"
-              v-model="accountForm.sessionId"
-              type="password"
-              placeholder="sessionid aus dem TikTok-Web-Cookie"
-              required
-            />
-          </div>
-          <div class="field">
-            <label for="acc-targetidc">Target IDC (optional)</label>
-            <input
-              id="acc-targetidc"
-              v-model="accountForm.targetIdc"
-              type="text"
-              placeholder="z. B. useast2a"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary" :disabled="accountSaving">
-            <span v-if="accountSaving" class="spinner" aria-hidden="true"></span>
-            Speichern & Hinzufügen
-          </button>
-        </form>
-      </div>
-    </ModalDialog>
+    <!-- Zapper and Grid contents above -->
   </div>
 </template>
 
