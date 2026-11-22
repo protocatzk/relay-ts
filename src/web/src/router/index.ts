@@ -30,7 +30,7 @@ const routes: RouteRecordRaw[] = [
     path: '/discovery',
     name: 'discovery',
     component: () => import('@/src/views/DiscoveryView.vue'),
-    meta: { title: 'Discovery', section: 'inhalte' },
+    meta: { title: 'Discovery', section: 'discovery' },
   },
   {
     path: '/playlists',
