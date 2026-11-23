@@ -419,6 +419,13 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   laufender Legacy-`nginx-proxy` oder fremder nginx-Container wird erkannt
   und nur angeleitet, ein gestoppter eigener Container wird gestartet, und
   bei belegtem Port 80 (z. B. Caddy) unterbleibt der Start mit Warnung.
+  Distro-Pfade via `--distro centos|ubuntu`: Ohne Flag wird die Familie über
+  `/etc/os-release` erkannt (Ubuntu/Debian → `ubuntu`, RHEL-Familie →
+  `centos`, unbekannt → `centos`); passt ein explizites Flag nicht zur
+  Erkennung, gibt es eine Warnung. Der Pfad steuert das nginx-Vhost-Layout
+  (Ubuntu: `sites-available`/`sites-enabled` mit Symlink, CentOS: `conf.d`),
+  einen SELinux-Hinweis (`httpd_can_network_connect`) bei Enforcing auf
+  CentOS sowie die Firewall-Hinweise am Ende (CentOS: firewalld, Ubuntu: ufw).
 - **Layout:** Code in versionierten Release-Verzeichnissen
   `/srv/relay/releases/<version>/`, aktiv über Symlink `/srv/relay/current`.
   Laufzeit-Daten liegen getrennt in `/srv/relay/{config,data,logs}`

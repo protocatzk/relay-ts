@@ -29,9 +29,19 @@
 #   sudo scripts/bootstrap.sh --domain stream.example.com --docker-nginx
 #   sudo scripts/bootstrap.sh --dry-run                      # Vorschau, auch ohne root
 #   sudo scripts/bootstrap.sh --force                        # vorhandene /etc/relay.env ersetzen
+#   sudo scripts/bootstrap.sh --distro ubuntu                # Ubuntu-Pfad statt CentOS
 #
-# Voraussetzungen: root (außer --dry-run), Debian-artiger Host,
-# Node unter /opt/node22 (siehe systemd/relay.service und deploy.sh PATH).
+# Distro-Pfade (--distro, Default: centos): Das Skript läuft auf systemd-Hosts
+# von Natur aus weitgehend identisch; der Pfad steuert nur die Unterschiede:
+#   centos  – nginx-Vhost in /etc/nginx/conf.d, SELinux-/firewalld-Hinweise
+#   ubuntu  – nginx-Vhost in sites-available/sites-enabled, ufw-Hinweise
+# Ohne --distro wird der Host über /etc/os-release erkannt; passt das Ergebnis
+# zum gewählten Pfad, gibt es eine Warnung (Detection ID 'ubuntu' ↔ Pfad
+# 'ubuntu' bzw. rhel-Familie ↔ 'centos', Unbekannt → centos).
+#
+# Voraussetzungen: root (außer --dry-run), systemd-Host (CentOS/RHEL-Familie
+# oder Ubuntu/Debian), Node unter /opt/node22 (siehe systemd/relay.service
+# und deploy.sh PATH).
 set -euo pipefail
 
 export PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin
@@ -77,6 +87,7 @@ DOMAIN=""
 WEB_DOMAIN=""
 MODULES="$DEFAULT_MODULES"
 VERSION=""
+DISTRO=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -87,6 +98,7 @@ while [ $# -gt 0 ]; do
     --domain) shift; [ $# -gt 0 ] || fail "--domain braucht einen Wert"; DOMAIN="$1" ;;
     --web-domain) shift; [ $# -gt 0 ] || fail "--web-domain braucht einen Wert"; WEB_DOMAIN="$1" ;;
     --modules) shift; [ $# -gt 0 ] || fail "--modules braucht eine Liste"; MODULES="$1" ;;
+    --distro) shift; [ $# -gt 0 ] || fail "--distro braucht einen Wert (centos|ubuntu)"; DISTRO="$1" ;;
     -*) fail "Unbekannte Option: $1 (Module: $ALL_MODULES)" ;;
     *) [ -z "$VERSION" ] || fail "Zu viele Argumente: $1"; VERSION="$1" ;;
   esac
@@ -111,6 +123,42 @@ fi
 
 command -v systemctl >/dev/null 2>&1 || fail "systemctl nicht gefunden – dieses Skript ist für den nativen systemd-Betrieb."
 [ -x /opt/node22/bin/node ] || warn "Hinweis: /opt/node22/bin/node fehlt – deploy.sh und die Unit benötigen Node dort."
+
+# --- Distro-Pfad -----------------------------------------------------------------
+# Erkennt die Distro-Familie über /etc/os-release (aufrufende Subshell
+# verhindert, dass os-release-Variablen das Skript verschmutzen).
+detect_distro() {
+  local id id_like
+  if [ -r /etc/os-release ]; then
+    id="$(sh -c '. /etc/os-release; printf "%s" "${ID:-}"')"
+    id_like="$(sh -c '. /etc/os-release; printf "%s" "${ID_LIKE:-}"')"
+  else
+    id=""; id_like=""
+  fi
+  case "$id $id_like" in
+    *ubuntu*|*debian*) echo "ubuntu" ;;
+    *centos*|*rhel*|*rocky*|*almalinux*|*fedora*|*ol*) echo "centos" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+CURRENT_DISTRO="$(detect_distro)"
+if [ -z "$DISTRO" ]; then
+  DISTRO="$CURRENT_DISTRO"
+  [ "$DISTRO" = "unknown" ] && DISTRO="centos"
+  log "Distro-Pfad: $DISTRO (erkannt über /etc/os-release)."
+else
+  case "$DISTRO" in
+    centos|ubuntu) ;;
+    *) fail "Unbekannter Distro-Pfad: $DISTRO (verfügbar: centos, ubuntu)" ;;
+  esac
+  if [ "$CURRENT_DISTRO" != "unknown" ] && [ "$CURRENT_DISTRO" != "$DISTRO" ]; then
+    warn "Host scheint Distro-Familie '$CURRENT_DISTRO' zu sein – Skript läuft im '$DISTRO'-Pfad."
+    warn "Falls die Erkennung richtig liegt: --distro $CURRENT_DISTRO verwenden."
+  else
+    log "Distro-Pfad: $DISTRO (--distro gesetzt, matched Erkennung)."
+  fi
+fi
 
 # --- Modul: user ---------------------------------------------------------------
 setup_user() {
@@ -306,11 +354,16 @@ setup_nginx() {
     return 0
   fi
 
-  # Debian nutzt sites-available/sites-enabled, ansonsten Fallback conf.d.
+  # Distro-Pfade: Ubuntu nutzt sites-available/sites-enabled, CentOS conf.d.
   local conf_file link=""
-  if [ -d "$NGINX_SITES_ENABLED" ]; then
-    conf_file="$NGINX_SITES_AVAILABLE/$NGINX_SITE"
-    link="$NGINX_SITES_ENABLED/$NGINX_SITE"
+  if [ "$DISTRO" = "ubuntu" ]; then
+    if [ ! -d "$NGINX_SITES_ENABLED" ]; then
+      warn "[nginx] Ubuntu-Pfad, aber $NGINX_SITES_ENABLED fehlt – Fallback $NGINX_CONF_D."
+      conf_file="$NGINX_CONF_D/$NGINX_SITE.conf"
+    else
+      conf_file="$NGINX_SITES_AVAILABLE/$NGINX_SITE"
+      link="$NGINX_SITES_ENABLED/$NGINX_SITE"
+    fi
   else
     conf_file="$NGINX_CONF_D/$NGINX_SITE.conf"
   fi
@@ -355,6 +408,13 @@ setup_nginx() {
   else
     systemctl start nginx
     log "[nginx] Vhost aktiviert, nginx gestartet (TLS z. B. per certbot ergänzen)."
+  fi
+
+  # CentOS/RHEL: SELinux blockiert standardmäßig den Proxy auf lokale Ports.
+  if [ "$DISTRO" = "centos" ] && command -v getenforce >/dev/null 2>&1 \
+      && [ "$(getenforce 2>/dev/null || true)" = "Enforcing" ]; then
+    warn "[nginx] SELinux ist Enforcing – Proxy zum Upstream ggf. erlauben:"
+    warn "[nginx]   sudo setsebool -P httpd_can_network_connect 1"
   fi
 }
 
@@ -506,8 +566,23 @@ if systemctl is-active --quiet "$SERVICE"; then
 else
   warn "Dienst läuft nicht. Prüfen: journalctl -u $SERVICE -n 50 --no-pager"
 fi
+if has_module caddy || has_module nginx || has_module docker-nginx; then
+  if [ "$DISTRO" = "ubuntu" ]; then
+    warn "Firewall prüfen (ufw): sudo ufw allow 80,443/tcp && sudo ufw status"
+  else
+    warn "Firewall prüfen (firewalld): sudo firewall-cmd --permanent --add-service={http,https} && sudo firewall-cmd --reload"
+  fi
+fi
 if [ -n "$DOMAIN" ]; then
-  log "Bootstrap abgeschlossen. Health-Check: https://$DOMAIN/health"
+  if has_module caddy; then
+    log "Bootstrap abgeschlossen. Health-Check: https://$DOMAIN/health (TLS zieht Caddy beim ersten Abruf)"
+  elif has_module nginx; then
+    log "Bootstrap abgeschlossen. Health-Check: http://$DOMAIN/health – TLS danach: sudo certbot --nginx -d $DOMAIN"
+  elif has_module docker-nginx; then
+    log "Bootstrap abgeschlossen. Health-Check: http://$DOMAIN/health – TLS per Zertifikats-Mount ergänzen"
+  else
+    log "Bootstrap abgeschlossen. Health-Check: http://$DOMAIN/health – Reverse-Proxy-Modul nicht ausgeführt"
+  fi
 else
   log "Bootstrap abgeschlossen. Health-Check: http://127.0.0.1:$APP_PORT/health"
 fi
