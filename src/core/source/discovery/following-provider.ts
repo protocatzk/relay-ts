@@ -117,13 +117,16 @@ export class FollowingProvider implements DiscoveryProvider {
     }
 
     const page = opts.page ?? 0;
-    const isLoadMore = page > 0;
+    // Parameter set of the live page's following tab (webapp-live-discover
+    // chunk `__discover-feeds/following`): channel_id 88 + req_from
+    // live_mt_pc_web_follow_tab_refresh. Unlike channel 42/entry_point
+    // Live_Recommend_Follow this feed is purely session-personalized and
+    // returns the live rooms of the accounts the cookie user follows.
     const feedParams: Record<string, string> = {
-      channel_id: '42',
-      entry_point: 'Live_Recommend_Follow',
-      pull_type: isLoadMore ? '2' : '1',
-      scene: '1',
-      stream_global_switch: 'true',
+      channel_id: '88',
+      req_from: 'live_mt_pc_web_follow_tab_refresh',
+      related_live_tag: '',
+      is_non_personalized: '0',
       user_is_login: 'true',
       count: String(Math.min(30, opts.limit ?? 20)),
       offset: String(page * 20),
@@ -148,30 +151,11 @@ export class FollowingProvider implements DiscoveryProvider {
       }
 
       const json = (await res.json()) as Record<string, unknown>;
-      let hits = parseWebcastFeedPayload(json, 'following');
-
-      // Fallback: If channel 42 returned no items on page 0, try channel 21
-      if (hits.length === 0 && page === 0) {
-        feedParams.channel_id = '21';
-        const fallbackUrl = buildWebcastFeedUrl(feedParams, { userAgent: this.userAgent });
-        const fallbackRes = await fetch(fallbackUrl.toString(), {
-          headers: {
-            'user-agent': this.userAgent,
-            cookie,
-            referer: 'https://www.tiktok.com/live',
-            origin: 'https://www.tiktok.com',
-            accept: 'application/json, text/plain, */*',
-          },
-          signal: AbortSignal.timeout(8000),
-        }).catch(() => null);
-
-        if (fallbackRes?.ok) {
-          const fallbackJson = await fallbackRes.json().catch(() => null);
-          if (fallbackJson) {
-            hits = parseWebcastFeedPayload(fallbackJson, 'following');
-          }
-        }
+      const statusCode = Number(json.status_code ?? 0);
+      if (statusCode !== 0) {
+        throw new Error(`Webcast following feed failed with status_code ${statusCode}`);
       }
+      const hits = parseWebcastFeedPayload(json, 'following');
 
       // Fallback: If standard webcast feed payload format differed, manual extraction
       if (hits.length === 0 && Array.isArray(json.data)) {
