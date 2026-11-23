@@ -17,6 +17,7 @@ function makeSettings(): Settings {
       video_bitrate: 4000,
       audio_bitrate: 128,
       preset: 'veryfast',
+      tune: 'zerolatency',
       encoder: 'auto',
       layout: { enabled: false, scale: 100, position_x: 50, position_y: 50 },
     },
@@ -200,6 +201,7 @@ describe('settings sections partial updates', () => {
 
     const videoPayload = buildSectionPayload('video', settings, emptySecrets);
     expect(Object.keys(videoPayload).sort()).toEqual(['source', 'video']);
+    expect(videoPayload.video?.tune).toBe('zerolatency');
 
     const titlePayload = buildSectionPayload('title', settings, emptySecrets);
     expect(Object.keys(titlePayload)).toEqual(['streaming']);

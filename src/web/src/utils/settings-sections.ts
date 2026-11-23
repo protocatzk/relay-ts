@@ -110,6 +110,7 @@ export function buildSectionPayload(
           video_bitrate: toNumber(current.video.video_bitrate, 4000),
           audio_bitrate: toNumber(current.video.audio_bitrate, 128),
           preset: current.video.preset,
+          tune: current.video.tune,
           encoder: current.video.encoder,
           layout: clone(current.video.layout),
         },
