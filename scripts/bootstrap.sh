@@ -50,7 +50,9 @@
 # und deploy.sh PATH).
 set -euo pipefail
 
-export PATH=/opt/node22/bin:/usr/local/bin:/usr/bin:/bin
+# sbin-Verzeichnisse explizit mitführen: useradd, nginx, getenforce usw.
+# liegen dort; ohne sie scheitert das Skript z. B. unter root@ubuntu.
+export PATH=/opt/node22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE=/srv/relay
