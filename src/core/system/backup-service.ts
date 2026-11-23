@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, statSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { Logger } from 'pino';
 import { runCommand } from '../../utils/process.js';
 import { AppError, ValidationError } from '../../utils/errors.js';
@@ -42,6 +42,62 @@ export function backupsDirectory(dataDir: string): string {
   return join(dataDir, 'backups');
 }
 
+function escapesRoot(relPath: string): boolean {
+  return relPath === '..' || relPath.startsWith(`..${sep}`) || isAbsolute(relPath);
+}
+
+function commonParent(a: string, b: string): string | null {
+  const partsA = resolve(a).split(sep).filter(Boolean);
+  const partsB = resolve(b).split(sep).filter(Boolean);
+  const common: string[] = [];
+  for (let i = 0; i < Math.min(partsA.length, partsB.length); i += 1) {
+    if (partsA[i] !== partsB[i]) break;
+    common.push(partsA[i]!);
+  }
+  if (common.length === 0) return null;
+  return sep + common.join(sep);
+}
+
+/**
+ * Determines the directory that tar uses with `-C` and that the archive's
+ * relative members refer to. The configured root is only usable when it
+ * actually contains both config/ and data/. In the native systemd layout the
+ * working directory is the release directory (`/srv/relay/current`), while
+ * config/ and data/ live next to the releases — using it verbatim made tar
+ * emit `../config` members (and writes fail on the read-only release tree).
+ */
+export function backupArchiveRoot(options: {
+  rootDir: string;
+  dataDir: string;
+  configDir: string;
+}): string {
+  const relConfig = relative(options.rootDir, options.configDir);
+  const relData = relative(options.rootDir, options.dataDir);
+  if (!escapesRoot(relConfig) && !escapesRoot(relData)) {
+    return options.rootDir;
+  }
+
+  const parent = commonParent(options.configDir, options.dataDir);
+  if (!parent || parent === sep) {
+    throw new AppError(
+      'backup_root_invalid',
+      'Backup-Verzeichnisse (config/ und data/) müssen ein gemeinsames Elternverzeichnis haben',
+    );
+  }
+
+  // The archive whitelist only accepts top-level `config/` and `data/`
+  // entries; arbitrary directory names would produce archives that can never
+  // be restored.
+  if (basename(options.configDir) !== 'config' || basename(options.dataDir) !== 'data') {
+    throw new AppError(
+      'backup_root_invalid',
+      'Backup-Verzeichnisse müssen den Namen "config" und "data" tragen',
+    );
+  }
+
+  return parent;
+}
+
 /**
  * Creates a tar.gz backup archive of config/ and data/ excluding runtime sessions and media.
  */
@@ -53,8 +109,9 @@ export async function createBackupArchive(options: CreateBackupOptions): Promise
   const filename = `relay-backup-${stamp}.tar.gz`;
   const archivePath = join(backupsDir, filename);
 
-  const relConfig = relative(options.rootDir, options.configDir) || 'config';
-  const relData = relative(options.rootDir, options.dataDir) || 'data';
+  const archiveRoot = backupArchiveRoot(options);
+  const relConfig = relative(archiveRoot, options.configDir) || 'config';
+  const relData = relative(archiveRoot, options.dataDir) || 'data';
 
   const args = [
     '-czf',
@@ -66,7 +123,7 @@ export async function createBackupArchive(options: CreateBackupOptions): Promise
     '--exclude=data/media',
     '--exclude=data/backups',
     '-C',
-    options.rootDir,
+    archiveRoot,
     relConfig,
     relData,
   ];
@@ -170,8 +227,9 @@ export async function restoreBackupArchive(options: RestoreBackupOptions): Promi
   const rollbackFilename = `rollback-${rollbackStamp}.tar.gz`;
   const rollbackPath = join(backupsDir, rollbackFilename);
 
-  const relConfig = relative(options.rootDir, options.configDir) || 'config';
-  const relData = relative(options.rootDir, options.dataDir) || 'data';
+  const archiveRoot = backupArchiveRoot(options);
+  const relConfig = relative(archiveRoot, options.configDir) || 'config';
+  const relData = relative(archiveRoot, options.dataDir) || 'data';
 
   options.logger?.info({ rollbackPath }, 'Sicherheits-Rollback vor Wiederherstellung wird erstellt');
   await runCommand(
@@ -185,7 +243,7 @@ export async function restoreBackupArchive(options: RestoreBackupOptions): Promi
       '--exclude=data/media',
       '--exclude=data/backups',
       '-C',
-      options.rootDir,
+      archiveRoot,
       relConfig,
       relData,
     ],
@@ -200,7 +258,7 @@ export async function restoreBackupArchive(options: RestoreBackupOptions): Promi
 
   // Extract
   options.logger?.info({ archive: basename(options.archivePath) }, 'Backup-Archiv wird entpackt');
-  const extractRes = await runCommand('tar', ['-xzf', options.archivePath, '-C', options.rootDir], {
+  const extractRes = await runCommand('tar', ['-xzf', options.archivePath, '-C', archiveRoot], {
     timeoutMs: 60_000,
   });
 

@@ -211,11 +211,17 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
       });
 
       // Hot-reload all active components
+      const previousSettings = ctx.settingsService.get();
       ctx.settingsService.reload();
+      const restoredSettings = ctx.settingsService.get();
       ctx.store.reload();
       ctx.scenes?.reload();
       ctx.scheduler?.reload();
       ctx.supervisor.notifyStreamersChanged();
+      // Apply restored settings to the running supervisor (the same path as
+      // PUT /api/settings); otherwise a restore would keep the old runtime
+      // configuration until the next service restart.
+      await ctx.supervisor.applySettings(restoredSettings, previousSettings);
 
       const actorInfo = resolveHttpActor(request, ctx);
       ctx.audit?.record({

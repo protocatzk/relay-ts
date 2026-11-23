@@ -478,7 +478,14 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   validiert Archive strikt (kein Traversal, keine Symlinks/Hardlinks, Whitelist),
   erstellt ein automatisches Rollback-Archiv unter `data/backups/rollback-*.tar.gz`,
   setzt `0600`-Rechte und lädt aktive Stores (`Settings`, `Streamers`, `Scenes`,
-  `Scheduler`) atomar neu.
+  `Scheduler`) atomar neu; die wiederhergestellten Settings werden zusätzlich per
+  `applySettings` auf den laufenden Supervisor angewendet.
+  Archiv-Wurzel (`tar -C`) ist das gemeinsame Elternverzeichnis von `config/` und
+  `data/` (im nativen Layout `/srv/relay`), **nicht** `paths.root`/cwd: systemd
+  startet im Release-Verzeichnis `/srv/relay/current`, das unter
+  `ProtectSystem=strict` read-only ist. Ohne diese Ableitung enthielt das Backup
+  `../config`-Einträge und der Restore scheiterte mit
+  `Read-only file system`/`Cannot stat`.
 - Aufnahmen (`data/recordings/`): Highlight-Marker (`data/recordings/<datei>.markers.json`,
   0600) können während aktiver Aufnahme (Dashboard, Telegram `/marker`, Stream-Deck)
   oder nachträglich erfasst werden. Remux-Clips (`POST /api/recordings/:file/clip`)

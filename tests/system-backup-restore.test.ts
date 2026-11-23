@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -95,6 +95,49 @@ describe('System Backup & Restore Service', () => {
       /* ignore if ln not permitted */
     } finally {
       rmSync(symlinkDir, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the shared parent when rootDir is a release directory outside config/data', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'relay-backup-release-'));
+    const releaseDir = join(base, 'releases', '1.2.3');
+    const releaseConfig = join(base, 'config');
+    const releaseData = join(base, 'data');
+    mkdirSync(releaseDir, { recursive: true });
+    mkdirSync(releaseConfig, { recursive: true });
+    mkdirSync(releaseData, { recursive: true });
+    writeFileSync(join(releaseConfig, 'settings.yml'), 'server:\n  port: 3000\n');
+    writeFileSync(join(releaseData, 'scenes.json'), '{"scenes":[]}\n');
+
+    try {
+      // Mirrors the native systemd layout: cwd is /srv/relay/current (a release
+      // directory) while config/ and data/ live next to the releases.
+      const backup = await createBackupArchive({
+        rootDir: releaseDir,
+        dataDir: releaseData,
+        configDir: releaseConfig,
+      });
+
+      const inspection = await inspectBackupArchive(backup.archivePath);
+      expect(inspection.ok).toBe(true);
+      expect(inspection.entries).toContain('config/settings.yml');
+      expect(inspection.entries).toContain('data/scenes.json');
+      expect(inspection.entries.some((entry) => entry.startsWith('..'))).toBe(false);
+
+      writeFileSync(join(releaseConfig, 'settings.yml'), 'server:\n  port: 9999\n');
+      const restoreResult = await restoreBackupArchive({
+        archivePath: backup.archivePath,
+        rootDir: releaseDir,
+        dataDir: releaseData,
+        configDir: releaseConfig,
+      });
+      expect(restoreResult.entriesCount).toBeGreaterThan(0);
+      expect(statSync(restoreResult.rollbackPath).size).toBeGreaterThan(0);
+      expect(readFileSync(join(releaseConfig, 'settings.yml'), 'utf-8')).toContain('port: 3000');
+      // Nothing may be written into the (read-only) release directory.
+      expect(existsSync(join(releaseDir, 'config'))).toBe(false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
     }
   });
 
