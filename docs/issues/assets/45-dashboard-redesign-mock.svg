@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 790" width="1240" height="790" font-family="Inter, 'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <linearGradient id="prev" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1119"/>
+      <stop offset="1" stop-color="#05070b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="1240" height="790" fill="#05070b"/>
+
+  <!-- title -->
+  <text x="24" y="26" fill="#e6f1ff" font-size="15" font-weight="600">Dashboard-Redesign — Cockpit-Mock</text>
+  <text x="24" y="44" fill="#61748f" font-size="11">Cockpit statt Admin-Website · Radius 12/8/pill · Cyan-Akzent · optimistische Regie-Aktionen · Dark-only</text>
+
+  <!-- ============ desktop frame ============ -->
+  <rect x="24" y="58" width="832" height="660" rx="14" fill="#090d14" stroke="rgba(148,208,255,0.14)"/>
+
+  <!-- sticky status header -->
+  <rect x="40" y="72" width="800" height="86" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <circle cx="68" cy="115" r="17" fill="#16202f" stroke="rgba(148,208,255,0.34)"/>
+  <text x="68" y="119" fill="#92a9c6" font-size="10" text-anchor="middle" font-weight="600">SG</text>
+  <text x="94" y="106" fill="#e6f1ff" font-size="13" font-weight="600">supergirl0584</text>
+  <rect x="228" y="93" width="42" height="15" rx="7.5" fill="rgba(57,255,136,0.12)" stroke="rgba(57,255,136,0.38)"/>
+  <text x="249" y="104" fill="#39ff88" font-size="9" font-weight="600" text-anchor="middle">LIVE</text>
+  <text x="94" y="124" fill="#61748f" font-size="10">TikTok → DelayBuffer 30 s → YouTube</text>
+  <g font-size="9.5" fill="#92a9c6">
+    <rect x="94" y="130" width="66" height="17" rx="8.5" fill="#101823" stroke="rgba(148,208,255,0.08)"/>
+    <text x="127" y="142" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace">▲ 1 248</text>
+    <rect x="166" y="130" width="66" height="17" rx="8.5" fill="#101823" stroke="rgba(148,208,255,0.08)"/>
+    <text x="199" y="142" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace">02:41:18</text>
+    <rect x="238" y="130" width="74" height="17" rx="8.5" fill="#101823" stroke="rgba(148,208,255,0.08)"/>
+    <text x="275" y="142" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace">6 214 kbps</text>
+  </g>
+  <rect x="600" y="101" width="58" height="26" rx="8" fill="#22d3ee"/>
+  <text x="629" y="118" fill="#04121a" font-size="11" font-weight="600" text-anchor="middle">Pause</text>
+  <rect x="664" y="101" width="56" height="26" rx="8" fill="rgba(255,77,109,0.12)" stroke="rgba(255,77,109,0.42)"/>
+  <text x="692" y="118" fill="#ff4d6d" font-size="11" font-weight="600" text-anchor="middle">Stopp</text>
+  <rect x="726" y="101" width="98" height="26" rx="8" fill="#101823" stroke="rgba(34,211,238,0.42)"/>
+  <text x="775" y="118" fill="#a5f3fc" font-size="11" font-weight="600" text-anchor="middle">Umschalten ⇄</text>
+
+  <!-- preview card -->
+  <rect x="40" y="170" width="256" height="420" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <text x="52" y="190" fill="#61748f" font-size="8" letter-spacing="1.5">VORSCHAU</text>
+  <rect x="64" y="200" width="208" height="330" rx="10" fill="url(#prev)" stroke="rgba(148,208,255,0.14)"/>
+  <path d="M150 340 l30 26 -30 26 z" fill="none" stroke="rgba(148,208,255,0.34)" stroke-width="2"/>
+  <rect x="74" y="210" width="52" height="17" rx="8.5" fill="rgba(255,77,109,0.2)"/>
+  <text x="100" y="222" fill="#ff8098" font-size="9" text-anchor="middle">● Live</text>
+  <rect x="188" y="506" width="76" height="17" rx="8.5" fill="rgba(5,7,11,0.8)" stroke="rgba(148,208,255,0.2)"/>
+  <text x="226" y="518" fill="#92a9c6" font-size="8.5" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace">304 cached</text>
+  <text x="64" y="556" fill="#61748f" font-size="9">Live-Tap am Relay, ETag-cached, aspect 9:16</text>
+  <text x="64" y="572" fill="#61748f" font-size="9">Zapper per Vollbild ↔ Grid</text>
+
+  <!-- queue card -->
+  <rect x="308" y="170" width="312" height="420" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <text x="322" y="190" fill="#e6f1ff" font-size="12" font-weight="600">Regie-Queue</text>
+  <rect x="542" y="178" width="64" height="16" rx="8" fill="#101823" stroke="rgba(148,208,255,0.08)"/>
+  <text x="574" y="189.5" fill="#92a9c6" font-size="9" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace">3 · __regie__</text>
+
+  <rect x="322" y="200" width="284" height="56" rx="10" fill="#101823" stroke="rgba(34,211,238,0.42)"/>
+  <rect x="334" y="212" width="32" height="32" rx="7" fill="#16202f"/>
+  <text x="350" y="233" fill="#22d3ee" font-size="11" text-anchor="middle">▶</text>
+  <text x="376" y="224" fill="#e6f1ff" font-size="11">intro.mp4</text>
+  <text x="376" y="240" fill="#61748f" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace">file · Noch 04:12</text>
+  <text x="592" y="232" fill="#61748f" font-size="12">⋮⋮</text>
+  <rect x="322" y="247" width="128" height="3" rx="1.5" fill="#22d3ee"/>
+  <text x="460" y="251" fill="#22d3ee" font-size="8.5" font-family="'JetBrains Mono', ui-monospace, monospace">läuft</text>
+
+  <rect x="322" y="262" width="284" height="56" rx="10" fill="#101823"/>
+  <circle cx="350" cy="290" r="13" fill="#16202f" stroke="rgba(148,208,255,0.2)"/>
+  <text x="350" y="294" fill="#92a9c6" font-size="8.5" text-anchor="middle" font-weight="600">DC</text>
+  <text x="372" y="286" fill="#e6f1ff" font-size="11">derechtecharly</text>
+  <text x="372" y="301" fill="#61748f" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace">streamer · ▲ 1 126</text>
+  <text x="592" y="294" fill="#61748f" font-size="12">⋮⋮</text>
+
+  <rect x="322" y="324" width="284" height="56" rx="10" fill="#101823"/>
+  <rect x="334" y="336" width="32" height="32" rx="7" fill="#16202f"/>
+  <rect x="345" y="346" width="10" height="12" rx="2" fill="none" stroke="#92a9c6" stroke-width="1.5"/>
+  <text x="376" y="348" fill="#e6f1ff" font-size="11">Pausenscreen</text>
+  <text x="376" y="363" fill="#61748f" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace">screen:pause · manuell</text>
+  <text x="592" y="356" fill="#61748f" font-size="12">⋮⋮</text>
+
+  <rect x="322" y="386" width="284" height="42" rx="10" fill="none" stroke="rgba(34,211,238,0.42)" stroke-dasharray="5 4"/>
+  <text x="464" y="404" fill="#a5f3fc" font-size="11" text-anchor="middle">+ Eintrag hinzufügen</text>
+  <text x="464" y="418" fill="#61748f" font-size="8.5" text-anchor="middle">Datei · Streamer · Screen</text>
+
+  <text x="322" y="452" fill="#61748f" font-size="9">Ziehen sortiert · Wischen löscht · laufender Eintrag bleibt gepinnt</text>
+  <text x="322" y="560" fill="#61748f" font-size="9">Optimistisch: Klick fügt sofort ein, SSE bestätigt,</text>
+  <text x="322" y="574" fill="#61748f" font-size="9">Fehler-Toast rollt zurück</text>
+
+  <!-- quick actions card -->
+  <rect x="632" y="170" width="208" height="420" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <text x="646" y="190" fill="#61748f" font-size="8" letter-spacing="1.5">QUICK-ACTIONS</text>
+  <rect x="646" y="200" width="88" height="34" rx="8" fill="rgba(57,255,136,0.12)" stroke="rgba(57,255,136,0.38)"/>
+  <text x="690" y="221" fill="#39ff88" font-size="11" font-weight="600" text-anchor="middle">▶ Start</text>
+  <rect x="738" y="200" width="88" height="34" rx="8" fill="#22d3ee"/>
+  <text x="782" y="221" fill="#04121a" font-size="11" font-weight="600" text-anchor="middle">Pause</text>
+  <rect x="646" y="240" width="88" height="34" rx="8" fill="rgba(255,77,109,0.12)" stroke="rgba(255,77,109,0.42)"/>
+  <text x="690" y="261" fill="#ff4d6d" font-size="11" font-weight="600" text-anchor="middle">⏹ Stopp</text>
+  <rect x="738" y="240" width="88" height="34" rx="8" fill="rgba(34,211,238,0.13)" stroke="rgba(34,211,238,0.42)"/>
+  <text x="782" y="261" fill="#22d3ee" font-size="11" font-weight="600" text-anchor="middle">⇄ Wechsel</text>
+  <line x1="646" y1="292" x2="826" y2="292" stroke="rgba(148,208,255,0.08)"/>
+  <text x="646" y="314" fill="#e6f1ff" font-size="11" font-weight="600">Stream-Status</text>
+  <g font-size="10" fill="#e6f1ff">
+    <circle cx="654" cy="338" r="3.5" fill="#22d3ee"/>
+    <text x="668" y="342">Quelle · TikTok</text>
+    <text x="826" y="342" fill="#39ff88" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="9.5">ok</text>
+    <circle cx="654" cy="374" r="3.5" fill="#3b82f6"/>
+    <text x="668" y="378">Relay · DelayBuffer</text>
+    <text x="826" y="378" fill="#92a9c6" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="9.5">30 s</text>
+    <circle cx="654" cy="410" r="3.5" fill="#ff4d6d"/>
+    <text x="668" y="414">Sink · YouTube</text>
+    <text x="826" y="414" fill="#92a9c6" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="9.5">6 214 kbps</text>
+    <circle cx="654" cy="446" r="3.5" fill="#fbbf24"/>
+    <text x="668" y="450">Watchdog</text>
+    <text x="826" y="450" fill="#39ff88" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="9.5">ruhig</text>
+  </g>
+  <text x="646" y="560" fill="#61748f" font-size="9">Alle Aktionen zusätzlich über die</text>
+  <text x="646" y="574" fill="#61748f" font-size="9">⌘K-Palette (Action-Registry)</text>
+
+  <!-- bottom nav -->
+  <rect x="40" y="602" width="800" height="62" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <rect x="52" y="614" width="120" height="38" rx="10" fill="rgba(34,211,238,0.13)" stroke="rgba(34,211,238,0.42)"/>
+  <circle cx="78" cy="633" r="4" fill="#39ff88"/>
+  <text x="92" y="637" fill="#a5f3fc" font-size="11" font-weight="600">Live</text>
+  <text x="292" y="637" fill="#92a9c6" font-size="11" text-anchor="middle">Inhalte</text>
+  <text x="472" y="637" fill="#92a9c6" font-size="11" text-anchor="middle">Studio</text>
+  <text x="668" y="637" fill="#92a9c6" font-size="11" text-anchor="middle">System</text>
+  <rect x="744" y="620" width="80" height="26" rx="8" fill="#101823" stroke="rgba(148,208,255,0.34)"/>
+  <text x="784" y="637" fill="#92a9c6" font-size="9.5" text-anchor="middle">⌘K Palette</text>
+
+  <!-- ============ mobile frame ============ -->
+  <rect x="880" y="58" width="336" height="660" rx="18" fill="#090d14" stroke="rgba(148,208,255,0.14)"/>
+  <rect x="1002" y="68" width="92" height="18" rx="9" fill="#05070b"/>
+
+  <rect x="896" y="98" width="304" height="60" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <circle cx="920" cy="128" r="12" fill="#16202f" stroke="rgba(148,208,255,0.34)"/>
+  <text x="920" y="131.5" fill="#92a9c6" font-size="8" text-anchor="middle" font-weight="600">SG</text>
+  <text x="940" y="124" fill="#e6f1ff" font-size="11" font-weight="600">supergirl0584</text>
+  <rect x="940" y="129" width="38" height="13" rx="6.5" fill="rgba(57,255,136,0.12)" stroke="rgba(57,255,136,0.38)"/>
+  <text x="959" y="138.5" fill="#39ff88" font-size="8" font-weight="600" text-anchor="middle">LIVE</text>
+  <text x="1188" y="124" fill="#92a9c6" font-size="9.5" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace">▲ 1 248</text>
+  <text x="1188" y="140" fill="#61748f" font-size="9" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace">02:41:18</text>
+
+  <rect x="985" y="170" width="126" height="224" rx="10" fill="url(#prev)" stroke="rgba(148,208,255,0.14)"/>
+  <rect x="995" y="180" width="46" height="15" rx="7.5" fill="rgba(255,77,109,0.2)"/>
+  <text x="1018" y="191" fill="#ff8098" font-size="8" text-anchor="middle">● Live</text>
+  <text x="1048" y="408" fill="#61748f" font-size="9" text-anchor="middle">Vorschau 9:16 · Vollbild-Zapper ↗</text>
+
+  <g font-size="10" font-weight="600" text-anchor="middle">
+    <rect x="900" y="420" width="92" height="32" rx="8" fill="#22d3ee"/>
+    <text x="946" y="440" fill="#04121a">Pause</text>
+    <rect x="998" y="420" width="92" height="32" rx="8" fill="rgba(255,77,109,0.12)" stroke="rgba(255,77,109,0.42)"/>
+    <text x="1044" y="440" fill="#ff4d6d">Stopp</text>
+    <rect x="1096" y="420" width="92" height="32" rx="8" fill="rgba(34,211,238,0.13)" stroke="rgba(34,211,238,0.42)"/>
+    <text x="1142" y="440" fill="#22d3ee">⇄ Wechsel</text>
+  </g>
+
+  <rect x="896" y="462" width="304" height="120" rx="12" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <text x="912" y="484" fill="#e6f1ff" font-size="10.5" font-weight="600">Regie-Queue</text>
+  <rect x="912" y="494" width="272" height="34" rx="8" fill="#101823" stroke="rgba(34,211,238,0.42)"/>
+  <text x="924" y="515" fill="#e6f1ff" font-size="9.5">intro.mp4</text>
+  <text x="1172" y="515" fill="#61748f" font-size="9" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace">Noch 04:12 · ←</text>
+  <rect x="912" y="534" width="272" height="34" rx="8" fill="#101823"/>
+  <text x="924" y="555" fill="#e6f1ff" font-size="9.5">derechtecharly</text>
+  <text x="1172" y="555" fill="#61748f" font-size="9" text-anchor="end" font-family="'JetBrains Mono', ui-monospace, monospace">▲ 1 126 · ←</text>
+
+  <text x="896" y="606" fill="#61748f" font-size="8.5">Wischen löscht · lange drücken zieht · 38 px Touch-Ziele</text>
+
+  <rect x="892" y="622" width="312" height="82" rx="14" fill="#0c1119" stroke="rgba(148,208,255,0.08)"/>
+  <rect x="902" y="660" width="64" height="32" rx="10" fill="rgba(34,211,238,0.13)" stroke="rgba(34,211,238,0.42)"/>
+  <circle cx="920" cy="676" r="3.5" fill="#39ff88"/>
+  <text x="937" y="680" fill="#a5f3fc" font-size="9.5" font-weight="600">Live</text>
+  <g fill="#92a9c6" font-size="9" text-anchor="middle">
+    <text x="1024" y="680">Inhalte</text>
+    <text x="1098" y="680">Studio</text>
+    <text x="1172" y="680">System</text>
+  </g>
+
+  <!-- legend -->
+  <g fill="#61748f" font-size="10">
+    <text x="24" y="742">Cockpit: Status prüfen, umschalten, Pause und Queue-Push ohne Navigationswechsel · optimistisches UI, Skeletons statt Spinnern, &lt; 100 ms bis zum sichtbaren Statuswechsel</text>
+    <text x="24" y="760">Mobil: Signaling-Dot in der Bottom-Nav (Stream läuft), Swipe-Aktionen auf Queue-Einträgen, Back-Gesten überall lauffähig</text>
+    <text x="24" y="778">Design: Radius 12 px Karten / 8 px Controls / Pill-Chips, Elevation statt 1-px-Borders, Cyan als Interaktions-Akzent, JetBrains Mono nur für Zahlen/IDs ·  Mock, kein Screenshot</text>
+  </g>
+</svg>

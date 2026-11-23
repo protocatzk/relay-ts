@@ -20,6 +20,19 @@ einer Admin-Website. Das bestehende TokTracker-Design (harte Kanten,
   Lazy-Routen, Vendor-Chunk, SSE-Store, Tab-Pausierung, ETag-Caching,
   Command-Palette (unvollständig ausgebaut).
 
+## Mockup
+
+Schneller Design-Entwurf des Cockpit-Zustands (Desktop + Mobil), farblich
+auf dem heutigen Token-Set (`--bg`, `--surface-*`, `--accent`,
+`--success`, …) und den Ziel-Parametern des Issues (Radius 12/8/pill,
+Elevation statt 1-px-Borders, Cyan-Akzent, Mono nur für Zahlen):
+
+![Cockpit-Mock (Desktop + Mobil)](assets/45-dashboard-redesign-mock.svg)
+
+Nicht maßstäblich und kein Screenshot — dient als Diskussionsgrundlage
+für Phase A/B (Tokens, Basis-Komponenten, Cockpit-Layout, Bottom-Nav
+mit Signaling-Dot).
+
 ## Umfang
 
 **Design-System (Phase A)**
