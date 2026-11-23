@@ -120,8 +120,10 @@ export class FollowingProvider implements DiscoveryProvider {
     const isLoadMore = page > 0;
     const feedParams: Record<string, string> = {
       channel_id: '42',
-      scene: 'feed_draw',
-      req_from: isLoadMore ? 'pc_web_following_feed_loadmore' : 'pc_web_following_feed_refresh',
+      entry_point: 'Live_Recommend_Follow',
+      pull_type: isLoadMore ? '2' : '1',
+      scene: '1',
+      stream_global_switch: 'true',
       user_is_login: 'true',
       count: String(Math.min(30, opts.limit ?? 20)),
       offset: String(page * 20),
