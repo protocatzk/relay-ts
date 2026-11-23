@@ -37,3 +37,8 @@
 {"title":"Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions)","file":"37-automations-builder-ui.md","labels":["enhancement","automation","ui","api","P2"]}
 {"title":"RTMP-Ingest: Externen RTMP-Endpoint für Gaming-Streams einbauen (mit konfigurierbarem Stream-Key)","file":"38-external-rtmp-ingest-endpoint.md","labels":["enhancement","streaming","source","P2"]}
 {"title":"API-Zugang konfigurieren und Keys erzeugen und managen","file":"39-api-access-and-key-management.md","labels":["enhancement","security","api","P2"]}
+{"title":"API-Key-Scopes für GET-Routen durchsetzen (read:*-Scopes werden nicht geprüft)","file":"40-api-key-scope-enforcement-for-get-routes.md","labels":["security","api","P1"]}
+{"title":"API-Key-Store asynchron und gedrosselt persistieren (kein Sync-Write pro Request)","file":"41-api-key-store-async-throttled-persist.md","labels":["api","tech-debt","P2"]}
+{"title":"x-forwarded-proto nur bei vertrauenswürdigem Proxy für Secure-Cookie beachten","file":"42-secure-cookie-x-forwarded-proto-trust.md","labels":["security","P3"]}
+{"title":"RTMP-Ingest-Stream-Key im Status-Snapshot schwärzen","file":"43-redact-rtmp-ingest-stream-key-in-status.md","labels":["security","api","P3"]}
+{"title":"Versionsangabe in AGENTS.md aktualisieren","file":"44-agents-md-version-drift.md","labels":["tech-debt","P4"]}
