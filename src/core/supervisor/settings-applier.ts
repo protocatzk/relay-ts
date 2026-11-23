@@ -36,6 +36,7 @@ export interface SettingsDiff {
   audioChanged: boolean;
   chatChanged: boolean;
   sinkTimeoutChanged: boolean;
+  youtubeRtmpChanged: boolean;
 }
 
 export function diffSettings(previous: Settings, next: Settings): SettingsDiff {
@@ -67,6 +68,7 @@ export function diffSettings(previous: Settings, next: Settings): SettingsDiff {
   const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
   const sinkTimeoutChanged =
     previous.sink.rw_timeout_seconds !== next.sink.rw_timeout_seconds;
+  const youtubeRtmpChanged = previous.youtube.rtmp_url !== next.youtube.rtmp_url;
 
   return {
     videoEncoderChanged,
@@ -77,6 +79,7 @@ export function diffSettings(previous: Settings, next: Settings): SettingsDiff {
     audioChanged,
     chatChanged,
     sinkTimeoutChanged,
+    youtubeRtmpChanged,
   };
 }
 
@@ -192,6 +195,7 @@ export async function applySupervisorSettings(
   if (diff.videoLayoutChanged) needsSinkRestart = true;
   if (diff.audioChanged) needsSinkRestart = true;
   if (diff.sinkTimeoutChanged) needsSinkRestart = true;
+  if (diff.youtubeRtmpChanged) needsSinkRestart = true;
   if ((diff.overlaysChanged || diff.videoLayoutChanged) && !host.applyingScene) {
     host.scenes.setActiveId(null);
   }

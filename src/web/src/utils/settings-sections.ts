@@ -237,6 +237,9 @@ export function buildSectionPayload(
               ? { global_youtube_key: nextGlobalKey }
               : {}),
         },
+        youtube: {
+          rtmp_url: (current.youtube?.rtmp_url ?? '').trim(),
+        },
       };
     }
     case 'webhooks': {
@@ -358,7 +361,8 @@ export function isSectionDirty(
       return (
         (secrets.globalYoutubeKey?.trim().length ?? 0) > 0 ||
         Boolean(secrets.clearGlobalYoutubeKey) ||
-        JSON.stringify(current.streaming) !== JSON.stringify(baseline.streaming)
+        JSON.stringify(current.streaming) !== JSON.stringify(baseline.streaming) ||
+        (current.youtube?.rtmp_url ?? '') !== (baseline.youtube?.rtmp_url ?? '')
       );
     case 'webhooks':
       return (
@@ -414,6 +418,7 @@ export function applySavedSection(
       return;
     case 'title':
       target.streaming = clone(saved.streaming);
+      if (saved.youtube) target.youtube = clone(saved.youtube);
       return;
     case 'webhooks':
       if (saved.webhooks) target.webhooks = clone(saved.webhooks);

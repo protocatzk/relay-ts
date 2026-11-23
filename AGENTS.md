@@ -354,6 +354,12 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   kennt `off`, `relay_only` (Default) und `all`. Request-Werte (`privacy`,
   `enable_dvr`) überschreiben nur den jeweiligen Broadcast. Auswahllogik in
   `src/core/youtube/automation.ts`, inklusive Override-Resolver pro Broadcast.
+- `settings.youtube.rtmp_url` wählt den YouTube-Ingest-Endpoint des Sinks
+  (Dropdown „RTMP-Endpoint" in „YouTube-Titel & Globaler Stream-Key"): leer =
+  Env-Default (`YOUTUBE_RTMP_URL`, sonst `rtmp://a.rtmp.youtube.com/live2`),
+  alternativ das Backup-Ingest oder eine eigene `rtmp(s)://`-URL. Ungültige
+  Schemata lehnt das Schema ab; ein Wechsel startet den YouTube-Sink neu
+  (`diffSettings.youtubeRtmpChanged`).
 - Beim Anlegen mit Streamer wird der Ingest über den Stream-Key gesucht und
   gebunden; der Key wird nie an die API-Antwort oder ins Log gegeben.
 - App muss für Dauerbetrieb in Google Cloud `In production` sein; `Testing`

@@ -424,6 +424,7 @@ function normalizeSettingsDefaults(settings: Settings): Settings {
   };
   settings.streaming.global_key_enabled ??= false;
   settings.streaming.global_youtube_key_set ??= false;
+  settings.youtube ??= { rtmp_url: '' };
   return settings;
 }
 
@@ -717,6 +718,7 @@ onBeforeUnmount(() => {
 
       <SettingsTitleCard
         :streaming="form.streaming"
+        :youtube="form.youtube"
         :global-youtube-key="globalYoutubeKey"
         :clear-global-youtube-key="clearGlobalYoutubeKey"
         :dirty="sectionDirty('title')"

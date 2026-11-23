@@ -132,7 +132,7 @@ describe('YouTube OAuth', () => {
   it('ships automation defaults and allows env overrides', () => {
     const dir = mkdtempSync(join(tmpdir(), 'relay-youtube-config-'));
     const config = loadConfig({ cwd: dir, env: { LOG_LEVEL: 'silent' } });
-    expect(config.settings.youtube).toEqual(DEFAULT_AUTOMATION);
+    expect(config.settings.youtube).toEqual({ ...DEFAULT_AUTOMATION, rtmp_url: '' });
 
     const overridden = loadConfig({
       cwd: dir,

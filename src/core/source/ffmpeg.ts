@@ -21,11 +21,28 @@ export function playbackUrl(relay: RelayEndpoint): string {
   return `tcp://${relay.host}:${relay.port + 1}?tcp_nodelay=1`;
 }
 
-export function youtubeUrls(media: Pick<MediaConfig, 'youtubeRtmpUrl' | 'youtubeBackup'>, key: string): string[] {
+/**
+ * Effective ingest (RTMP) endpoint for the YouTube sink: the dashboard
+ * selection from `settings.youtube.rtmp_url` wins, otherwise the
+ * environment-configured default is used.
+ */
+export function effectiveYoutubeRtmpUrl(
+  media: Pick<MediaConfig, 'youtubeRtmpUrl'>,
+  settings: Pick<Settings, 'youtube'>,
+): string {
+  const selected = settings.youtube?.rtmp_url?.trim() ?? '';
+  return selected || media.youtubeRtmpUrl;
+}
+
+export function youtubeUrls(
+  media: Pick<MediaConfig, 'youtubeRtmpUrl' | 'youtubeBackup'>,
+  key: string,
+  rtmpUrlOverride?: string,
+): string[] {
   const value = key.trim();
   if (!value) throw new Error('YouTube-Stream-Key ist leer');
   if (/^rtmps?:\/\//i.test(value)) return [value];
-  const base = media.youtubeRtmpUrl.replace(/\/+$/, '');
+  const base = (rtmpUrlOverride?.trim() || media.youtubeRtmpUrl).replace(/\/+$/, '');
   const urls = [`${base}/${value}`];
   if (media.youtubeBackup) {
     urls.push(`rtmp://b.rtmp.youtube.com/live2/${value}?backup=1`);
@@ -372,7 +389,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
   ];
 
   const args = [...inputArgs];
-  for (const url of youtubeUrls(media, options.key)) {
+  for (const url of youtubeUrls(media, options.key, effectiveYoutubeRtmpUrl(media, settings))) {
     args.push(...outputArgs);
     if (/^rtmps?:\/\//i.test(url)) {
       args.push('-tcp_nodelay', '1', '-rw_timeout', `${settings.sink.rw_timeout_seconds * 1_000_000}`);

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
 import ToggleField from '@/src/components/ToggleField.vue';
 
 interface StreamingModel {
@@ -7,8 +8,9 @@ interface StreamingModel {
   global_youtube_key_set: boolean;
 }
 
-defineProps<{
+const props = defineProps<{
   streaming: StreamingModel;
+  youtube?: { rtmp_url: string };
   globalYoutubeKey: string;
   clearGlobalYoutubeKey: boolean;
   dirty: boolean;
@@ -21,6 +23,36 @@ defineEmits<{
   (e: 'update:clearGlobalYoutubeKey', value: boolean): void;
   (e: 'save'): void;
 }>();
+
+const BACKUP_RTMP_URL = 'rtmp://b.rtmp.youtube.com/live2';
+const CUSTOM_CHOICE = 'custom';
+
+const customEndpoint = ref(false);
+watch(
+  () => props.youtube?.rtmp_url ?? '',
+  (url) => {
+    const value = url.trim();
+    customEndpoint.value = value !== '' && value !== BACKUP_RTMP_URL;
+  },
+  { immediate: true },
+);
+
+const endpointChoice = computed(() =>
+  customEndpoint.value ? CUSTOM_CHOICE : (props.youtube?.rtmp_url ?? ''),
+);
+
+function setEndpointChoice(event: Event): void {
+  const choice = (event.target as HTMLSelectElement).value;
+  const youtube = props.youtube;
+  if (!youtube) return;
+  if (choice === CUSTOM_CHOICE) {
+    customEndpoint.value = true;
+    youtube.rtmp_url = '';
+  } else {
+    customEndpoint.value = false;
+    youtube.rtmp_url = choice;
+  }
+}
 </script>
 
 <template>
@@ -125,6 +157,29 @@ defineEmits<{
           <p class="field-hint">
             Wenn aktiv, streamen alle Kanäle auf diesen YouTube-Key. Ist der Schalter aus, dient ein
             hinterlegter globaler Key als Fallback für Streamer ohne eigenen Key.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="youtube-rtmp-endpoint">RTMP-Endpoint (YouTube Ingest)</label>
+          <select id="youtube-rtmp-endpoint" :value="endpointChoice" @change="setEndpointChoice">
+            <option value="">Standard (a.rtmp.youtube.com/live2)</option>
+            <option :value="BACKUP_RTMP_URL">Backup (b.rtmp.youtube.com/live2)</option>
+            <option value="custom">Eigene RTMP-URL…</option>
+          </select>
+          <input
+            v-if="customEndpoint && youtube"
+            id="youtube-rtmp-custom"
+            v-model="youtube.rtmp_url"
+            type="text"
+            maxlength="500"
+            spellcheck="false"
+            placeholder="rtmp://beispiel.de/live"
+          />
+          <p class="field-hint">
+            Leer = Standard-Ingest des Servers. Eigene URLs müssen mit
+            <code>rtmp://</code> oder <code>rtmps://</code> beginnen. Ein Wechsel startet den
+            YouTube-Sink neu.
           </p>
         </div>
 

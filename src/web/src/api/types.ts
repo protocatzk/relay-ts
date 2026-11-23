@@ -724,6 +724,7 @@ export interface Settings {
   online: OnlineSettings;
   chat: ChatSettings;
   streaming: StreamingSettings;
+  youtube?: YouTubeSettings;
   earnings: EarningsSettings;
   overlays: StreamerOverlays;
   secondary_sink?: SecondarySinkSettings;
@@ -742,6 +743,11 @@ export interface RtmpIngestSettings {
   stream_key?: string;
   stream_key_set: boolean;
   auto_takeover: boolean;
+}
+
+export interface YouTubeSettings {
+  /** Dashboard-selected YouTube ingest (RTMP) endpoint; '' keeps the default. */
+  rtmp_url: string;
 }
 
 export interface McpSettings {
@@ -897,6 +903,9 @@ export interface SettingsUpdate {
     title_template: string;
     global_key_enabled?: boolean;
     global_youtube_key?: string;
+  };
+  youtube?: {
+    rtmp_url: string;
   };
   overlays?: StreamerOverlaysInput;
   secondary_sink?: {

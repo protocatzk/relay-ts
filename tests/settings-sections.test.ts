@@ -69,6 +69,9 @@ function makeSettings(): Settings {
       global_key_enabled: false,
       global_youtube_key_set: false,
     },
+    youtube: {
+      rtmp_url: '',
+    },
     audio: {
       normalize: 'off',
       target_lufs: -14,
@@ -204,7 +207,8 @@ describe('settings sections partial updates', () => {
     expect(videoPayload.video?.tune).toBe('zerolatency');
 
     const titlePayload = buildSectionPayload('title', settings, emptySecrets);
-    expect(Object.keys(titlePayload)).toEqual(['streaming']);
+    expect(Object.keys(titlePayload).sort()).toEqual(['streaming', 'youtube']);
+    expect(titlePayload.youtube).toEqual({ rtmp_url: '' });
     expect(titlePayload.streaming).toEqual({
       title_template: '{name} live',
       global_key_enabled: false,
@@ -331,6 +335,17 @@ describe('settings sections partial updates', () => {
       'video',
       'watchdog',
       'webhooks',
+      'youtube',
     ]);
+  });
+
+  it('treats a changed YouTube RTMP endpoint as a dirty title section', () => {
+    const current = makeSettings();
+    const youtube = current.youtube;
+    if (!youtube) throw new Error('fixture is missing youtube settings');
+    youtube.rtmp_url = 'rtmp://b.rtmp.youtube.com/live2';
+
+    expect(isSectionDirty('title', current, makeSettings(), emptySecrets)).toBe(true);
+    expect(isSectionDirty('title', makeSettings(), makeSettings(), emptySecrets)).toBe(false);
   });
 });

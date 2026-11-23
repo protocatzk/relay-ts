@@ -9,6 +9,7 @@ import {
   buildSlateFilters,
   buildSinkCommand,
   buildSourceCommand,
+  effectiveYoutubeRtmpUrl,
   youtubeUrls,
 } from '../src/core/source/ffmpeg.js';
 import {
@@ -402,6 +403,36 @@ describe('ffmpeg command builders', () => {
     expect(args.filter((value) => value === 'flv')).toHaveLength(2);
     expect(args.filter((value) => value === '-rw_timeout')).toHaveLength(2);
     expect(args).toContain('rtmp://b.rtmp.youtube.com/live2/key?backup=1');
+  });
+
+  it('routes the sink output through the selected YouTube ingest endpoint', () => {
+    const effective = effectiveYoutubeRtmpUrl(media, {
+      ...DEFAULT_SETTINGS,
+      youtube: { ...DEFAULT_SETTINGS.youtube, rtmp_url: 'rtmp://b.rtmp.youtube.com/live2' },
+    });
+    expect(effective).toBe('rtmp://b.rtmp.youtube.com/live2');
+
+    const overridden = buildSinkCommand({
+      media,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        youtube: { ...DEFAULT_SETTINGS.youtube, rtmp_url: 'rtmp://b.rtmp.youtube.com/live2' },
+      },
+      key: 'key',
+      relay,
+    });
+    expect(overridden).toContain('rtmp://b.rtmp.youtube.com/live2/key');
+    expect(overridden.join(' ')).not.toContain('rtmp://a.rtmp.youtube.com/live2/key');
+
+    // An empty selection keeps the environment-configured default.
+    expect(effectiveYoutubeRtmpUrl(media, DEFAULT_SETTINGS)).toBe('rtmp://a.rtmp.youtube.com/live2');
+    const defaulted = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'key',
+      relay,
+    });
+    expect(defaulted).toContain('rtmp://a.rtmp.youtube.com/live2/key');
   });
 
   it('builds a one-frame preview with the slate drawtext layers', () => {

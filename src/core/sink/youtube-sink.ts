@@ -1,7 +1,13 @@
 import type { Logger } from 'pino';
 import type { MediaConfig } from '../config/loader.js';
 import type { Settings } from '../config/schema.js';
-import { buildSinkCommand, youtubeUrls, type RelayEndpoint, type SinkOverlayInput } from '../source/ffmpeg.js';
+import {
+  buildSinkCommand,
+  effectiveYoutubeRtmpUrl,
+  youtubeUrls,
+  type RelayEndpoint,
+  type SinkOverlayInput,
+} from '../source/ffmpeg.js';
 import { ManagedProcess } from '../../utils/process.js';
 import { FfmpegProgress } from '../../utils/ffmpeg-progress.js';
 import { incMetric } from '../metrics.js';
@@ -118,7 +124,7 @@ export class YouTubeSink {
       logoInput,
     });
     // Validate URLs early (before spawning) and keep keys out of logs.
-    youtubeUrls(this.options.media, key);
+    youtubeUrls(this.options.media, key, effectiveYoutubeRtmpUrl(this.options.media, this.options.settings));
     const process = new ManagedProcess({
       name: 'youtube-sink',
       command: this.options.media.ffmpegBin,
@@ -187,7 +193,10 @@ export class YouTubeSink {
     this.process = process;
     this.startCount += 1;
     process.start();
-    this.options.logger.info({ key: '***', urls: youtubeUrls(this.options.media, key).length }, 'YouTube-Sink gestartet');
+    this.options.logger.info({
+      key: '***',
+      urls: youtubeUrls(this.options.media, key, effectiveYoutubeRtmpUrl(this.options.media, this.options.settings)).length,
+    }, 'YouTube-Sink gestartet');
   }
 
   async stop(): Promise<void> {

@@ -10801,7 +10801,8 @@
               "auto_start": true,
               "auto_stop": true,
               "default_privacy": "unlisted",
-              "default_dvr": true
+              "default_dvr": true,
+              "rtmp_url": ""
             },
             "type": "object",
             "properties": {
@@ -10838,6 +10839,11 @@
               "default_dvr": {
                 "default": true,
                 "type": "boolean"
+              },
+              "rtmp_url": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
               }
             }
           },
@@ -12435,7 +12441,8 @@
               "auto_start": true,
               "auto_stop": true,
               "default_privacy": "unlisted",
-              "default_dvr": true
+              "default_dvr": true,
+              "rtmp_url": ""
             },
             "type": "object",
             "properties": {
@@ -12472,6 +12479,11 @@
               "default_dvr": {
                 "default": true,
                 "type": "boolean"
+              },
+              "rtmp_url": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
               }
             }
           },

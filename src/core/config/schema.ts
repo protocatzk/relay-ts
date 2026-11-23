@@ -345,6 +345,18 @@ export const YouTubeAutomationSettingsSchema = z.object({
   auto_stop: z.boolean().default(true),
   default_privacy: z.enum(['public', 'unlisted', 'private']).default('unlisted'),
   default_dvr: z.boolean().default(true),
+  /**
+   * Selected YouTube ingest (RTMP) endpoint for the sink. Empty keeps the
+   * environment default (`media.youtubeRtmpUrl`); non-empty values must be
+   * full rtmp:// or rtmps:// URLs.
+   */
+  rtmp_url: z
+    .string()
+    .max(500)
+    .default('')
+    .refine((value) => !value.trim() || /^rtmps?:\/\//i.test(value.trim()), {
+      message: 'RTMP-Endpoint muss mit rtmp:// oder rtmps:// beginnen',
+    }),
 });
 
 export const SecondarySinkSettingsSchema = z.object({
