@@ -156,6 +156,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher (#79) | P2 | Chat/Overlay/Discovery | abgeschlossen |
 | Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions) (#80) | P2 | Automation/UI/API | geplant |
 | API-Zugang konfigurieren und Keys erzeugen und managen (#82) | P2 | Security/API | geplant |
+| Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#83) | P1 | UI/UX | geplant |
 
 ## Definition of Done
 

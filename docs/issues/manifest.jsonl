@@ -42,3 +42,4 @@
 {"title":"x-forwarded-proto nur bei vertrauenswürdigem Proxy für Secure-Cookie beachten","file":"42-secure-cookie-x-forwarded-proto-trust.md","labels":["security","P3"]}
 {"title":"RTMP-Ingest-Stream-Key im Status-Snapshot schwärzen","file":"43-redact-rtmp-ingest-stream-key-in-status.md","labels":["security","api","P3"]}
 {"title":"Versionsangabe in AGENTS.md aktualisieren","file":"44-agents-md-version-drift.md","labels":["tech-debt","P4"]}
+{"title":"Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl","file":"45-dashboard-redesign.md","labels":["ui","ux","frontend","P2"]}
