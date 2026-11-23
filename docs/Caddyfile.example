@@ -1,0 +1,46 @@
+# Beispiel-Caddyfile für RELAY (nativer systemd-Betrieb)
+#
+# Ablage: /etc/caddy/Caddyfile
+# Übernehmen: sudo caddy validate --config /etc/caddy/Caddyfile
+#             sudo systemctl reload caddy
+#
+# Platzhalter ersetzen: <relay-domain> (Dashboard/API), optional
+# <web-domain> (separate Web-App auf Port 3001).
+#
+# Wichtig: Ein Block, der nur als Kommentar existiert, ist für Caddy nicht
+# vorhanden. Der TLS-Handshake scheitert dann mit
+# "tlsv1 alert internal error" und es wird kein Zertifikat ausgestellt –
+# die Domain ist per HTTPS nicht erreichbar, obwohl der Dienst läuft.
+
+{
+	# Kontaktadresse für Let's Encrypt (AGB-/Ablaufhinweise).
+	email admin@example.com
+	# Admin-API bleibt an (nur 127.0.0.1:2019), sonst schlägt
+	# "systemctl reload caddy" fehl.
+}
+
+# RELAY-Dashboard und API.
+# Voraussetzungen:
+#   - DNS: <relay-domain> zeigt auf die öffentliche IP dieses Hosts
+#   - relay.service lauscht auf 127.0.0.1:3000
+#   - /etc/relay.env enthält SERVER_PORT=3000, SERVER_HOST=127.0.0.1,
+#     SECURE_COOKIES=true, TRUST_PROXY=true
+<relay-domain> {
+	reverse_proxy 127.0.0.1:3000
+}
+
+# Optional: separate Web-App (Port 3001). Ohne diesen Block auskommentiert
+# lassen.
+# <web-domain> {
+# 	reverse_proxy 127.0.0.1:3001
+# }
+
+# Optional: HTTP-Kompression für statische Assets/JSON.
+# Die Streaming-Endpunkte schützt RELAY selbst (SSE: Cache-Control
+# no-transform, Vorschau: video/mp2t), daher genügt eine Zeile.
+# Alternativ: sudo scripts/add-caddy-compression.sh
+#
+# <relay-domain> {
+# 	encode zstd gzip
+# 	reverse_proxy 127.0.0.1:3000
+# }

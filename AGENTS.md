@@ -454,9 +454,12 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Dienst neu und prüft `/health`; bei Fehlschlag wird automatisch zurückgerollt.
   `--rollback` wechselt auf die vorherige Version.
 - **TLS/Reverse-Proxy:** Caddy auf dem Host (`/etc/caddy/Caddyfile`), automatisches
-  Let's-Encrypt-TLS. Der Dienst bindet nur `127.0.0.1:3000`; Caddy routet
-  `relay.positronium.dev` → `127.0.0.1:3000` und `web.positronium.dev` →
-  `127.0.0.1:3001`. Änderungen an der Caddyfile: `systemctl restart caddy`.
+  Let's-Encrypt-TLS. Der Dienst bindet nur `127.0.0.1:3000` (`SERVER_HOST`); Caddy
+  routet `relay.positronium.dev` → `127.0.0.1:3000` und `web.positronium.dev` →
+  `127.0.0.1:3001`. Vorlage: `docs/Caddyfile.example`. Ein nur auskommentierter
+  Site-Block macht die Domain unerreichbar (`tlsv1 alert internal error`, kein
+  Zertifikat), obwohl der Dienst läuft. Änderungen prüfen und anwenden:
+  `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`.
 - **Legacy-Rollback:** der alte Compose-Service `restreamer-ts` ist als
   `profiles: ["legacy"]` deaktiviert; `nginx-proxy`/`acme-companion` sind
   gestoppt. Rollback zum Container:

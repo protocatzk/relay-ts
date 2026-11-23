@@ -374,6 +374,16 @@ setup_caddy() {
     warn "[caddy] $CADDYFILE existiert bereits – lasse sie unangetastet. Benötigte Blöcke:"
     printf '  %s {\n    reverse_proxy 127.0.0.1:%s\n  }\n' "$DOMAIN" "$APP_PORT"
     [ -n "$WEB_DOMAIN" ] && printf '  %s {\n    reverse_proxy 127.0.0.1:%s\n  }\n' "$WEB_DOMAIN" "$WEB_PORT"
+    # Häufigster Stolperstein: Der Block liegt nur als Kommentar vor. Caddy
+    # kennt die Domain dann nicht, der TLS-Handshake bricht mit
+    # "tlsv1 alert internal error" ab und es wird kein Zertifikat ausgestellt.
+    if ! grep -Eq "^[[:space:]]*${DOMAIN//./\\.}[[:space:]]*\{" "$CADDYFILE"; then
+      warn "[caddy] Kein aktiver Site-Block für '$DOMAIN' gefunden (evtl. auskommentiert)."
+      warn "[caddy] Dann ist die Domain per HTTPS nicht erreichbar, obwohl der Dienst läuft."
+      warn "[caddy] Vorlage: docs/Caddyfile.example – Block aktivieren, dann 'systemctl reload caddy'."
+    else
+      log "[caddy] Aktiver Site-Block für '$DOMAIN' vorhanden."
+    fi
     return 0
   fi
   if [ "$DRY_RUN" = 1 ]; then
