@@ -21,6 +21,7 @@ export interface OverlayRuntimeDeps {
   earnings: EarningsMonitor;
   logger: Logger;
   logoPath: string;
+  cookiesFile?: string;
 }
 
 export interface RebuiltOverlayEngine {
@@ -38,6 +39,7 @@ export class OverlayRuntime {
   private readonly earnings: EarningsMonitor;
   private readonly logger: Logger;
   private readonly logoPath: string;
+  private readonly cookiesFile?: string;
 
   private chat?: ChatService;
   private chatEngine?: ChatOverlayEngine;
@@ -57,6 +59,7 @@ export class OverlayRuntime {
     this.earnings = deps.earnings;
     this.logger = deps.logger;
     this.logoPath = deps.logoPath;
+    this.cookiesFile = deps.cookiesFile;
   }
 
   /** Loads the built-in RELAY logo once; failures simply disable the overlay. */
@@ -236,6 +239,7 @@ export class OverlayRuntime {
       chat: this.settings.overlays.chat,
       settings: this.settings,
       logger: this.logger,
+      cookiesFile: this.cookiesFile,
       onMessages: (messages) => {
         this.currentMessages = messages;
         this.analytics.record(messages);

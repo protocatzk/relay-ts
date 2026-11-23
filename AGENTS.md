@@ -181,6 +181,12 @@ Wichtige Pfade:
   sofort Medien statt Stille erhält.
 - Overlay-Änderungen am aktiven Stream bauen Sink/Chat-Engine bewusst neu auf.
   Das ist ein kurzer, kontrollierter Reconnect.
+- Zuschauerzahl: Das Chat-Overlay startet den `WebcastLiveRoomClient`.
+  `roomUser.total` ist der aktuelle Stand (`totalUser` ist kumuliert, `viewerCount`
+  fehlt in tiktok-live-connector 2.5). Der 15-s-Poll von
+  `api-live/user/room` muss die Cookies aus `data/cookies.txt` mitsenden, sonst
+  antwortet TikTok mit einem Stub (`userCount: 0`, leerer Titel) und überschreibt
+  die echten Werte; bei frischen WebSocket-Events hat der Socket Vorrang.
 - Das globale Video-Layout (`video.layout`) skaliert und positioniert das
   Relay-Bild im Sink per `scale`/`crop`/`pad`. 100 % ist das eingepasste Bild,
   über 100 % wird gezoomt und beschnitten. Es gilt global für Live-Quelle,

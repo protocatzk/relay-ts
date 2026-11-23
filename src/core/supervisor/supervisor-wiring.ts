@@ -346,6 +346,7 @@ export async function createSupervisorSubsystems(
     earnings,
     logger,
     logoPath: join(config.paths.webDir, 'logo.png'),
+    cookiesFile: config.paths.cookiesFile,
   });
   overlayRuntimeRef = overlayRuntime;
   await overlayRuntime.loadLogo();

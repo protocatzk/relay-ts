@@ -20,6 +20,8 @@ export interface ChatServiceOptions {
   chat: Settings['overlays']['chat'];
   settings: Settings;
   logger: Logger;
+  /** Netscape cookie file; the live-room poll needs a TikTok session. */
+  cookiesFile?: string;
   onMessages: (messages: ChatMessage[]) => void;
   onViewerUpdate?: (viewers: number) => void;
   onRoomStats?: (stats: { roomId: string | null; isLive: boolean; viewers: number | null; title: string | null }) => void;
@@ -71,6 +73,7 @@ export class ChatService {
     this.webcastClient = new WebcastLiveRoomClient({
       handle: this.options.streamer.tiktok,
       logger: this.options.logger,
+      cookiesFile: this.options.cookiesFile,
       onChatMessage: (msg) => {
         this.addIncomingMessage(msg);
       },

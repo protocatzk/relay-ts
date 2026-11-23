@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 import { TikTokLiveConnection } from 'tiktok-live-connector';
 import type { ChatMessage } from '../../overlays/chat-service.js';
+import { readCookieHeader } from '../resolver.js';
 
 export interface WebcastLiveRoomStats {
   roomId: string | null;
@@ -34,6 +35,7 @@ export class WebcastLiveRoomClient {
 
   private readonly handle: string;
   private readonly logger: Logger;
+  private readonly cookiesFile?: string;
   private running = false;
   private pollTimer?: NodeJS.Timeout;
   private reconnectTimer?: NodeJS.Timeout;
@@ -53,6 +55,7 @@ export class WebcastLiveRoomClient {
   constructor(options: WebcastLiveRoomOptions) {
     this.handle = options.handle.replace(/^@+/, '');
     this.logger = options.logger;
+    this.cookiesFile = options.cookiesFile;
     this.onChatMessage = options.onChatMessage;
     this.onGift = options.onGift;
     this.onViewerUpdate = options.onViewerUpdate;
@@ -98,12 +101,17 @@ export class WebcastLiveRoomClient {
     if (!this.running) return;
     try {
       const url = `https://www.tiktok.com/api-live/user/room?aid=1988&sourceType=54&uniqueId=${encodeURIComponent(this.handle)}`;
+      // Without a TikTok session cookie the endpoint answers with a stub
+      // (status 2, empty title, liveRoomStats.userCount = 0), which used to
+      // overwrite the real viewer count every poll.
+      const cookie = this.cookiesFile ? readCookieHeader(this.cookiesFile) : null;
       const res = await fetch(url, {
         headers: {
           'user-agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
           referer: `https://www.tiktok.com/@${this.handle}/live`,
           accept: 'application/json',
+          ...(cookie ? { cookie } : {}),
         },
         signal: AbortSignal.timeout(6000),
       });
@@ -148,7 +156,13 @@ export class WebcastLiveRoomClient {
             ? parseInt(rawViewers, 10) || 0
             : null;
 
-      if (viewers !== null && viewers >= 0) {
+      // The unauthenticated poll may return 0 while the webcast socket is
+      // already delivering accurate counts; keep the socket authoritative.
+      const socketFresh =
+        this.liveConnection !== undefined &&
+        this.lastWebcastEventAt !== null &&
+        Date.now() - this.lastWebcastEventAt < WebcastLiveRoomClient.WEBCAST_EVENT_GRACE_MS;
+      if (!socketFresh && viewers !== null && viewers >= 0) {
         this.currentViewers = viewers;
         this.onViewerUpdate?.(viewers);
       }
@@ -239,8 +253,9 @@ export class WebcastLiveRoomClient {
         if (!this.running) return;
         this.lastWebcastEventAt = Date.now();
         const data = raw as Record<string, unknown>;
-        // viewerCount is the active viewer count; totalUser/total is cumulative.
-        const rawCount = data.viewerCount;
+        // `total` is the active viewer count; `totalUser` is cumulative.
+        // Newer connector versions expose it as viewerCount (often absent).
+        const rawCount = data.viewerCount ?? data.total;
         if (rawCount === undefined || rawCount === null) return;
         const viewerCount = Number(rawCount);
         if (Number.isFinite(viewerCount) && viewerCount >= 0) {
