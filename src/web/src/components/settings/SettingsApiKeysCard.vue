@@ -227,10 +227,8 @@ onMounted(() => {
     <ModalDialog
       :open="createModalOpen"
       title="Neuen API-Key erstellen"
-      confirm-label="Key erzeugen"
-      :confirm-disabled="!form.name.trim() || creating"
-      @confirm="handleCreateKey"
-      @cancel="createModalOpen = false"
+      size="md"
+      @close="createModalOpen = false"
     >
       <form class="key-form" @submit.prevent="handleCreateKey">
         <label class="field">
@@ -276,15 +274,35 @@ onMounted(() => {
           </div>
         </fieldset>
       </form>
+
+      <template #footer>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            @click="createModalOpen = false"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!form.name.trim() || creating"
+            @click="handleCreateKey"
+          >
+            <span v-if="creating" class="spinner" aria-hidden="true"></span>
+            Key erzeugen
+          </button>
+        </div>
+      </template>
     </ModalDialog>
 
     <!-- Modal: Einmalige Secret-Anzeige -->
     <ModalDialog
       :open="generatedKeyModalOpen"
       title="API-Key erfolgreich erzeugt"
-      confirm-label="Verstanden & Schließen"
-      @confirm="generatedKeyModalOpen = false"
-      @cancel="generatedKeyModalOpen = false"
+      size="md"
+      @close="generatedKeyModalOpen = false"
     >
       <div class="secret-display">
         <div class="alert alert-warning" role="alert">
@@ -312,6 +330,18 @@ onMounted(() => {
           Verwende diesen Key im <code>Authorization: Bearer {{ createdKeySecret.slice(0, 16) }}...</code> HTTP-Header.
         </p>
       </div>
+
+      <template #footer>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="generatedKeyModalOpen = false"
+          >
+            Verstanden & Schließen
+          </button>
+        </div>
+      </template>
     </ModalDialog>
   </section>
 </template>
@@ -418,5 +448,12 @@ onMounted(() => {
   color: var(--color-success, #22c55e);
   font-weight: 600;
   border-radius: 4px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
 }
 </style>
