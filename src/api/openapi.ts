@@ -1065,6 +1065,8 @@ const routes: RouteDoc[] = [
     tag: 'discovery',
     summary: 'Gefolgte Live-Streams des aktiven TikTok-Accounts abrufen',
     parameters: [
+      { name: 'account_id', in: 'query', schema: { type: 'string', example: 'acc_123' } },
+      { name: 'session_id', in: 'query', schema: { type: 'string' } },
       { name: 'limit', in: 'query', schema: { type: 'integer', example: 20 } },
       { name: 'page', in: 'query', schema: { type: 'integer', example: 0 } },
     ],

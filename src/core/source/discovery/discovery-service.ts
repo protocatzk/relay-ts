@@ -4,6 +4,7 @@ import type { SettingsService } from '../../store/settings-service.js';
 import type { StreamerStore } from '../../store/streamer-store.js';
 import type { StreamerConfig } from '../../config/schema.js';
 import type { Supervisor } from '../../supervisor/supervisor.js';
+import type { TikTokAccountStore } from '../../account/tiktok-account-store.js';
 import { ConflictError, ValidationError } from '../../../utils/errors.js';
 import { normalizeHandle } from '../../../utils/format.js';
 import { FollowingProvider } from './following-provider.js';
@@ -26,6 +27,7 @@ export interface DiscoveryServiceDeps {
   logger: Logger;
   userAgent?: string;
   cookiesFile?: string;
+  accountStore?: TikTokAccountStore;
   providers?: Map<DiscoveryProviderName, DiscoveryProvider>;
 }
 
@@ -55,7 +57,11 @@ export class DiscoveryService {
       );
       this.providers.set(
         'following',
-        new FollowingProvider({ userAgent: deps.userAgent, cookiesFile: deps.cookiesFile }),
+        new FollowingProvider({
+          userAgent: deps.userAgent,
+          cookiesFile: deps.cookiesFile,
+          accountStore: deps.accountStore,
+        }),
       );
     }
   }
@@ -265,11 +271,23 @@ export class DiscoveryService {
     return response;
   }
 
-  async following(opts?: { limit?: number; page?: number }): Promise<DiscoveryResponse> {
+  async following(opts?: {
+    limit?: number;
+    page?: number;
+    account_id?: string;
+    session_id?: string;
+    accountId?: string;
+    sessionId?: string;
+  }): Promise<DiscoveryResponse> {
     const provider = this.providers.get('following');
     const hits: DiscoveryHit[] = [];
     if (provider?.following) {
-      const results = await provider.following(opts);
+      const results = await provider.following({
+        limit: opts?.limit,
+        page: opts?.page,
+        accountId: opts?.account_id ?? opts?.accountId,
+        sessionId: opts?.session_id ?? opts?.sessionId,
+      });
       hits.push(...this.filterHits(results));
     }
     return {

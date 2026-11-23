@@ -421,6 +421,7 @@ async function main(): Promise<void> {
     logger: logger.child({ module: 'discovery' }),
     userAgent: config.media.sourceUserAgent,
     cookiesFile: config.paths.cookiesFile,
+    accountStore: tiktokAccounts,
   });
 
   const automations = new AutomationEngine({

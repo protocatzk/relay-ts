@@ -107,6 +107,10 @@ export class TikTokAccountStore {
     return this.accounts.find((acc) => acc.active) ?? this.accounts[0] ?? null;
   }
 
+  getById(id: string): TikTokAccount | null {
+    return this.accounts.find((acc) => acc.id === id) ?? null;
+  }
+
   create(input: { label: string; sessionId: string; targetIdc?: string; username?: string }): TikTokAccountPublic {
     const id = `acc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const parsed = TikTokAccountSchema.safeParse({

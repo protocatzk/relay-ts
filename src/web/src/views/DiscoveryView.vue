@@ -4,7 +4,9 @@ import { api, errorMessage } from '@/src/api/client';
 import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 import DiscoveryCardItem from '@/src/components/discovery/DiscoveryCardItem.vue';
+import TikTokAccountSwitcher from '@/src/components/TikTokAccountSwitcher.vue';
 
 // Async component for DiscoveryZapperPlayer to lazy-load video playback assets
 const DiscoveryZapperPlayer = defineAsyncComponent(
@@ -13,6 +15,10 @@ const DiscoveryZapperPlayer = defineAsyncComponent(
 
 const { store, refreshStreamers, refreshStatus } = useStore();
 const { pushToast } = useToast();
+const { accounts, activeAccount, refreshAccounts, activateAccount } = useTikTokAccounts();
+
+const accountSwitcherRef = ref<{ openDialog: () => void } | null>(null);
+const selectedAccountId = ref<string>('');
 
 const query = ref('');
 const mode = ref<'trending' | 'search' | 'following'>('trending');
@@ -103,7 +109,11 @@ async function loadMoreHits(): Promise<void> {
       mode.value === 'search' && trimmed
         ? await api.discovery.search(trimmed, { region: selectedRegion.value, page: nextPage, limit: 20 })
         : mode.value === 'following'
-        ? await api.discovery.following({ page: nextPage, limit: 20 })
+        ? await api.discovery.following({
+            page: nextPage,
+            limit: 20,
+            account_id: selectedAccountId.value || undefined,
+          })
         : await api.discovery.trending({ region: selectedRegion.value, page: nextPage, limit: 30 });
 
     const existingHandles = new Set(hits.value.map((h) => h.handle));
@@ -192,16 +202,18 @@ async function runSearch(): Promise<void> {
   }
 }
 
-async function loadFollowing(): Promise<void> {
+async function loadFollowing(opts?: { accountId?: string }): Promise<void> {
   mode.value = 'following';
   loading.value = true;
   error.value = null;
   currentPage.value = 0;
   hasMorePages.value = true;
+  const targetAccId = opts?.accountId ?? selectedAccountId.value;
   try {
     const res = await api.discovery.following({
       limit: 20,
       page: 0,
+      account_id: targetAccId || undefined,
     });
     hits.value = res.hits;
     providers.value = res.providers;
@@ -211,6 +223,13 @@ async function loadFollowing(): Promise<void> {
   } finally {
     loading.value = false;
   }
+}
+
+async function handleAccountChange(): Promise<void> {
+  if (selectedAccountId.value) {
+    await activateAccount(selectedAccountId.value);
+  }
+  await loadFollowing({ accountId: selectedAccountId.value });
 }
 
 function handleRegionChange(): void {
@@ -250,6 +269,9 @@ function switchMode(newMode: 'trending' | 'search' | 'following'): void {
     void loadTrending();
   } else if (newMode === 'following') {
     query.value = '';
+    if (!selectedAccountId.value && activeAccount.value?.id) {
+      selectedAccountId.value = activeAccount.value.id;
+    }
     void loadFollowing();
   } else {
     mode.value = 'search';
@@ -354,6 +376,11 @@ function onVisibilityChange(): void {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
+  void refreshAccounts().then(() => {
+    if (activeAccount.value?.id) {
+      selectedAccountId.value = activeAccount.value.id;
+    }
+  });
   if (hits.value.length === 0) {
     void loadTrending();
   }
@@ -460,6 +487,31 @@ onUnmounted(() => {
           </button>
         </div>
 
+        <!-- Account Selector (Following mode) -->
+        <div v-if="mode === 'following'" class="account-selector-group">
+          <label class="sr-only" for="following-account-select">TikTok-Account</label>
+          <select
+            id="following-account-select"
+            v-model="selectedAccountId"
+            class="account-select"
+            title="TikTok-Konto für gefolgte Livestreams wählen"
+            @change="handleAccountChange"
+          >
+            <option value="">(Aktives Konto / Fallback)</option>
+            <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+              {{ acc.label }} {{ acc.username ? `(@${acc.username})` : '' }} {{ acc.active ? '★' : '' }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost"
+            title="TikTok-Konten verwalten"
+            @click="accountSwitcherRef?.openDialog()"
+          >
+            ⚙️ Konten
+          </button>
+        </div>
+
         <div v-if="mode !== 'following'" class="region-filter">
           <label class="sr-only" for="region-select">Region / Land</label>
           <select
@@ -549,8 +601,17 @@ onUnmounted(() => {
         <circle cx="12" cy="12" r="9" />
         <path d="m15 9-6 6M9 9l6 6" />
       </svg>
-      <p v-if="query.trim()">Keine passenden Streamer für „{{ query }}“ gefunden.</p>
+      <p v-if="mode === 'following'">
+        <span v-if="accounts.length === 0">Kein TikTok-Konto hinterlegt. Füge einen Session-Cookie hinzu, um gefolgte Livestreams anzuzeigen.</span>
+        <span v-else>Aktuell ist kein gefolgter Kanal live oder der Session-Cookie ist abgelaufen.</span>
+      </p>
+      <p v-else-if="query.trim()">Keine passenden Streamer für „{{ query }}“ gefunden.</p>
       <p v-else>Aktuell sind keine Live-Streams verfügbar.</p>
+      <div v-if="mode === 'following'" class="empty-actions">
+        <button type="button" class="btn btn-sm btn-primary" @click="accountSwitcherRef?.openDialog()">
+          {{ accounts.length === 0 ? '+ TikTok-Konto hinzufügen' : 'Konten & Session verwalten' }}
+        </button>
+      </div>
       <p v-if="providerErrors.length > 0" class="empty-hint mono">
         Provider-Hinweis: {{ providerErrors.map((p) => `${p.name} (${p.last_error})`).join(', ') }}
       </p>
@@ -593,6 +654,9 @@ onUnmounted(() => {
         @avatar-error="onAvatarError"
       />
     </div>
+
+    <!-- Hidden TikTokAccountSwitcher dialog component for modal trigger -->
+    <TikTokAccountSwitcher ref="accountSwitcherRef" style="display: none;" />
   </div>
 </template>
 
@@ -746,8 +810,29 @@ onUnmounted(() => {
   user-select: none;
 }
 
-.refresh-btn {
-  margin-left: auto;
+.account-selector-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+}
+
+.account-select {
+  height: 32px;
+  padding: 0 0.5rem;
+  background: var(--bg-surface, #1e1e1e);
+  color: var(--text-color, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+.account-select:focus {
+  outline: none;
+  border-color: var(--color-primary, #6366f1);
+}
+
+.empty-actions {
+  margin-top: var(--space-2, 0.5rem);
 }
 
 .spin-icon {

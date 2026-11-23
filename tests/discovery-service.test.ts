@@ -739,4 +739,48 @@ describe('DiscoveryService & Provider Fallback', () => {
     expect(supervisor.notifyStreamersChanged).toHaveBeenCalled();
     expect(supervisor.start).toHaveBeenCalledWith('switch_person');
   });
+
+  it('delegates following queries to FollowingProvider with account_id and session_id', async () => {
+    const bus = new EventBus();
+    const store = createMockStore();
+    const supervisor = createMockSupervisor();
+    const settingsService = createMockSettings();
+
+    const mockFollowing: DiscoveryProvider = {
+      name: 'following',
+      health: () => ({ name: 'following', status: 'online', last_error: null, last_ok_at: null }),
+      following: vi.fn().mockResolvedValue([
+        {
+          handle: 'followed_streamer',
+          display_name: 'Followed Streamer',
+          avatar_url: null,
+          bio: null,
+          title: 'Live Now',
+          live: true,
+          viewers: 50,
+          source: 'following',
+          fetched_at: new Date().toISOString(),
+        },
+      ]),
+    };
+
+    const service = new DiscoveryService({
+      store,
+      settingsService,
+      supervisor,
+      bus,
+      logger,
+      providers: new Map([['following', mockFollowing]]) as any,
+    });
+
+    const res = await service.following({ account_id: 'acc_123', session_id: 'sess_abc', limit: 10, page: 0 });
+    expect(mockFollowing.following).toHaveBeenCalledWith({
+      accountId: 'acc_123',
+      sessionId: 'sess_abc',
+      limit: 10,
+      page: 0,
+    });
+    expect(res.hits).toHaveLength(1);
+    expect(res.hits[0]?.handle).toBe('followed_streamer');
+  });
 });

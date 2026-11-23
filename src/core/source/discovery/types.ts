@@ -35,7 +35,12 @@ export interface DiscoveryProvider {
   search?(q: string, opts?: { limit?: number; region?: string; page?: number }): Promise<DiscoveryHit[]>;
   trending?(opts?: { region?: string; language?: string; limit?: number; page?: number }): Promise<DiscoveryHit[]>;
   roomInfo?(handle: string): Promise<DiscoveryHit | null>;
-  following?(opts?: { limit?: number; page?: number }): Promise<DiscoveryHit[]>;
+  following?(opts?: {
+    limit?: number;
+    page?: number;
+    accountId?: string;
+    sessionId?: string;
+  }): Promise<DiscoveryHit[]>;
   health(): DiscoveryProviderStatus;
 }
 

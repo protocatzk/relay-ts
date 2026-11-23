@@ -815,8 +815,19 @@ export const api = {
       const qs = search.toString();
       return request<DiscoveryResponse>(`/api/discovery/trending${qs ? `?${qs}` : ''}`);
     },
-    following: (opts?: { limit?: number; page?: number }) => {
+    following: (opts?: {
+      limit?: number;
+      page?: number;
+      account_id?: string;
+      accountId?: string;
+      session_id?: string;
+      sessionId?: string;
+    }) => {
       const search = new URLSearchParams();
+      const accountId = opts?.account_id ?? opts?.accountId;
+      const sessionId = opts?.session_id ?? opts?.sessionId;
+      if (accountId) search.set('account_id', accountId);
+      if (sessionId) search.set('session_id', sessionId);
       if (opts?.limit) search.set('limit', String(opts.limit));
       if (opts?.page !== undefined) search.set('page', String(opts.page));
       const qs = search.toString();

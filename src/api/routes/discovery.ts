@@ -22,6 +22,8 @@ const SearchQuerySchema = z.object({
 });
 
 const FollowingQuerySchema = z.object({
+  account_id: z.string().max(64).optional(),
+  session_id: z.string().max(500).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   page: z.coerce.number().int().min(0).max(50).optional(),
 });
