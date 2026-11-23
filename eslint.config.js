@@ -15,6 +15,8 @@ export default tseslint.config(
       'coverage/**',
       'config/**',
       'restreamer/**',
+      'playwright-report/**',
+      'test-results/**',
     ],
   },
   js.configs.recommended,
