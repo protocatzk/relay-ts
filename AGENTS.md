@@ -9,7 +9,7 @@ RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Re
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.31.15**
+- Aktuelle Version: **0.31.16**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
@@ -405,6 +405,11 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   beim Start – öffnet einen Netlink-Socket. Fehlt die Familie, bricht der Start
   mit `ERR_SYSTEM_ERROR: uv_interface_addresses … error 97` in einer
   Restart-Schleife ab.
+  `RestrictSUIDSGID=true` darf **nicht** gesetzt werden: Der seccomp-Filter
+  beantwortet `openat2` mit `ENOSYS`, woran GNU tar beim Entpacken von
+  Backups scheitert (`Cannot open: Function not implemented`). Der Dienst
+  läuft unprivilegiert mit `NoNewPrivileges=true` und leerem
+  `CapabilityBoundingSet`, daher entfällt kein relevanter Schutz.
 - **Erstinrichtung** auf einem frischen Host über `sudo scripts/bootstrap.sh`
   (generisch, keine Instanz-Defaults): Module `user,deps,dirs,systemd,env,release`
   per Default, `--modules a,b` zur Auswahl, `--caddy` zusätzlich mit zwingendem

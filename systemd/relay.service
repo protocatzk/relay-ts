@@ -17,7 +17,10 @@ TimeoutStopSec=30s
 KillMode=mixed
 
 NoNewPrivileges=true
-RestrictSUIDSGID=true
+# RestrictSUIDSGID bewusst nicht gesetzt: der seccomp-Filter
+# beantwortet openat2 mit ENOSYS, woran GNU tar bei der
+# Backup-Wiederherstellung scheitert. Ohne Root-Capabilities und mit
+# NoNewPrivileges bringt die Direktive hier keinen Schutzgewinn.
 CapabilityBoundingSet=
 AmbientCapabilities=
 PrivateTmp=true
