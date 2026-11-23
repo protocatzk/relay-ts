@@ -350,7 +350,7 @@ export function buildVideoEncoderArgs(
         options.preset,
         ...(options.tune ? ['-tune', options.tune] : []),
         ...common,
-        ...(options.filler ? ['-x264-params', 'nal-hrd=cbr:filler=1:force-cfr=1:aud=1'] : []),
+        ...(options.filler ? ['-x264-params', 'nal-hrd=cbr:filler=1:force-cfr=1:aud=1:b-adapt=0'] : []),
       ];
   }
 }

@@ -664,6 +664,7 @@ export class Supervisor {
     this.sinkWatchdog?.resetQuickExits();
     this.sourceSession.resetReconnectAttempts();
     this.sourceSession.resetTimeline();
+    this.earnings.resetLiveStats();
     this.earnings.setActive();
     this.transitionTo('idle');
     this.emitAll();

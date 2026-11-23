@@ -199,4 +199,30 @@ describe('earnings parser', () => {
   it('returns no data without an active streamer', () => {
     expect(parseEarningsPayload({ usd_net: 5 }, null)).toBeNull();
   });
+
+  it('resets live stats to 0 when resetLiveStats or isLive false is called', async () => {
+    const { EarningsMonitor } = await import('../src/core/earnings/monitor.js');
+    const { DEFAULT_SETTINGS } = await import('../src/core/config/schema.js');
+    const monitor = new EarningsMonitor({
+      settings: DEFAULT_SETTINGS,
+      logger: { info: () => {}, warn: () => {} } as any,
+      getActive: () => streamer,
+      onUpdate: () => {},
+    });
+
+    monitor.updateLiveRoomStats({ viewers: 150, isLive: true, roomId: 'room1' });
+    expect(monitor.get().viewers).toBe(150);
+    expect(monitor.get().is_live).toBe(true);
+
+    monitor.updateLiveRoomStats({ isLive: false });
+    expect(monitor.get().viewers).toBe(0);
+    expect(monitor.get().is_live).toBe(false);
+
+    monitor.updateLiveRoomStats({ viewers: 80, isLive: true });
+    expect(monitor.get().viewers).toBe(80);
+
+    monitor.resetLiveStats();
+    expect(monitor.get().viewers).toBe(0);
+    expect(monitor.get().is_live).toBe(false);
+  });
 });

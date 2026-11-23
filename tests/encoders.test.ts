@@ -131,7 +131,7 @@ describe('video encoder arguments', () => {
     expect(args).toContain('-b:v 4000k');
     expect(args).toContain('-g 50');
     expect(args).toContain('-keyint_min 50');
-    expect(args).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1');
+    expect(args).toContain('nal-hrd=cbr:filler=1:force-cfr=1:aud=1:b-adapt=0');
   });
 
   it('maps presets and pixel format for Intel QSV', () => {

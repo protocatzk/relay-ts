@@ -812,6 +812,23 @@ export class EarningsMonitor {
   }
 
   /**
+   * Resets live session viewer stats to 0 and marks stream as not live.
+   */
+  resetLiveStats(): void {
+    if (this.snapshot.viewers === 0 && this.snapshot.is_live === false) return;
+    this.snapshot = {
+      ...this.snapshot,
+      viewers: 0,
+      is_live: false,
+      diagnostics: this.snapshot.diagnostics
+        ? { ...this.snapshot.diagnostics, current_viewers: 0, is_running: false }
+        : null,
+      updated_at: new Date().toISOString(),
+    };
+    this.emit();
+  }
+
+  /**
    * Directly updates live room statistics (viewers, isLive, roomId) from the active live connection.
    */
   updateLiveRoomStats(stats: { roomId?: string | null; isLive?: boolean | null; viewers?: number | null; title?: string | null }): void {
@@ -825,6 +842,16 @@ export class EarningsMonitor {
     if (stats.isLive !== undefined && stats.isLive !== null && stats.isLive !== next.is_live) {
       next.is_live = stats.isLive;
       changed = true;
+    }
+    if (stats.isLive === false) {
+      if (next.viewers !== 0) {
+        next.viewers = 0;
+        changed = true;
+      }
+      if (next.diagnostics && next.diagnostics.current_viewers !== 0) {
+        next.diagnostics = { ...next.diagnostics, current_viewers: 0 };
+        changed = true;
+      }
     }
     if (stats.roomId !== undefined && stats.roomId !== null && stats.roomId !== next.room_id) {
       next.room_id = stats.roomId;

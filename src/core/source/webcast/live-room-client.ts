@@ -112,18 +112,20 @@ export class WebcastLiveRoomClient {
       this.isLive = isLive;
 
       const liveRoomStats = liveRoom?.liveRoomStats as Record<string, unknown> | undefined;
-      const rawViewers =
-        liveRoom?.userCount ??
-        liveRoom?.user_count ??
-        liveRoom?.aliveUserCount ??
-        liveRoomStats?.userCount ??
-        liveRoomStats?.user_count;
+      const rawViewers = isLive
+        ? (liveRoom?.userCount ??
+          liveRoom?.user_count ??
+          liveRoom?.aliveUserCount ??
+          liveRoomStats?.userCount ??
+          liveRoomStats?.user_count)
+        : 0;
 
-      const viewers =
-        typeof rawViewers === 'number'
+      const viewers = !isLive
+        ? 0
+        : typeof rawViewers === 'number'
           ? rawViewers
           : typeof rawViewers === 'string'
-            ? parseInt(rawViewers, 10) || null
+            ? parseInt(rawViewers, 10) || 0
             : null;
 
       if (viewers !== null && viewers >= 0) {

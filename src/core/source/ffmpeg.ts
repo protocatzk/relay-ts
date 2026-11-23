@@ -355,6 +355,8 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     '48000',
     '-ac',
     '2',
+    '-bsf:a',
+    'aac_adtstoasc',
     '-avoid_negative_ts',
     'make_zero',
     '-max_interleave_delta',
