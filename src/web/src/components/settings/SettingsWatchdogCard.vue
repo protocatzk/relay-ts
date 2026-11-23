@@ -9,8 +9,13 @@ interface WatchdogModel {
   interval: number;
 }
 
+interface SinkModel {
+  rw_timeout_seconds: number;
+}
+
 defineProps<{
   watchdog: WatchdogModel;
+  sink: SinkModel;
   dirty: boolean;
   saving: boolean;
   busySaving: boolean;
@@ -62,6 +67,17 @@ defineEmits<{
         <div class="field">
           <label for="watchdog-interval">Prüfintervall (Sekunden)</label>
           <input id="watchdog-interval" v-model.number="watchdog.interval" type="number" min="1" max="60" />
+        </div>
+        <div class="field">
+          <label for="sink-rw-timeout">YouTube-Sink: Schreib-Timeout (Sekunden)</label>
+          <input
+            id="sink-rw-timeout"
+            v-model.number="sink.rw_timeout_seconds"
+            type="number"
+            min="5"
+            max="300"
+          />
+          <p class="hint">Wie lange ein blockierter RTMP-Schreibvorgang wartet, bevor der Sink neu startet. Höhere Werte überleben kurze Netzstaus (Standard 15).</p>
         </div>
       </div>
     </div>

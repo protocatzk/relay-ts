@@ -404,6 +404,7 @@ async function revokeAllSessions(): Promise<void> {
 
 function normalizeSettingsDefaults(settings: Settings): Settings {
   settings.delay_buffer.catchup_rate ??= 1.01;
+  settings.sink ??= { rw_timeout_seconds: 15 };
   settings.audio ??= {
     normalize: 'off',
     target_lufs: -16,
@@ -634,6 +635,7 @@ onBeforeUnmount(() => {
 
       <SettingsWatchdogCard
         :watchdog="form.watchdog"
+        :sink="form.sink ?? { rw_timeout_seconds: 15 }"
         :dirty="sectionDirty('watchdog')"
         :saving="savingSection === 'watchdog'"
         :busy-saving="busySaving"

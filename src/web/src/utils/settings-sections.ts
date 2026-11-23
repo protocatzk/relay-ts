@@ -146,6 +146,9 @@ export function buildSectionPayload(
           interval: toNumber(current.watchdog.interval, 5),
           auto_reconnect: current.watchdog.auto_reconnect,
         },
+        sink: {
+          rw_timeout_seconds: toNumber(current.sink?.rw_timeout_seconds, 15),
+        },
       };
     case 'refresh':
       return {
@@ -325,7 +328,10 @@ export function isSectionDirty(
     case 'audio':
       return JSON.stringify(current.audio ?? null) !== JSON.stringify(baseline.audio ?? null);
     case 'watchdog':
-      return JSON.stringify(current.watchdog) !== JSON.stringify(baseline.watchdog);
+      return (
+        JSON.stringify(current.watchdog) !== JSON.stringify(baseline.watchdog) ||
+        JSON.stringify(current.sink) !== JSON.stringify(baseline.sink)
+      );
     case 'refresh':
       return JSON.stringify(current.auto_refresh) !== JSON.stringify(baseline.auto_refresh);
     case 'startup':
@@ -385,6 +391,7 @@ export function applySavedSection(
       return;
     case 'watchdog':
       target.watchdog = clone(saved.watchdog);
+      if (saved.sink) target.sink = clone(saved.sink);
       return;
     case 'refresh':
       target.auto_refresh = clone(saved.auto_refresh);

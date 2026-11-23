@@ -217,6 +217,24 @@ describe('ffmpeg command builders', () => {
     expect(line).not.toContain('-rw_timeout 15000000 -f mpegts');
   });
 
+  it('applies the configurable sink rw_timeout (default 15s, custom 45s)', () => {
+    const defaults = buildSinkCommand({
+      media,
+      settings: DEFAULT_SETTINGS,
+      key: 'abc-def',
+      relay,
+    });
+    expect(defaults.join(' ')).toContain('-tcp_nodelay 1 -rw_timeout 15000000');
+
+    const custom = buildSinkCommand({
+      media,
+      settings: { ...DEFAULT_SETTINGS, sink: { rw_timeout_seconds: 45 } },
+      key: 'abc-def',
+      relay,
+    });
+    expect(custom.join(' ')).toContain('-rw_timeout 45000000');
+  });
+
   it('uses a hardware encoder override for the sink instead of libx264', () => {
     const args = buildSinkCommand({
       media,

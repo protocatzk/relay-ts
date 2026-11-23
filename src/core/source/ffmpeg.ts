@@ -375,7 +375,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
   for (const url of youtubeUrls(media, options.key)) {
     args.push(...outputArgs);
     if (/^rtmps?:\/\//i.test(url)) {
-      args.push('-tcp_nodelay', '1', '-rw_timeout', '15000000');
+      args.push('-tcp_nodelay', '1', '-rw_timeout', `${settings.sink.rw_timeout_seconds * 1_000_000}`);
     }
     args.push(url);
   }

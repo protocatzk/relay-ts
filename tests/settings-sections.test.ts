@@ -196,7 +196,7 @@ describe('settings sections partial updates', () => {
     });
 
     const watchdogPayload = buildSectionPayload('watchdog', settings, emptySecrets);
-    expect(Object.keys(watchdogPayload)).toEqual(['watchdog']);
+    expect(Object.keys(watchdogPayload).sort()).toEqual(['sink', 'watchdog']);
 
     const videoPayload = buildSectionPayload('video', settings, emptySecrets);
     expect(Object.keys(videoPayload).sort()).toEqual(['source', 'video']);
@@ -322,6 +322,7 @@ describe('settings sections partial updates', () => {
       'mcp',
       'online',
       'pause',
+      'sink',
       'source',
       'startup',
       'streaming',

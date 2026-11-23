@@ -579,6 +579,10 @@ export interface SourceSettings {
   reencode: 'off' | 'always' | 'on_reconnect';
 }
 
+export interface SinkSettings {
+  rw_timeout_seconds: number;
+}
+
 export interface SecondarySinkSettings {
   enabled: boolean;
   provider: 'twitch' | 'kick' | 'custom';
@@ -710,6 +714,7 @@ export interface DiscoveryResponse {
 export interface Settings {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  sink?: SinkSettings;
   audio?: AudioSettings;
   source: SourceSettings;
   watchdog: WatchdogSettings;
@@ -870,6 +875,7 @@ export interface ChatSettings {
 export interface SettingsUpdate {
   delay_buffer: DelayBufferSettings;
   video: VideoSettings;
+  sink?: SinkSettings;
   audio?: AudioSettings;
   source?: SourceSettings;
   watchdog: WatchdogSettings;

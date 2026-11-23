@@ -9648,6 +9648,20 @@
               }
             }
           },
+          "sink": {
+            "default": {
+              "rw_timeout_seconds": 15
+            },
+            "type": "object",
+            "properties": {
+              "rw_timeout_seconds": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 300
+              }
+            }
+          },
           "audio": {
             "default": {
               "normalize": "off",
@@ -11265,6 +11279,20 @@
                     "maximum": 100
                   }
                 }
+              }
+            }
+          },
+          "sink": {
+            "default": {
+              "rw_timeout_seconds": 15
+            },
+            "type": "object",
+            "properties": {
+              "rw_timeout_seconds": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 300
               }
             }
           },

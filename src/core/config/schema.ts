@@ -426,9 +426,17 @@ export const RtmpIngestSettingsSchema = z.object({
   auto_takeover: z.boolean().default(true),
 });
 
+export const SinkSettingsSchema = z.object({
+  /** How long the YouTube sink waits for a blocked RTMP write before it
+   * aborts. Congestion windows of a few seconds are survived instead of
+   * killing the stream. */
+  rw_timeout_seconds: z.number().int().min(5).max(300).default(15),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
+  sink: SinkSettingsSchema.default(SinkSettingsSchema.parse({})),
   audio: AudioSettingsSchema.default(AudioSettingsSchema.parse({})),
   source: SourceSettingsSchema.default(SourceSettingsSchema.parse({})),
   watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
@@ -461,6 +469,7 @@ export const StreamersFileSchema = z
 export type StreamerConfig = z.infer<typeof StreamerSchema>;
 export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
+export type SinkSettings = z.infer<typeof SinkSettingsSchema>;
 export type AudioSettings = z.infer<typeof AudioSettingsSchema>;
 export type WebhooksSettings = z.infer<typeof WebhooksSettingsSchema>;
 export type YouTubeAutomationSettings = z.infer<typeof YouTubeAutomationSettingsSchema>;
