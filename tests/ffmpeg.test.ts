@@ -211,7 +211,7 @@ describe('ffmpeg command builders', () => {
       'aresample=async=1000:min_comp=0.01:min_hard_comp=0.2:first_pts=0:osr=48000:osf=fltp:ochl=stereo',
     );
     expect(line).toContain('-avoid_negative_ts make_zero');
-    expect(line).toContain('-max_interleave_delta 500000');
+    expect(line).toContain('-max_interleave_delta 0');
     expect(line).toContain('-flush_packets 1');
     expect(line).toContain('-tcp_nodelay 1 -rw_timeout 15000000 rtmp://a.rtmp.youtube.com/live2/abc-def');
     expect(line).toContain('tcp://127.0.0.1:12346?tcp_nodelay=1');

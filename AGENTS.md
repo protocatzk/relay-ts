@@ -170,7 +170,10 @@ Wichtige Pfade:
   (`-force_key_frames "expr:gte(t,n_forced*2)"`, NVENC `-forced-idr`/`-strict_gop`,
   x264 `nal-hrd=cbr:filler=1:force-cfr=1:aud=1`), weiches Audio-Resampling
   (`aresample=async=1000:min_comp=0.01:min_hard_comp=0.2`),
-  `-avoid_negative_ts make_zero`, `-max_interleave_delta 500000` und RTMP-Ausgabe mit
+  `-avoid_negative_ts make_zero`, `-max_interleave_delta 0` (ohne
+  Interleaving-Puffer; bei Live-MPEG-TS mit leicht versetztem Audio bricht der
+  FLV-Muxer in ffmpeg 8 sonst mit „failed to avoid negative timestamp“ ab)
+  und RTMP-Ausgabe mit
   `-tcp_nodelay 1 -rw_timeout 15000000`; gehäufte DTS-Fehler (≥ 10 in 15 s) triggern
   einen kontrollierten Sink-Neustart.
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet

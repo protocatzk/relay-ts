@@ -376,8 +376,15 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     'aac_adtstoasc',
     '-avoid_negative_ts',
     'make_zero',
+    // 0 statt 500000: Der Puffer des interleavenden Muxers verursacht bei
+    // Live-MPEG-TS mit leicht versetzt eintreffendem Audio (TikTok liefert
+    // Audio ~60 ms vor Video) in ffmpeg 8 "Packets poorly interleaved,
+    // failed to avoid negative timestamp" und beendet den Sink. Ohne
+    // Interleaving-Puffer schreibt der FLV-Muxer die Pakete in
+    // Encoder-Reihenfolge (beide Streams sind CFR), was das Problem
+    // vermeidet. ffmpeg empfiehlt diesen Wert selbst in der Fehlermeldung.
     '-max_interleave_delta',
-    '500000',
+    '0',
     '-flush_packets',
     '1',
     '-f',
