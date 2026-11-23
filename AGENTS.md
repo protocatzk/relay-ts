@@ -397,6 +397,12 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   (kein App-Container mehr). Die Unit-Quelle liegt im Repo unter
   `systemd/relay.service`; Installation per
   `sudo install systemd/relay.service /etc/systemd/system/relay.service`.
+- **Erstinrichtung** auf einem frischen Host über `sudo scripts/bootstrap.sh
+  [--version x.y.z] [--caddy]` (idempotent, `--dry-run` zur Vorschau ohne root):
+  legt den Systemuser `relay`, das Layout `/srv/relay/{releases,config,data,logs}`,
+  die systemd-Unit, `/etc/relay.env` (0600, absolute Pfade; existierende Datei
+  wird ohne `--force` nicht angetastet) und optional eine minimale Caddyfile an
+  und deployt das erste Release via `deploy.sh` inkl. Health-Check.
 - **Layout:** Code in versionierten Release-Verzeichnissen
   `/srv/relay/releases/<version>/`, aktiv über Symlink `/srv/relay/current`.
   Laufzeit-Daten liegen getrennt in `/srv/relay/{config,data,logs}`
