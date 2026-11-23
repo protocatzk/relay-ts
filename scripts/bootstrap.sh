@@ -11,6 +11,9 @@
 #   caddy    – minimale Caddyfile (benötigt --domain, optional --web-domain)
 #   nginx    – Vhost für nativen nginx; Docker-Reverse-Proxy (nginx-proxy)
 #              wird erkannt und nur mit Anleitung bedient (benötigt --domain)
+#   docker-nginx – eigener nginx-Container mit gemountetem Vhost
+#              (--network host, Upstream 127.0.0.1); ein laufender Legacy-
+#              Proxy oder fremder nginx-Container wird nur angeleitet
 #
 # Das Skript ist generisch gehalten: Domain (und optional Web-Domain) werden
 # als Parameter übergeben, nichts ist auf eine konkrete Instanz festgelegt.
@@ -23,6 +26,7 @@
 #   sudo scripts/bootstrap.sh --domain stream.example.com --caddy
 #   sudo scripts/bootstrap.sh --modules user,dirs,systemd    # nur ausgewählte Module
 #   sudo scripts/bootstrap.sh --domain stream.example.com --nginx
+#   sudo scripts/bootstrap.sh --domain stream.example.com --docker-nginx
 #   sudo scripts/bootstrap.sh --dry-run                      # Vorschau, auch ohne root
 #   sudo scripts/bootstrap.sh --force                        # vorhandene /etc/relay.env ersetzen
 #
@@ -48,7 +52,10 @@ NGINX_SITE=relay
 NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
 NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
 NGINX_CONF_D=/etc/nginx/conf.d
-ALL_MODULES="user,dirs,systemd,env,release,caddy,nginx"
+NGINX_DOCKER_IMAGE="nginx:stable"
+NGINX_DOCKER_NAME="relay-nginx"
+NGINX_DOCKER_CONF_DIR=/etc/relay-nginx/conf.d
+ALL_MODULES="user,dirs,systemd,env,release,caddy,nginx,docker-nginx"
 DEFAULT_MODULES="user,dirs,systemd,env,release"
 
 log()  { printf '\033[1;32m[bootstrap]\033[0m %s\n' "$*"; }
@@ -76,6 +83,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=1 ;;
     --caddy) case ",$MODULES," in *,caddy,*) ;; *) MODULES="$MODULES,caddy" ;; esac ;;
     --nginx) case ",$MODULES," in *,nginx,*) ;; *) MODULES="$MODULES,nginx" ;; esac ;;
+    --docker-nginx) case ",$MODULES," in *,docker-nginx,*) ;; *) MODULES="$MODULES,docker-nginx" ;; esac ;;
     --domain) shift; [ $# -gt 0 ] || fail "--domain braucht einen Wert"; DOMAIN="$1" ;;
     --web-domain) shift; [ $# -gt 0 ] || fail "--web-domain braucht einen Wert"; WEB_DOMAIN="$1" ;;
     --modules) shift; [ $# -gt 0 ] || fail "--modules braucht eine Liste"; MODULES="$1" ;;
@@ -92,8 +100,8 @@ has_module() {
 for m in ${MODULES//,/ }; do
   case ",$ALL_MODULES," in *,"$m",*) ;; *) fail "Unbekanntes Modul: $m (verfügbar: $ALL_MODULES)" ;; esac
 done
-if has_module caddy || has_module nginx; then
-  [ -n "$DOMAIN" ] || fail "Module 'caddy' und 'nginx' benötigen --domain <domain>."
+if has_module caddy || has_module nginx || has_module docker-nginx; then
+  [ -n "$DOMAIN" ] || fail "Module 'caddy', 'nginx' und 'docker-nginx' benötigen --domain <domain>."
 fi
 
 [ "$DRY_RUN" = 1 ] && warn "Dry-Run: nur Ausgabe, keine Änderungen."
@@ -289,6 +297,7 @@ setup_nginx() {
     warn "[nginx] Für nginx-proxy (VIRTUAL_HOST) oder einen gemounteten Include folgenden Block einrichten:"
     nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
     [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
+    warn "[nginx] Alternativ: Modul 'docker-nginx' startet einen eigenen nginx-Container (--docker-nginx)."
     return 0
   fi
 
@@ -349,6 +358,133 @@ setup_nginx() {
   fi
 }
 
+# --- Modul: docker-nginx -----------------------------------------------------------
+# Eigener nginx-Container für RELAY. Läuft mit --network host, sodass der
+# Upstream 127.0.0.1:<APP_PORT> unabhängig von SERVER_HOST funktioniert und
+# keine Port-Weiterleitung (docker-proxy) nötig ist. Die Vhost-Datei liegt auf
+# dem Host und wird read-only in den Container gemountet.
+setup_docker_nginx() {
+  if ! command -v docker >/dev/null 2>&1; then
+    warn "[docker-nginx] Docker ist nicht installiert – Modul übersprungen."
+    return 0
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    warn "[docker-nginx] Docker-Daemon nicht erreichbar – Modul übersprungen."
+    return 0
+  fi
+
+  # Laufende nginx-Container sichten: Legacy-Proxy hat Vorrang, danach fremde.
+  local line name image ports legacy="" foreign=""
+  while IFS='|' read -r name image ports; do
+    [ -n "${name:-}" ] || continue
+    case "$image" in
+      *nginxproxy/nginx-proxy*|*jwilder/nginx-proxy*)
+        legacy="$name" ;;
+      *relay-nginx*|*nginx*)
+        [ "$name" = "$NGINX_DOCKER_NAME" ] || foreign="$name" ;;
+    esac
+  done < <(docker ps --format '{{.Names}}|{{.Image}}|{{.Ports}}' 2>/dev/null)
+
+  # Legacy nginx-proxy konfiguriert sich über Container-Env (VIRTUAL_HOST) und
+  # kann native Host-Dienste nicht automatisch routen – nur anleiten.
+  if [ -n "$legacy" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[docker-nginx] [dry-run] Legacy-Proxy '$legacy' erkannt – würde nur Anleitung ausgeben."
+    fi
+    warn "[docker-nginx] Legacy-Reverse-Proxy '$legacy' läuft – automatisches Setup nicht möglich."
+    warn "[docker-nginx] Eigene Container-Instanz erst möglich, nachdem der Legacy-Proxy gestoppt ist:"
+    warn "[docker-nginx]   docker stop $legacy && docker rm $legacy  (anschließend Modul erneut ausführen)"
+    warn "[docker-nginx] Alternativ Include im manuell gepflegten Proxy (Upstream = Host-Adresse):"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
+    return 0
+  fi
+
+  # Fremder nginx-Container: Konfiguration gehört dem Betreiber – nur anleiten.
+  if [ -n "$foreign" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[docker-nginx] [dry-run] Fremder nginx-Container '$foreign' – würde nur Anleitung ausgeben."
+    fi
+    warn "[docker-nginx] Fremder nginx-Container '$foreign' läuft – schreibe keine Konfiguration."
+    warn "[docker-nginx] Folgenden Block im Container ergänzen (Mount nach /etc/nginx/conf.d,"
+    warn "[docker-nginx] ohne --network host muss der Upstream die Host-Adresse sein, z. B. 172.17.0.1:$APP_PORT):"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
+    warn "[docker-nginx] Danach neu laden: docker exec $foreign nginx -t && docker exec $foreign nginx -s reload"
+    return 0
+  fi
+
+  # Vhost-Datei (wie alle Module: bestehende Dateien niemals überschreiben).
+  local wrote=0
+  if [ -f "$NGINX_DOCKER_CONF_DIR/relay.conf" ]; then
+    warn "[docker-nginx] Vhost existiert bereits ($NGINX_DOCKER_CONF_DIR/relay.conf) – lasse ihn unangetastet."
+  elif [ "$DRY_RUN" = 1 ]; then
+    log "[docker-nginx] [dry-run] Würde Vhost schreiben: $NGINX_DOCKER_CONF_DIR/relay.conf"
+  else
+    log "[docker-nginx] Schreibe Vhost: $NGINX_DOCKER_CONF_DIR/relay.conf ..."
+    mkdir -p "$NGINX_DOCKER_CONF_DIR"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT" > "$NGINX_DOCKER_CONF_DIR/relay.conf"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT" >> "$NGINX_DOCKER_CONF_DIR/relay.conf"
+    wrote=1
+  fi
+
+  # Container-Zustand ermitteln (auch gestoppte Instanzen mit docker inspect sichtbar).
+  local ours_state
+  ours_state="$(docker inspect -f '{{.State.Status}}' "$NGINX_DOCKER_NAME" 2>/dev/null || true)"
+
+  case "${ours_state:-missing}" in
+    running)
+      log "[docker-nginx] Container '$NGINX_DOCKER_NAME' läuft bereits."
+      if [ "$wrote" = 1 ]; then
+        if docker exec "$NGINX_DOCKER_NAME" nginx -t >/dev/null 2>&1; then
+          docker exec "$NGINX_DOCKER_NAME" nginx -s reload
+          log "[docker-nginx] Vhost aktiviert, nginx im Container neu geladen."
+        else
+          warn "[docker-nginx] 'nginx -t' im Container fehlgeschlagen – Konfiguration prüfen:"
+          warn "[docker-nginx]   docker exec $NGINX_DOCKER_NAME nginx -t"
+        fi
+      fi
+      ;;
+    exited|created)
+      warn "[docker-nginx] Container '$NGINX_DOCKER_NAME' existiert gestoppt ('$ours_state')."
+      if [ "$DRY_RUN" = 1 ]; then
+        log "[docker-nginx] [dry-run] Würde starten: docker start $NGINX_DOCKER_NAME"
+        return 0
+      fi
+      docker start "$NGINX_DOCKER_NAME"
+      log "[docker-nginx] Container gestartet."
+      ;;
+    missing)
+      # Mit --network host belegt der Container direkt Host-Port 80 –
+      # Konflikt vorher erkennen, statt den Container crashen zu lassen.
+      local occupant
+      occupant="$(ss -ltnp 2>/dev/null | grep -E ':80 ' || true)"
+      if [ -n "$occupant" ]; then
+        warn "[docker-nginx] Port 80 ist bereits belegt – Container-Start übersprungen:"
+        printf '   %s\n' "$occupant"
+        warn "[docker-nginx] Konflikt auflösen (z. B. caddy/legacy-Proxy stoppen) und Modul erneut ausführen."
+        return 0
+      fi
+      if [ "$DRY_RUN" = 1 ]; then
+        log "[docker-nginx] [dry-run] Würde starten:"
+        log "[docker-nginx] [dry-run]   docker run -d --name $NGINX_DOCKER_NAME --restart unless-stopped \\"
+        log "[docker-nginx] [dry-run]     --network host -v $NGINX_DOCKER_CONF_DIR:/etc/nginx/conf.d:ro $NGINX_DOCKER_IMAGE"
+        nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+        return 0
+      fi
+      log "[docker-nginx] Starte Container '$NGINX_DOCKER_NAME' (--network host) ..."
+      if ! docker run -d --name "$NGINX_DOCKER_NAME" --restart unless-stopped \
+          --network host \
+          -v "$NGINX_DOCKER_CONF_DIR:/etc/nginx/conf.d:ro" \
+          "$NGINX_DOCKER_IMAGE" >/dev/null; then
+        warn "[docker-nginx] Container-Start fehlgeschlagen – prüfen: docker logs $NGINX_DOCKER_NAME"
+        return 0
+      fi
+      log "[docker-nginx] Container läuft (HTTP auf Port 80; TLS z. B. per Zertifikats-Mount ergänzen)."
+      ;;
+  esac
+}
+
 # --- Module ausführen ---------------------------------------------------------------
 has_module user    && setup_user
 has_module dirs    && setup_dirs
@@ -357,6 +493,7 @@ has_module env     && setup_env
 has_module release && setup_release
 has_module caddy   && setup_caddy
 has_module nginx   && setup_nginx
+has_module docker-nginx && setup_docker_nginx
 
 # --- Abschluss ----------------------------------------------------------------
 if [ "$DRY_RUN" = 1 ]; then

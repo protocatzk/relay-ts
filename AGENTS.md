@@ -411,7 +411,14 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   nginx neu geladen; läuft ein Docker-Reverse-Proxy auf 80/443 (erkennbar an
   `docker ps` bzw. `docker-proxy`), wird nichts geschrieben und stattdessen
   ein Vhost-Snippet samt Hinweis auf den Host-Upstream (172.17.0.1 bzw.
-  host-gateway) ausgegeben.
+  host-gateway) ausgegeben. Für Docker-Betrieb gibt es `--docker-nginx`
+  (Modul `docker-nginx`): Ein eigener `relay-nginx`-Container
+  (`nginx:stable`, `--network host`, `--restart unless-stopped`) bekommt den
+  Vhost von `/etc/relay-nginx/conf.d/relay.conf` (read-only Mount) und
+  erreicht RELAY über `127.0.0.1:3000` unabhängig von `SERVER_HOST`; ein
+  laufender Legacy-`nginx-proxy` oder fremder nginx-Container wird erkannt
+  und nur angeleitet, ein gestoppter eigener Container wird gestartet, und
+  bei belegtem Port 80 (z. B. Caddy) unterbleibt der Start mit Warnung.
 - **Layout:** Code in versionierten Release-Verzeichnissen
   `/srv/relay/releases/<version>/`, aktiv über Symlink `/srv/relay/current`.
   Laufzeit-Daten liegen getrennt in `/srv/relay/{config,data,logs}`
