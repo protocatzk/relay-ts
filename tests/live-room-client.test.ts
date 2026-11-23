@@ -69,4 +69,77 @@ describe('WebcastLiveRoomClient', () => {
     });
     client.stop();
   });
+
+  it('keeps viewers when a single poll reports the room as not live', async () => {
+    const onViewerUpdate = vi.fn();
+    const onRoomStats = vi.fn();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { user: { status: 2, roomId: '123' }, liveRoom: { userCount: 42 } },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { user: { status: 4 }, liveRoom: null } }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new WebcastLiveRoomClient({
+      handle: 'test_creator',
+      logger,
+      onViewerUpdate,
+      onRoomStats,
+    });
+    client.start();
+
+    await (client as unknown as { pollRoomInfo: () => Promise<void> }).pollRoomInfo();
+    expect(onViewerUpdate).toHaveBeenCalledWith(42);
+
+    await (client as unknown as { pollRoomInfo: () => Promise<void> }).pollRoomInfo();
+    expect((client as unknown as { isLive: boolean }).isLive).toBe(true);
+    expect(onViewerUpdate).not.toHaveBeenCalledWith(0);
+    expect(onRoomStats).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isLive: false, viewers: 0 }),
+    );
+    client.stop();
+    vi.unstubAllGlobals();
+  });
+
+  it('reports offline only after consecutive not-live polls', async () => {
+    const onRoomStats = vi.fn();
+    const offlinePayload = { data: { user: { status: 4 }, liveRoom: null } };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => offlinePayload,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new WebcastLiveRoomClient({
+      handle: 'test_creator',
+      logger,
+      onRoomStats,
+    });
+    client.start();
+    // start() already triggers the first poll; two more must stay silent.
+    const poll = (
+      client as unknown as { pollRoomInfo: () => Promise<void> }
+    ).pollRoomInfo.bind(client);
+
+    await poll();
+    expect((client as unknown as { isLive: boolean }).isLive).toBe(false);
+    expect(onRoomStats).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isLive: false, viewers: 0 }),
+    );
+
+    // Third consecutive not-live poll confirms offline.
+    await poll();
+    expect(onRoomStats).toHaveBeenCalledWith(
+      expect.objectContaining({ isLive: false, viewers: 0 }),
+    );
+    client.stop();
+    vi.unstubAllGlobals();
+  });
 });

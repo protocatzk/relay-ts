@@ -27,6 +27,11 @@ type LiveConnectionInstance = InstanceType<typeof TikTokLiveConnection> & {
 };
 
 export class WebcastLiveRoomClient {
+  /** Consecutive not-live polls required before the room is reported offline. */
+  private static readonly OFFLINE_POLL_THRESHOLD = 3;
+  /** A webcast socket with an event inside this window is considered live. */
+  private static readonly WEBCAST_EVENT_GRACE_MS = 120_000;
+
   private readonly handle: string;
   private readonly logger: Logger;
   private running = false;
@@ -37,6 +42,8 @@ export class WebcastLiveRoomClient {
   private isLive = false;
   private currentViewers: number | null = null;
   private currentTitle: string | null = null;
+  private notLivePolls = 0;
+  private lastWebcastEventAt: number | null = null;
 
   private onChatMessage?: (msg: ChatMessage) => void;
   private onGift?: (gift: { username: string; giftName: string; coins: number; count: number }) => void;
@@ -55,6 +62,8 @@ export class WebcastLiveRoomClient {
   start(): void {
     if (this.running) return;
     this.running = true;
+    this.notLivePolls = 0;
+    this.lastWebcastEventAt = null;
     void this.pollRoomInfo();
     // Poll room info every 15 seconds to update viewer counts / title / live status reliably
     this.pollTimer = setInterval(() => void this.pollRoomInfo(), 15_000);
@@ -109,10 +118,21 @@ export class WebcastLiveRoomClient {
 
       const status = Number(user?.status ?? liveRoom?.status ?? 0);
       const isLive = status === 2;
-      this.isLive = isLive;
+
+      // A single not-live result from the unauthenticated poll must not zero
+      // the viewer count while the webcast socket still delivers events.
+      // Report offline only after consecutive failures, or when the socket is
+      // silent. The authoritative offline signal remains the streamEnd event.
+      if (isLive) {
+        this.notLivePolls = 0;
+        this.isLive = true;
+      } else if (!this.confirmOfflinePoll()) {
+        return;
+      }
+      const roomIsLive = this.isLive;
 
       const liveRoomStats = liveRoom?.liveRoomStats as Record<string, unknown> | undefined;
-      const rawViewers = isLive
+      const rawViewers = roomIsLive
         ? (liveRoom?.userCount ??
           liveRoom?.user_count ??
           liveRoom?.aliveUserCount ??
@@ -120,7 +140,7 @@ export class WebcastLiveRoomClient {
           liveRoomStats?.user_count)
         : 0;
 
-      const viewers = !isLive
+      const viewers = !roomIsLive
         ? 0
         : typeof rawViewers === 'number'
           ? rawViewers
@@ -147,14 +167,34 @@ export class WebcastLiveRoomClient {
       });
 
       // If live and WebSocket not yet connected, initiate connection
-      if (isLive && !this.liveConnection && this.running) {
+      if (roomIsLive && !this.liveConnection && this.running) {
         this.connectWebSocket(this.roomId);
-      } else if (!isLive && this.liveConnection) {
+      } else if (!roomIsLive && this.liveConnection) {
         this.disconnectLiveConnection();
       }
     } catch (err) {
       this.logger.debug({ handle: this.handle, err }, 'Live-Room Info Poll fehlgeschlagen');
     }
+  }
+
+  /**
+   * Decide whether a not-live poll should be reported. False while the
+   * webcast socket has delivered an event recently or the consecutive
+   * not-live count is below the threshold; the caller keeps its state.
+   */
+  private confirmOfflinePoll(): boolean {
+    if (
+      this.liveConnection &&
+      this.lastWebcastEventAt !== null &&
+      Date.now() - this.lastWebcastEventAt < WebcastLiveRoomClient.WEBCAST_EVENT_GRACE_MS
+    ) {
+      this.notLivePolls = 0;
+      return false;
+    }
+    this.notLivePolls += 1;
+    const confirmed = this.notLivePolls >= WebcastLiveRoomClient.OFFLINE_POLL_THRESHOLD;
+    if (confirmed) this.isLive = false;
+    return confirmed;
   }
 
   private connectWebSocket(roomId: string | null): void {
@@ -169,6 +209,7 @@ export class WebcastLiveRoomClient {
 
       conn.on('chat', (raw: unknown) => {
         if (!this.running) return;
+        this.lastWebcastEventAt = Date.now();
         const data = raw as Record<string, unknown>;
         const userObj = data.user as Record<string, unknown> | undefined;
         const username = String(userObj?.uniqueId || userObj?.displayId || userObj?.nickname || 'Gast');
@@ -196,6 +237,7 @@ export class WebcastLiveRoomClient {
 
       conn.on('roomUser', (raw: unknown) => {
         if (!this.running) return;
+        this.lastWebcastEventAt = Date.now();
         const data = raw as Record<string, unknown>;
         // viewerCount is the active viewer count; totalUser/total is cumulative.
         const rawCount = data.viewerCount;
@@ -215,6 +257,7 @@ export class WebcastLiveRoomClient {
 
       conn.on('gift', (raw: unknown) => {
         if (!this.running || !this.onGift) return;
+        this.lastWebcastEventAt = Date.now();
         const data = raw as Record<string, unknown>;
         const userObj = data.user as Record<string, unknown> | undefined;
         const username = String(userObj?.nickname || userObj?.uniqueId || 'Supporter');
@@ -227,6 +270,8 @@ export class WebcastLiveRoomClient {
       conn.on('streamEnd', () => {
         this.logger.info({ handle: this.handle }, 'TikTok Live Stream beendet (streamEnd)');
         this.isLive = false;
+        this.notLivePolls = 0;
+        this.lastWebcastEventAt = null;
         this.onRoomStats?.({
           roomId: this.roomId,
           isLive: false,
