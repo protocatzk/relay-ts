@@ -48,6 +48,7 @@ import { createSupervisorSubsystems, type SupervisorWiringHost } from './supervi
 import { OverlayManager } from '../overlays/overlay-manager.js';
 import type { ChatMessage } from '../overlays/chat-service.js';
 import { OnlineMonitor } from '../online/monitor.js';
+import type { TikTokAccountStore } from '../account/tiktok-account-store.js';
 import { EarningsMonitor } from '../earnings/monitor.js';
 import type { EarningsPeriod } from '../earnings/history.js';
 import type { PreviewAspect } from '../overlays/studio-preview.js';
@@ -87,6 +88,8 @@ export interface SupervisorDeps {
   };
   scenes?: SceneStore;
   webhooks?: WebhookDispatcher;
+  /** Optional TikTok account store; used by the online monitor. */
+  tiktokAccounts?: TikTokAccountStore;
 }
 
 export class Supervisor {

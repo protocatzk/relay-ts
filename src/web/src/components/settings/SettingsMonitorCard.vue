@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import ToggleField from '@/src/components/ToggleField.vue';
+import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 
 interface OnlineModel {
   enabled: boolean;
   provider: 'external' | 'tiktok';
+  account_id: string;
   auto_switch_preferred: boolean;
   source_url: string;
   interval: number;
@@ -24,6 +27,11 @@ defineEmits<{
   (e: 'update:apiKey', val: string): void;
   (e: 'checkOnline'): void;
 }>();
+
+const { accounts, refreshAccounts } = useTikTokAccounts();
+onMounted(() => {
+  void refreshAccounts();
+});
 </script>
 
 <template>
@@ -73,6 +81,18 @@ defineEmits<{
           <p class="field-hint">
             TikTok Live-API prüft alle aktivierten Streamer direkt nacheinander. Für echte Daten
             (statt des leeren Stubs) muss <code>data/cookies.txt</code> eine gültige Session enthalten.
+          </p>
+        </div>
+        <div v-if="online.provider === 'tiktok'" class="field">
+          <label for="online-account">Monitoring-Account</label>
+          <select id="online-account" v-model="online.account_id">
+            <option value="">Aktiver Account (data/cookies.txt)</option>
+            <option v-for="account in accounts" :key="account.id" :value="account.id">
+              {{ account.label }}{{ account.active ? ' (aktiv)' : '' }}
+            </option>
+          </select>
+          <p class="field-hint">
+            Session-Cookie für die Live-Checks. Ohne Auswahl wird die global aktive Session benutzt.
           </p>
         </div>
         <template v-if="online.provider === 'external'">

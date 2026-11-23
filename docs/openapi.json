@@ -9949,6 +9949,7 @@
             "default": {
               "enabled": false,
               "provider": "external",
+              "account_id": "",
               "source_url": "",
               "api_key": "",
               "interval": 60,
@@ -9967,6 +9968,11 @@
                   "external",
                   "tiktok"
                 ]
+              },
+              "account_id": {
+                "default": "",
+                "type": "string",
+                "maxLength": 64
               },
               "source_url": {
                 "default": "",
@@ -11598,6 +11604,7 @@
             "default": {
               "enabled": false,
               "provider": "external",
+              "account_id": "",
               "source_url": "",
               "api_key": "",
               "interval": 60,
@@ -11616,6 +11623,11 @@
                   "external",
                   "tiktok"
                 ]
+              },
+              "account_id": {
+                "default": "",
+                "type": "string",
+                "maxLength": 64
               },
               "source_url": {
                 "default": "",

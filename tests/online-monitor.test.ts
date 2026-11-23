@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pino from 'pino';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings, type StreamerConfig } from '../src/core/config/schema.js';
@@ -99,5 +102,64 @@ describe('OnlineMonitor', () => {
     });
     expect(parsed.get('alice')).toBe(true);
     expect(parsed.get('bob')).toBe(false);
+  });
+
+  it('uses the selected TikTok account session for checks', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => livePayload('alice'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const monitor = new OnlineMonitor({
+      settings: settingsWith({ provider: 'tiktok', account_id: 'acc_1' }),
+      logger,
+      onStatuses: () => {},
+      listStreamers: () => [streamer('alice')],
+      cookiesFile: '/nonexistent/cookies.txt',
+      accountCookie: (id) => (id === 'acc_1' ? 'sessionid=acc-session; tt-target-idc=useast2b' : null),
+    });
+
+    await monitor.checkNow();
+
+    const init = fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
+    expect(init.headers.cookie).toBe('sessionid=acc-session; tt-target-idc=useast2b');
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('uniqueId=alice');
+    monitor.stop();
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the cookie file when the selected account is unknown', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-online-cookie-'));
+    const cookiesFile = join(dir, 'cookies.txt');
+    writeFileSync(
+      cookiesFile,
+      '# Netscape HTTP Cookie File\n.tiktok.com\tTRUE\t/\tTRUE\t0\tsessionid\tfile-session\n',
+    );
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => livePayload('alice'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const monitor = new OnlineMonitor({
+        settings: settingsWith({ provider: 'tiktok', account_id: 'missing' }),
+        logger,
+        onStatuses: () => {},
+        listStreamers: () => [streamer('alice')],
+        cookiesFile,
+        accountCookie: () => null,
+      });
+
+      await monitor.checkNow();
+
+      const init = fetchMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
+      expect(init.headers.cookie).toContain('sessionid=file-session');
+      monitor.stop();
+    } finally {
+      vi.unstubAllGlobals();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

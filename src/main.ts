@@ -128,6 +128,14 @@ async function main(): Promise<void> {
       'YouTube-Verwaltung konfiguriert',
     );
   }
+  const tiktokAccounts = new TikTokAccountStore({
+    filePath: join(config.paths.dataDir, 'tiktok-accounts.json'),
+    cookiesFile: config.paths.cookiesFile,
+    logger: logger.child({ module: 'tiktok-accounts' }),
+    initialSessionId: config.media.tiktokSessionId,
+    initialTargetIdc: config.media.tiktokTargetIdc,
+  });
+
   const supervisor = new Supervisor({
     config,
     settingsService,
@@ -138,6 +146,7 @@ async function main(): Promise<void> {
     registerSecret: (secret) => redactor.add(secret),
     scenes,
     webhooks,
+    tiktokAccounts,
     youtube: {
       streamStarted: (key) => youtubeAuth.onStreamStarted(key),
       streamStopped: (key) => youtubeAuth.onStreamStopped(key),
@@ -405,14 +414,6 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-
-  const tiktokAccounts = new TikTokAccountStore({
-    filePath: join(config.paths.dataDir, 'tiktok-accounts.json'),
-    cookiesFile: config.paths.cookiesFile,
-    logger: logger.child({ module: 'tiktok-accounts' }),
-    initialSessionId: config.media.tiktokSessionId,
-    initialTargetIdc: config.media.tiktokTargetIdc,
-  });
 
   const discovery = new DiscoveryService({
     store,

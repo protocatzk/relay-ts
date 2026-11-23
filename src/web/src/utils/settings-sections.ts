@@ -192,6 +192,7 @@ export function buildSectionPayload(
         online: {
           enabled: current.online.enabled,
           provider: current.online.provider,
+          account_id: current.online.account_id.trim(),
           source_url: current.online.source_url.trim(),
           interval: toNumber(current.online.interval, 30),
           auto_switch_preferred: current.online.auto_switch_preferred,

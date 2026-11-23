@@ -324,6 +324,13 @@ export async function createSupervisorSubsystems(
     },
     listStreamers: () => host.deps.store.list(),
     cookiesFile: config.paths.cookiesFile,
+    accountCookie: (accountId) => {
+      const account = host.deps.tiktokAccounts?.getById(accountId);
+      if (!account) return null;
+      return `sessionid=${account.sessionId}${
+        account.targetIdc ? `; tt-target-idc=${account.targetIdc}` : ''
+      }`;
+    },
     userAgent: config.media.sourceUserAgent,
   });
 

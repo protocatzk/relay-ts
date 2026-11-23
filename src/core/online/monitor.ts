@@ -12,6 +12,8 @@ export interface OnlineMonitorOptions {
   listStreamers?: () => StreamerConfig[];
   /** Netscape cookie file; TikTok's api-live needs a session for real data. */
   cookiesFile?: string;
+  /** Builds a Cookie header for a configured TikTok account id. */
+  accountCookie?: (accountId: string) => string | null;
   userAgent?: string;
 }
 
@@ -208,7 +210,11 @@ export class OnlineMonitor {
       return;
     }
 
-    const cookie = this.options.cookiesFile ? readCookieHeader(this.options.cookiesFile) : null;
+    const accountId = this.options.settings.online.account_id?.trim() ?? '';
+    const accountCookie = accountId ? (this.options.accountCookie?.(accountId) ?? null) : null;
+    const cookie =
+      accountCookie ??
+      (this.options.cookiesFile ? readCookieHeader(this.options.cookiesFile) : null);
     const previous = new Map(this.statuses);
     const checked = new Map<string, boolean>();
     let nextIndex = 0;

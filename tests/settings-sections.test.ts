@@ -56,6 +56,7 @@ function makeSettings(): Settings {
     online: {
       enabled: false,
       provider: 'external',
+      account_id: '',
       source_url: 'https://example.test/online',
       api_key_set: true,
       interval: 30,

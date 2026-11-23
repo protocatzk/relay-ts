@@ -115,8 +115,11 @@ Wichtige Pfade:
 - Online-Monitor (`settings.online.provider`): `external` pollt `source_url`
   (z. B. TokTracker-Overview), `tiktok` prüft alle aktivierten Streamer direkt
   über `api-live/user/room` (Cookies aus `data/cookies.txt`, max. 4 parallel,
-  8-s-Timeout, Prüfintervall ≥ 10 s). Fehlgeschlagene Checks behalten den letzten
-  Status; unbekannte/umbenannte Handles gelten als „unbekannt“ (kein Offline).
+  8-s-Timeout, Prüfintervall ≥ 10 s). `settings.online.account_id` wählt das
+  TikTok-Konto, dessen Session-Cookie für die Checks dient (leer = aktives
+  Konto/`data/cookies.txt`; unbekannte ID fällt auf die Cookie-Datei zurück).
+  Fehlgeschlagene Checks behalten den letzten Status; unbekannte/umbenannte
+  Handles gelten als „unbekannt“ (kein Offline).
 - Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
   `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
   Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.

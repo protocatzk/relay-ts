@@ -302,6 +302,9 @@ export const OnlineSettingsSchema = z.object({
   // `external` polls source_url (e.g. TokTracker overview); `tiktok` checks
   // every enabled streamer directly via TikTok's api-live endpoint.
   provider: z.enum(['external', 'tiktok']).default('external'),
+  // TikTok account whose session is used for the tiktok provider ('' = the
+  // active account / data/cookies.txt).
+  account_id: z.string().max(64).default(''),
   source_url: z.string().default(''),
   api_key: z.string().default(''),
   interval: z.number().int().min(10).max(3600).default(60),
