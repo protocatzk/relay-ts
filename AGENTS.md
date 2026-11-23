@@ -397,12 +397,18 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   (kein App-Container mehr). Die Unit-Quelle liegt im Repo unter
   `systemd/relay.service`; Installation per
   `sudo install systemd/relay.service /etc/systemd/system/relay.service`.
+  Die Sandbox muss `AF_NETLINK` erlauben (`RestrictAddressFamilies`): glibc
+  `getifaddrs()` – genutzt von `os.networkInterfaces()` und damit von Fastify
+  beim Start – öffnet einen Netlink-Socket. Fehlt die Familie, bricht der Start
+  mit `ERR_SYSTEM_ERROR: uv_interface_addresses … error 97` in einer
+  Restart-Schleife ab.
 - **Erstinrichtung** auf einem frischen Host über `sudo scripts/bootstrap.sh`
-  (generisch, keine Instanz-Defaults): Module `user,dirs,systemd,env,release`
+  (generisch, keine Instanz-Defaults): Module `user,deps,dirs,systemd,env,release`
   per Default, `--modules a,b` zur Auswahl, `--caddy` zusätzlich mit zwingendem
   `--domain <domain>` (optional `--web-domain`). Das Skript ist idempotent und
   unterstützt `--dry-run` (Vorschau, auch ohne root). Es legt Systemuser,
-  Layout, Unit, `/etc/relay.env` (0600, absolute Pfade; ohne `--force` wird eine
+  prüft/installiert `ffmpeg` und `yt-dlp` (apt bzw. dnf/EPEL; fehlende Pakete
+  werden nur gewarnt, nicht abgebrochen), Layout, Unit, `/etc/relay.env` (0600, absolute Pfade; ohne `--force` wird eine
   vorhandene Datei nicht angetastet) und optional eine minimale Caddyfile an
   und deployt das erste Release via `deploy.sh` inkl. Health-Check.
   Alternativ zum Caddy-Modul gibt es `--nginx` (Modul `nginx`): Für nativen

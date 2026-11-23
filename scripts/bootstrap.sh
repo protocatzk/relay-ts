@@ -4,6 +4,7 @@
 #
 # Richtet einen frischen Host ein, Station für Station (Module):
 #   user     – Systemuser 'relay' anlegen
+#   deps     – ffmpeg und yt-dlp prüfen/installieren (apt bzw. dnf)
 #   dirs     – /srv/relay/{releases,config,data,logs} anlegen (relay:relay)
 #   systemd  – relay.service installieren, daemon-reload, enable (ohne Start)
 #   env      – /etc/relay.env aus Vorlage (0600, absolute Pfade)
@@ -73,8 +74,8 @@ NGINX_CONF_D=/etc/nginx/conf.d
 NGINX_DOCKER_IMAGE="nginx:stable"
 NGINX_DOCKER_NAME="relay-nginx"
 NGINX_DOCKER_CONF_DIR=/etc/relay-nginx/conf.d
-ALL_MODULES="user,dirs,systemd,env,release,caddy,nginx,docker-nginx"
-DEFAULT_MODULES="user,dirs,systemd,env,release"
+ALL_MODULES="user,deps,dirs,systemd,env,release,caddy,nginx,docker-nginx"
+DEFAULT_MODULES="user,deps,dirs,systemd,env,release"
 
 log()  { printf '\033[1;32m[bootstrap]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[bootstrap]\033[0m %s\n' "$*"; }
@@ -178,6 +179,86 @@ setup_user() {
   else
     log "[user] Lege Systemuser '$SERVICE_USER' an ..."
     run useradd --system --home-dir "$BASE" --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
+  fi
+}
+
+# --- Modul: deps ---------------------------------------------------------------
+# RELAY benötigt zwingend ffmpeg (Quelle/Sink/Pause-Screens) und yt-dlp
+# (TikTok-Auflösung). Ohne sie startet der Dienst zwar, kann aber nicht
+# streamen. Beide werden nur installiert, wenn sie fehlen.
+have_bin() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+setup_deps() {
+  local missing=() pkg_install=() pm="" bin="" ver=""
+
+  for bin in ffmpeg yt-dlp; do
+    if have_bin "$bin"; then
+      # ffmpeg nutzt '-version', yt-dlp '--version'. Kein '| head -n1': das
+      # schließt die Pipe früh und 'pipefail' würde die Version als
+      # SIGPIPE-Fehler verschlucken.
+      ver="$("$bin" --version 2>/dev/null || "$bin" -version 2>/dev/null || true)"
+      ver="${ver%%$'\n'*}"
+      log "[deps] $bin vorhanden: ${ver:-Version unbekannt}"
+    else
+      missing+=("$bin")
+    fi
+  done
+
+  if [ ${#missing[@]} -eq 0 ]; then
+    return 0
+  fi
+
+  log "[deps] Fehlend: ${missing[*]} – installiere per Paketmanager ..."
+
+  if [ "$DISTRO" = "ubuntu" ]; then
+    pm="apt-get"
+    pkg_install=(apt-get install -y)
+  else
+    pm="dnf"
+    command -v dnf >/dev/null 2>&1 || pm="yum"
+    pkg_install=("$pm" install -y)
+  fi
+
+  if ! command -v "$pm" >/dev/null 2>&1; then
+    warn "[deps] $pm nicht gefunden – ffmpeg/yt-dlp bitte manuell installieren: ${missing[*]}"
+    return 0
+  fi
+
+  # apt braucht vor der Erstinstallation aktualisierte Paketlisten; ein
+  # vollständiges 'upgrade' wird bewusst nicht ausgeführt.
+  if [ "$pm" = "apt-get" ]; then
+    run apt-get update -qq || warn "[deps] 'apt-get update' fehlgeschlagen – versuche Installation trotzdem."
+  fi
+
+  # yt-dlp steckt in EPEL (CentOS) bzw. den Universe-Quellen (Ubuntu); fehlt
+  # das Paket, bleibt ffmpeg trotzdem installierbar. Getrennt installieren,
+  # damit ein fehlendes yt-dlp-Paket den ffmpeg-Schritt nicht abbricht.
+  for bin in "${missing[@]}"; do
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[dry-run] ${pkg_install[*]} $bin"
+      continue
+    fi
+    if "${pkg_install[@]}" "$bin" >/dev/null 2>&1; then
+      log "[deps] $bin installiert."
+    else
+      case "$bin" in
+        yt-dlp)
+          warn "[deps] yt-dlp konnte nicht per $pm installiert werden. Alternativen:"
+          warn "[deps]   pipx install yt-dlp        (oder)  curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod +x /usr/local/bin/yt-dlp"
+          ;;
+        *)
+          warn "[deps] $bin konnte nicht per $pm installiert werden – Streaming wird fehlschlagen."
+          ;;
+      esac
+    fi
+  done
+
+  if [ "$DRY_RUN" != 1 ]; then
+    for bin in "${missing[@]}"; do
+      have_bin "$bin" || warn "[deps] $bin ist weiterhin nicht im PATH verfügbar."
+    done
   fi
 }
 
@@ -660,6 +741,7 @@ setup_docker_nginx() {
 
 # --- Module ausführen ---------------------------------------------------------------
 has_module user    && setup_user
+has_module deps    && setup_deps
 has_module dirs    && setup_dirs
 has_module systemd && setup_systemd
 has_module env     && setup_env
