@@ -419,6 +419,16 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   laufender Legacy-`nginx-proxy` oder fremder nginx-Container wird erkannt
   und nur angeleitet, ein gestoppter eigener Container wird gestartet, und
   bei belegtem Port 80 (z. B. Caddy) unterbleibt der Start mit Warnung.
+  Mit `--nginx-container <name>` injiziert das Modul den Vhost stattdessen
+  in einen bestehenden nginx-Container: Existiert ein bind-Mount nach
+  `/etc/nginx/conf.d`, wird `relay.conf` direkt im Host-Verzeichnis des
+  Mounts abgelegt, sonst per `docker cp` (flüchtig bei Neuerstellung; die
+  Container-`nginx.conf` muss `conf.d/*.conf` einbinden). Der Upstream
+  richtet sich nach dem Netzwerk-Modus des Ziels: `host` → `127.0.0.1`,
+  Bridge → Gateway des Containers (Host-Seite, dann muss RELAY auf allen
+  Interfaces lauschen). Abschluss immer mit `docker exec … nginx -t` und
+  Reload; Legacy-`nginx-proxy` bleibt Anleitung-only, gestoppte oder
+  fehlende Ziele werden übersprungen.
   Distro-Pfade via `--distro centos|ubuntu`: Ohne Flag wird die Familie über
   `/etc/os-release` erkannt (Ubuntu/Debian → `ubuntu`, RHEL-Familie →
   `centos`, unbekannt → `centos`); passt ein explizites Flag nicht zur

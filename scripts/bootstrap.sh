@@ -13,7 +13,11 @@
 #              wird erkannt und nur mit Anleitung bedient (benötigt --domain)
 #   docker-nginx – eigener nginx-Container mit gemountetem Vhost
 #              (--network host, Upstream 127.0.0.1); ein laufender Legacy-
-#              Proxy oder fremder nginx-Container wird nur angeleitet
+#              Proxy oder fremder nginx-Container wird nur angeleitet.
+#              Mit --nginx-container <name> wird der Vhost stattdessen in
+#              einen bestehenden Container injiziert: bind-Mount nach
+#              /etc/nginx/conf.d bevorzugt, sonst docker cp; Upstream je
+#              nach Netzwerk-Modus; Abschluss mit nginx -t und Reload.
 #
 # Das Skript ist generisch gehalten: Domain (und optional Web-Domain) werden
 # als Parameter übergeben, nichts ist auf eine konkrete Instanz festgelegt.
@@ -27,6 +31,8 @@
 #   sudo scripts/bootstrap.sh --modules user,dirs,systemd    # nur ausgewählte Module
 #   sudo scripts/bootstrap.sh --domain stream.example.com --nginx
 #   sudo scripts/bootstrap.sh --domain stream.example.com --docker-nginx
+#   sudo scripts/bootstrap.sh --domain stream.example.com --docker-nginx \
+#          --nginx-container web-proxy   # Vhost in bestehenden Container
 #   sudo scripts/bootstrap.sh --dry-run                      # Vorschau, auch ohne root
 #   sudo scripts/bootstrap.sh --force                        # vorhandene /etc/relay.env ersetzen
 #   sudo scripts/bootstrap.sh --distro ubuntu                # Ubuntu-Pfad statt CentOS
@@ -88,6 +94,7 @@ WEB_DOMAIN=""
 MODULES="$DEFAULT_MODULES"
 VERSION=""
 DISTRO=""
+NGINX_CONTAINER=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -95,6 +102,8 @@ while [ $# -gt 0 ]; do
     --caddy) case ",$MODULES," in *,caddy,*) ;; *) MODULES="$MODULES,caddy" ;; esac ;;
     --nginx) case ",$MODULES," in *,nginx,*) ;; *) MODULES="$MODULES,nginx" ;; esac ;;
     --docker-nginx) case ",$MODULES," in *,docker-nginx,*) ;; *) MODULES="$MODULES,docker-nginx" ;; esac ;;
+    --nginx-container) shift; [ $# -gt 0 ] || fail "--nginx-container braucht einen Wert"; NGINX_CONTAINER="$1"
+      case ",$MODULES," in *,docker-nginx,*) ;; *) MODULES="$MODULES,docker-nginx" ;; esac ;;
     --domain) shift; [ $# -gt 0 ] || fail "--domain braucht einen Wert"; DOMAIN="$1" ;;
     --web-domain) shift; [ $# -gt 0 ] || fail "--web-domain braucht einen Wert"; WEB_DOMAIN="$1" ;;
     --modules) shift; [ $# -gt 0 ] || fail "--modules braucht eine Liste"; MODULES="$1" ;;
@@ -301,13 +310,15 @@ setup_caddy() {
 # Gibt einen Vhost-Block für 'Domain -> Upstream' auf stdout aus.
 # Buffered Streaming (SSE/Preview-Tap) wird explizit abgeschaltet, damit
 # Status-Events und der MPEG-TS-Tap nicht verzögert werden; client_max_body_size
-# deckt Asset-Uploads (max. 50 MB) ab.
+# deckt Asset-Uploads (max. 50 MB) ab. Optionaler dritter Parameter: Upstream-
+# Host (Default 127.0.0.1, z. B. Docker-Bridge-Gateway für Container ohne
+# Host-Netzwerk).
 nginx_vhost_snippet() {
   printf 'server {\n'
   printf '    listen 80;\n'
   printf '    server_name %s;\n\n' "$1"
   printf '    location / {\n'
-  printf '        proxy_pass http://127.0.0.1:%s;\n' "$2"
+  printf '        proxy_pass http://%s:%s;\n' "${3:-127.0.0.1}" "$2"
   printf '        proxy_http_version 1.1;\n'
   printf '        proxy_set_header Host $host;\n'
   printf '        proxy_set_header X-Real-IP $remote_addr;\n'
@@ -418,6 +429,96 @@ setup_nginx() {
   fi
 }
 
+# -------------------------------------------------------------------------------------------------------------
+# Injektion des RELAY-Vhosts in einen benannten, bestehenden nginx-Container
+# (--nginx-container). Wählt den Ablageort automatisch:
+# bind-Mount nach /etc/nginx/conf.d wenn vorhanden, sonst docker cp (flüchtig
+# bei Neuerstellung des Containers). Upstream: Host-Netzwerk -> 127.0.0.1,
+# sonst Container-Gateway (Host-Seite der Docker-Bridge). Abschließend
+# nginx -t und Reload im Container.
+setup_docker_nginx_add() {
+  local name="$NGINX_CONTAINER" state network upstream mount_info conf_dir="" target wrote=0
+  if ! docker inspect "$name" >/dev/null 2>&1; then
+    warn "[docker-nginx] Ziel-Container '$name' nicht gefunden – übersprungen (Namen: docker ps -a)."
+    return 0
+  fi
+  state="$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || true)"
+  if [ "$state" != "running" ]; then
+    warn "[docker-nginx] Ziel-Container '$name' läuft nicht (Status: ${state:-unbekannt}) – übersprungen."
+    warn "[docker-nginx]   docker start $name  und Modul erneut ausführen."
+    return 0
+  fi
+
+  network="$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$name" 2>/dev/null || true)"
+  if [ "$network" = "host" ]; then
+    upstream="127.0.0.1"
+    log "[docker-nginx] Ziel '$name' läuft im Host-Netzwerk – Upstream $upstream:$APP_PORT."
+  else
+    upstream="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}' "$name" 2>/dev/null | tr -d '[:space:]')"
+    [ -n "$upstream" ] || upstream="172.17.0.1"
+    warn "[docker-nginx] Ziel '$name' läuft im Bridge-Netzwerk – Upstream $upstream:$APP_PORT (Host-Seite)."
+    warn "[docker-nginx] RELAY muss dafür auf allen Interfaces lauschen (SERVER_HOST=0.0.0.0, env prüfen)."
+  fi
+
+  # Ablageort: bind-Mount nach /etc/nginx/conf.d, sonst docker cp.
+  mount_info="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/nginx/conf.d"}}{{.Type}}:{{.Source}}{{end}}{{end}}' "$name" 2>/dev/null || true)"
+  case "$mount_info" in
+    bind:*)
+      conf_dir="${mount_info#bind:}"
+      log "[docker-nginx] Ziel mountet /etc/nginx/conf.d von Host: $conf_dir"
+      ;;
+    volume:*)
+      warn "[docker-nginx] /etc/nginx/conf.d im Ziel ist ein Docker-Volume – nutze docker cp (flüchtig bei Neuerstellung)."
+      ;;
+    *)
+      warn "[docker-nginx] Ziel mountet kein /etc/nginx/conf.d – nutze docker cp (flüchtig bei Neuerstellung;"
+      warn "[docker-nginx] die nginx.conf des Containers muss conf.d/*.conf einbinden)."
+      ;;
+  esac
+
+  if [ -n "$conf_dir" ]; then
+    target="$conf_dir/relay.conf"
+  else
+    target="$NGINX_DOCKER_CONF_DIR/relay.conf"
+  fi
+
+  if [ -f "$target" ]; then
+    warn "[docker-nginx] Vhost existiert bereits ($target) – lasse ihn unangetastet."
+  elif [ "$DRY_RUN" = 1 ]; then
+    log "[docker-nginx] [dry-run] Würde Vhost schreiben: $target (Upstream $upstream)"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT" "$upstream"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT" "$upstream"
+  else
+    log "[docker-nginx] Schreibe Vhost: $target (Upstream $upstream) ..."
+    mkdir -p "$(dirname "$target")"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT" "$upstream" > "$target"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT" "$upstream" >> "$target"
+    wrote=1
+  fi
+
+  if [ -z "$conf_dir" ] && [ "$wrote" = 1 ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[docker-nginx] [dry-run] Würde kopieren: docker cp $target $name:/etc/nginx/conf.d/relay.conf"
+    elif ! docker cp "$target" "$name:/etc/nginx/conf.d/relay.conf"; then
+      warn "[docker-nginx] docker cp fehlgeschlagen – Datei liegt unter $target, manuell kopieren."
+      return 0
+    fi
+  fi
+
+  if [ "$DRY_RUN" = 1 ]; then
+    log "[docker-nginx] [dry-run] Würde prüfen/laden: docker exec $name nginx -t && docker exec $name nginx -s reload"
+    return 0
+  fi
+
+  if docker exec "$name" nginx -t; then
+    docker exec "$name" nginx -s reload
+    log "[docker-nginx] Vhost in Container '$name' aktiviert, nginx neu geladen."
+  else
+    warn "[docker-nginx] 'nginx -t' in '$name' fehlgeschlagen – Konfiguration prüfen:"
+    warn "[docker-nginx]   docker exec $name nginx -t"
+  fi
+}
+
 # --- Modul: docker-nginx -----------------------------------------------------------
 # Eigener nginx-Container für RELAY. Läuft mit --network host, sodass der
 # Upstream 127.0.0.1:<APP_PORT> unabhängig von SERVER_HOST funktioniert und
@@ -460,6 +561,15 @@ setup_docker_nginx() {
     return 0
   fi
 
+  # Explizit benannter, bestehender Container: Vhost dorthin injizieren.
+  if [ -n "$NGINX_CONTAINER" ] && [ "$NGINX_CONTAINER" != "$NGINX_DOCKER_NAME" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[docker-nginx] [dry-run] Ziel-Container '$NGINX_CONTAINER' angegeben – Injektion-Modus."
+    fi
+    setup_docker_nginx_add
+    return 0
+  fi
+
   # Fremder nginx-Container: Konfiguration gehört dem Betreiber – nur anleiten.
   if [ -n "$foreign" ]; then
     if [ "$DRY_RUN" = 1 ]; then
@@ -471,6 +581,7 @@ setup_docker_nginx() {
     nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
     [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
     warn "[docker-nginx] Danach neu laden: docker exec $foreign nginx -t && docker exec $foreign nginx -s reload"
+    warn "[docker-nginx] Automatisch möglich mit: --nginx-container $foreign"
     return 0
   fi
 
