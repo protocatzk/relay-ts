@@ -16,6 +16,7 @@ import { AutomationEngine } from './core/automations/automation-engine.js';
 import { WebhookDispatcher } from './core/notifications/webhooks.js';
 import { TikTokAccountStore } from './core/account/tiktok-account-store.js';
 import { DiscoveryService } from './core/source/discovery/discovery-service.js';
+import { ApiKeyStore } from './api/api-key-store.js';
 import { TelegramAuthStore } from './core/telegram/auth-store.js';
 import { TelegramBot } from './core/telegram/bot.js';
 import { TelegramNotifyStore } from './core/telegram/notify-store.js';
@@ -424,6 +425,8 @@ async function main(): Promise<void> {
     accountStore: tiktokAccounts,
   });
 
+  const apiKeys = new ApiKeyStore(join(config.paths.dataDir, 'api-keys.json'));
+
   const automations = new AutomationEngine({
     filePath: join(config.paths.dataDir, 'automations.json'),
     logger,
@@ -456,6 +459,7 @@ async function main(): Promise<void> {
     discovery,
     tiktokAccounts,
     automations,
+    apiKeys,
   });
 
   scheduler.start();

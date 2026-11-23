@@ -1353,6 +1353,30 @@ export interface AutomationsListResponse {
   executions: WorkflowExecutionLog[];
 }
 
+export interface ApiKeyItem {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  created_at: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  last_used_ip: string | null;
+  revoked: boolean;
+  status: 'active' | 'expired' | 'revoked';
+}
+
+export interface ApiKeyScopeInfo {
+  scope: string;
+  label: string;
+  description: string;
+}
+
+export interface CreateApiKeyResponse {
+  key: string;
+  record: ApiKeyItem;
+}
+
 export interface ApiErrorDetail {
   code: string;
   message: string;

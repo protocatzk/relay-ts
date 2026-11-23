@@ -41,6 +41,7 @@ import SettingsMcpCard from '@/src/components/settings/SettingsMcpCard.vue';
 import SettingsRtmpIngestCard from '@/src/components/settings/SettingsRtmpIngestCard.vue';
 import SettingsAppearanceCard from '@/src/components/settings/SettingsAppearanceCard.vue';
 import SettingsTikTokAccountsCard from '@/src/components/settings/SettingsTikTokAccountsCard.vue';
+import SettingsApiKeysCard from '@/src/components/settings/SettingsApiKeysCard.vue';
 import SettingsSessionsCard from '@/src/components/settings/SettingsSessionsCard.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useToast } from '@/src/composables/useToast';
@@ -761,6 +762,8 @@ onBeforeUnmount(() => {
       />
 
       <SettingsTikTokAccountsCard />
+
+      <SettingsApiKeysCard />
 
       <SettingsAppearanceCard />
 

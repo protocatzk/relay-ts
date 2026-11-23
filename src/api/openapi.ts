@@ -294,6 +294,38 @@ const routes: RouteDoc[] = [
     response: ref('AuthMe'),
   },
 
+  // API-Keys
+  {
+    method: 'get',
+    path: '/api/api-keys/scopes',
+    tag: 'auth',
+    summary: 'Verfügbare API-Key Scopes auflisten',
+  },
+  {
+    method: 'get',
+    path: '/api/api-keys',
+    tag: 'auth',
+    summary: 'Alle erstellten API-Keys auflisten',
+  },
+  {
+    method: 'post',
+    path: '/api/api-keys',
+    tag: 'auth',
+    summary: 'Neuen API-Key erstellen',
+  },
+  {
+    method: 'post',
+    path: '/api/api-keys/:id/revoke',
+    tag: 'auth',
+    summary: 'API-Key widerrufen',
+  },
+  {
+    method: 'delete',
+    path: '/api/api-keys/:id',
+    tag: 'auth',
+    summary: 'API-Key löschen',
+  },
+
   // System
   {
     method: 'get',

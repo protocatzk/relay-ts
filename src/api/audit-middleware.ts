@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ApiContext } from './context.js';
-import { authMode, currentSession } from './auth.js';
+import { authenticateRequest, currentSession } from './auth.js';
 import type { AuditSource } from '../core/audit-log.js';
 
 export interface MappedAuditAction {
@@ -236,10 +236,14 @@ export function resolveHttpActor(
   request: FastifyRequest,
   ctx: ApiContext,
 ): { actor: string; source: AuditSource } {
-  const mode = authMode(request, ctx.config.server, ctx.authSessions);
+  const authInfo = authenticateRequest(request, ctx.config.server, ctx.authSessions, ctx.apiKeys);
+  const mode = authInfo.mode;
   if (mode === 'cookie') {
     const session = currentSession(request, ctx.config.server, ctx.authSessions);
     return { actor: `web:${session?.user ?? 'Dashboard'}`, source: 'web' };
+  }
+  if (mode === 'api_key' && authInfo.apiKey) {
+    return { actor: `api:key:${authInfo.apiKey.name}`, source: 'api' };
   }
   if (mode === 'token') return { actor: 'api:token', source: 'api' };
   if (mode === 'basic') return { actor: 'api:basic', source: 'api' };

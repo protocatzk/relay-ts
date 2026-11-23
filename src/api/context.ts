@@ -16,6 +16,7 @@ import type { WebhookDispatcher } from '../core/notifications/webhooks.js';
 import type { DiscoveryService } from '../core/source/discovery/discovery-service.js';
 import type { TikTokAccountStore } from '../core/account/tiktok-account-store.js';
 import type { AutomationEngine } from '../core/automations/automation-engine.js';
+import type { ApiKeyStore } from './api-key-store.js';
 
 export interface ApiContext {
   config: LoadedConfig;
@@ -38,4 +39,5 @@ export interface ApiContext {
   discovery?: DiscoveryService;
   tiktokAccounts?: TikTokAccountStore;
   automations?: AutomationEngine;
+  apiKeys?: ApiKeyStore;
 }

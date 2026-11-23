@@ -2,11 +2,17 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ServerConfig } from '../core/config/loader.js';
 import type { AuthProvider, AuthSession, AuthSessionStore } from './session-store.js';
+import type { ApiKeyRecord, ApiKeyStore } from './api-key-store.js';
 
 export const SESSION_COOKIE = 'rs_session';
 const LEGACY_COOKIE = 'rs_auth';
 
-export type AuthMode = 'public' | 'cookie' | 'token' | 'basic' | null;
+export type AuthMode = 'public' | 'cookie' | 'token' | 'api_key' | 'basic' | null;
+
+export interface RequestAuthInfo {
+  mode: AuthMode;
+  apiKey?: ApiKeyRecord;
+}
 
 export function authRequired(config: ServerConfig): boolean {
   return Boolean(config.password || config.apiToken || config.telegramAuth);
@@ -58,31 +64,53 @@ export function authMode(
   request: FastifyRequest,
   config: ServerConfig,
   sessions: AuthSessionStore,
+  apiKeys?: ApiKeyStore,
 ): AuthMode {
-  if (!authRequired(config)) return 'public';
+  return authenticateRequest(request, config, sessions, apiKeys).mode;
+}
+
+export function authenticateRequest(
+  request: FastifyRequest,
+  config: ServerConfig,
+  sessions: AuthSessionStore,
+  apiKeys?: ApiKeyStore,
+): RequestAuthInfo {
+  if (!authRequired(config)) return { mode: 'public' };
 
   const header = request.headers.authorization;
-  if (config.apiToken && header?.startsWith('Bearer ')) {
-    if (safeEqual(header.slice(7).trim(), config.apiToken)) return 'token';
+  if (header?.startsWith('Bearer ')) {
+    const token = header.slice(7).trim();
+    if (token.startsWith('rel_live_') && apiKeys) {
+      const record = apiKeys.authenticate(token, request.ip);
+      if (record) return { mode: 'api_key', apiKey: record };
+    }
+    if (config.apiToken && safeEqual(token, config.apiToken)) {
+      return { mode: 'token' };
+    }
   }
 
-  if (sessions.get(signedSessionId(request))) return 'cookie';
+  if (sessions.get(signedSessionId(request))) return { mode: 'cookie' };
 
   const basic = basicCredentials(header);
   if (basic) {
-    if (config.password && safeEqual(basic.password, config.password)) return 'basic';
-    if (config.apiToken && safeEqual(basic.password, config.apiToken)) return 'basic';
+    if (config.password && safeEqual(basic.password, config.password)) return { mode: 'basic' };
+    if (config.apiToken && safeEqual(basic.password, config.apiToken)) return { mode: 'basic' };
+    if (basic.password.startsWith('rel_live_') && apiKeys) {
+      const record = apiKeys.authenticate(basic.password, request.ip);
+      if (record) return { mode: 'api_key', apiKey: record };
+    }
   }
 
-  return null;
+  return { mode: null };
 }
 
 export function isAuthenticated(
   request: FastifyRequest,
   config: ServerConfig,
   sessions: AuthSessionStore,
+  apiKeys?: ApiKeyStore,
 ): boolean {
-  return authMode(request, config, sessions) !== null;
+  return authMode(request, config, sessions, apiKeys) !== null;
 }
 
 /**
@@ -160,9 +188,24 @@ export function clearSessionCookie(
   reply.clearCookie(LEGACY_COOKIE, { path: '/' });
 }
 
+export function hasScope(grantedScopes: string[], requiredScope: string): boolean {
+  if (grantedScopes.includes('*') || grantedScopes.includes('admin')) return true;
+  if (grantedScopes.includes(requiredScope)) return true;
+  // Wildcards wie read:* oder control:* unterstützen
+  const [category] = requiredScope.split(':');
+  if (category && grantedScopes.includes(`${category}:*`)) return true;
+  return false;
+}
+
 export function unauthorized(reply: FastifyReply): FastifyReply {
   return reply.code(401).send({
     error: { code: 'unauthorized', message: 'Anmeldung erforderlich' },
+  });
+}
+
+export function forbidden(reply: FastifyReply, message = 'Keine ausreichende Berechtigung für diese Aktion'): FastifyReply {
+  return reply.code(403).send({
+    error: { code: 'forbidden', message },
   });
 }
 

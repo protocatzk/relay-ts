@@ -1,4 +1,6 @@
 import type {
+  ApiKeyItem,
+  ApiKeyScopeInfo,
   AuditPageResponse,
   AuditQueryParams,
   AuthMe,
@@ -900,6 +902,24 @@ export const api = {
           body: { triggerNodeId, payload },
         },
       ),
+  },
+
+  apiKeys: {
+    list: () => request<{ keys: ApiKeyItem[] }>('/api/api-keys'),
+    scopes: () => request<{ scopes: ApiKeyScopeInfo[] }>('/api/api-keys/scopes'),
+    create: (body: { name: string; scopes?: string[]; expires_in_days?: number | null }) =>
+      request<{ key: string; record: ApiKeyItem }>('/api/api-keys', {
+        method: 'POST',
+        body,
+      }),
+    revoke: (id: string) =>
+      request<{ success: true }>(`/api/api-keys/${encodeURIComponent(id)}/revoke`, {
+        method: 'POST',
+      }),
+    delete: (id: string) =>
+      request<{ success: true }>(`/api/api-keys/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
   },
 };
 

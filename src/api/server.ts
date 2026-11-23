@@ -14,7 +14,7 @@ import fastifyStatic from '@fastify/static';
 import { z } from 'zod';
 import type { ApiContext } from './context.js';
 import { AppError } from '../utils/errors.js';
-import { authMode, csrfRejected, isSameOrigin, unauthorized } from './auth.js';
+import { authenticateRequest, csrfRejected, forbidden, hasScope, isSameOrigin, unauthorized } from './auth.js';
 import { mapHttpAuditAction, resolveHttpActor } from './audit-middleware.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerStreamerRoutes } from './routes/streamers.js';
@@ -33,6 +33,7 @@ import { registerScheduleRoutes } from './routes/schedules.js';
 import { registerDiscoveryRoutes } from './routes/discovery.js';
 import { registerAutomationRoutes } from './routes/automations.js';
 import { registerMcpRoutes } from './routes/mcp.js';
+import { registerApiKeyRoutes } from './routes/api-keys.js';
 
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
@@ -80,8 +81,39 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
     ) {
       return;
     }
-    const mode = authMode(request, ctx.config.server, ctx.authSessions);
+    const authInfo = authenticateRequest(request, ctx.config.server, ctx.authSessions, ctx.apiKeys);
+    const mode = authInfo.mode;
     if (!mode) return unauthorized(reply);
+
+    // Wenn per API-Key authentifiziert, prüfen wir Berechtigung / Scopes
+    if (mode === 'api_key' && authInfo.apiKey) {
+      // API-Key-Management selbst ist strikt Master / Admin vorbehalten
+      if (path.startsWith('/api/api-keys')) {
+        if (!hasScope(authInfo.apiKey.scopes, 'admin')) {
+          return forbidden(reply, 'API-Keys können nur mit Admin-Rechten verwaltet werden');
+        }
+      }
+
+      // Prüfe Method / Pfad-Scopes
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+        if (path.startsWith('/api/streamers') && !hasScope(authInfo.apiKey.scopes, 'manage:streamers') && !hasScope(authInfo.apiKey.scopes, 'control:stream')) {
+          return forbidden(reply, 'Fehlender Scope: manage:streamers oder control:stream');
+        }
+        if (path.startsWith('/api/queue') && !hasScope(authInfo.apiKey.scopes, 'control:queue')) {
+          return forbidden(reply, 'Fehlender Scope: control:queue');
+        }
+        if (path.startsWith('/api/screens') && !hasScope(authInfo.apiKey.scopes, 'control:stream')) {
+          return forbidden(reply, 'Fehlender Scope: control:stream');
+        }
+        if (path.startsWith('/api/overlays') && !hasScope(authInfo.apiKey.scopes, 'control:overlays')) {
+          return forbidden(reply, 'Fehlender Scope: control:overlays');
+        }
+        if (path.startsWith('/api/media') && !hasScope(authInfo.apiKey.scopes, 'manage:media')) {
+          return forbidden(reply, 'Fehlender Scope: manage:media');
+        }
+      }
+    }
+
     if (mode === 'cookie' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
       const allowedOrigins = ctx.config.server.corsOrigin
         .split(',')
@@ -157,6 +189,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerDiscoveryRoutes(app, ctx);
   await registerAutomationRoutes(app, ctx);
   await registerMcpRoutes(app, ctx);
+  await registerApiKeyRoutes(app, ctx);
   await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;
