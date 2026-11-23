@@ -139,6 +139,76 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
     return service.publishBroadcast(id);
   });
 
+  app.post('/api/youtube/broadcasts/:id/thumbnail', writeLimit, async (request, reply) => {
+    const { id } = IdParams.parse(request.params);
+    let upload;
+    try {
+      upload = await request.file({ limits: { fileSize: 2 * 1024 * 1024 } });
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.code(413).send({
+          error: { code: 'file_too_large', message: 'Thumbnail darf maximal 2 MB groß sein' },
+        });
+      }
+      throw error;
+    }
+    if (!upload) {
+      return reply.code(400).send({
+        error: { code: 'validation_failed', message: 'Keine Datei übermittelt' },
+      });
+    }
+    if (upload.file.truncated) {
+      return reply.code(413).send({
+        error: { code: 'file_too_large', message: 'Thumbnail darf maximal 2 MB groß sein' },
+      });
+    }
+
+    const buffer = await upload.toBuffer().catch((error) => {
+      const code = (error as { code?: string }).code;
+      if (code === 'FST_REQ_FILE_TOO_LARGE') return null;
+      throw error;
+    });
+    if (!buffer || buffer.length > 2 * 1024 * 1024) {
+      return reply.code(413).send({
+        error: { code: 'file_too_large', message: 'Thumbnail darf maximal 2 MB groß sein' },
+      });
+    }
+    if (buffer.length === 0) {
+      return reply.code(400).send({
+        error: { code: 'validation_failed', message: 'Datei ist leer' },
+      });
+    }
+
+    let mimeType: 'image/jpeg' | 'image/png' | null = null;
+    if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      mimeType = 'image/jpeg';
+    } else if (
+      buffer.length >= 8 &&
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    ) {
+      mimeType = 'image/png';
+    }
+
+    if (!mimeType) {
+      return reply.code(400).send({
+        error: {
+          code: 'invalid_file_type',
+          message: 'Nur JPEG- oder PNG-Dateien werden unterstützt',
+        },
+      });
+    }
+
+    return service.setBroadcastThumbnail(id, buffer, mimeType);
+  });
+
   app.post('/api/youtube/broadcasts/:id/transition', writeLimit, async (request) => {
     const { id } = IdParams.parse(request.params);
     const { status } = TransitionBody.parse(request.body);

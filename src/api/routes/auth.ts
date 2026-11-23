@@ -10,6 +10,7 @@ import {
   setSessionCookie,
   unauthorized,
 } from '../auth.js';
+import { validateTelegramWebAppData } from '../../core/telegram/auth-store.js';
 import { VERSION } from '../../version.js';
 
 function clientInfo(request: FastifyRequest): string {
@@ -178,6 +179,69 @@ export async function registerAuthRoutes(app: FastifyInstance, ctx: ApiContext):
         return { status: 'approved', user: entry.user };
       }
       return { status: entry.status };
+    },
+  );
+
+  app.post(
+    '/api/auth/telegram/webapp',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
+      if (!config.server.telegramAuth || !config.telegram.botToken) {
+        return reply.code(503).send({
+          error: { code: 'telegram_disabled', message: 'Telegram-Login ist nicht konfiguriert' },
+        });
+      }
+      const body = request.body as { init_data?: unknown; initData?: unknown } | undefined;
+      const initData =
+        typeof body?.init_data === 'string'
+          ? body.init_data
+          : typeof body?.initData === 'string'
+            ? body.initData
+            : '';
+      if (!initData) {
+        return reply.code(400).send({
+          error: { code: 'validation_failed', message: 'initData fehlt' },
+        });
+      }
+
+      const validation = validateTelegramWebAppData(
+        initData,
+        config.telegram.botToken,
+        config.telegram.allowedUserIds,
+      );
+
+      if (!validation.valid || !validation.user) {
+        ctx.logger.warn(
+          { ip: request.ip, reason: validation.error },
+          'Fehlgeschlagene Telegram-WebApp-Anmeldung',
+        );
+        const code = validation.error === 'user_not_allowed' ? 'forbidden' : 'invalid_credentials';
+        const status = validation.error === 'user_not_allowed' ? 403 : 401;
+        const message =
+          validation.error === 'user_not_allowed'
+            ? 'Telegram-Konto ist nicht autorisiert'
+            : 'Ungültige oder abgelaufene Telegram-WebApp-Daten';
+        return reply.code(status).send({ error: { code, message } });
+      }
+
+      const userLabel =
+        validation.user.username
+          ? `@${validation.user.username}`
+          : [validation.user.first_name, validation.user.last_name].filter(Boolean).join(' ') ||
+            `Telegram #${validation.user.id}`;
+
+      setSessionCookie(
+        reply,
+        config.server,
+        ctx.authSessions,
+        userLabel,
+        'telegram',
+        isSecureRequest(request, config.server),
+      );
+      ctx.logger.info({ user: userLabel, id: validation.user.id }, 'Dashboard-Anmeldung via Telegram WebApp');
+      return { ok: true, user: userLabel };
     },
   );
 

@@ -213,6 +213,50 @@
         }
       }
     },
+    "/api/auth/telegram/webapp": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Automatische Anmeldung über Telegram WebApp",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "init_data": {
+                    "type": "string",
+                    "description": "Telegram WebApp initData query string"
+                  }
+                },
+                "required": [
+                  "init_data"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Ungültige Anfrage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "tags": [
@@ -8352,6 +8396,39 @@
         }
       }
     },
+    "/api/youtube/broadcasts/:id/thumbnail": {
+      "post": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Thumbnail für einen YouTube-Broadcast hochladen (JPEG/PNG bis 2 MB)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/youtube/oauth/start": {
       "get": {
         "tags": [
@@ -9525,7 +9602,9 @@
               "background": "",
               "font": "",
               "text_color": "white",
-              "fit": "cover"
+              "fit": "cover",
+              "disconnect_asset": "",
+              "disconnect_max_minutes": 5
             },
             "type": "object",
             "properties": {
@@ -9583,6 +9662,17 @@
                   "contain",
                   "stretch"
                 ]
+              },
+              "disconnect_asset": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "disconnect_max_minutes": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1440
               }
             }
           },
@@ -11132,7 +11222,9 @@
               "background": "",
               "font": "",
               "text_color": "white",
-              "fit": "cover"
+              "fit": "cover",
+              "disconnect_asset": "",
+              "disconnect_max_minutes": 5
             },
             "type": "object",
             "properties": {
@@ -11190,6 +11282,17 @@
                   "contain",
                   "stretch"
                 ]
+              },
+              "disconnect_asset": {
+                "default": "",
+                "type": "string",
+                "maxLength": 500
+              },
+              "disconnect_max_minutes": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1440
               }
             }
           },

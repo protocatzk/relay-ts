@@ -79,6 +79,7 @@ describe('OpenAPI specification', () => {
       'POST /api/auth/login',
       'POST /api/auth/telegram/request',
       'POST /api/auth/telegram/check',
+      'POST /api/auth/telegram/webapp',
       'GET /api/auth/me',
       'GET /api/youtube/oauth/callback',
     ]);

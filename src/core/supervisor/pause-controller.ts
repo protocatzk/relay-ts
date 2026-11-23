@@ -3,6 +3,7 @@ import type { Settings } from '../config/schema.js';
 import type { PauseScreen } from '../overlays/pause-screen.js';
 import type { AsyncLock } from '../../utils/process.js';
 import { pauseLimitDelayMs } from './pause-limit.js';
+import { incMetric } from '../metrics.js';
 
 export interface PauseControllerHooks {
   isShuttingDown(): boolean;
@@ -41,6 +42,9 @@ export class PauseController {
   private offlinePauseTimer?: NodeJS.Timeout;
   private pauseReasonState: 'user' | 'offline' | null = null;
   private manualScreenState: 'startup' | 'pause' | null = null;
+  private disconnectProtectionActiveState = false;
+  private disconnectProtectionEventsCount = 0;
+  private disconnectProtectionStartedAt: Date | null = null;
 
   constructor(deps: PauseControllerDeps) {
     this.pauseScreen = deps.pauseScreen;
@@ -85,8 +89,40 @@ export class PauseController {
     return type === 'startup' ? this.startupScreen : this.pauseScreen;
   }
 
-  async startPause(offset: number): Promise<void> {
-    await this.pauseScreen.start(undefined, undefined, offset);
+  markDisconnectProtection(active: boolean): void {
+    if (active) {
+      if (!this.disconnectProtectionActiveState) {
+        this.disconnectProtectionActiveState = true;
+        this.disconnectProtectionEventsCount += 1;
+        this.disconnectProtectionStartedAt = new Date();
+        incMetric('disconnect_protection_events_total');
+        this.logger.warn('Disconnect Protection aktiviert');
+      }
+    } else {
+      if (this.disconnectProtectionActiveState) {
+        this.disconnectProtectionActiveState = false;
+        this.disconnectProtectionStartedAt = null;
+        this.logger.info('Disconnect Protection deaktiviert');
+      }
+    }
+  }
+
+  get disconnectProtection(): { active: boolean; events: number; started_at: string | null } {
+    return {
+      active: this.disconnectProtectionActiveState,
+      events: this.disconnectProtectionEventsCount,
+      started_at: this.disconnectProtectionStartedAt
+        ? this.disconnectProtectionStartedAt.toISOString()
+        : null,
+    };
+  }
+
+  get isDisconnectProtectionActive(): boolean {
+    return this.disconnectProtectionActiveState;
+  }
+
+  async startPause(offset: number, backgroundOverride?: string): Promise<void> {
+    await this.pauseScreen.start(undefined, undefined, offset, backgroundOverride);
   }
 
   async startStartup(offset: number): Promise<void> {
@@ -109,6 +145,8 @@ export class PauseController {
   clearState(): void {
     this.pauseReasonState = null;
     this.manualScreenState = null;
+    this.disconnectProtectionActiveState = false;
+    this.disconnectProtectionStartedAt = null;
   }
 
   scheduleStartupFinish(delaySeconds: number, onFinish: () => void): void {
@@ -147,7 +185,10 @@ export class PauseController {
 
   schedulePauseLimit(): void {
     this.clearPauseLimit();
-    const minutes = this.settings.pause.max_minutes;
+    const minutes =
+      this.disconnectProtectionActiveState && this.settings.pause.disconnect_max_minutes > 0
+        ? this.settings.pause.disconnect_max_minutes
+        : this.settings.pause.max_minutes;
     const delayMs = pauseLimitDelayMs(minutes);
     if (delayMs === null) return;
     this.pauseLimitTimer = setTimeout(() => {

@@ -114,6 +114,9 @@ export class SinkWatchdogCoordinator {
       this.deps.setLastError(`Quelle liefert seit ${ageSeconds}s keine Daten`);
       incMetric('watchdog_triggers_total');
       this.deps.logger.warn({ ageSeconds }, 'Quelle wird wegen Stall neu gestartet');
+      if (this.deps.sinkController.running) {
+        this.deps.pauseController.markDisconnectProtection(true);
+      }
       await this.deps.sourceSession.stop();
       this.deps.pauseController.scheduleOfflinePause();
       this.deps.scheduleReconnect(1000);

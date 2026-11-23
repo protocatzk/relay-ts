@@ -186,6 +186,7 @@ export interface AuthApi {
   login(password: string, totpCode?: string): Promise<LoginResult>;
   telegramRequest(): Promise<TelegramLoginRequest>;
   telegramCheck(token: string): Promise<TelegramLoginStatus>;
+  telegramWebApp(initData: string): Promise<{ ok: boolean; user?: string }>;
   logout(): Promise<{ ok: true }>;
   sessions(): Promise<{ sessions: AuthSessionInfo[] }>;
   revokeSession(id: string): Promise<{ ok: true }>;
@@ -265,6 +266,12 @@ export const api = {
       request<TelegramLoginStatus>('/api/auth/telegram/check', {
         method: 'POST',
         body: { token },
+        authRedirect: false,
+      }),
+    telegramWebApp: (initData: string) =>
+      request<{ ok: boolean; user?: string }>('/api/auth/telegram/webapp', {
+        method: 'POST',
+        body: { init_data: initData },
         authRedirect: false,
       }),
     logout: () =>
@@ -784,6 +791,17 @@ export const api = {
       request<{ ok: true }>(`/api/youtube/broadcasts/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       }),
+    uploadThumbnail: (id: string, file: File) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      return request<{ ok: boolean; thumbnail_url: string | null }>(
+        `/api/youtube/broadcasts/${encodeURIComponent(id)}/thumbnail`,
+        {
+          method: 'POST',
+          body: form,
+        },
+      );
+    },
     disconnect: () =>
       request<YouTubeStatus>('/api/youtube/oauth/disconnect', { method: 'POST' }),
   },

@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
+export * from './webapp.js';
+
 export type TelegramAuthStatus = 'pending' | 'approved' | 'denied';
 
 export interface PendingTelegramAuth {

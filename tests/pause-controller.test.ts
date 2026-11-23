@@ -83,4 +83,35 @@ describe('pause controller', () => {
     expect(hooks.markProducerStarted).toHaveBeenCalledWith(12);
     expect(hooks.emitStatus).toHaveBeenCalledTimes(1);
   });
+
+  it('tracks disconnect protection state and applies disconnect_max_minutes', async () => {
+    vi.useFakeTimers();
+    const customSettings = {
+      ...settings,
+      pause: { ...settings.pause, max_minutes: 10, disconnect_max_minutes: 2 },
+    };
+    const { controller, hooks } = setup();
+    controller.updateSettings(customSettings);
+
+    expect(controller.isDisconnectProtectionActive).toBe(false);
+    expect(controller.disconnectProtection.active).toBe(false);
+
+    controller.markDisconnectProtection(true);
+    expect(controller.isDisconnectProtectionActive).toBe(true);
+    expect(controller.disconnectProtection.active).toBe(true);
+    expect(controller.disconnectProtection.events).toBe(1);
+    expect(controller.disconnectProtection.started_at).toBeTruthy();
+
+    controller.schedulePauseLimit();
+    // 2 minutes disconnect timeout instead of 10 minutes normal pause limit
+    await vi.advanceTimersByTimeAsync(119_000);
+    expect(hooks.onPauseLimit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(hooks.onPauseLimit).toHaveBeenCalledWith(2);
+
+    controller.markDisconnectProtection(false);
+    expect(controller.isDisconnectProtectionActive).toBe(false);
+    expect(controller.disconnectProtection.active).toBe(false);
+    expect(controller.disconnectProtection.started_at).toBeNull();
+  });
 });

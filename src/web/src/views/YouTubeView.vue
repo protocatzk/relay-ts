@@ -30,6 +30,9 @@ const broadcasts = ref<YouTubeBroadcast[]>([]);
 const broadcastsLoading = ref(false);
 const broadcastsError = ref('');
 const broadcastsFetchedAt = ref<string | null>(null);
+const thumbnailInputRef = ref<HTMLInputElement | null>(null);
+const targetThumbnailBroadcast = ref<YouTubeBroadcast | null>(null);
+const uploadingThumbnailId = ref<string | null>(null);
 const editorOpen = ref(false);
 const editing = ref<YouTubeBroadcast | null>(null);
 const saving = ref(false);
@@ -229,6 +232,48 @@ function openEdit(broadcast: YouTubeBroadcast): void {
   editing.value = broadcast;
   editorError.value = '';
   editorOpen.value = true;
+}
+
+function triggerThumbnailUpload(broadcast: YouTubeBroadcast): void {
+  if (actingId.value !== null || uploadingThumbnailId.value !== null) return;
+  targetThumbnailBroadcast.value = broadcast;
+  if (thumbnailInputRef.value) {
+    thumbnailInputRef.value.value = '';
+    thumbnailInputRef.value.click();
+  }
+}
+
+async function onThumbnailFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  const broadcast = targetThumbnailBroadcast.value;
+  if (!file || !broadcast) return;
+
+  if (file.size > 2 * 1024 * 1024) {
+    pushToast('Das Bild darf maximal 2 MB groß sein.', 'error');
+    input.value = '';
+    return;
+  }
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    pushToast('Nur JPEG- oder PNG-Dateien sind als Thumbnail erlaubt.', 'error');
+    input.value = '';
+    return;
+  }
+
+  uploadingThumbnailId.value = broadcast.id;
+  try {
+    const res = await api.youtube.uploadThumbnail(broadcast.id, file);
+    if (res.ok && res.thumbnail_url) {
+      broadcast.thumbnail_url = res.thumbnail_url;
+    }
+    pushToast('Thumbnail erfolgreich hochgeladen und zugewiesen.', 'success');
+  } catch (err) {
+    pushToast(errorMessage(err), 'error');
+  } finally {
+    uploadingThumbnailId.value = null;
+    targetThumbnailBroadcast.value = null;
+    input.value = '';
+  }
 }
 
 async function saveBroadcast(payload: {
@@ -716,6 +761,7 @@ onMounted(async () => {
             <caption class="sr-only">YouTube-Broadcasts des verbundenen Kanals</caption>
             <thead>
               <tr role="row">
+                <th scope="col" role="columnheader">Vorschau</th>
                 <th scope="col" role="columnheader">Titel</th>
                 <th scope="col" role="columnheader">Status</th>
                 <th scope="col" role="columnheader">Sichtbarkeit</th>
@@ -726,6 +772,36 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-for="broadcast in broadcasts" :key="broadcast.id" role="row">
+                <td data-label="Vorschau" role="cell">
+                  <div
+                    class="broadcast-thumb-box"
+                    tabindex="0"
+                    role="button"
+                    :aria-label="`Thumbnail für ${broadcast.title} ändern`"
+                    :title="broadcast.thumbnail_url ? 'Klicken zum Ändern des Thumbnails' : 'Klicken zum Hochladen eines Thumbnails'"
+                    @click="triggerThumbnailUpload(broadcast)"
+                    @keydown.enter.prevent="triggerThumbnailUpload(broadcast)"
+                    @keydown.space.prevent="triggerThumbnailUpload(broadcast)"
+                  >
+                    <img
+                      v-if="broadcast.thumbnail_url"
+                      :src="broadcast.thumbnail_url"
+                      :alt="`Thumbnail für ${broadcast.title}`"
+                      class="broadcast-thumb-img"
+                    />
+                    <div v-else class="broadcast-thumb-empty">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span>Upload</span>
+                    </div>
+                    <span v-if="uploadingThumbnailId === broadcast.id" class="thumb-upload-overlay">
+                      <span class="spinner spinner-sm" aria-hidden="true"></span>
+                    </span>
+                  </div>
+                </td>
                 <td data-label="Titel" role="cell">
                   <a :href="broadcast.watch_url" target="_blank" rel="noopener noreferrer">
                     {{ broadcast.title || broadcast.id }}
@@ -801,6 +877,20 @@ onMounted(async () => {
                     <button
                       type="button"
                       class="btn btn-ghost btn-xs"
+                      title="Vorschaubild (Thumbnail) hochladen"
+                      :disabled="actingId !== null || uploadingThumbnailId !== null"
+                      @click="triggerThumbnailUpload(broadcast)"
+                    >
+                      <span
+                        v-if="uploadingThumbnailId === broadcast.id"
+                        class="spinner"
+                        aria-hidden="true"
+                      ></span>
+                      Thumbnail
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-xs"
                       :disabled="actingId !== null"
                       @click="openEdit(broadcast)"
                     >
@@ -828,6 +918,15 @@ onMounted(async () => {
       <YouTubeLiveChat :broadcasts="broadcasts" />
     </template>
 
+    <input
+      ref="thumbnailInputRef"
+      type="file"
+      accept="image/jpeg,image/png"
+      class="sr-only"
+      aria-hidden="true"
+      @change="onThumbnailFileSelected"
+    />
+
     <YouTubeBroadcastEditor
       :open="editorOpen"
       :broadcast="editing"
@@ -839,3 +938,49 @@ onMounted(async () => {
     />
   </div>
 </template>
+
+<style scoped>
+.broadcast-thumb-box {
+  width: 72px;
+  height: 40px;
+  border-radius: var(--radius-sm, 4px);
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-surface-elevated, #161b22);
+  border: 1px solid var(--border-subtle, #30363d);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.broadcast-thumb-box:hover,
+.broadcast-thumb-box:focus-visible {
+  border-color: var(--accent-primary, #388bfd);
+  outline: none;
+}
+.broadcast-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.broadcast-thumb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #8b949e);
+}
+.thumb-upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

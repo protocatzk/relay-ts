@@ -56,11 +56,16 @@ export class PauseScreen {
       : this.options.settings.pause;
   }
 
-  async start(text?: string, subtext?: string, timestampOffset = 0): Promise<void> {
+  async start(
+    text?: string,
+    subtext?: string,
+    timestampOffset = 0,
+    backgroundOverride?: string,
+  ): Promise<void> {
     if (this.process?.running) return;
     this.stopping = false;
     const config = this.config;
-    const background = await this.resolveBackground(config.background);
+    const background = await this.resolveBackground(backgroundOverride || config.background);
     const fontFile = resolveFont(config.font) ?? this.options.fontFile;
     const args = buildPauseCommand({
       media: this.options.media,

@@ -315,3 +315,68 @@ export async function listLiveChatMessages(
     pageToken,
   });
 }
+
+export interface ThumbnailItem {
+  url?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface ThumbnailSetResponse {
+  kind?: string;
+  etag?: string;
+  items?: {
+    default?: ThumbnailItem;
+    medium?: ThumbnailItem;
+    high?: ThumbnailItem;
+    standard?: ThumbnailItem;
+    maxres?: ThumbnailItem;
+  }[];
+}
+
+/** Uploads and assigns a thumbnail image to a YouTube video / live broadcast. */
+export async function setBroadcastThumbnail(
+  accessToken: string,
+  videoId: string,
+  imageBuffer: Buffer,
+  mimeType: string,
+): Promise<ThumbnailSetResponse> {
+  const url = new URL('https://www.googleapis.com/upload/youtube/v3/thumbnails/set');
+  url.searchParams.set('videoId', videoId);
+  url.searchParams.set('uploadType', 'media');
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': mimeType,
+        accept: 'application/json',
+      },
+      body: imageBuffer,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new YouTubeApiError('Die YouTube-API ist nicht erreichbar.', 'network_error');
+  }
+
+  const data = (await response.json().catch(() => null)) as
+    | (ThumbnailSetResponse & GoogleErrorBody)
+    | null;
+  if (!response.ok) {
+    const reason = data?.error?.errors?.[0]?.reason ?? `http_${response.status}`;
+    if (response.status === 401) {
+      throw new YouTubeApiError('Die YouTube-Anmeldung ist abgelaufen.', 'unauthorized', 409);
+    }
+    if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+      throw new YouTubeApiError('Das YouTube-API-Tageslimit ist erreicht.', 'quota_exceeded', 429);
+    }
+    throw new YouTubeApiError(
+      `YouTube hat den Thumbnail-Upload abgelehnt (${reason}).`,
+      reason,
+      response.status >= 500 ? 502 : 400,
+    );
+  }
+  return (data ?? {}) as ThumbnailSetResponse;
+}

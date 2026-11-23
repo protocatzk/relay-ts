@@ -278,6 +278,8 @@ export const PauseSettingsSchema = z.object({
   font: z.string().max(500).default(''),
   text_color: z.string().max(64).default('white'),
   fit: z.enum(['cover', 'contain', 'stretch']).default('cover'),
+  disconnect_asset: z.string().max(500).default(''),
+  disconnect_max_minutes: z.number().int().min(0).max(1440).default(5),
 });
 
 export const StartupSettingsSchema = z.object({

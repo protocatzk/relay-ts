@@ -319,4 +319,63 @@ describe('YouTube routes', () => {
     expect(disconnect.statusCode).toBe(200);
     expect(disconnect.json()).toMatchObject({ connected: false });
   });
+
+  it('validates and handles thumbnail uploads for broadcasts', async () => {
+    const boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW';
+    const invalidBody = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="file"; filename="test.txt"',
+      'Content-Type: text/plain',
+      '',
+      'not an image',
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts/test-broadcast/thumbnail',
+      headers: {
+        ...auth,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: invalidBody,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('invalid_file_type');
+
+    const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+    const validBody = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="thumb.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+      ),
+      jpegBytes,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const setThumbnailSpy = vi.spyOn(service, 'setBroadcastThumbnail').mockResolvedValueOnce({
+      ok: true,
+      thumbnail_url: 'https://i.ytimg.com/vi/test/default.jpg',
+    });
+
+    const validRes = await app.inject({
+      method: 'POST',
+      url: '/api/youtube/broadcasts/test-broadcast/thumbnail',
+      headers: {
+        ...auth,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: validBody,
+    });
+    expect(validRes.statusCode).toBe(200);
+    expect(validRes.json()).toEqual({
+      ok: true,
+      thumbnail_url: 'https://i.ytimg.com/vi/test/default.jpg',
+    });
+    expect(setThumbnailSpy).toHaveBeenCalledWith(
+      'test-broadcast',
+      expect.any(Buffer),
+      'image/jpeg',
+    );
+  });
 });

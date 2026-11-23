@@ -34,6 +34,7 @@ export interface StatusBuilderContext {
   secondarySink?: StatusSnapshot['secondary_sink'];
   recording?: StatusSnapshot['recording'];
   rtmpIngest?: StatusSnapshot['rtmp_ingest'];
+  disconnectProtection?: StatusSnapshot['disconnect_protection'];
 }
 
 /** Builds the API/SSE status snapshot from the current supervisor state. */
@@ -136,6 +137,9 @@ export function buildStatusSnapshot(context: StatusBuilderContext): StatusSnapsh
     ...(secondarySink ? { secondary_sink: secondarySink } : {}),
     ...(recording ? { recording } : {}),
     ...(context.rtmpIngest ? { rtmp_ingest: context.rtmpIngest } : {}),
+    ...(context.disconnectProtection
+      ? { disconnect_protection: context.disconnectProtection }
+      : {}),
     version: VERSION,
   };
 }

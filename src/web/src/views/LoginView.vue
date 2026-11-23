@@ -143,8 +143,50 @@ function onVisibilityChange(): void {
   }
 }
 
+function getTelegramInitData(): string | null {
+  const tg = (
+    window as unknown as {
+      Telegram?: {
+        WebApp?: {
+          initData?: string;
+          ready?: () => void;
+          expand?: () => void;
+        };
+      };
+    }
+  ).Telegram;
+
+  if (tg?.WebApp?.initData) {
+    tg.WebApp.ready?.();
+    tg.WebApp.expand?.();
+    return tg.WebApp.initData;
+  }
+  const hash = window.location.hash ? window.location.hash.slice(1) : '';
+  const hashParams = new URLSearchParams(hash);
+  const tgWebAppData = hashParams.get('tgWebAppData');
+  if (tgWebAppData) return tgWebAppData;
+  const searchParams = new URLSearchParams(window.location.search);
+  return searchParams.get('tgWebAppData');
+}
+
 onMounted(async () => {
   document.addEventListener('visibilitychange', onVisibilityChange);
+  const initData = getTelegramInitData();
+  if (initData) {
+    telegram.value.status = 'Automatische Anmeldung über Telegram…';
+    try {
+      const res = await api.auth.telegramWebApp(initData);
+      if (res.ok) {
+        await loadAuth();
+        await router.replace(safeRedirect());
+        return;
+      }
+    } catch (caught) {
+      error.value = errorMessage(caught);
+      telegram.value.status = '';
+    }
+  }
+
   try {
     methods.value = await api.auth.methods();
     if (methods.value.telegram_auth) void requestTelegram();

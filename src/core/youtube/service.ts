@@ -20,6 +20,7 @@ import {
   listBroadcasts,
   listLiveChatMessages,
   listLiveStreams,
+  setBroadcastThumbnail,
   transitionBroadcast,
   updateBroadcast,
   type BroadcastUpdateBody,
@@ -552,6 +553,32 @@ export class YouTubeAuthService {
   /** Makes a previously unlisted broadcast public; one write costs ~50 quota units. */
   async publishBroadcast(id: string): Promise<BroadcastSummary> {
     return this.updateBroadcastById(id, { privacy: 'public' });
+  }
+
+  async setBroadcastThumbnail(
+    id: string,
+    imageBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ ok: boolean; thumbnail_url: string | null }> {
+    const token = await this.accessToken();
+    const result = await setBroadcastThumbnail(token, id, imageBuffer, mimeType);
+    this.broadcastsCache = null;
+    const thumbItem = result.items?.[0];
+    const thumbnailUrl =
+      thumbItem?.default?.url ??
+      thumbItem?.medium?.url ??
+      thumbItem?.high?.url ??
+      thumbItem?.standard?.url ??
+      thumbItem?.maxres?.url ??
+      null;
+
+    const existing = this.recentBroadcasts.get(id);
+    if (existing) {
+      existing.summary.thumbnail_url = thumbnailUrl;
+      this.recentBroadcasts.set(id, { ...existing, at: this.now() });
+    }
+    this.options.logger.info({ broadcast: id }, 'YouTube-Broadcast-Thumbnail aktualisiert');
+    return { ok: true, thumbnail_url: thumbnailUrl };
   }
 
   async transitionBroadcastById(

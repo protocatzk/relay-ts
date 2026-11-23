@@ -79,6 +79,9 @@ const LoginBody = z.object({
 const TotpEnableBody = z.object({ code: z.string().min(6).max(16) });
 const TotpDisableBody = z.object({ password: z.string().min(1) });
 const TelegramCheckBody = z.object({ token: z.string().min(1) });
+const TelegramWebAppBody = z.object({
+  init_data: z.string().describe('Telegram WebApp initData query string'),
+});
 const ChatTestBody = z.object({
   username: z.string().max(40).optional(),
   text: z.string().max(300).optional(),
@@ -231,6 +234,14 @@ const routes: RouteDoc[] = [
     summary: 'Status einer Telegram-Anmeldung prüfen',
     public: true,
     body: schemaOf(TelegramCheckBody),
+  },
+  {
+    method: 'post',
+    path: '/api/auth/telegram/webapp',
+    tag: 'auth',
+    summary: 'Automatische Anmeldung über Telegram WebApp',
+    public: true,
+    body: schemaOf(TelegramWebAppBody),
   },
   { method: 'post', path: '/api/auth/logout', tag: 'auth', summary: 'Sitzung abmelden', response: 'Ok' },
   { method: 'get', path: '/api/auth/sessions', tag: 'auth', summary: 'Aktive Sitzungen auflisten' },
@@ -1462,6 +1473,12 @@ const routes: RouteDoc[] = [
     tag: 'youtube',
     summary: 'Broadcast einem Streamer zuweisen',
     body: schemaOf(AssignBody),
+  },
+  {
+    method: 'post',
+    path: '/api/youtube/broadcasts/:id/thumbnail',
+    tag: 'youtube',
+    summary: 'Thumbnail für einen YouTube-Broadcast hochladen (JPEG/PNG bis 2 MB)',
   },
   {
     method: 'delete',

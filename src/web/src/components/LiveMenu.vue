@@ -207,6 +207,13 @@ async function activate(streamer: Streamer): Promise<void> {
         <span class="dot" aria-hidden="true"></span>
         <span class="status-text">{{ stateLabel(state) }}</span>
       </span>
+      <span
+        v-if="store.status?.disconnect_protection?.active"
+        class="badge badge-xs tone-warning"
+        title="Disconnect Protection ist aktiv – Standbild überbrückt Quellausfall"
+      >
+        🛡️ Schutz
+      </span>
       <span class="conn" :class="`conn-${store.connectionMode}`" :title="connectionTitle">
         <span class="conn-dot" aria-hidden="true"></span>
         {{ connectionLabel }}
@@ -256,6 +263,16 @@ async function activate(streamer: Streamer): Promise<void> {
           </svg>
         </button>
       </header>
+
+      <div
+        v-if="store.status?.disconnect_protection?.active"
+        class="alert alert-warning live-menu-alert"
+        role="alert"
+        style="margin: 0.75rem 1rem 0; font-size: 0.8125rem; line-height: 1.4;"
+      >
+        <strong>🛡️ Disconnect Protection aktiv</strong>
+        <div>Die Quelle ist offline oder sendet keine Daten. Ein Standbild hält den YouTube-Sink unterbrechungsfrei aufrecht.</div>
+      </div>
 
       <section class="live-menu-section" aria-labelledby="live-menu-active-title">
         <h3 id="live-menu-active-title" class="live-menu-label">Aktiver Stream</h3>

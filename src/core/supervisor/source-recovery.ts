@@ -88,6 +88,7 @@ export class SourceRecoveryController {
       this.deps.emitStatus();
       try {
         const stream = await this.deps.sourceSession.resolve(streamer);
+        this.deps.pauseController.markDisconnectProtection(false);
         await this.deps.pauseController.stopPause();
         this.deps.applyConfiguredDelay();
         const timestampOffset = this.deps.sourceSession.nextOffset();
@@ -195,6 +196,9 @@ export class SourceRecoveryController {
     incMetric('source_exits_total');
     this.deps.sourceSession.incrementReconnects();
     this.deps.setLastError('Stream-Quelle beendet');
+    if (this.deps.sinkController.running) {
+      this.deps.pauseController.markDisconnectProtection(true);
+    }
     this.deps.pauseController.scheduleOfflinePause();
     if (!this.deps.getSettings().watchdog.auto_reconnect) {
       if (this.deps.autoSwitch.returnTarget) {
@@ -220,7 +224,11 @@ export class SourceRecoveryController {
     this.deps.overlayRuntime.stopChat();
     this.deps.applyConfiguredDelay();
     const timestampOffset = this.deps.sourceSession.nextOffset();
-    await this.deps.pauseController.startPause(timestampOffset);
+    const disconnectAsset =
+      this.deps.pauseController.isDisconnectProtectionActive
+        ? this.deps.getSettings().pause.disconnect_asset || undefined
+        : undefined;
+    await this.deps.pauseController.startPause(timestampOffset, disconnectAsset);
     if (!this.deps.sinkController.running && this.deps.sinkController.key) {
       this.deps.startSinkOrPrefill(
         this.deps.sinkController.key,
@@ -264,6 +272,7 @@ export class SourceRecoveryController {
       this.deps.logger.info({ reason }, 'Quell-URL wird aktualisiert');
       try {
         const stream = await this.deps.sourceSession.resolve(streamer);
+        this.deps.pauseController.markDisconnectProtection(false);
         await this.deps.pauseController.stopPause();
         await this.deps.sourceSession.stop();
         const timestampOffset = this.deps.sourceSession.nextOffset();

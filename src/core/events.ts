@@ -109,6 +109,11 @@ export interface StatusSnapshot {
     connected_at: string | null;
     ingest_url: string;
   };
+  disconnect_protection?: {
+    active: boolean;
+    events: number;
+    started_at: string | null;
+  };
   version: string;
 }
 

@@ -1136,6 +1136,7 @@ export class Supervisor {
       media: this.media.status(),
       secondarySink: fanout.secondarySink,
       recording: fanout.recording,
+      disconnectProtection: this.pauseController.disconnectProtection,
       rtmpIngest: this.rtmpIngest?.stats()
         ? {
             enabled: this.settings.rtmp_ingest.enabled,

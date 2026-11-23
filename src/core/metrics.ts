@@ -14,6 +14,7 @@ export type MetricName =
   | 'playlist_advances_total'
   | 'manual_screens_total'
   | 'startup_screens_total'
+  | 'disconnect_protection_events_total'
   | 'chat_poll_errors_total'
   | 'earnings_poll_errors_total'
   | 'webhook_errors_total';
@@ -32,6 +33,7 @@ const METRIC_NAMES: readonly MetricName[] = [
   'playlist_advances_total',
   'manual_screens_total',
   'startup_screens_total',
+  'disconnect_protection_events_total',
   'chat_poll_errors_total',
   'earnings_poll_errors_total',
   'webhook_errors_total',
@@ -123,6 +125,14 @@ export function formatPrometheusMetrics(
     pushGauge('relay_sink_restarts', 'YouTube sink restart count in active session', status.sink.restarts);
     pushGauge('relay_sink_dts_errors', 'YouTube sink DTS error count in active session', status.sink.dts_errors);
     pushGauge('relay_sink_silence_active', 'Whether audio silence detection is currently triggered (0/1)', status.sink.silence_active ? 1 : 0);
+
+    if (status.disconnect_protection) {
+      pushGauge(
+        'relay_disconnect_protection_active',
+        'Whether disconnect protection slate/loop is currently active (0/1)',
+        status.disconnect_protection.active ? 1 : 0,
+      );
+    }
 
     if (status.recording) {
       pushGauge('relay_recording_active', 'Whether local MKV recording is active (0/1)', status.recording.active ? 1 : 0);
