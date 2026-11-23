@@ -10,15 +10,28 @@ const REGULAR_FONTS = [
   '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf',
   '/usr/share/fonts/TTF/DejaVuSans.ttf',
 ];
+const TEXT_FONTS = [
+  '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+  '/usr/share/fonts/noto/NotoSans-Regular.ttf',
+  '/usr/share/fonts/NotoSans-Regular.ttf',
+];
+const TEXT_BOLD_FONTS = [
+  '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+  '/usr/share/fonts/noto/NotoSans-Bold.ttf',
+  '/usr/share/fonts/NotoSans-Bold.ttf',
+];
 const BOLD_FONTS = [
   '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf',
 ];
 const EMOJI_FONTS = [
+  // Debian/Ubuntu (fonts-noto-color-emoji)
+  '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf',
   '/usr/share/fonts/noto-emoji/NotoColorEmoji.ttf',
   '/usr/share/fonts/noto/NotoColorEmoji.ttf',
   '/usr/share/fonts/NotoColorEmoji.ttf',
+  '/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf',
   '/usr/share/fonts/noto-emoji/NotoEmoji-Regular.ttf',
   '/usr/share/fonts/noto/NotoEmoji-Regular.ttf',
 ];
@@ -37,6 +50,22 @@ function registerFonts(): void {
       // fall back to the runtime's default font
     }
   }
+  const text = TEXT_FONTS.find((path) => existsSync(path));
+  if (text) {
+    try {
+      GlobalFonts.registerFromPath(text, 'Noto Sans');
+    } catch {
+      // optional; the system font manager may already provide it
+    }
+  }
+  const textBold = TEXT_BOLD_FONTS.find((path) => existsSync(path));
+  if (textBold) {
+    try {
+      GlobalFonts.registerFromPath(textBold, 'Noto Sans Bold');
+    } catch {
+      // optional
+    }
+  }
   const bold = BOLD_FONTS.find((path) => existsSync(path));
   if (bold) {
     try {
@@ -53,10 +82,23 @@ function registerFonts(): void {
       // optional
     }
   }
-  if (regular) fontFamily = '"DejaVu Sans", "Noto Color Emoji", sans-serif';
+  // Noto Sans first: it has no emoji glyphs, so emoji fall through to the
+  // colour font. Putting "Noto Color Emoji" first would also take over
+  // digits (keycap glyphs) and widen timers/counters, while DejaVu first
+  // wins with its monochrome emoji outlines.
+  if (text && emoji) fontFamily = '"Noto Sans", "Noto Color Emoji", "DejaVu Sans", sans-serif';
+  else if (text) fontFamily = '"Noto Sans", "DejaVu Sans", sans-serif';
+  else if (regular) fontFamily = '"DejaVu Sans", "Noto Color Emoji", sans-serif';
   else if (emoji) fontFamily = '"Noto Color Emoji", sans-serif';
   else fontFamily = 'sans-serif';
 }
+
+/** Font stack used by the canvas overlays (chat, studio preview labels). */
+export function overlayFontFamily(): string {
+  registerFonts();
+  return fontFamily;
+}
+
 
 interface Rgba {
   r: number;

@@ -415,8 +415,9 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   per Default, `--modules a,b` zur Auswahl, `--caddy` zusätzlich mit zwingendem
   `--domain <domain>` (optional `--web-domain`). Das Skript ist idempotent und
   unterstützt `--dry-run` (Vorschau, auch ohne root). Es legt Systemuser,
-  prüft/installiert `ffmpeg` und `yt-dlp` (apt bzw. dnf/EPEL; fehlende Pakete
-  werden nur gewarnt, nicht abgebrochen), Layout, Unit, `/etc/relay.env` (0600, absolute Pfade; ohne `--force` wird eine
+  prüft/installiert `ffmpeg`, `yt-dlp` und die Overlay-Schriften
+  (`fonts-noto-color-emoji`, `fonts-noto-core`, `fonts-noto-cjk`, `fonts-symbola`;
+  apt bzw. dnf/EPEL; fehlende Pakete werden nur gewarnt, nicht abgebrochen), Layout, Unit, `/etc/relay.env` (0600, absolute Pfade; ohne `--force` wird eine
   vorhandene Datei nicht angetastet) und optional eine minimale Caddyfile an
   und deployt das erste Release via `deploy.sh` inkl. Health-Check.
   Alternativ zum Caddy-Modul gibt es `--nginx` (Modul `nginx`): Für nativen

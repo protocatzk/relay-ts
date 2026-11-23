@@ -4,7 +4,7 @@
 #
 # Richtet einen frischen Host ein, Station für Station (Module):
 #   user     – Systemuser 'relay' anlegen
-#   deps     – ffmpeg und yt-dlp prüfen/installieren (apt bzw. dnf)
+#   deps     – ffmpeg, yt-dlp und Overlay-Schriften prüfen/installieren
 #   dirs     – /srv/relay/{releases,config,data,logs} anlegen (relay:relay)
 #   systemd  – relay.service installieren, daemon-reload, enable (ohne Start)
 #   env      – /etc/relay.env aus Vorlage (0600, absolute Pfade)
@@ -185,13 +185,16 @@ setup_user() {
 # --- Modul: deps ---------------------------------------------------------------
 # RELAY benötigt zwingend ffmpeg (Quelle/Sink/Pause-Screens) und yt-dlp
 # (TikTok-Auflösung). Ohne sie startet der Dienst zwar, kann aber nicht
-# streamen. Beide werden nur installiert, wenn sie fehlen.
+# streamen. Für die Overlays kommen Noto Sans/Color Emoji/CJK und Symbola
+# dazu, sonst bleiben Emoji und fremde Schriftsysteme im Chat leer.
+# Installiert wird nur, was fehlt.
 have_bin() {
   command -v "$1" >/dev/null 2>&1
 }
 
 setup_deps() {
   local missing=() pkg_install=() pm="" bin="" ver=""
+  local fonts_missing=0 font_pkgs=()
 
   for bin in ffmpeg yt-dlp; do
     if have_bin "$bin"; then
@@ -206,23 +209,32 @@ setup_deps() {
     fi
   done
 
-  if [ ${#missing[@]} -eq 0 ]; then
-    return 0
+  # Stream-Overlays (Chat, Emoji, CJK) brauchen Schriften im System: der
+  # Canvas-Renderer lädt sie über fontconfig, drawtext über feste Pfade.
+  if command -v fc-list >/dev/null 2>&1 \
+    && fc-list ':charset=1F600' family 2>/dev/null | grep -q 'Noto Color Emoji'; then
+    log "[deps] Overlay-Schriften vorhanden (Noto Color Emoji, CJK)."
+  else
+    fonts_missing=1
   fi
 
-  log "[deps] Fehlend: ${missing[*]} – installiere per Paketmanager ..."
+  if [ ${#missing[@]} -eq 0 ] && [ "$fonts_missing" = 0 ]; then
+    return 0
+  fi
 
   if [ "$DISTRO" = "ubuntu" ]; then
     pm="apt-get"
     pkg_install=(apt-get install -y)
+    font_pkgs=(fonts-dejavu-core fonts-noto-color-emoji fonts-noto-core fonts-noto-cjk fonts-symbola)
   else
     pm="dnf"
     command -v dnf >/dev/null 2>&1 || pm="yum"
     pkg_install=("$pm" install -y)
+    font_pkgs=(dejavu-sans-fonts google-noto-color-emoji-fonts google-noto-sans-fonts google-noto-sans-cjk-fonts)
   fi
 
   if ! command -v "$pm" >/dev/null 2>&1; then
-    warn "[deps] $pm nicht gefunden – ffmpeg/yt-dlp bitte manuell installieren: ${missing[*]}"
+    warn "[deps] $pm nicht gefunden – ffmpeg/yt-dlp/Schriften bitte manuell installieren: ${missing[*]:-keine Binaries}"
     return 0
   fi
 
@@ -254,6 +266,17 @@ setup_deps() {
       esac
     fi
   done
+
+  if [ "$fonts_missing" = 1 ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[dry-run] ${pkg_install[*]} ${font_pkgs[*]}"
+    elif "${pkg_install[@]}" "${font_pkgs[@]}" >/dev/null 2>&1; then
+      log "[deps] Schriften installiert (${font_pkgs[*]})."
+    else
+      warn "[deps] Schriften konnten nicht vollständig per $pm installiert werden."
+      warn "[deps] Ohne Noto Color Emoji erscheinen Emoji im Chat-Overlay monochrom/leer."
+    fi
+  fi
 
   if [ "$DRY_RUN" != 1 ]; then
     for bin in "${missing[@]}"; do

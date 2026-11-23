@@ -2,7 +2,12 @@ import { createCanvas, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Logger } from 'pino';
 import { VERSION } from '../../version.js';
 import type { Settings } from '../config/schema.js';
-import { ChatOverlayEngine, parseColor, type ChatEarningsCard } from './chat-engine.js';
+import {
+  ChatOverlayEngine,
+  overlayFontFamily,
+  parseColor,
+  type ChatEarningsCard,
+} from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
 import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
 
@@ -56,7 +61,7 @@ function drawBoxedText(
     offsetY?: number;
   },
 ): void {
-  ctx.font = `700 ${opts.fontSize}px "DejaVu Sans", sans-serif`;
+  ctx.font = `700 ${opts.fontSize}px ${overlayFontFamily()}`;
   ctx.textBaseline = 'top';
   const lines = splitTextLines(text);
   const availableWidth = Math.max(1, opts.width - opts.margin * 2);
@@ -113,10 +118,10 @@ function drawBackground(
     ctx.stroke();
   }
   ctx.fillStyle = 'rgba(255,255,255,0.035)';
-  ctx.font = '700 18px "DejaVu Sans", sans-serif';
+  ctx.font = `700 18px ${overlayFontFamily()}`;
   ctx.textAlign = 'center';
   ctx.fillText('STREAM PREVIEW', width / 2, height / 2 - 10);
-  ctx.font = '12px "DejaVu Sans", sans-serif';
+  ctx.font = `12px ${overlayFontFamily()}`;
   ctx.fillText(`${width} × ${height}`, width / 2, height / 2 + 16);
   ctx.textAlign = 'left';
 }
@@ -154,11 +159,11 @@ function drawVideoArea(
   const labelSize = Math.max(12, Math.round(width * 0.016));
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,255,255,0.52)';
-  ctx.font = `700 ${labelSize}px "DejaVu Sans", sans-serif`;
+  ctx.font = `700 ${labelSize}px ${overlayFontFamily()}`;
   const labelX = Math.min(width - 16, Math.max(16, x + videoWidth / 2));
   const labelY = Math.min(height - 16, Math.max(16, y + videoHeight / 2));
   ctx.fillText('TIKTOK LIVE', labelX, labelY);
-  ctx.font = `${Math.max(10, Math.round(labelSize * 0.7))}px "DejaVu Sans", sans-serif`;
+  ctx.font = `${Math.max(10, Math.round(labelSize * 0.7))}px ${overlayFontFamily()}`;
   ctx.fillText(
     `${aspect}${layout.enabled ? ` · ${layout.scale} %` : ''}`,
     labelX,
