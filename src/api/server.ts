@@ -35,6 +35,33 @@ import { registerAutomationRoutes } from './routes/automations.js';
 import { registerMcpRoutes } from './routes/mcp.js';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
 
+/**
+ * Scope an API key needs for read-only (GET) access. Control-plane surfaces
+ * (settings, system/backup, key management, automations) stay admin-only;
+ * everything not listed falls back to `read:status`.
+ */
+const READ_SCOPE_ROUTES: readonly (readonly [prefix: string, scope: string])[] = [
+  ['/api/settings', 'admin'],
+  ['/api/api-keys', 'admin'],
+  ['/api/system', 'admin'],
+  ['/api/automations', 'admin'],
+  ['/api/streamers', 'read:streamers'],
+  ['/api/playlists', 'read:streamers'],
+  ['/api/recordings', 'read:recordings'],
+  ['/api/logs', 'read:logs'],
+  ['/api/diagnostics', 'read:logs'],
+  ['/api/audit', 'read:logs'],
+  ['/api/queue', 'control:queue'],
+  ['/api/scenes', 'control:overlays'],
+];
+
+function requiredScopeForRead(path: string): string {
+  for (const [prefix, scope] of READ_SCOPE_ROUTES) {
+    if (path.startsWith(prefix)) return scope;
+  }
+  return 'read:status';
+}
+
 export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: ctx.logger.child({ module: 'http' }, { level: 'warn' }) as unknown as FastifyBaseLogger,
@@ -94,7 +121,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
         }
       }
 
-      // Prüfe Method / Pfad-Scopes
+      // Schreibende Routen
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
         if (path.startsWith('/api/streamers') && !hasScope(authInfo.apiKey.scopes, 'manage:streamers') && !hasScope(authInfo.apiKey.scopes, 'control:stream')) {
           return forbidden(reply, 'Fehlender Scope: manage:streamers oder control:stream');
@@ -110,6 +137,16 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
         }
         if (path.startsWith('/api/media') && !hasScope(authInfo.apiKey.scopes, 'manage:media')) {
           return forbidden(reply, 'Fehlender Scope: manage:media');
+        }
+        // MCP-Tools führen Steueraktionen aus; für API-Keys nur mit Vollzugriff.
+        if (path.startsWith('/api/mcp') && !hasScope(authInfo.apiKey.scopes, 'admin')) {
+          return forbidden(reply, 'Fehlender Scope: admin');
+        }
+      } else {
+        // Lesende Routen: ein Key ohne passenden Scope darf nicht alles lesen.
+        const requiredReadScope = requiredScopeForRead(path);
+        if (requiredReadScope && !hasScope(authInfo.apiKey.scopes, requiredReadScope)) {
+          return forbidden(reply, `Fehlender Scope: ${requiredReadScope}`);
         }
       }
     }

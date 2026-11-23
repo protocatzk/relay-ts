@@ -2,7 +2,10 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FastifyRequest } from 'fastify';
 import { AuthSessionStore } from '../src/api/session-store.js';
+import { isSecureRequest } from '../src/api/auth.js';
+import type { ServerConfig } from '../src/core/config/loader.js';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -45,4 +48,18 @@ describe('AuthSessionStore', () => {
     expect(store.size).toBe(1);
     expect(store.get(current.id)).not.toBeNull();
   });
+});
+
+const serverConfigCases = [
+  { trustProxy: true, xfp: 'https' },
+  { trustProxy: false, xfp: 'https' },
+  { trustProxy: false },
+] as const;
+
+it('honors trustProxy before honoring x-forwarded-proto', () => {
+  for (const cfg of serverConfigCases) {
+    const request = { headers: { 'x-forwarded-proto': 'https' } } as unknown as FastifyRequest;
+    const expected = cfg.trustProxy && cfg.xfp === 'https';
+    expect(isSecureRequest(request, cfg as ServerConfig)).toBe(expected);
+  }
 });

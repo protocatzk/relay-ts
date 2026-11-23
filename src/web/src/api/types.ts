@@ -251,6 +251,7 @@ export interface StatusPayload {
     client_ip: string | null;
     connected_at: string | null;
     ingest_url: string;
+    stream_key_set: boolean;
   };
   disconnect_protection?: {
     active: boolean;
@@ -732,7 +733,9 @@ export interface Settings {
 export interface RtmpIngestSettings {
   enabled: boolean;
   port: number;
-  stream_key: string;
+  /** Sanitized: never returned by the API; a user-entered value is sent via PUT. */
+  stream_key?: string;
+  stream_key_set: boolean;
   auto_takeover: boolean;
 }
 

@@ -425,7 +425,7 @@ async function main(): Promise<void> {
     accountStore: tiktokAccounts,
   });
 
-  const apiKeys = new ApiKeyStore(join(config.paths.dataDir, 'api-keys.json'));
+  const apiKeys = new ApiKeyStore(join(config.paths.dataDir, 'api-keys.json'), logger);
 
   const automations = new AutomationEngine({
     filePath: join(config.paths.dataDir, 'automations.json'),
@@ -504,6 +504,7 @@ async function main(): Promise<void> {
       automations.stop();
       await telegramBot?.stop();
       await supervisor.shutdown();
+      await apiKeys.flush();
       await flush();
       clearTimeout(hardExit);
       process.exit(0);

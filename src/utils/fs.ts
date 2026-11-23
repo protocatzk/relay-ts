@@ -1,9 +1,28 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { load, dump } from 'js-yaml';
 
 export function ensureDir(path: string): void {
   mkdirSync(path, { recursive: true });
+}
+
+export async function ensureDirAsync(path: string): Promise<void> {
+  await mkdir(path, { recursive: true });
+}
+
+export async function writeFileAtomicAsync(path: string, content: string, mode?: number): Promise<void> {
+  await ensureDirAsync(dirname(path));
+  const temporary = `${path}.tmp-${process.pid}-${Date.now()}`;
+  await writeFile(temporary, content, { encoding: 'utf8', mode: mode ?? 0o600 });
+  await rename(temporary, path);
+  if (mode !== undefined) {
+    try {
+      await chmod(path, mode);
+    } catch {
+      // Best effort (e.g. CIFS mounts).
+    }
+  }
 }
 
 export function writeFileAtomic(path: string, content: string, mode?: number): void {
@@ -44,4 +63,8 @@ export function readJsonFile<T>(path: string, fallback: T): T {
 
 export function writeJsonFile(path: string, value: unknown): void {
   writeFileAtomic(path, JSON.stringify(value, null, 2), 0o600);
+}
+
+export async function writeJsonFileAsync(path: string, value: unknown): Promise<void> {
+  await writeFileAtomicAsync(path, JSON.stringify(value, null, 2), 0o600);
 }

@@ -12,6 +12,7 @@ import { SettingsService } from '../src/core/store/settings-service.js';
 import type { Supervisor } from '../src/core/supervisor/supervisor.js';
 import { buildServer } from '../src/api/server.js';
 import { AuthSessionStore } from '../src/api/session-store.js';
+import { ApiKeyStore } from '../src/api/api-key-store.js';
 import { LogRing } from '../src/utils/logger.js';
 import { VERSION } from '../src/version.js';
 
@@ -95,6 +96,10 @@ function status(): StatusSnapshot {
 let app: FastifyInstance;
 let cookieHeader = '';
 
+let apiKeysStore: ApiKeyStore;
+let apiKeyAdmin = '';
+let apiKeyQueueOnly = '';
+
 beforeAll(async () => {
   const dir = mkdtempSync(join(tmpdir(), 'relay-api-'));
   const config = loadConfig({
@@ -126,9 +131,15 @@ beforeAll(async () => {
     restartSink: async () => status(),
     refreshNow: async () => status(),
     applySettings: async () => status(),
+    buildQueueSnapshot: () => ({ entries: [], playing: false, index: null, loop: false }),
+    queueAdd: async () => ({ entries: [], playing: false, index: null, loop: false }),
     earningsStatus: () => null,
     earningsHistory: () => [],
   } as unknown as Supervisor;
+  apiKeysStore = new ApiKeyStore();
+  apiKeyAdmin = apiKeysStore.create({ name: 'Admin', scopes: ['*'] }).key;
+  apiKeyQueueOnly = apiKeysStore.create({ name: 'Queue', scopes: ['control:queue'] }).key;
+
   app = await buildServer({
     config,
     logger,
@@ -139,6 +150,7 @@ beforeAll(async () => {
     ring: new LogRing(),
     version: VERSION,
     authSessions: new AuthSessionStore(),
+    apiKeys: apiKeysStore,
   });
   await app.ready();
 });
@@ -262,6 +274,86 @@ describe('API', () => {
       headers: { authorization: 'Bearer nope' },
     });
     expect(denied.statusCode).toBe(401);
+  });
+
+  it('enforces API key scopes on read and write routes', async () => {
+    const queueKey = { authorization: `Bearer ${apiKeyQueueOnly}` };
+    const adminKey = { authorization: `Bearer ${apiKeyAdmin}` };
+
+    const queueRead = await app.inject({ method: 'GET', url: '/api/queue', headers: queueKey });
+    expect(queueRead.statusCode).toBe(200);
+
+    // Control-plane surfaces stay hidden behind values-only keys.
+    const settingsDenied = await app.inject({ method: 'GET', url: '/api/settings', headers: queueKey });
+    expect(settingsDenied.statusCode).toBe(403);
+    const keysDenied = await app.inject({ method: 'GET', url: '/api/api-keys', headers: queueKey });
+    expect(keysDenied.statusCode).toBe(403);
+    const logsDenied = await app.inject({ method: 'GET', url: '/api/logs', headers: queueKey });
+    expect(logsDenied.statusCode).toBe(403);
+
+    // Write routes still require their own scopes.
+    const queueWrite = await app.inject({
+      method: 'POST',
+      url: '/api/queue/entries',
+      headers: { ...queueKey, origin: 'http://localhost' },
+      payload: { channel: 'file:nope.mp4' },
+    });
+    expect(queueWrite.statusCode).toBe(201); // scope ok; stub accepts the entry
+    const screensWrite = await app.inject({
+      method: 'POST',
+      url: '/api/screens/pause/start',
+      headers: { ...queueKey, origin: 'http://localhost' },
+    });
+    expect(screensWrite.statusCode).toBe(403);
+
+    // Admin keys read and manage everything.
+    const keysOk = await app.inject({ method: 'GET', url: '/api/api-keys', headers: adminKey });
+    expect(keysOk.statusCode).toBe(200);
+  });
+
+  it('redacts the RTMP ingest key and serves a scoped reveal endpoint', async () => {
+    const adminKey = { authorization: `Bearer ${apiKeyAdmin}`, origin: 'http://localhost' };
+    const queueKey = { authorization: `Bearer ${apiKeyQueueOnly}` };
+
+    const settings = await app.inject({
+      method: 'GET',
+      url: '/api/settings',
+      headers: { authorization: `Bearer ${apiKeyAdmin}` },
+    });
+    const body = settings.json() as { rtmp_ingest?: { stream_key?: unknown; stream_key_set: boolean } };
+    expect(body.rtmp_ingest).toBeDefined();
+    expect(body.rtmp_ingest?.stream_key).toBeUndefined();
+    expect(body.rtmp_ingest?.stream_key_set).toBe(true);
+
+    const reveal = await app.inject({
+      method: 'GET',
+      url: '/api/settings/rtmp-ingest/stream-key',
+      headers: adminKey,
+    });
+    expect(reveal.statusCode).toBe(200);
+    expect(reveal.json()).toMatchObject({ stream_key: DEFAULT_SETTINGS.rtmp_ingest.stream_key });
+
+    const revealDenied = await app.inject({
+      method: 'GET',
+      url: '/api/settings/rtmp-ingest/stream-key',
+      headers: queueKey,
+    });
+    expect(revealDenied.statusCode).toBe(403);
+
+    // An empty stream_key in a PUT payload keeps the stored secret.
+    const keep = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: adminKey,
+      payload: { rtmp_ingest: { enabled: false, port: 1935, stream_key: '', auto_takeover: true } },
+    });
+    expect(keep.statusCode).toBe(200);
+    const revealAfter = await app.inject({
+      method: 'GET',
+      url: '/api/settings/rtmp-ingest/stream-key',
+      headers: { authorization: `Bearer ${apiKeyAdmin}` },
+    });
+    expect(revealAfter.json()).toMatchObject({ stream_key: DEFAULT_SETTINGS.rtmp_ingest.stream_key });
   });
 
   it('rejects cookie-authenticated writes from foreign origins', async () => {

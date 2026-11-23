@@ -108,6 +108,7 @@ export interface StatusSnapshot {
     client_ip: string | null;
     connected_at: string | null;
     ingest_url: string;
+    stream_key_set: boolean;
   };
   disconnect_protection?: {
     active: boolean;

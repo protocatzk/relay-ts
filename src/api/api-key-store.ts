@@ -1,6 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { writeJsonFile } from '../utils/fs.js';
+import type { Logger } from 'pino';
+import { writeJsonFileAsync } from '../utils/fs.js';
+
+/** Usage metadata (last_used_*) is persisted at most this often. */
+const USAGE_PERSIST_MIN_INTERVAL_MS = 60_000;
 
 export type ApiKeyScope =
   | '*'
@@ -74,9 +78,15 @@ export function safeHashCompare(key: string, storedHash: string): boolean {
 export class ApiKeyStore {
   private readonly keys = new Map<string, ApiKeyRecord>();
   private readonly path?: string;
+  private readonly logger?: Logger;
+  /** In-flight async write; chains follow-up writes instead of racing them. */
+  private writePromise: Promise<void> | null = null;
+  private dirtySinceWrite = false;
+  private lastUsagePersistAt = 0;
 
-  constructor(path?: string) {
+  constructor(path?: string, logger?: Logger) {
     this.path = path;
+    this.logger = logger;
     this.load();
   }
 
@@ -108,10 +118,46 @@ export class ApiKeyStore {
     }
   }
 
+  /**
+   * Schedules an asynchronous, atomic write of the key list. Writes never
+   * block the caller (and never the request path with sync I/O); concurrent
+   * calls are chained and coalesced.
+   */
   private persist(): void {
     if (!this.path) return;
+    if (this.writePromise) {
+      this.dirtySinceWrite = true;
+      return;
+    }
     const array = Array.from(this.keys.values());
-    writeJsonFile(this.path, array);
+    this.writePromise = writeJsonFileAsync(this.path, array)
+      .catch((error: unknown) => {
+        this.logger?.error(
+          { err: error instanceof Error ? error.message : String(error), file: this.path },
+          'API-Keys konnten nicht gespeichert werden',
+        );
+      })
+      .finally(() => {
+        this.writePromise = null;
+        if (this.dirtySinceWrite) {
+          this.dirtySinceWrite = false;
+          this.persist();
+        }
+      });
+  }
+
+  /**
+   * Waits until all scheduled writes have been flushed, then writes the
+   * current in-memory state once more. Call on shutdown so usage metadata
+   * is not lost.
+   */
+  async flush(): Promise<void> {
+    while (this.writePromise) {
+      const pending = this.writePromise;
+      await pending;
+    }
+    if (!this.path) return;
+    await writeJsonFileAsync(this.path, Array.from(this.keys.values()));
   }
 
   list(): ApiKeyPublic[] {
@@ -217,9 +263,14 @@ export class ApiKeyStore {
       if (record.expires_at && new Date(record.expires_at).getTime() < now) continue;
 
       if (safeHashCompare(trimmed, record.key_hash)) {
-        record.last_used_at = new Date().toISOString();
+        const now = new Date();
+        record.last_used_at = now.toISOString();
         if (ip) record.last_used_ip = ip;
-        this.persist();
+        // Throttled: usage metadata does not warrant a disk write per request.
+        if (now.getTime() - this.lastUsagePersistAt >= USAGE_PERSIST_MIN_INTERVAL_MS) {
+          this.lastUsagePersistAt = now.getTime();
+          this.persist();
+        }
         return { ...record };
       }
     }

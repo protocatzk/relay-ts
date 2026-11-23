@@ -218,6 +218,7 @@ export interface StreamersApi {
 
 export interface SettingsApi {
   get(): Promise<Settings>;
+  rtmpIngestStreamKey(): Promise<{ stream_key: string }>;
   update(body: Partial<SettingsUpdate>): Promise<Settings>;
 }
 
@@ -356,6 +357,8 @@ export const api = {
 
   settings: {
     get: () => request<Settings>('/api/settings'),
+    rtmpIngestStreamKey: () =>
+      request<{ stream_key: string }>('/api/settings/rtmp-ingest/stream-key'),
     update: (body: Partial<SettingsUpdate>) => request<Settings>('/api/settings', { method: 'PUT', body }),
   } satisfies SettingsApi,
 

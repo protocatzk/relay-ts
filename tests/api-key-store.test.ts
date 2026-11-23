@@ -1,4 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ApiKeyStore, hashApiKey, safeHashCompare } from '../src/api/api-key-store.js';
 import { hasScope } from '../src/api/auth.js';
 
@@ -59,5 +62,40 @@ describe('ApiKeyStore', () => {
     expect(hasScope(['control:*'], 'read:status')).toBe(false);
     expect(hasScope(['read:status', 'control:stream'], 'read:status')).toBe(true);
     expect(hasScope(['read:status'], 'manage:media')).toBe(false);
+  });
+
+  it('persists asynchronously and flushes to disk on demand', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'relay-keys-')), 'api-keys.json');
+    const store = new ApiKeyStore(file);
+    const created = store.create({ name: 'Persist', scopes: ['read:status'] });
+
+    await store.flush();
+
+    const reloaded = new ApiKeyStore(file);
+    const auth = reloaded.authenticate(created.key, '10.0.0.1');
+    expect(auth).not.toBeNull();
+    expect(auth?.last_used_ip).toBe('10.0.0.1');
+
+    await reloaded.flush();
+    const afterUsage = new ApiKeyStore(file);
+    expect(afterUsage.list()[0]?.last_used_ip).toBe('10.0.0.1');
+    expect(afterUsage.list()[0]?.revoked).toBe(false);
+  });
+
+  it('keeps the stored secret when updates omit the usage write on shutdown', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'relay-keys-')), 'api-keys.json');
+    const store = new ApiKeyStore(file);
+    const created = store.create({ name: 'Throttle' });
+
+    // Usage-only updates in quick succession must still be visible in memory
+    // and persisted by a final flush, not by a sync write per request.
+    expect(store.authenticate(created.key, '10.0.0.2')).not.toBeNull();
+    expect(store.authenticate(created.key, '10.0.0.2')).not.toBeNull();
+    expect(store.list()[0]?.last_used_ip).toBe('10.0.0.2');
+
+    await store.flush();
+    const after = new ApiKeyStore(file);
+    expect(after.list()[0]?.last_used_ip).toBe('10.0.0.2');
+    expect(after.authenticate(created.key)).not.toBeNull();
   });
 });

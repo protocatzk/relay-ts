@@ -95,6 +95,11 @@ npm version "$NEXT_VERSION" --no-git-tag-version >/dev/null
 
 printf "export const VERSION = '%s';\n" "$NEXT_VERSION" > "$ROOT/src/version.ts"
 
+log "AGENTS.md-Versionsangabe aktualisieren"
+if grep -qE '^- Aktuelle Version: \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*$' AGENTS.md; then
+  sed -i -E "s/^- Aktuelle Version: \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*\$/- Aktuelle Version: **$NEXT_VERSION**/" AGENTS.md
+fi
+
 log "OpenAPI-Spezifikation aktualisieren"
 npm run openapi:generate >/dev/null
 

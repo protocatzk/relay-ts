@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { RtmpIngestSettings } from '@/src/api/types';
+import { api } from '@/src/api/client';
 import ToggleField from '@/src/components/ToggleField.vue';
 
 const props = defineProps<{
@@ -45,7 +46,12 @@ async function copyUrl(): Promise<void> {
 
 async function copyKey(): Promise<void> {
   try {
-    await navigator.clipboard.writeText(props.rtmp.stream_key);
+    let key = props.rtmp.stream_key?.trim() ?? '';
+    if (!key) {
+      // Sanitized settings never contain the key; reveal it on demand.
+      key = (await api.settings.rtmpIngestStreamKey()).stream_key;
+    }
+    await navigator.clipboard.writeText(key);
     copiedKey.value = true;
     setTimeout(() => {
       copiedKey.value = false;
@@ -118,7 +124,7 @@ function generateNewKey(): void {
               v-model="rtmp.stream_key"
               type="text"
               spellcheck="false"
-              placeholder="z. B. gaming-live"
+              :placeholder="rtmp.stream_key_set ? 'gespeichert – leer lassen zum Behalten' : 'z. B. gaming-live'"
             />
             <button
               type="button"
@@ -176,7 +182,7 @@ function generateNewKey(): void {
 
           <div class="obs-field">
             <span class="obs-label">Stream-Schlüssel:</span>
-            <span class="obs-value mono">{{ rtmp.stream_key || '(keiner gesetzt)' }}</span>
+            <span class="obs-value mono">{{ rtmp.stream_key || (rtmp.stream_key_set ? '(gespeichert – kopieren)' : '(keiner gesetzt)') }}</span>
           </div>
         </div>
 

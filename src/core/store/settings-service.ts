@@ -11,7 +11,7 @@ import { deepMerge } from '../../utils/format.js';
 
 export type SanitizedSettings = Omit<
   Settings,
-  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink' | 'webhooks' | 'streaming'
+  'online' | 'chat' | 'earnings' | 'overlays' | 'secondary_sink' | 'rtmp_ingest' | 'webhooks' | 'streaming'
 > & {
   online: Omit<Settings['online'], 'api_key'> & { api_key_set: boolean };
   chat: Omit<Settings['chat'], 'api_key'> & { api_key_set: boolean };
@@ -20,6 +20,7 @@ export type SanitizedSettings = Omit<
     chat: Omit<Settings['overlays']['chat'], 'api_key'> & { api_key_set: boolean };
   };
   secondary_sink: Omit<Settings['secondary_sink'], 'stream_key'> & { stream_key_set: boolean };
+  rtmp_ingest: Omit<Settings['rtmp_ingest'], 'stream_key'> & { stream_key_set: boolean };
   streaming: Omit<Settings['streaming'], 'global_youtube_key'> & { global_youtube_key_set: boolean };
   webhooks: Omit<Settings['webhooks'], 'url' | 'secret'> & {
     url_set: boolean;
@@ -96,6 +97,11 @@ export class SettingsService {
         stream_key: undefined,
         stream_key_set: Boolean(settings.secondary_sink.stream_key),
       },
+      rtmp_ingest: {
+        ...settings.rtmp_ingest,
+        stream_key: undefined,
+        stream_key_set: Boolean(settings.rtmp_ingest.stream_key),
+      },
       streaming: {
         ...settings.streaming,
         global_youtube_key: undefined,
@@ -127,6 +133,12 @@ export class SettingsService {
     }
     if (raw.secondary_sink && !('stream_key' in raw.secondary_sink)) {
       merged.secondary_sink.stream_key = this.current.secondary_sink.stream_key;
+    }
+    if (raw.rtmp_ingest) {
+      // An absent or empty stream_key keeps the stored secret.
+      if (!('stream_key' in raw.rtmp_ingest) || !String(raw.rtmp_ingest.stream_key ?? '').trim()) {
+        merged.rtmp_ingest.stream_key = this.current.rtmp_ingest.stream_key;
+      }
     }
     if (raw.streaming && !('global_youtube_key' in raw.streaming)) {
       merged.streaming.global_youtube_key = this.current.streaming.global_youtube_key;
@@ -173,6 +185,10 @@ function stripSecretFlags(input: Record<string, unknown>): Record<string, unknow
   const secondary = result.secondary_sink;
   if (secondary && typeof secondary === 'object' && !Array.isArray(secondary)) {
     delete (secondary as Record<string, unknown>).stream_key_set;
+  }
+  const rtmpIngest = result.rtmp_ingest;
+  if (rtmpIngest && typeof rtmpIngest === 'object' && !Array.isArray(rtmpIngest)) {
+    delete (rtmpIngest as Record<string, unknown>).stream_key_set;
   }
   const streaming = result.streaming;
   if (streaming && typeof streaming === 'object' && !Array.isArray(streaming)) {

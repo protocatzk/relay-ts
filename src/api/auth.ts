@@ -20,6 +20,9 @@ export function authRequired(config: ServerConfig): boolean {
 
 export function isSecureRequest(request: FastifyRequest, config: ServerConfig): boolean {
   if (config.secureCookies) return true;
+  // Only trust proxy headers when the operator confirmed a trusted proxy;
+  // otherwise a direct client could spoof the secure-cookie decision.
+  if (!config.trustProxy) return false;
   const proto = request.headers['x-forwarded-proto'];
   const value = Array.isArray(proto) ? proto[0] : proto;
   return value?.split(',')[0]?.trim().toLowerCase() === 'https';

@@ -693,6 +693,13 @@ const routes: RouteDoc[] = [
   // Settings & overlays
   { method: 'get', path: '/api/settings', tag: 'settings', summary: 'Einstellungen lesen', response: 'Settings' },
   {
+    method: 'get',
+    path: '/api/settings/rtmp-ingest/stream-key',
+    tag: 'settings',
+    summary: 'RTMP-Ingest-Stream-Key auslesen (geschützt, für OBS-Konfiguration)',
+    response: schemaOf(z.object({ stream_key: z.string() })),
+  },
+  {
     method: 'put',
     path: '/api/settings',
     tag: 'settings',

@@ -278,14 +278,16 @@ export function buildSectionPayload(
       const rtmp = current.rtmp_ingest ?? {
         enabled: false,
         port: 1935,
-        stream_key: 'gaming-live',
+        stream_key: '',
+        stream_key_set: false,
         auto_takeover: true,
       };
       return {
         rtmp_ingest: {
           enabled: rtmp.enabled,
           port: toNumber(rtmp.port, 1935),
-          stream_key: rtmp.stream_key.trim() || 'gaming-live',
+          // Empty means "keep the stored key" (server-side merge rule).
+          stream_key: (rtmp.stream_key ?? '').trim(),
           auto_takeover: Boolean(rtmp.auto_takeover),
         },
       };

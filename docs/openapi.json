@@ -2978,6 +2978,45 @@
         }
       }
     },
+    "/api/settings/rtmp-ingest/stream-key": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "RTMP-Ingest-Stream-Key auslesen (geschützt, für OBS-Konfiguration)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stream_key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "stream_key"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/overlays": {
       "put": {
         "tags": [

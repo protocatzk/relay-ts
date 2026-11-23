@@ -1145,7 +1145,8 @@ export class Supervisor {
             active_client: this.rtmpIngest.hasActiveStream,
             client_ip: null,
             connected_at: null,
-            ingest_url: `rtmp://<host>:${this.settings.rtmp_ingest.port}/live/${this.settings.rtmp_ingest.stream_key}`,
+            ingest_url: `rtmp://<host>:${this.settings.rtmp_ingest.port}/live`,
+            stream_key_set: Boolean(this.settings.rtmp_ingest.stream_key.trim()),
           }
         : undefined,
     });
