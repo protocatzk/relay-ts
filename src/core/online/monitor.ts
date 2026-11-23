@@ -1,12 +1,23 @@
 import type { Logger } from 'pino';
 import type { Settings, StreamerConfig } from '../config/schema.js';
 import { normalizeHandle } from '../../utils/format.js';
+import { parseRoomInfoPayload } from '../source/discovery/room-info-provider.js';
+import { readCookieHeader } from '../source/resolver.js';
 
 export interface OnlineMonitorOptions {
   settings: Settings;
   logger: Logger;
   onStatuses: (statuses: Map<string, boolean>) => void;
+  /** Enabled streamers to check when `online.provider` is `tiktok`. */
+  listStreamers?: () => StreamerConfig[];
+  /** Netscape cookie file; TikTok's api-live needs a session for real data. */
+  cookiesFile?: string;
+  userAgent?: string;
 }
+
+const TIKTOK_POLL_CONCURRENCY = 4;
+const TIKTOK_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 const TRUE_VALUES = new Set(['live', 'online', 'true', '1', 'yes', 'streaming']);
 const FALSE_VALUES = new Set(['offline', 'false', '0', 'no', 'ended']);
@@ -104,8 +115,11 @@ export class OnlineMonitor {
 
   start(): void {
     this.stop();
-    const { enabled, source_url, interval } = this.options.settings.online;
-    if (!enabled || !source_url.trim()) {
+    const { enabled, provider, source_url, interval } = this.options.settings.online;
+    const usable =
+      enabled &&
+      (provider === 'tiktok' ? Boolean(this.options.listStreamers) : Boolean(source_url.trim()));
+    if (!usable) {
       if (this.statuses.size > 0) {
         this.statuses.clear();
         this.options.onStatuses(new Map());
@@ -114,7 +128,7 @@ export class OnlineMonitor {
     }
     void this.poll();
     this.timer = setInterval(() => void this.poll(), Math.max(10, interval) * 1000);
-    this.options.logger.info({ interval }, 'Online-Monitor gestartet');
+    this.options.logger.info({ interval, provider }, 'Online-Monitor gestartet');
   }
 
   stop(): void {
@@ -127,6 +141,7 @@ export class OnlineMonitor {
     this.options.settings = settings;
     if (
       previous.online.enabled !== settings.online.enabled ||
+      previous.online.provider !== settings.online.provider ||
       previous.online.source_url !== settings.online.source_url ||
       previous.online.api_key !== settings.online.api_key ||
       previous.online.interval !== settings.online.interval
@@ -151,6 +166,10 @@ export class OnlineMonitor {
   }
 
   private async poll(): Promise<void> {
+    if (this.options.settings.online.provider === 'tiktok') {
+      await this.pollTikTok();
+      return;
+    }
     const { source_url, api_key } = this.options.settings.online;
     if (!source_url) return;
     try {
@@ -170,6 +189,77 @@ export class OnlineMonitor {
     } catch (error) {
       this.logError(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  /**
+   * Checks every enabled streamer via TikTok's api-live endpoint. Failures
+   * keep the previous status for that handle instead of flipping to offline.
+   */
+  private async pollTikTok(): Promise<void> {
+    const listStreamers = this.options.listStreamers;
+    if (!listStreamers) return;
+    const streamers = listStreamers().filter(
+      (streamer) => streamer.enabled && !/^rtmps?:\/\//i.test(streamer.tiktok),
+    );
+    if (streamers.length === 0) {
+      this.statuses = new Map();
+      this.lastPollAt = new Date();
+      this.options.onStatuses(this.statuses);
+      return;
+    }
+
+    const cookie = this.options.cookiesFile ? readCookieHeader(this.options.cookiesFile) : null;
+    const previous = new Map(this.statuses);
+    const checked = new Map<string, boolean>();
+    let nextIndex = 0;
+    let failures = 0;
+
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const index = nextIndex++;
+        const streamer = streamers[index];
+        if (!streamer) return;
+        const handle = normalizeHandle(streamer.tiktok);
+        if (!handle) continue;
+        try {
+          const url = `https://www.tiktok.com/api-live/user/room?aid=1988&sourceType=54&uniqueId=${encodeURIComponent(handle)}`;
+          const response = await fetch(url, {
+            headers: {
+              accept: 'application/json',
+              referer: `https://www.tiktok.com/@${handle}/live`,
+              'user-agent': this.options.userAgent || TIKTOK_USER_AGENT,
+              ...(cookie ? { cookie } : {}),
+            },
+            signal: AbortSignal.timeout(8_000),
+          });
+          if (!response.ok) {
+            failures += 1;
+            continue;
+          }
+          const hit = parseRoomInfoPayload(await response.json(), handle);
+          if (hit) checked.set(handle, hit.live);
+          else failures += 1;
+        } catch {
+          failures += 1;
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(TIKTOK_POLL_CONCURRENCY, streamers.length) }, () => worker()),
+    );
+
+    const next = new Map<string, boolean>();
+    for (const streamer of streamers) {
+      const handle = normalizeHandle(streamer.tiktok);
+      if (!handle) continue;
+      const value = checked.get(handle) ?? previous.get(handle) ?? previous.get(streamer.id.toLowerCase());
+      if (value !== undefined) next.set(handle, value);
+    }
+    this.statuses = next;
+    this.lastPollAt = new Date();
+    this.options.onStatuses(this.statuses);
+    if (failures > 0) this.logError(`${failures}/${streamers.length} TikTok-Checks fehlgeschlagen`);
   }
 
   private logError(message: string): void {

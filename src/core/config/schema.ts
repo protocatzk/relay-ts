@@ -299,6 +299,9 @@ export const StartupSettingsSchema = z.object({
 
 export const OnlineSettingsSchema = z.object({
   enabled: z.boolean().default(false),
+  // `external` polls source_url (e.g. TokTracker overview); `tiktok` checks
+  // every enabled streamer directly via TikTok's api-live endpoint.
+  provider: z.enum(['external', 'tiktok']).default('external'),
   source_url: z.string().default(''),
   api_key: z.string().default(''),
   interval: z.number().int().min(10).max(3600).default(60),

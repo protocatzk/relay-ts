@@ -322,6 +322,9 @@ export async function createSupervisorSubsystems(
     onStatuses: () => {
       host.handleOnlineStatuses();
     },
+    listStreamers: () => host.deps.store.list(),
+    cookiesFile: config.paths.cookiesFile,
+    userAgent: config.media.sourceUserAgent,
   });
 
   const earningsHistory = new EarningsHistoryStore(

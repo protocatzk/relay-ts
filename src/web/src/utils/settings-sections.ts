@@ -191,6 +191,7 @@ export function buildSectionPayload(
       return {
         online: {
           enabled: current.online.enabled,
+          provider: current.online.provider,
           source_url: current.online.source_url.trim(),
           interval: toNumber(current.online.interval, 30),
           auto_switch_preferred: current.online.auto_switch_preferred,

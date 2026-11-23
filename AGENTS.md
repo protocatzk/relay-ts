@@ -112,6 +112,11 @@ Wichtige Pfade:
   inklusive Index; endet der bevorzugte Stream, wird das vorherige Ziel
   wiederhergestellt. Solange der Streamer weiter live ist, laufen normale
   Reconnects weiter.
+- Online-Monitor (`settings.online.provider`): `external` pollt `source_url`
+  (z. B. TokTracker-Overview), `tiktok` prüft alle aktivierten Streamer direkt
+  über `api-live/user/room` (Cookies aus `data/cookies.txt`, max. 4 parallel,
+  8-s-Timeout, Prüfintervall ≥ 10 s). Fehlgeschlagene Checks behalten den letzten
+  Status; unbekannte/umbenannte Handles gelten als „unbekannt“ (kein Offline).
 - Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
   `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
   Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.

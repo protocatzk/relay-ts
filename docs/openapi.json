@@ -9948,6 +9948,7 @@
           "online": {
             "default": {
               "enabled": false,
+              "provider": "external",
               "source_url": "",
               "api_key": "",
               "interval": 60,
@@ -9958,6 +9959,14 @@
               "enabled": {
                 "default": false,
                 "type": "boolean"
+              },
+              "provider": {
+                "default": "external",
+                "type": "string",
+                "enum": [
+                  "external",
+                  "tiktok"
+                ]
               },
               "source_url": {
                 "default": "",
@@ -11588,6 +11597,7 @@
           "online": {
             "default": {
               "enabled": false,
+              "provider": "external",
               "source_url": "",
               "api_key": "",
               "interval": 60,
@@ -11598,6 +11608,14 @@
               "enabled": {
                 "default": false,
                 "type": "boolean"
+              },
+              "provider": {
+                "default": "external",
+                "type": "string",
+                "enum": [
+                  "external",
+                  "tiktok"
+                ]
               },
               "source_url": {
                 "default": "",

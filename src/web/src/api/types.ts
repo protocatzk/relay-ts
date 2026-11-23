@@ -569,6 +569,7 @@ export interface PauseAsset {
 
 export interface OnlineSettings {
   enabled: boolean;
+  provider: 'external' | 'tiktok';
   source_url: string;
   api_key_set: boolean;
   interval: number;
@@ -890,6 +891,7 @@ export interface SettingsUpdate {
   startup: StartupSettings;
   online: {
     enabled: boolean;
+    provider: 'external' | 'tiktok';
     source_url: string;
     interval: number;
     auto_switch_preferred: boolean;

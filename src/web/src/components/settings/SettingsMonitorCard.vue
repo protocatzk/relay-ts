@@ -3,6 +3,7 @@ import ToggleField from '@/src/components/ToggleField.vue';
 
 interface OnlineModel {
   enabled: boolean;
+  provider: 'external' | 'tiktok';
   auto_switch_preferred: boolean;
   source_url: string;
   interval: number;
@@ -33,7 +34,8 @@ defineEmits<{
       </div>
       <div class="settings-section-actions">
         <span v-if="dirty" class="badge tone-warning">Ungespeichert</span>
-        <span v-if="online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
+        <span v-if="online.provider === 'tiktok'" class="badge tone-success">TikTok Live-API</span>
+        <span v-else-if="online.api_key_set" class="badge tone-success">API-Key gesetzt</span>
         <span v-else class="badge tone-muted">Kein API-Key</span>
         <button type="button" class="btn btn-ghost btn-sm" :disabled="checkingOnline" @click="$emit('checkOnline')">
           <span v-if="checkingOnline" class="spinner" aria-hidden="true"></span>
@@ -63,27 +65,40 @@ defineEmits<{
       />
       <div class="settings-grid">
         <div class="field">
-          <label for="online-url">Quell-URL</label>
-          <input
-            id="online-url"
-            v-model="online.source_url"
-            type="url"
-            placeholder="https://api.example.com/check"
-            spellcheck="false"
-          />
+          <label for="online-provider">Quelle</label>
+          <select id="online-provider" v-model="online.provider">
+            <option value="tiktok">TikTok Live-API (direkt)</option>
+            <option value="external">Externe Überwachungs-API</option>
+          </select>
+          <p class="field-hint">
+            TikTok Live-API prüft alle aktivierten Streamer direkt nacheinander. Für echte Daten
+            (statt des leeren Stubs) muss <code>data/cookies.txt</code> eine gültige Session enthalten.
+          </p>
         </div>
-        <div class="field">
-          <label for="online-key">API-Key</label>
-          <input
-            id="online-key"
-            :value="apiKey"
-            type="password"
-            :placeholder="online.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
-            autocomplete="new-password"
-            @input="$emit('update:apiKey', ($event.target as HTMLInputElement).value)"
-          />
-          <p class="field-hint">Der Key wird nur beim Speichern übertragen und nie im Klartext angezeigt.</p>
-        </div>
+        <template v-if="online.provider === 'external'">
+          <div class="field">
+            <label for="online-url">Quell-URL</label>
+            <input
+              id="online-url"
+              v-model="online.source_url"
+              type="url"
+              placeholder="https://api.example.com/check"
+              spellcheck="false"
+            />
+          </div>
+          <div class="field">
+            <label for="online-key">API-Key</label>
+            <input
+              id="online-key"
+              :value="apiKey"
+              type="password"
+              :placeholder="online.api_key_set ? '•••••••• (gesetzt – leer lassen zum Behalten)' : 'API-Key eingeben'"
+              autocomplete="new-password"
+              @input="$emit('update:apiKey', ($event.target as HTMLInputElement).value)"
+            />
+            <p class="field-hint">Der Key wird nur beim Speichern übertragen und nie im Klartext angezeigt.</p>
+          </div>
+        </template>
         <div class="field">
           <label for="online-interval">Prüfintervall (Sekunden)</label>
           <input id="online-interval" v-model.number="online.interval" type="number" min="10" max="3600" />
