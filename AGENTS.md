@@ -405,6 +405,13 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Layout, Unit, `/etc/relay.env` (0600, absolute Pfade; ohne `--force` wird eine
   vorhandene Datei nicht angetastet) und optional eine minimale Caddyfile an
   und deployt das erste Release via `deploy.sh` inkl. Health-Check.
+  Alternativ zum Caddy-Modul gibt es `--nginx` (Modul `nginx`): Für nativen
+  nginx wird ein Vhost (`sites-available` bzw. `conf.d`, mit `proxy_buffering
+  off` für SSE, `client_max_body_size 64m` für Asset-Uploads) geschrieben und
+  nginx neu geladen; läuft ein Docker-Reverse-Proxy auf 80/443 (erkennbar an
+  `docker ps` bzw. `docker-proxy`), wird nichts geschrieben und stattdessen
+  ein Vhost-Snippet samt Hinweis auf den Host-Upstream (172.17.0.1 bzw.
+  host-gateway) ausgegeben.
 - **Layout:** Code in versionierten Release-Verzeichnissen
   `/srv/relay/releases/<version>/`, aktiv über Symlink `/srv/relay/current`.
   Laufzeit-Daten liegen getrennt in `/srv/relay/{config,data,logs}`

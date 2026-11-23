@@ -9,6 +9,8 @@
 #   env      – /etc/relay.env aus Vorlage (0600, absolute Pfade)
 #   release  – erstes Release via deploy.sh inkl. Health-Check
 #   caddy    – minimale Caddyfile (benötigt --domain, optional --web-domain)
+#   nginx    – Vhost für nativen nginx; Docker-Reverse-Proxy (nginx-proxy)
+#              wird erkannt und nur mit Anleitung bedient (benötigt --domain)
 #
 # Das Skript ist generisch gehalten: Domain (und optional Web-Domain) werden
 # als Parameter übergeben, nichts ist auf eine konkrete Instanz festgelegt.
@@ -20,6 +22,7 @@
 #   sudo scripts/bootstrap.sh 0.31.14                        # + feste Release-Version
 #   sudo scripts/bootstrap.sh --domain stream.example.com --caddy
 #   sudo scripts/bootstrap.sh --modules user,dirs,systemd    # nur ausgewählte Module
+#   sudo scripts/bootstrap.sh --domain stream.example.com --nginx
 #   sudo scripts/bootstrap.sh --dry-run                      # Vorschau, auch ohne root
 #   sudo scripts/bootstrap.sh --force                        # vorhandene /etc/relay.env ersetzen
 #
@@ -41,7 +44,11 @@ SERVICE_USER=relay
 CADDYFILE=/etc/caddy/Caddyfile
 APP_PORT=3000
 WEB_PORT=3001
-ALL_MODULES="user,dirs,systemd,env,release,caddy"
+NGINX_SITE=relay
+NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
+NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
+NGINX_CONF_D=/etc/nginx/conf.d
+ALL_MODULES="user,dirs,systemd,env,release,caddy,nginx"
 DEFAULT_MODULES="user,dirs,systemd,env,release"
 
 log()  { printf '\033[1;32m[bootstrap]\033[0m %s\n' "$*"; }
@@ -68,6 +75,7 @@ while [ $# -gt 0 ]; do
     --dry-run) DRY_RUN=1 ;;
     --force) FORCE=1 ;;
     --caddy) case ",$MODULES," in *,caddy,*) ;; *) MODULES="$MODULES,caddy" ;; esac ;;
+    --nginx) case ",$MODULES," in *,nginx,*) ;; *) MODULES="$MODULES,nginx" ;; esac ;;
     --domain) shift; [ $# -gt 0 ] || fail "--domain braucht einen Wert"; DOMAIN="$1" ;;
     --web-domain) shift; [ $# -gt 0 ] || fail "--web-domain braucht einen Wert"; WEB_DOMAIN="$1" ;;
     --modules) shift; [ $# -gt 0 ] || fail "--modules braucht eine Liste"; MODULES="$1" ;;
@@ -84,8 +92,8 @@ has_module() {
 for m in ${MODULES//,/ }; do
   case ",$ALL_MODULES," in *,"$m",*) ;; *) fail "Unbekanntes Modul: $m (verfügbar: $ALL_MODULES)" ;; esac
 done
-if has_module caddy && [ -z "$DOMAIN" ]; then
-  fail "Modul 'caddy' benötigt --domain <domain>."
+if has_module caddy || has_module nginx; then
+  [ -n "$DOMAIN" ] || fail "Module 'caddy' und 'nginx' benötigen --domain <domain>."
 fi
 
 [ "$DRY_RUN" = 1 ] && warn "Dry-Run: nur Ausgabe, keine Änderungen."
@@ -233,6 +241,114 @@ setup_caddy() {
   log "[caddy] Caddy neu gestartet (Let's-Encrypt-Zertifikate zieht Caddy beim ersten Abruf)."
 }
 
+# --- Modul: nginx -----------------------------------------------------------------
+# Gibt einen Vhost-Block für 'Domain -> Upstream' auf stdout aus.
+# Buffered Streaming (SSE/Preview-Tap) wird explizit abgeschaltet, damit
+# Status-Events und der MPEG-TS-Tap nicht verzögert werden; client_max_body_size
+# deckt Asset-Uploads (max. 50 MB) ab.
+nginx_vhost_snippet() {
+  printf 'server {\n'
+  printf '    listen 80;\n'
+  printf '    server_name %s;\n\n' "$1"
+  printf '    location / {\n'
+  printf '        proxy_pass http://127.0.0.1:%s;\n' "$2"
+  printf '        proxy_http_version 1.1;\n'
+  printf '        proxy_set_header Host $host;\n'
+  printf '        proxy_set_header X-Real-IP $remote_addr;\n'
+  printf '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n'
+  printf '        proxy_set_header X-Forwarded-Proto $scheme;\n'
+  printf '        proxy_buffering off;\n'
+  printf '        proxy_read_timeout 24h;\n'
+  printf '        client_max_body_size 64m;\n'
+  printf '    }\n'
+  printf '}\n\n'
+}
+
+# Läuft ein Docker-Container (z. B. legacy 'nginx-proxy') und published 80/443?
+docker_reverse_proxy_active() {
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null \
+      | grep -Eq '0\.0\.0\.0:(80|443)->'; then
+      return 0
+    fi
+  fi
+  ss -ltnp 2>/dev/null | grep -E ':80 |:443 ' | grep -q docker-proxy
+  return $?
+}
+
+setup_nginx() {
+  # Docker-basierter Reverse-Proxy hat Vorrang: Dort kann das Skript keine
+  # Konfiguration ablegen – Snippet und Hinweise für das manuelle Setup ausgeben.
+  if docker_reverse_proxy_active; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "[nginx] [dry-run] Docker-Reverse-Proxy erkannt – würde nur Anleitung ausgeben."
+    fi
+    warn "[nginx] Docker-Reverse-Proxy belegt Ports 80/443 – schreibe keine native nginx-Konfiguration."
+    warn "[nginx] Im Container-Ziel muss der Upstream die Host-Adresse statt 127.0.0.1 verwenden"
+    warn "[nginx] (z. B. 172.17.0.1:$APP_PORT oder via extra_hosts: host.docker.internal:host-gateway)."
+    warn "[nginx] Für nginx-proxy (VIRTUAL_HOST) oder einen gemounteten Include folgenden Block einrichten:"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
+    return 0
+  fi
+
+  if ! command -v nginx >/dev/null 2>&1; then
+    warn "[nginx] nginx ist nicht installiert – überspringe Vhost-Setup (Alternative: Modul 'caddy')."
+    return 0
+  fi
+
+  # Debian nutzt sites-available/sites-enabled, ansonsten Fallback conf.d.
+  local conf_file link=""
+  if [ -d "$NGINX_SITES_ENABLED" ]; then
+    conf_file="$NGINX_SITES_AVAILABLE/$NGINX_SITE"
+    link="$NGINX_SITES_ENABLED/$NGINX_SITE"
+  else
+    conf_file="$NGINX_CONF_D/$NGINX_SITE.conf"
+  fi
+
+  if [ -f "$conf_file" ]; then
+    warn "[nginx] Vhost existiert bereits ($conf_file) – lasse ihn unangetastet. Benötigter Block:"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+    return 0
+  fi
+
+  if [ "$DRY_RUN" = 1 ]; then
+    log "[nginx] [dry-run] Würde Vhost schreiben: $conf_file"
+    nginx_vhost_snippet "$DOMAIN" "$APP_PORT"
+    [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT"
+    return 0
+  fi
+
+  log "[nginx] Schreibe Vhost: $conf_file ..."
+  mkdir -p "$(dirname "$conf_file")"
+  nginx_vhost_snippet "$DOMAIN" "$APP_PORT" > "$conf_file"
+  [ -n "$WEB_DOMAIN" ] && nginx_vhost_snippet "$WEB_DOMAIN" "$WEB_PORT" >> "$conf_file"
+  [ -n "$link" ] && ln -s "$conf_file" "$link"
+
+  if ! nginx -t 2>&1; then
+    warn "[nginx] 'nginx -t' fehlgeschlagen – Vhost liegt unter $conf_file, Konfiguration manuell prüfen."
+    return 0
+  fi
+
+  # Reload nur, wenn kein fremder Prozess (Caddy, docker-proxy) auf 80/443 lauscht.
+  local foreign
+  foreign="$(ss -ltnp 2>/dev/null | grep -E ':80 |:443 ' | grep -v '"nginx"' || true)"
+  if [ -n "$foreign" ]; then
+    warn "[nginx] Ports 80/443 werden von einem anderen Prozess belegt – Vhost wurde geschrieben,"
+    warn "[nginx] aber nginx nicht neu geladen. Konflikt zuerst auflösen:"
+    printf '   %s\n' "$foreign"
+    return 0
+  fi
+
+  if systemctl is-active --quiet nginx; then
+    systemctl reload nginx
+    log "[nginx] Vhost aktiviert, nginx neu geladen (TLS z. B. per certbot ergänzen)."
+  else
+    systemctl start nginx
+    log "[nginx] Vhost aktiviert, nginx gestartet (TLS z. B. per certbot ergänzen)."
+  fi
+}
+
 # --- Module ausführen ---------------------------------------------------------------
 has_module user    && setup_user
 has_module dirs    && setup_dirs
@@ -240,6 +356,7 @@ has_module systemd && setup_systemd
 has_module env     && setup_env
 has_module release && setup_release
 has_module caddy   && setup_caddy
+has_module nginx   && setup_nginx
 
 # --- Abschluss ----------------------------------------------------------------
 if [ "$DRY_RUN" = 1 ]; then
