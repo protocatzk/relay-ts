@@ -538,9 +538,11 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Eingaben 16 px gegen iOS-Zoom, Safe-Area-Insets.
 - Hauptnavigation: vier Bereiche (`Live`, `Inhalte`, `Studio`, `System`) in
   `src/web/src/navigation.ts`. Routen bleiben flach und tragen `meta.section`;
-  `SectionTabs.vue` rendert die zweite Ebene (Inhalte: Streamer/Playlists/Medien,
-  Studio: Overlays/YouTube, System: Einstellungen/Logs). Die Bottom-Nav merkt
-  sich den letzten Sub-Tab pro Bereich (`localStorage`).
+  `SectionTabs.vue` rendert die zweite Ebene (Live: Cockpit/Discovery, Inhalte:
+  Streamer/Playlists/Medien/Zeitplan/Automation, Studio: Overlays/YouTube/
+  Ausgabe, System: Einstellungen/Logs/Diagnose). Discovery ist damit kein
+  eigener Nav-Punkt mehr, `/discovery` bleibt als Deep Link bestehen. Die
+  Bottom-Nav merkt sich den letzten Sub-Tab pro Bereich (`localStorage`).
 - Skip-Link: fokussiert `<main>` ohne Hash-Routenwechsel; die Tab-Leiste trägt
   `aria-current="page"`, die Unterseiten-Tabs ein eigenes `aria-label`.
   Details in `docs/ACCESSIBILITY.md`.

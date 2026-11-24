@@ -157,7 +157,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions) (#80) | P2 | Automation/UI/API | geplant |
 | API-Zugang konfigurieren und Keys erzeugen und managen (#82) | P2 | Security/API | geplant |
 | Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#88) | P1 | UI/UX | abgeschlossen |
-| Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche | P3 | UI/UX | geplant |
+| Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche (#88) | P3 | UI/UX | abgeschlossen |
 
 ### v0.32.0 – Cockpit (#88)
 
@@ -185,9 +185,33 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   (links löschen, rechts sofort spielen) auf Queue-Einträgen.
 - **Neues Statusfeld:** `status.chat.viewers` (Zahl oder `null`) aus dem
   Webcast-Client; die Kennzahl wird bei `null` ausgeblendet.
-- **Offen (0.33.0):** Navigation von fünf auf vier Bereiche straffen
-  (Discovery als Such-/Zapper-Modus in Live) sowie die verbleibende Migration
-  der Einzelansichten auf die Basis-Komponenten.
+- **Offen (später):** verbleibende Migration der Einzelansichten auf die
+  Basis-Komponenten.
+
+### v0.33.0 – Navigation & Testsuite
+
+**Status: veröffentlicht in 0.33.0.**
+
+- **Navigation 5 → 4:** Discovery ist kein eigener Bereich mehr, sondern ein
+  Untertab von `Live` (`Cockpit` · `Discovery`). `/discovery` bleibt als
+  Deep Link erhalten; Bottom-Nav, Section-Tabs und `navigation.test.ts` sind
+  angepasst.
+- **Responsive Fixes:** Die Einstellungs-Sprungliste und die RTMP-Ingest-Box
+  sprengten 320-px-Viewports (lange Ingest-URLs, Scroll-Container ohne
+  `min-width: 0`), Discovery-Karten erzwangen 320-px-Tracks, die Automation-
+  Ansicht blutete über den Content-Rand. Alle Dashboard-Routen liegen jetzt
+  bei 320 px ohne horizontalen Overflow.
+- **Dialog-Stacking:** Der „Ungespeicherte Änderungen“-Prompt liegt über
+  Ansichts-Modals (`ModalDialog elevate`), damit „Bleiben“ nicht vom
+  darunterliegenden Dialog verdeckt wird.
+- **Formular-Race:** Ein laufender Settings-Load überschreibt keine Eingaben
+  mehr, die während des Requests gemacht wurden (`loadSettings(…, keepEdits)`).
+- **PWA:** Eine blockierte Service-Worker-Registrierung wird toleriert
+  (keine Endlos-Fehler mehr, Reload-Fallback ohne Worker).
+- **E2E-Suite repariert:** 36/36 Tests grün (vorher 13 Fehler auf `main`):
+  Theme-Toggle im Mobile-Menü, Studio-Tabs inkl. Version-Tab, Settings-Payload
+  (`watchdog` + `sink`), Studio-IDs (`studio-video-pos-x/y`), Accordion-Gruppen
+  auf Mobilgeräten, Service Worker in Tests blockiert.
 
 ## Definition of Done
 
