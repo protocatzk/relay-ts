@@ -44,3 +44,4 @@
 {"title":"Versionsangabe in AGENTS.md aktualisieren","file":"44-agents-md-version-drift.md","labels":["tech-debt","P4"]}
 {"title":"Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl","file":"45-dashboard-redesign.md","labels":["ui","ux","frontend","P2"]}
 {"title":"Discovery: Handlichkeit und Einbau ins Cockpit","file":"46-discovery-cockpit.md","labels":["ui","ux","frontend","P2"]}
+{"title":"Queue als zentrale Abspielsteuerung der App","file":"47-queue-central-playback.md","labels":["queue","streaming","ui","ux","api","P2"]}

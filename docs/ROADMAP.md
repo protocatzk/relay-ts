@@ -159,6 +159,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#88) | P1 | UI/UX | abgeschlossen |
 | Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche (#88) | P3 | UI/UX | abgeschlossen |
 | Discovery: Handlichkeit und Einbau ins Cockpit (#92) | P2 | UI/UX | abgeschlossen |
+| Queue als zentrale Abspielsteuerung der App (#94) | P2 | Streaming/UI | geplant |
 
 ### v0.32.0 – Cockpit (#88)
 
