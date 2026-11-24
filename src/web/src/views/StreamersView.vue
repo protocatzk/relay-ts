@@ -6,10 +6,12 @@ import ModalDialog from '@/src/components/ModalDialog.vue';
 import StreamerEditor from '@/src/components/StreamerEditor.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
+import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
 const { store, refreshStreamers, refreshPlaylists, refreshStatus } = useStore();
 const { pushToast } = useToast();
+const { accounts, refreshAccounts } = useTikTokAccounts();
 
 const search = ref('');
 const selectedGroup = ref<string>('all');
@@ -23,6 +25,7 @@ const deleting = ref(false);
 const bulkInput = ref('');
 const bulkPlaylist = ref('');
 const bulkGroup = ref('');
+const bulkAccount = ref('');
 const bulkBusy = ref(false);
 
 const existingGroups = computed<string[]>(() => {
@@ -189,6 +192,7 @@ async function submitBulk(): Promise<void> {
       channels,
       ...(bulkPlaylist.value ? { playlist_id: bulkPlaylist.value } : {}),
       ...(bulkGroup.value.trim() ? { group: bulkGroup.value.trim() } : {}),
+      ...(bulkAccount.value ? { tiktok_account: bulkAccount.value } : {}),
     });
     await Promise.allSettled([refreshStreamers(), refreshStatus(), refreshPlaylists()]);
     bulkInput.value = '';
@@ -204,6 +208,7 @@ async function submitBulk(): Promise<void> {
 onMounted(() => {
   refreshStreamers().catch((error) => pushToast(errorMessage(error), 'error'));
   refreshPlaylists().catch(() => undefined);
+  refreshAccounts().catch(() => undefined);
 });
 </script>
 
@@ -249,6 +254,15 @@ onMounted(() => {
             <option value="">Nicht anhängen</option>
             <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
               {{ playlist.name }}
+            </option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bulk-account">TikTok-Konto</label>
+          <select id="bulk-account" v-model="bulkAccount">
+            <option value="">Standard (aktives Konto)</option>
+            <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
+              {{ acc.label }}{{ acc.active ? ' · aktiv' : '' }}
             </option>
           </select>
         </div>
@@ -391,6 +405,19 @@ onMounted(() => {
                   <span v-if="!streamer.enabled" class="badge tone-muted badge-xs">Deaktiviert</span>
                 </div>
                 <div class="cell-sub mono">{{ streamer.id }} · @{{ streamer.tiktok.replace(/^@/, '') }}</div>
+                <div v-if="streamer.tiktok_account" class="cell-sub">
+                  <span
+                    class="badge badge-xs"
+                    :class="streamer.tiktok_account_missing ? 'tone-danger' : 'tone-info'"
+                    :title="streamer.tiktok_account_missing
+                      ? 'Das Konto existiert nicht mehr; es wird das aktive Konto verwendet.'
+                      : 'Eigene TikTok-Session für diesen Streamer'"
+                  >
+                    Konto: {{ streamer.tiktok_account_label || streamer.tiktok_account }}{{
+                      streamer.tiktok_account_missing ? ' (fehlt)' : ''
+                    }}
+                  </span>
+                </div>
               </td>
               <td data-label="Gruppe" role="cell">
                 <button
@@ -498,6 +525,7 @@ onMounted(() => {
       :saving="saving"
       :error="saveError"
       :existing-groups="existingGroups"
+      :accounts="accounts"
       @close="closeEditor"
       @save="handleSave"
     />

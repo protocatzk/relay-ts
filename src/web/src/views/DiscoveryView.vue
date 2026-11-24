@@ -218,7 +218,7 @@ onMounted(() => {
             id="following-account-select"
             v-model="selectedAccountId"
             class="account-select"
-            title="TikTok-Konto für gefolgte Livestreams wählen"
+            title="TikTok-Konto für Discovery und Following; Streamer können im Streamer-Editor ein eigenes Konto erhalten"
             @change="handleAccountChange"
           >
             <option value="">(Aktives Konto / Fallback)</option>

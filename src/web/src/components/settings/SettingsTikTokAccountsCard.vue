@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import type { TikTokAccountPublic } from '@/src/api/types';
+import { confirmAction } from '@/src/composables/useConfirm';
 import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 
 const { accounts, activeAccount, loading, activateAccount, addAccount, removeAccount } = useTikTokAccounts();
@@ -7,6 +9,21 @@ const { accounts, activeAccount, loading, activateAccount, addAccount, removeAcc
 const showAdd = ref(false);
 const form = ref({ label: '', sessionId: '', targetIdc: '', username: '' });
 const saving = ref(false);
+
+async function handleRemove(account: TikTokAccountPublic): Promise<void> {
+  const usage = account.streamer_count ?? 0;
+  const confirmed = usage > 0
+    ? await confirmAction(
+        `Das Konto ist ${usage} Streamer(n) zugeordnet. Beim Löschen nutzen diese wieder das aktive Konto.`,
+        { title: 'TikTok-Konto löschen', confirmLabel: 'Löschen' },
+      )
+    : await confirmAction(`TikTok-Konto „${account.label}“ löschen?`, {
+        title: 'TikTok-Konto löschen',
+        confirmLabel: 'Löschen',
+      });
+  if (!confirmed) return;
+  await removeAccount(account.id, { reassign: usage > 0 });
+}
 
 async function handleAdd(): Promise<void> {
   if (!form.value.label.trim() || !form.value.sessionId.trim()) return;
@@ -26,7 +43,8 @@ async function handleAdd(): Promise<void> {
       <div>
         <h2 class="card-title">TikTok-Konten</h2>
         <p class="card-sub">
-          Verwalte mehrere TikTok-Session-Cookies global für alle Sitzungen (Discovery-Feeds, Following und Quell-Checks).
+          Session-Cookies für Discovery, Following und Streamer ohne eigene Zuordnung.
+          Ein Streamer kann im Streamer-Editor ein eigenes Konto erhalten.
         </p>
       </div>
       <button
@@ -48,6 +66,7 @@ async function handleAdd(): Promise<void> {
             <th>Status</th>
             <th>Target IDC</th>
             <th>Cookie</th>
+            <th>Streamer</th>
             <th class="align-right">Aktionen</th>
           </tr>
         </thead>
@@ -67,6 +86,12 @@ async function handleAdd(): Promise<void> {
             <td>
               <span class="badge tone-neutral">Hinterlegt</span>
             </td>
+            <td>
+              <span v-if="(acc.streamer_count ?? 0) > 0" class="badge tone-info">
+                {{ acc.streamer_count }} zugeordnet
+              </span>
+              <span v-else class="muted small">–</span>
+            </td>
             <td class="align-right">
               <div class="row-actions">
                 <button
@@ -83,7 +108,7 @@ async function handleAdd(): Promise<void> {
                   class="btn-icon btn-icon-danger"
                   title="Konto löschen"
                   :disabled="loading"
-                  @click="removeAccount(acc.id)"
+                  @click="handleRemove(acc)"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
                     <path

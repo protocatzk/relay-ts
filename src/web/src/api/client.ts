@@ -858,10 +858,13 @@ export const api = {
       request<{ ok: true; account: TikTokAccountPublic }>(`/api/discovery/accounts/${encodeURIComponent(id)}/activate`, {
         method: 'POST',
       }),
-    removeAccount: (id: string) =>
-      request<{ ok: true }>(`/api/discovery/accounts/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }),
+    removeAccount: (id: string, options?: { reassign?: boolean }) =>
+      request<{ ok: true; reassigned?: number }>(
+        `/api/discovery/accounts/${encodeURIComponent(id)}${
+          options?.reassign ? '?reassign=active' : ''
+        }`,
+        { method: 'DELETE' },
+      ),
     search: (q: string, opts?: { limit?: number; region?: string; page?: number }) => {
       const search = new URLSearchParams({ q });
       if (opts?.limit) search.set('limit', String(opts.limit));

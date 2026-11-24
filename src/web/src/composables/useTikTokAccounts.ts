@@ -51,12 +51,17 @@ async function addAccount(data: { label: string; sessionId: string; targetIdc?: 
   }
 }
 
-async function removeAccount(id: string): Promise<boolean> {
+async function removeAccount(id: string, options?: { reassign?: boolean }): Promise<boolean> {
   loading.value = true;
   try {
-    await api.discovery.removeAccount(id);
+    const result = await api.discovery.removeAccount(id, options);
     await refreshAccounts();
-    pushToast('TikTok-Account entfernt.', 'success');
+    pushToast(
+      result.reassigned
+        ? `TikTok-Account entfernt; ${result.reassigned} Streamer nutzen jetzt das aktive Konto.`
+        : 'TikTok-Account entfernt.',
+      'success',
+    );
     return true;
   } catch (err) {
     pushToast(errorMessage(err), 'error');

@@ -121,6 +121,16 @@ Wichtige Pfade:
   Konto/`data/cookies.txt`; unbekannte ID fällt auf die Cookie-Datei zurück).
   Fehlgeschlagene Checks behalten den letzten Status; unbekannte/umbenannte
   Handles gelten als „unbekannt“ (kein Offline).
+- **TikTok-Session pro Streamer (#95):** `streamer.tiktok_account` verweist auf
+  einen Eintrag aus `data/tiktok-accounts.json` (leer = aktives Konto). Pro
+  Konto schreibt der Store lazy eine eigene Cookie-Datei unter
+  `data/cookies/<id>.txt` (Modus `0600`), die beim Löschen des Kontos
+  verschwindet. Resolver, Chat-Webcast und die `tiktok`-Online-Checks lösen die
+  Session pro Streamer auf (Streamer-Konto → `settings.online.account_id` →
+  aktives Konto → `data/cookies.txt`); ein gelöschtes Konto fällt mit
+  einmaliger Warnung zurück. Discovery/Following bleibt am aktiven Konto.
+  Sessions stehen nie in `streamers.yml`, API-Antworten oder Logs; Konten mit
+  Zuordnungen lassen sich nur mit `?reassign=active` löschen (`409` sonst).
 - Der Startbildschirm (`startup`) läuft nur beim Start aus dem Idle-Zustand für
   `startup.duration_seconds`; danach übernimmt die Quelle ohne RTMP-Neuaufbau.
   Er nutzt dieselben Asset-Formate und Uploads wie der Pausenscreen.

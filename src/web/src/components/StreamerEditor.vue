@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import type { StreamQuality, Streamer, StreamerInput } from '@/src/api/types';
+import type {
+  StreamQuality,
+  Streamer,
+  StreamerInput,
+  TikTokAccountPublic,
+} from '@/src/api/types';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 import ModalDialog from './ModalDialog.vue';
 
@@ -10,6 +15,7 @@ const props = defineProps<{
   saving: boolean;
   error: string;
   existingGroups?: string[];
+  accounts?: readonly TikTokAccountPublic[];
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +43,7 @@ interface StreamerForm {
   priority: number;
   enabled: boolean;
   own_stream: boolean;
+  tiktok_account: string;
 }
 
 const source = props.streamer;
@@ -53,6 +60,7 @@ const form = reactive<StreamerForm>({
   priority: source?.priority ?? 0,
   enabled: source?.enabled ?? true,
   own_stream: source?.own_stream ?? false,
+  tiktok_account: source?.tiktok_account ?? '',
 });
 
 const idTouched = ref(source !== null);
@@ -121,6 +129,7 @@ function buildBody(): StreamerInput {
     enabled: form.enabled,
     own_stream: form.own_stream,
     group: form.group.trim(),
+    tiktok_account: form.tiktok_account,
   };
 
   const youtubeKey = form.youtube_key.trim();
@@ -203,6 +212,29 @@ function submit(): void {
             spellcheck="false"
             autocomplete="off"
           />
+        </div>
+
+        <div class="field">
+          <label for="streamer-account">TikTok-Konto</label>
+          <select id="streamer-account" v-model="form.tiktok_account">
+            <option value="">Standard (aktives Konto)</option>
+            <option
+              v-if="form.tiktok_account && !(accounts ?? []).some((acc) => acc.id === form.tiktok_account)"
+              :value="form.tiktok_account"
+            >
+              Unbekanntes Konto ({{ form.tiktok_account }})
+            </option>
+            <option v-for="acc in accounts ?? []" :key="acc.id" :value="acc.id">
+              {{ acc.label }}{{ acc.active ? ' · aktiv' : '' }}
+            </option>
+          </select>
+          <p class="field-hint">
+            Session für Auflösung, Chat und Live-Checks dieses Streamers. „Standard“ nutzt das
+            aktive Konto.
+          </p>
+          <p v-if="streamer?.tiktok_account_missing" class="field-hint tone-danger">
+            Das zugeordnete Konto existiert nicht mehr; es wird das aktive Konto verwendet.
+          </p>
         </div>
 
         <div class="field">

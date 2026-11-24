@@ -131,6 +131,10 @@ export interface Streamer {
   enabled: boolean;
   own_stream: boolean;
   group?: string;
+  /** Pinned TikTok account ('' = active account, #95). */
+  tiktok_account: string;
+  tiktok_account_label: string;
+  tiktok_account_missing: boolean;
   source?: 'manual' | 'discovery';
   video_mode: 'copy' | 'reencode';
   status: {
@@ -1165,6 +1169,7 @@ export interface StreamerInput {
   enabled: boolean;
   own_stream: boolean;
   group?: string;
+  tiktok_account?: string;
 }
 
 export interface StudioPreviewInput {
@@ -1191,6 +1196,7 @@ export interface BulkAddInput {
   channels: string[];
   playlist_id?: string;
   group?: string;
+  tiktok_account?: string;
 }
 
 export interface BulkAddResult {
@@ -1336,6 +1342,8 @@ export interface TikTokAccountPublic {
   active: boolean;
   has_cookie: boolean;
   created_at: string;
+  /** Streamers pinned to this session (#95). */
+  streamer_count?: number;
 }
 
 export interface TikTokAccountsResponse {

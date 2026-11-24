@@ -884,6 +884,10 @@ Accessibility-Checkliste und Kontrastwerte: [`docs/ACCESSIBILITY.md`](./docs/ACC
 - **„not live“, obwohl live:** Manche TikTok-Lives sind login-/zugriffsgeschützt.
   Der Service fällt auf die TikTok-Mobile-Live-API mit `data/cookies.txt`
   zurück. Ggf. eine frische Session eines berechtigten Accounts setzen.
+- **Mehrere TikTok-Konten:** Unter **Einstellungen → TikTok-Konten** Sessions
+  anlegen; im **Streamer-Editor** bekommt jeder Streamer optional ein eigenes
+  Konto („Standard“ = aktives Konto). Auflösung, Chat und Live-Checks nutzen
+  dann dessen Session; Discovery und Following bleiben am aktiven Konto.
 - **Kein Dashboard:** `npm run build:web` ausführen; im Docker-Build passiert
   das automatisch.
 - **Hohe CPU:** `video_mode: copy`, Auflösung/FPS senken oder

@@ -301,6 +301,20 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   der laufende Eintrag trägt eine Akzentkante. Mobil stapeln die Controls, die
   Karte wächst mit dem Inhalt, Verschieben läuft über Griff und Swipe.
 
+### v0.36.0 – TikTok-Session pro Streamer (#95)
+
+**Status: in Arbeit.**
+
+- `streamer.tiktok_account` pinnt eine Session aus den TikTok-Konten; leer =
+  aktives Konto. Sessions bleiben in `data/tiktok-accounts.json`, pro Konto
+  entsteht lazy `data/cookies/<id>.txt` (Modus `0600`).
+- Resolver, Chat-Webcast und die `tiktok`-Online-Checks lösen die Session pro
+  Streamer auf; ein gelöschtes Konto fällt mit einmaliger Warnung auf das
+  aktive Konto zurück. Discovery/Following bleibt am aktiven Konto.
+- UI: Konto-Auswahl im Streamer-Editor und in der Sammel-Anlage, Badge in der
+  Streamer-Liste, „zugeordnet“-Spalte in den Einstellungen und ein Löschguard
+  (`409`, `?reassign=active` zum Auflösen der Zuordnungen).
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:
