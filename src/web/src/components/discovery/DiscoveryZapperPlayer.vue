@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { DiscoveryHit, Streamer } from '@/src/api/types';
 import { DEFAULT_AVATAR_SVG_URL, resolveAvatarSrc } from '@/src/composables/useAvatarFallback';
+import { resolveZapperKey, ZAPPER_SHORTCUTS } from '@/src/utils/discovery-keys';
 
 type ZapperPlayerStatus = 'idle' | 'connecting' | 'playing' | 'error' | 'unsupported';
 type Mpegts = typeof import('mpegts.js').default;
@@ -30,7 +31,9 @@ const emit = defineEmits<{
 
 const zapperIndex = ref(props.initialIndex);
 const zapperVideoRef = ref<HTMLVideoElement | null>(null);
+const container = ref<HTMLElement | null>(null);
 const zapperMuted = ref(false);
+const showHelp = ref(false);
 const zapperStatus = ref<ZapperPlayerStatus>('idle');
 const zapperError = ref<string>('');
 let mpegtsLib: Mpegts | null = null;
@@ -38,6 +41,14 @@ const zapperPlayer = shallowRef<Player | null>(null);
 
 const currentZapperHit = computed<DiscoveryHit | null>(
   () => props.hits[zapperIndex.value] ?? props.hits[0] ?? null,
+);
+
+watch(
+  () => zapperIndex.value,
+  () => {
+    if (!showHelp.value) showHelp.value = false;
+    warmNextRooms();
+  },
 );
 
 watch(
@@ -200,18 +211,73 @@ function onKeyDown(event: KeyboardEvent): void {
     return;
   }
 
-  if (event.key === 'ArrowUp') {
+  const action = resolveZapperKey(event.key);
+  if (!action) return;
+  if (action === 'help') {
     event.preventDefault();
-    prevZapperStreamer();
-  } else if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    void nextZapperStreamer();
-  } else if (event.key === 'm' || event.key === 'M') {
-    event.preventDefault();
-    toggleZapperMute();
-  } else if (event.key === 'Escape') {
-    event.preventDefault();
-    emit('close');
+    showHelp.value = !showHelp.value;
+    return;
+  }
+  if (showHelp.value && action !== 'close') return;
+  event.preventDefault();
+  const hit = currentZapperHit.value;
+  switch (action) {
+    case 'prev':
+      prevZapperStreamer();
+      break;
+    case 'next':
+      void nextZapperStreamer();
+      break;
+    case 'mute':
+      toggleZapperMute();
+      break;
+    case 'fullscreen':
+      void toggleFullscreen();
+      break;
+    case 'switch':
+      if (hit) emit('switch', hit);
+      break;
+    case 'queue':
+      if (hit) emit('queue', hit);
+      break;
+    case 'add':
+      if (hit) emit('add', hit);
+      break;
+    case 'close':
+      if (showHelp.value) showHelp.value = false;
+      else emit('close');
+      break;
+  }
+}
+
+/** Fullscreen the stage; the panel stays mounted behind it. */
+async function toggleFullscreen(): Promise<void> {
+  const stage = container.value;
+  if (!stage) return;
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await stage.requestFullscreen();
+  } catch {
+    /* fullscreen may be blocked; ignore */
+  }
+}
+
+/**
+ * Warms the room metadata of the next two hits so zapping does not wait for a
+ * cold provider call. Only JSON, never a second video stream.
+ */
+let warmController: AbortController | null = null;
+function warmNextRooms(): void {
+  warmController?.abort();
+  const controller = new AbortController();
+  warmController = controller;
+  const upcoming = props.hits.slice(zapperIndex.value + 1, zapperIndex.value + 3);
+  for (const hit of upcoming) {
+    if (!hit.live) continue;
+    void fetch(`/api/discovery/room/${encodeURIComponent(hit.handle)}`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+    }).catch(() => undefined);
   }
 }
 
@@ -234,7 +300,12 @@ defineExpose({
 </script>
 
 <template>
-  <section v-if="currentZapperHit" class="zapper-container" aria-label="TikTok Live-Zapper">
+  <section
+    v-if="currentZapperHit"
+    ref="container"
+    class="zapper-container"
+    aria-label="TikTok Live-Zapper"
+  >
     <div class="zapper-stage">
       <!-- Blurred Ambient Backdrop -->
       <div
@@ -288,12 +359,35 @@ defineExpose({
           <button
             type="button"
             class="btn btn-sm zapper-ctrl-btn"
+            title="Tastaturkürzel anzeigen (?)"
+            aria-label="Tastaturkürzel anzeigen"
+            @click="showHelp = !showHelp"
+          >
+            ?
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm zapper-ctrl-btn"
             title="Zurück zur Karten-Übersicht (Esc)"
             @click="emit('close')"
           >
             ✕ Karten
           </button>
         </div>
+      </div>
+
+      <!-- Keyboard help (#92) -->
+      <div v-if="showHelp" class="zapper-help" role="dialog" aria-label="Tastaturkürzel">
+        <h3>Tastaturkürzel</h3>
+        <ul>
+          <li v-for="shortcut in ZAPPER_SHORTCUTS" :key="shortcut.keys">
+            <kbd>{{ shortcut.keys }}</kbd>
+            <span>{{ shortcut.label }}</span>
+          </li>
+        </ul>
+        <button type="button" class="btn btn-sm btn-outline" @click="showHelp = false">
+          Schließen (Esc)
+        </button>
       </div>
 
       <!-- Center Error / Retry Overlay -->
@@ -450,12 +544,57 @@ defineExpose({
         </svg>
       </button>
 
-      <p class="zapper-rail-hint mono">▲ / ▼ Tasten</p>
+      <p class="zapper-rail-hint mono">← / → Tasten · ? für Hilfe</p>
     </aside>
   </section>
 </template>
 
 <style scoped>
+.zapper-help {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  min-width: 250px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-1);
+  box-shadow: var(--elev-3);
+}
+
+.zapper-help h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.zapper-help ul {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.zapper-help li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.zapper-help kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
 .zapper-container {
   display: flex;
   align-items: stretch;
