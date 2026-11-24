@@ -58,6 +58,32 @@ const sinkTone = computed(() => {
 
 <template>
   <div class="cockpit-widgets">
+    <section class="card widget-card" aria-label="Discovery-Kennzahlen">
+      <div class="widget-head">
+        <span class="widget-label">Discovery</span>
+        <button type="button" class="widget-toggle" @click="openDiscoveryPanel()">
+          Öffnen (D)
+        </button>
+      </div>
+      <strong class="widget-value mono">
+        {{ formatNumber(discoveryCount) }} <small>live</small>
+      </strong>
+      <ul v-if="discoveryLive.length > 0" class="widget-list">
+        <li v-for="hit in discoveryLive" :key="hit.handle">
+          <button
+            type="button"
+            class="widget-hit"
+            :title="`${hit.display_name} im Zapper vorhören`"
+            @click="openHit(hit.handle)"
+          >
+            {{ hit.display_name }}
+          </button>
+          <span class="mono">{{ hit.viewers === null ? '–' : formatNumber(hit.viewers) }}</span>
+        </li>
+      </ul>
+      <p v-else class="widget-sub">Keine Live-Treffer geladen.</p>
+    </section>
+
     <section v-if="viewers !== null" class="card widget-card" aria-label="Zuschauer">
       <div class="widget-head">
         <span class="widget-label">Zuschauer</span>
@@ -136,30 +162,5 @@ const sinkTone = computed(() => {
       </p>
     </section>
 
-    <section class="card widget-card" aria-label="Discovery-Kennzahlen">
-      <div class="widget-head">
-        <span class="widget-label">Discovery</span>
-        <button type="button" class="widget-toggle" @click="openDiscoveryPanel()">
-          Öffnen (D)
-        </button>
-      </div>
-      <strong class="widget-value mono">
-        {{ formatNumber(discoveryCount) }} <small>live</small>
-      </strong>
-      <ul v-if="discoveryLive.length > 0" class="widget-list">
-        <li v-for="hit in discoveryLive" :key="hit.handle">
-          <button
-            type="button"
-            class="widget-hit"
-            :title="`${hit.display_name} im Zapper vorhören`"
-            @click="openHit(hit.handle)"
-          >
-            {{ hit.display_name }}
-          </button>
-          <span class="mono">{{ hit.viewers === null ? '–' : formatNumber(hit.viewers) }}</span>
-        </li>
-      </ul>
-      <p v-else class="widget-sub">Keine Live-Treffer geladen.</p>
-    </section>
   </div>
 </template>

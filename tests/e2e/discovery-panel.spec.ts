@@ -93,6 +93,13 @@ test.describe('discovery panel', () => {
     await page.keyboard.press('d');
     await expect(page.locator('.discovery-panel')).toBeVisible();
 
+    // The padding is animated (180 ms); wait for it to settle before measuring.
+    await page.waitForFunction(
+      () =>
+        parseFloat(
+          getComputedStyle(document.querySelector('.page-dashboard') as HTMLElement).paddingRight,
+        ) > 300,
+    );
     const metrics = await page.evaluate(() => {
       const grid = getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length;
       const pageEl = document.querySelector('.page-dashboard') as HTMLElement;

@@ -16,7 +16,14 @@ const emit = defineEmits<{ 'queue-now': [] }>();
 const { actions, busyId, isEnabled, reasonFor, runAction } = useActions();
 
 /** Order shown in the cockpit, independent of registry order. */
-const BASE_ORDER = ['stream.switch', 'screen.pause', 'stream.stop', 'queue.next', 'sink.restart'];
+const BASE_ORDER = [
+  'stream.switch',
+  'screen.pause',
+  'stream.stop',
+  'queue.next',
+  'discovery.open',
+  'sink.restart',
+];
 
 interface Entry {
   action: ActionDef;
@@ -30,6 +37,7 @@ const BASE_ICONS: Record<string, string> = {
   'stream.stop': 'M6 6h12v12H6z',
   'queue.next': 'M5 5l10 7-10 7zM19 5v14',
   'sink.restart': 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
+  'discovery.open': 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-3.5-3.5',
 };
 
 const VARIANTS: Record<string, Entry['variant']> = {
@@ -39,6 +47,7 @@ const VARIANTS: Record<string, Entry['variant']> = {
   'stream.stop': 'danger',
   'queue.next': 'secondary',
   'sink.restart': 'secondary',
+  'discovery.open': 'secondary',
 };
 
 const ICONS: Record<string, string> = {
@@ -61,7 +70,10 @@ const entries = computed<Entry[]>(() => {
 
 function titleFor(entry: Entry): string {
   const reason = reasonFor(entry.action);
-  return reason ?? entry.action.description;
+  if (reason) return reason;
+  // Shortcut hint for the panel (documented in the workspace footer as well).
+  if (entry.action.id === 'discovery.open') return `${entry.action.description} (Taste D)`;
+  return entry.action.description;
 }
 </script>
 
