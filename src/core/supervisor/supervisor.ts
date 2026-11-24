@@ -165,6 +165,7 @@ export class Supervisor {
       startFile: (file, options) => this.startFileLocked(file, options),
       startScreen: (type) => this.showScreenLocked(type),
       resolveQueueKey: () => this.resolveQueueKey(),
+      repeatCurrent: () => this.playlistController.current?.playlist.id === QUEUE_PLAYLIST_ID && this.queue.loopModeValue() === 'one',
       stopAll: () => this.stopInternalLocked(),
       transition: (state, reason) => this.transitionTo(state, reason),
       emitStatus: () => this.emitStatus(),
@@ -833,6 +834,28 @@ export class Supervisor {
 
   async queueSetLoop(loop: boolean): Promise<QueueSnapshot> {
     return this.queueCoordinator.setLoop(loop);
+  }
+
+  async queueSetLoopMode(mode: 'off' | 'all' | 'one'): Promise<QueueSnapshot> {
+    return this.queueCoordinator.setLoopMode(mode);
+  }
+
+  /** Unified enqueue for streamers, files and screens (#94). */
+  async queueEnqueue(channel: string, mode: 'now' | 'next' | 'end'): Promise<QueueSnapshot> {
+    return this.queueCoordinator.enqueue(channel, mode);
+  }
+
+  /** Copies a playlist into the regie queue (#94). */
+  async queueFromPlaylist(
+    playlistId: string,
+    mode: 'replace' | 'append',
+  ): Promise<QueueSnapshot> {
+    const playlist = this.deps.store.playlists().find((entry) => entry.id === playlistId);
+    if (!playlist) throw new NotFoundError(`Playlist "${playlistId}" wurde nicht gefunden`);
+    if (playlistId === QUEUE_PLAYLIST_ID) {
+      throw new ValidationError('Die Regie-Queue kann nicht in sich selbst geladen werden');
+    }
+    return this.queueCoordinator.loadFromPlaylist(playlist.channels, mode);
   }
 
   async queueClear(): Promise<QueueSnapshot> {

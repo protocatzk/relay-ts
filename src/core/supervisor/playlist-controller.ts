@@ -37,6 +37,8 @@ export interface PlaylistControllerDeps {
   startScreen(type: 'startup' | 'pause'): Promise<StatusSnapshot>;
   /** Key used for local videos inside the regie queue (current sink or target). */
   resolveQueueKey(): string;
+  /** True when the running entry should restart instead of advancing (#94). */
+  repeatCurrent?(): boolean;
   stopAll(): Promise<StatusSnapshot>;
   transition(state: StreamState, reason?: string): void;
   emitStatus(): void;
@@ -311,6 +313,10 @@ export class PlaylistController {
     if (this.advanceTimer) clearTimeout(this.advanceTimer);
     this.advanceTimer = undefined;
     this.advancePending = false;
+    // Loop "one": restart the current entry instead of advancing.
+    if (this.deps.repeatCurrent?.()) {
+      return this.startEntryLocked(playlist, state.index);
+    }
     const nextIndex = state.index + 1;
     if (nextIndex >= playlist.channels.length && !playlist.wrap) {
       this.deps.logger.info({ playlist: playlist.id }, 'Playlist beendet');

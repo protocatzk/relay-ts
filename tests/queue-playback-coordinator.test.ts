@@ -27,6 +27,7 @@ describe('QueuePlaybackCoordinator', () => {
       indexOfId: vi.fn((id: string) => queueEntries.findIndex((e) => e.id === id)),
       entryIdAt: vi.fn((idx: number) => queueEntries[idx]?.id ?? null),
       setLoop: vi.fn(),
+      setLoopMode: vi.fn(),
       clear: vi.fn(() => queueEntries.splice(0, queueEntries.length)),
       clearPlayback: vi.fn(),
       get: vi.fn().mockReturnValue(queueEntries),
@@ -59,7 +60,8 @@ describe('QueuePlaybackCoordinator', () => {
     expect(queueMock.add).toHaveBeenCalledWith('test-channel');
 
     await coordinator.setLoop(true);
-    expect(queueMock.setLoop).toHaveBeenCalledWith(true);
+    // The boolean API now maps onto the loop mode (#94).
+    expect(queueMock.setLoopMode).toHaveBeenCalledWith('all');
 
     await coordinator.clear();
     expect(queueMock.clear).toHaveBeenCalled();

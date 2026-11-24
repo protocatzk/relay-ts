@@ -8,6 +8,16 @@ const SeekBodySchema = z.object({
   seconds: z.coerce.number().finite().min(0).max(24 * 60 * 60),
 });
 
+const EnqueueBodySchema = z.object({
+  channel: z.string().min(1).max(300),
+  mode: z.enum(['now', 'next', 'end']).optional().default('next'),
+});
+
+const FromPlaylistBodySchema = z.object({
+  playlist_id: z.string().min(1).max(120),
+  mode: z.enum(['replace', 'append']).optional().default('replace'),
+});
+
 const LoopBodySchema = z.object({
   /** `off` and `all` map onto the existing queue loop flag (#94). */
   loop: z.enum(['off', 'all', 'one']),
@@ -95,10 +105,31 @@ export async function registerPlaybackRoutes(app: FastifyInstance, ctx: ApiConte
         parsed.error.issues,
       );
     }
-    if (parsed.data.loop === 'one') {
-      throw new ValidationError('Loop "one" ist noch nicht verfügbar');
+    const queue = await supervisor().queueSetLoopMode(parsed.data.loop);
+    return { ok: true, queue, state: supervisor().buildPlaybackState() };
+  });
+
+  app.post('/api/playback/enqueue', async (request: FastifyRequest) => {
+    const parsed = EnqueueBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError(
+        `Ungültiger Eintrag: ${formatZodError(parsed.error)}`,
+        parsed.error.issues,
+      );
     }
-    const queue = await supervisor().queueSetLoop(parsed.data.loop === 'all');
+    const queue = await supervisor().queueEnqueue(parsed.data.channel, parsed.data.mode);
+    return { ok: true, queue, state: supervisor().buildPlaybackState() };
+  });
+
+  app.post('/api/playback/queue-from-playlist', async (request: FastifyRequest) => {
+    const parsed = FromPlaylistBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError(
+        `Ungültige Playlist: ${formatZodError(parsed.error)}`,
+        parsed.error.issues,
+      );
+    }
+    const queue = await supervisor().queueFromPlaylist(parsed.data.playlist_id, parsed.data.mode);
     return { ok: true, queue, state: supervisor().buildPlaybackState() };
   });
 

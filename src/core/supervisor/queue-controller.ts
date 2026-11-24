@@ -13,7 +13,7 @@ import { ValidationError } from '../../utils/errors.js';
 export const QUEUE_PLAYLIST_ID = '__regie__';
 
 const MAX_QUEUE_ENTRIES = 200;
-const QUEUE_FILE_VERSION = 2;
+const QUEUE_FILE_VERSION = 3;
 
 export interface QueueEntry {
   id: string;
@@ -29,11 +29,15 @@ export interface QueuePlayback {
   updated_at: string;
 }
 
+type QueueLoopMode = 'off' | 'all' | 'one';
+
 interface QueueFile {
   version: number;
   entries: QueueEntry[];
   playback: QueuePlayback | null;
+  /** Legacy boolean from version 2; migrated into `loop_mode` on load. */
   loop?: boolean;
+  loop_mode?: QueueLoopMode;
 }
 
 export interface QueueControllerDeps {
@@ -53,7 +57,7 @@ export class QueueController {
   private readonly deps: QueueControllerDeps;
   private entries: QueueEntry[] = [];
   private playback: QueuePlayback | null = null;
-  private loop = false;
+  private loopMode: QueueLoopMode = 'off';
   private loaded = false;
 
   constructor(deps: QueueControllerDeps) {
@@ -66,13 +70,22 @@ export class QueueController {
   }
 
   isLoop(): boolean {
-    this.load();
-    return this.loop;
+    return this.loopModeValue() === 'all';
   }
 
-  setLoop(enabled: boolean): void {
+  loopModeValue(): QueueLoopMode {
     this.load();
-    this.loop = Boolean(enabled);
+    return this.loopMode;
+  }
+
+  /** Legacy boolean API: keeps `setLoop(true)` as "loop all" (#94). */
+  setLoop(enabled: boolean): void {
+    this.setLoopMode(enabled ? 'all' : 'off');
+  }
+
+  setLoopMode(mode: QueueLoopMode): void {
+    this.load();
+    this.loopMode = mode === 'one' ? 'one' : mode === 'all' ? 'all' : 'off';
     this.persist();
   }
 
@@ -104,6 +117,7 @@ export class QueueController {
       playing,
       index,
       loop: this.isLoop(),
+      loop_mode: this.loopModeValue(),
     };
   }
 
@@ -194,6 +208,34 @@ export class QueueController {
     return true;
   }
 
+  /** Replaces the whole queue; used by "Playlist in die Queue laden" (#94). */
+  replaceAll(channels: string[]): void {
+    this.load();
+    this.entries = channels
+      .map((channel) => channel.trim())
+      .filter((channel) => channel.length > 0)
+      .slice(0, MAX_QUEUE_ENTRIES)
+      .map((channel) => ({ id: randomUUID(), channel }));
+    this.playback = null;
+    this.persist();
+  }
+
+  /** Appends channels without touching the running entry (#94). */
+  appendMany(channels: string[]): void {
+    this.load();
+    const room = MAX_QUEUE_ENTRIES - this.entries.length;
+    if (room <= 0) {
+      throw new ValidationError(`Die Regie-Queue ist auf ${MAX_QUEUE_ENTRIES} Einträge begrenzt`);
+    }
+    const next = channels
+      .map((channel) => channel.trim())
+      .filter((channel) => channel.length > 0)
+      .slice(0, room)
+      .map((channel) => ({ id: randomUUID(), channel }));
+    this.entries.push(...next);
+    this.persist();
+  }
+
   clear(): void {
     this.load();
     this.entries = [];
@@ -267,7 +309,8 @@ export class QueueController {
     if (!this.deps.path) return;
     const raw = readJsonFile<QueueFile | null>(this.deps.path, null);
     if (!raw || !Array.isArray(raw.entries)) return;
-    if (raw.version !== 1 && raw.version !== QUEUE_FILE_VERSION) return;
+    // Version 2 is still accepted so the loop boolean can be migrated (#94).
+    if (raw.version !== 1 && raw.version !== 2 && raw.version !== QUEUE_FILE_VERSION) return;
     this.entries = raw.entries
       .filter(
         (entry): entry is QueueEntry =>
@@ -283,7 +326,13 @@ export class QueueController {
           ? { id: entry.id, channel: entry.channel, duration_seconds: duration }
           : { id: entry.id, channel: entry.channel };
       });
-    this.loop = raw.loop === true;
+    // Migration: version 2 stored a boolean, version 3 stores the mode.
+    this.loopMode =
+      raw.loop_mode === 'all' || raw.loop_mode === 'one'
+        ? raw.loop_mode
+        : raw.loop === true
+          ? 'all'
+          : 'off';
     const playback = (raw as { playback?: QueuePlayback | null }).playback;
     if (
       playback &&
@@ -312,7 +361,7 @@ export class QueueController {
         version: QUEUE_FILE_VERSION,
         entries: this.entries,
         playback: this.playback,
-        loop: this.loop,
+        loop_mode: this.loopMode,
       } satisfies QueueFile);
     } catch (error) {
       this.deps.logger.warn(

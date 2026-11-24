@@ -90,8 +90,12 @@ export class QueuePlaybackCoordinator {
   }
 
   async setLoop(loop: boolean): Promise<QueueSnapshot> {
+    return this.setLoopMode(loop ? 'all' : 'off');
+  }
+
+  async setLoopMode(mode: 'off' | 'all' | 'one'): Promise<QueueSnapshot> {
     return this.deps.lock.run(async () => {
-      this.deps.queue.setLoop(loop);
+      this.deps.queue.setLoopMode(mode);
       this.deps.emitQueue();
       return this.buildSnapshot();
     });
@@ -135,6 +139,40 @@ export class QueuePlaybackCoordinator {
 
   async stop(): Promise<StatusSnapshot> {
     return this.deps.stop();
+  }
+
+  /** Unified enqueue with `now`/`next`/`end` (#94). */
+  async enqueue(channel: string, mode: 'now' | 'next' | 'end'): Promise<QueueSnapshot> {
+    if (mode === 'now') {
+      await this.playNow(channel);
+      return this.buildSnapshot();
+    }
+    if (mode === 'end') {
+      return this.add(channel);
+    }
+    // "next" inserts behind the running entry; without a running queue it is
+    // simply the first entry.
+    return this.deps.lock.run(async () => {
+      const active = this.deps.playlistController.current;
+      const isQueue = active?.playlist.id === QUEUE_PLAYLIST_ID;
+      if (isQueue && active) this.deps.queue.insertAt(channel, active.index + 1);
+      else this.deps.queue.insertAt(channel, 0);
+      this.deps.emitQueue();
+      return this.buildSnapshot();
+    });
+  }
+
+  /** Loads a playlist into the queue as a copy (#94). */
+  async loadFromPlaylist(
+    channels: string[],
+    mode: 'replace' | 'append',
+  ): Promise<QueueSnapshot> {
+    return this.deps.lock.run(async () => {
+      if (mode === 'replace') this.deps.queue.replaceAll(channels);
+      else this.deps.queue.appendMany(channels);
+      this.deps.emitQueue();
+      return this.buildSnapshot();
+    });
   }
 
   async playNow(channel: string): Promise<StatusSnapshot> {

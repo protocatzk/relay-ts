@@ -55,6 +55,7 @@ describe('Playback API routes', () => {
       queueNext: vi.fn(async () => ({ state: 'live' })),
       queuePrevious: vi.fn(async () => ({ state: 'live' })),
       queueSetLoop: vi.fn(async () => ({ entries: [], playing: true, index: 0, loop: true })),
+      queueSetLoopMode: vi.fn(async () => ({ entries: [], playing: true, index: 0, loop_mode: 'all' })),
       queuePlayNow: vi.fn(async () => ({ state: 'live' })),
       showScreen: vi.fn(async () => ({ state: 'paused' })),
       hideScreen: vi.fn(async () => ({ state: 'live' })),
@@ -155,15 +156,15 @@ describe('Playback API routes', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('POST /api/playback/loop maps off/all and rejects one', async () => {
-    const on = await app.inject({
+  it('POST /api/playback/loop passes the loop mode through', async () => {
+    const all = await app.inject({
       method: 'POST',
       url: '/api/playback/loop',
       headers: auth,
       payload: { loop: 'all' },
     });
-    expect(on.statusCode).toBe(200);
-    expect(supervisor.queueSetLoop).toHaveBeenCalledWith(true);
+    expect(all.statusCode).toBe(200);
+    expect(supervisor.queueSetLoopMode).toHaveBeenCalledWith('all');
 
     const one = await app.inject({
       method: 'POST',
@@ -171,7 +172,16 @@ describe('Playback API routes', () => {
       headers: auth,
       payload: { loop: 'one' },
     });
-    expect(one.statusCode).toBe(400);
+    expect(one.statusCode).toBe(200);
+    expect(supervisor.queueSetLoopMode).toHaveBeenCalledWith('one');
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/playback/loop',
+      headers: auth,
+      payload: { loop: 'sometimes' },
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 
   it('POST /api/playback/queue-now requires a channel', async () => {

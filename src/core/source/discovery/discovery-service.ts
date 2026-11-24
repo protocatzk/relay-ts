@@ -485,7 +485,7 @@ export class DiscoveryService {
     return { streamer: created, created: true };
   }
 
-  async queueNow(handle: string, mode: 'now' | 'next' = 'now'): Promise<{
+  async queueNow(handle: string, mode: 'now' | 'next' | 'end' = 'now'): Promise<{
     streamer: StreamerConfig;
     created: boolean;
     queue: unknown;
@@ -504,11 +504,16 @@ export class DiscoveryService {
       this.deps.supervisor.notifyStreamersChanged?.();
     }
 
+    // `now` starts immediately, `next` slips behind the running entry and
+    // `end` appends (#94).
     let statusResult: unknown;
     if (mode === 'now') {
       statusResult = await this.deps.supervisor.queuePlayNow(streamer.id);
-    } else {
+    } else if (mode === 'end') {
       await this.deps.supervisor.queueAdd(streamer.id);
+      statusResult = this.deps.supervisor.buildStatus();
+    } else {
+      await this.deps.supervisor.queueEnqueue(streamer.id, 'next');
       statusResult = this.deps.supervisor.buildStatus();
     }
 

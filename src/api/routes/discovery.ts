@@ -64,7 +64,7 @@ const AddBodySchema = z.object({
 
 const QueueBodySchema = z.object({
   handle: z.string().min(1).max(100),
-  mode: z.enum(['now', 'next']).optional().default('now'),
+  mode: z.enum(['now', 'next', 'end']).optional().default('now'),
 });
 
 const SwitchBodySchema = z.object({

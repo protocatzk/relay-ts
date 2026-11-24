@@ -36,6 +36,7 @@ function service(options: {
   return new PlaybackService({
     queue: {
       isLoop: () => Boolean(options.loop),
+      loopModeValue: () => (options.loop ? 'all' : 'off'),
       snapshot: () => ({ ...queueSnapshot, loop: Boolean(options.loop) }),
     } as never,
     status: () => status(options.status),

@@ -29,7 +29,16 @@ const isPlaying = computed(() => Boolean(playback.value?.playing));
 const hasDuration = computed(() => (playback.value?.duration_seconds ?? 0) > 0);
 const canStep = computed(() => source.value === 'queue' || source.value === 'playlist');
 const canLoop = computed(() => source.value === 'queue');
-const loopLabel = computed(() => (playback.value?.loop === 'all' ? 'Loop an' : 'Loop aus'));
+const loopLabel = computed(() => {
+  switch (playback.value?.loop) {
+    case 'all':
+      return 'Loop alle';
+    case 'one':
+      return 'Loop eins';
+    default:
+      return 'Loop aus';
+  }
+});
 
 const sourceLabel = computed(() => {
   switch (source.value) {
@@ -93,9 +102,17 @@ function stopPlayback(): void {
   void run('stop', () => api.playback.stop(), 'Wiedergabe gestoppt.');
 }
 
-function toggleLoop(): void {
-  const next = playback.value?.loop === 'all' ? 'off' : 'all';
-  void run('loop', () => api.playback.loop(next), next === 'all' ? 'Loop aktiviert.' : 'Loop deaktiviert.');
+/** Cycles off → all → one → off (#94). */
+function cycleLoop(): void {
+  const next =
+    playback.value?.loop === 'off' ? 'all' : playback.value?.loop === 'all' ? 'one' : 'off';
+  const message =
+    next === 'all'
+      ? 'Loop über alle Einträge.'
+      : next === 'one'
+        ? 'Aktueller Eintrag wird wiederholt.'
+        : 'Loop deaktiviert.';
+  void run('loop', () => api.playback.loop(next), message);
 }
 
 function commitSeek(): void {
@@ -163,10 +180,10 @@ function commitSeek(): void {
         v-if="canLoop"
         type="button"
         class="btn btn-ghost btn-xs"
-        :class="{ 'is-active': playback?.loop === 'all' }"
-        :aria-pressed="playback?.loop === 'all'"
+        :class="{ 'is-active': playback?.loop !== 'off' }"
+        :aria-pressed="playback?.loop !== 'off'"
         :disabled="busy !== null"
-        @click="toggleLoop"
+        @click="cycleLoop"
       >
         {{ loopLabel }}
       </button>

@@ -133,3 +133,48 @@ describe('QueueController', () => {
     expect(snapshot.index).toBe(1);
   });
 });
+
+describe('queue loop modes and playlist import (#94)', () => {
+  it('migrates the legacy boolean loop into loop_mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-queue-loop-'));
+    const path = join(dir, 'queue.json');
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 2,
+        entries: [{ id: 'a', channel: 'file:a.mp4' }],
+        playback: null,
+        loop: true,
+      }),
+    );
+    const controller = new QueueController({
+      path,
+      dataDir: dir,
+      store: new StreamerStore(join(dir, 'streamers.yml'), { streamers: [], playlists: [] }, logger),
+      logger,
+    });
+    expect(controller.loopModeValue()).toBe('all');
+    expect(controller.isLoop()).toBe(true);
+  });
+
+  it('persists loop mode one and keeps the boolean alias off', () => {
+    const { controller, path, dataDir, store } = setup();
+    controller.setLoopMode('one');
+    expect(controller.loopModeValue()).toBe('one');
+    expect(controller.isLoop()).toBe(false);
+
+    const reread = new QueueController({ path, dataDir, store, logger });
+    expect(reread.loopModeValue()).toBe('one');
+    expect(reread.snapshot(true, 0).loop_mode).toBe('one');
+  });
+
+  it('replaces and appends playlist channels as a copy', () => {
+    const { controller } = setup();
+    controller.replaceAll(['file:clip.mp4', 'beta']);
+    expect(controller.get().map((entry) => entry.channel)).toEqual(['file:clip.mp4', 'beta']);
+
+    controller.appendMany(['alpha']);
+    expect(controller.get()).toHaveLength(3);
+    expect(controller.get()[2]?.channel).toBe('alpha');
+  });
+});

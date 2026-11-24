@@ -14,6 +14,8 @@ const media = ref<MediaFile[]>([]);
 const selectedMedia = ref('');
 const selectedStreamer = ref('');
 const selectedScreen = ref<'pause' | 'startup'>('pause');
+const selectedPlaylist = ref('');
+const playlistMode = ref<'replace' | 'append'>('replace');
 const busy = ref(false);
 const editingDurationId = ref<string | null>(null);
 const editingDurationValue = ref('');
@@ -150,6 +152,29 @@ function remove(id: string): void {
 
 function duplicate(id: string): void {
   void run(() => api.queue.duplicate(id));
+}
+
+/** Copies a playlist into the queue (#94). */
+function loadPlaylist(): void {
+  const id = selectedPlaylist.value;
+  if (!id) return;
+  void (async () => {
+    busy.value = true;
+    try {
+      const res = await api.playback.queueFromPlaylist(id, playlistMode.value);
+      applyQueue(res.queue);
+      pushToast(
+        playlistMode.value === 'replace'
+          ? 'Playlist in die Queue geladen.'
+          : 'Playlist an die Queue angehängt.',
+        'success',
+      );
+    } catch (error) {
+      pushToast(errorMessage(error), 'error');
+    } finally {
+      busy.value = false;
+    }
+  })();
 }
 
 function toggleLoop(): void {
@@ -364,6 +389,27 @@ onMounted(() => void loadMedia());
           @click="addStreamer"
         >
           + Streamer
+        </button>
+      </div>
+      <div class="regie-add-row">
+        <select v-model="selectedPlaylist" aria-label="Playlist auswählen">
+          <option value="" disabled>Playlist laden …</option>
+          <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
+            {{ playlist.name }} ({{ playlist.channels.length }})
+          </option>
+        </select>
+        <select v-model="playlistMode" aria-label="Playlist-Modus" class="regie-mode-select">
+          <option value="replace">ersetzen</option>
+          <option value="append">anhängen</option>
+        </select>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          :disabled="busy || !selectedPlaylist"
+          title="Playlist als Kopie in die Regie-Queue laden"
+          @click="loadPlaylist"
+        >
+          + Playlist
         </button>
       </div>
       <div class="regie-add-row">

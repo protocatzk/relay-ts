@@ -74,7 +74,7 @@ export class PlaybackService {
 
   private resolveLoop(isQueue: boolean): PlaybackLoop {
     if (!isQueue) return 'off';
-    return this.deps.queue.isLoop() ? 'all' : 'off';
+    return this.deps.queue.loopModeValue();
   }
 
   private resolveCurrent(
@@ -127,7 +127,12 @@ export class PlaybackService {
   ): PlaybackEntry | null {
     if (isQueue && active) {
       const nextIndex = active.index + 1;
-      const entry = queueEntries[nextIndex] ?? (this.deps.queue.isLoop() ? queueEntries[0] : undefined);
+      const loopAll = this.deps.queue.loopModeValue() === 'all';
+      const entry =
+        queueEntries[nextIndex] ??
+        (loopAll ? queueEntries[0] : undefined) ??
+        // loop "one" repeats the current entry, so it is also "next".
+        (this.deps.queue.loopModeValue() === 'one' ? queueEntries[active.index] : undefined);
       if (entry) return { kind: entry.kind, id: entry.id, label: entry.label, channel: entry.channel };
       return null;
     }

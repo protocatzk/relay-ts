@@ -174,6 +174,56 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
     execute: async (_params, ctx) => ctx.supervisor.queueStop(),
   });
 
+  // 11b. Unified playback (#94)
+  registry.register({
+    name: 'relay_playback_state',
+    description:
+      'Gibt den einheitlichen Wiedergabe-Zustand zurück (Quelle, aktueller und nächster Eintrag, Pause, Position, Loop).',
+    schema: z.object({}),
+    execute: async (_params, ctx) => ctx.supervisor.buildPlaybackState(),
+  });
+
+  registry.register({
+    name: 'relay_playback_control',
+    description:
+      'Steuert die Wiedergabe: play, pause, resume, stop, next, previous oder seek (Sekunden).',
+    destructive: true,
+    schema: z.object({
+      action: z.enum(['play', 'pause', 'resume', 'stop', 'next', 'previous', 'seek']),
+      seconds: z.number().min(0).optional().describe('Nur für action=seek'),
+    }),
+    execute: async ({ action, seconds }, ctx) => {
+      switch (action) {
+        case 'play':
+          return ctx.supervisor.buildPlaybackState();
+        case 'pause':
+          return ctx.supervisor.showScreen('pause');
+        case 'resume':
+          return ctx.supervisor.hideScreen();
+        case 'stop':
+          return ctx.supervisor.stop();
+        case 'next':
+          return ctx.supervisor.queueNext();
+        case 'previous':
+          return ctx.supervisor.queuePrevious();
+        case 'seek':
+          return ctx.supervisor.seekActiveVideo(seconds ?? 0);
+      }
+    },
+  });
+
+  registry.register({
+    name: 'relay_queue_enqueue',
+    description:
+      'Reiht einen Kanal in die Regie-Queue ein: now (sofort), next (als Nächstes) oder end (ans Ende).',
+    destructive: true,
+    schema: z.object({
+      channel: z.string().describe('z. B. "file:trailer.mp4", Streamer-ID oder "screen:pause"'),
+      mode: z.enum(['now', 'next', 'end']).default('next'),
+    }),
+    execute: async ({ channel, mode }, ctx) => ctx.supervisor.queueEnqueue(channel, mode),
+  });
+
   // 12. relay_playlist_play
   registry.register({
     name: 'relay_playlist_play',

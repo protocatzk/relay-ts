@@ -191,6 +191,24 @@ async function addDeckMarker(): Promise<void> {
   );
 }
 
+async function queueStep(direction: 'next' | 'back'): Promise<void> {
+  await run(
+    `queue:${direction}`,
+    () => (direction === 'next' ? api.playback.next() : api.playback.previous()),
+    direction === 'next' ? 'Nächster Eintrag.' : 'Vorheriger Eintrag.',
+  );
+}
+
+async function queuePlayPause(): Promise<void> {
+  const playback = store.playback;
+  if (playback?.paused || !playback?.playing) {
+    const action = playback?.source === 'idle' ? api.playback.play : api.playback.resume;
+    await run('queue:pause', () => action(), 'Wiedergabe läuft.');
+    return;
+  }
+  await run('queue:pause', () => api.playback.pause(), 'Wiedergabe pausiert.');
+}
+
 async function switchTo(streamer: Streamer): Promise<void> {
   const switching = Boolean(activeId.value);
   await run(
@@ -419,6 +437,51 @@ onBeforeUnmount(() => {
             <path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>
           {{ manualScreen === 'startup' ? 'Startbildschirm aus' : 'Startbildschirm' }}
+        </button>
+        <button
+          v-else-if="action.id === 'queue_next'"
+          type="button"
+          class="deck-btn deck-btn-queue"
+          :disabled="busy !== null"
+          @click="queueStep('next')"
+        >
+          <span v-if="busy === 'queue:next'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path d="m5 5 10 7-10 7zM19 5v14" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          </svg>
+          Weiter
+        </button>
+        <button
+          v-else-if="action.id === 'queue_back'"
+          type="button"
+          class="deck-btn deck-btn-queue"
+          :disabled="busy !== null"
+          @click="queueStep('back')"
+        >
+          <span v-if="busy === 'queue:back'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path d="M19 5 9 12l10 7zM5 5v14" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          </svg>
+          Zurück
+        </button>
+        <button
+          v-else-if="action.id === 'queue_playpause'"
+          type="button"
+          class="deck-btn deck-btn-queue"
+          :disabled="busy !== null"
+          @click="queuePlayPause"
+        >
+          <span v-if="busy === 'queue:pause'" class="spinner spinner-lg" aria-hidden="true"></span>
+          <svg v-else viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+            <path
+              :d="store.playback?.paused || !store.playback?.playing ? 'm8 5 11 7-11 7V5Z' : 'M8 5v14M16 5v14'"
+              :fill="store.playback?.paused || !store.playback?.playing ? 'currentColor' : 'none'"
+              :stroke="store.playback?.paused || !store.playback?.playing ? 'none' : 'currentColor'"
+              stroke-width="2.4"
+              stroke-linecap="round"
+            />
+          </svg>
+          Play / Pause
         </button>
         <button
           v-else-if="action.id === 'marker'"

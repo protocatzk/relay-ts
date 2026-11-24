@@ -1141,6 +1141,36 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'post',
+    path: '/api/playback/enqueue',
+    tag: 'playback',
+    summary: 'Kanal in die Regie-Queue einreihen (now, next, end)',
+    body: {
+      type: 'object',
+      required: ['channel'],
+      properties: {
+        channel: { type: 'string' },
+        mode: { type: 'string', enum: ['now', 'next', 'end'] },
+      },
+    },
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+  {
+    method: 'post',
+    path: '/api/playback/queue-from-playlist',
+    tag: 'playback',
+    summary: 'Playlist als Kopie in die Regie-Queue laden',
+    body: {
+      type: 'object',
+      required: ['playlist_id'],
+      properties: {
+        playlist_id: { type: 'string' },
+        mode: { type: 'string', enum: ['replace', 'append'] },
+      },
+    },
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+  {
+    method: 'post',
     path: '/api/playback/loop',
     tag: 'playback',
     summary: 'Loop-Modus der Regie-Queue setzen',

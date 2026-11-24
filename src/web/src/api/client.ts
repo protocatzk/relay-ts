@@ -888,7 +888,7 @@ export const api = {
         method: 'POST',
         body: { handle, name },
       }),
-    queue: (handle: string, mode: 'now' | 'next' = 'now') =>
+    queue: (handle: string, mode: 'now' | 'next' | 'end' = 'now') =>
       request<{ ok: true; streamer: Streamer; created: boolean; queue: QueueSnapshot; status: StatusPayload }>(
         '/api/discovery/queue',
         { method: 'POST', body: { handle, mode } },
@@ -923,6 +923,16 @@ export const api = {
         method: 'POST',
         body: { channel },
       }),
+    enqueue: (channel: string, mode: 'now' | 'next' | 'end' = 'next') =>
+      request<{ ok: true; queue: QueueSnapshot; state: PlaybackState }>(
+        '/api/playback/enqueue',
+        { method: 'POST', body: { channel, mode } },
+      ),
+    queueFromPlaylist: (playlistId: string, mode: 'replace' | 'append' = 'replace') =>
+      request<{ ok: true; queue: QueueSnapshot; state: PlaybackState }>(
+        '/api/playback/queue-from-playlist',
+        { method: 'POST', body: { playlist_id: playlistId, mode } },
+      ),
   },
 
   automations: {

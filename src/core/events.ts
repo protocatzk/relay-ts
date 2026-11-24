@@ -163,7 +163,10 @@ export interface QueueSnapshot {
   entries: QueueViewEntry[];
   playing: boolean;
   index: number | null;
+  /** Legacy boolean alias for `loop_mode === 'all'`. */
   loop: boolean;
+  /** `one` repeats the running entry (#94). */
+  loop_mode?: PlaybackLoop;
 }
 
 export type SystemEvent =
