@@ -303,7 +303,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 
 ### v0.36.0 – TikTok-Session pro Streamer (#95)
 
-**Status: in Arbeit.**
+**Status: veröffentlicht in 0.36.0.**
 
 - `streamer.tiktok_account` pinnt eine Session aus den TikTok-Konten; leer =
   aktives Konto. Sessions bleiben in `data/tiktok-accounts.json`, pro Konto
@@ -314,6 +314,9 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 - UI: Konto-Auswahl im Streamer-Editor und in der Sammel-Anlage, Badge in der
   Streamer-Liste, „zugeordnet“-Spalte in den Einstellungen und ein Löschguard
   (`409`, `?reassign=active` zum Auflösen der Zuordnungen).
+- **Einnahmen-Overlay:** `{queue}` zeigt die Regie-Queue für Zuschauer
+  (laufender Eintrag mit `▶`, bis zu fünf Einträge, Rest „… +N“, leer = `–`)
+  und aktualisiert sich bei Queue-Änderungen ohne neuen Einnahmen-Poll.
 
 ## Definition of Done
 
