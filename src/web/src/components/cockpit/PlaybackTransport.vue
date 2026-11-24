@@ -29,6 +29,8 @@ const isPlaying = computed(() => Boolean(playback.value?.playing));
 const hasDuration = computed(() => (playback.value?.duration_seconds ?? 0) > 0);
 const canStep = computed(() => source.value === 'queue' || source.value === 'playlist');
 const canLoop = computed(() => source.value === 'queue');
+const canHold = computed(() => source.value === 'queue' || source.value === 'playlist');
+const isHeld = computed(() => Boolean(playback.value?.held));
 const loopLabel = computed(() => {
   switch (playback.value?.loop) {
     case 'all':
@@ -115,6 +117,14 @@ function cycleLoop(): void {
   void run('loop', () => api.playback.loop(next), message);
 }
 
+function toggleHold(): void {
+  if (isHeld.value) {
+    void run('release', () => api.playback.release(), 'Hold beendet.');
+    return;
+  }
+  void run('hold', () => api.playback.hold(), 'Hold aktiv – kein automatischer Wechsel.');
+}
+
 function commitSeek(): void {
   seeking.value = false;
   void run('seek', () => api.playback.seek(seekValue.value));
@@ -175,6 +185,18 @@ function commitSeek(): void {
       >
         <span v-if="busy === 'stop'" class="spinner" aria-hidden="true"></span>
         <span v-else aria-hidden="true">⏹</span>
+      </button>
+      <button
+        v-if="canHold"
+        type="button"
+        class="btn btn-ghost btn-xs"
+        :class="{ 'is-active': isHeld }"
+        :aria-pressed="isHeld"
+        :disabled="busy !== null"
+        :title="isHeld ? 'Hold beenden' : 'Anhalten ohne den Eintrag zu verlieren'"
+        @click="toggleHold"
+      >
+        {{ isHeld ? 'Hold aktiv' : 'Hold' }}
       </button>
       <button
         v-if="canLoop"

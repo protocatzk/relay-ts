@@ -310,6 +310,15 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Pausenscreen, behält aber den aktiven Queue-/Playlist-Eintrag als `current`
   (Transport setzt dort fort). Der Cockpit-Transport (`PlaybackTransport.vue`)
   ist die einzige Weiter/Zurück-Steuerung im UI.
+- **Hold & Historie (#94):** `POST /api/playback/hold` friert die Wiedergabe
+  ein (Pausenscreen, `PlaylistController.hold()` stoppt Auto-Advance, Eintrag
+  bleibt), `/release` bzw. `/resume` setzt fort. Die letzten 20 gestarteten
+  Queue-Einträge liegen in `data/queue.json` (`history`, neueste zuerst,
+  Duplikate in Folge werden zusammengefasst) und sind über
+  `GET /api/queue/history` bzw. „Zuletzt gespielt“ in der Queue-Karte
+  erreichbar. Telegram `/queue` hat Zurück und Hold, der Scheduler kennt die
+  Aktion `playback` mit Ziel (`queue`, `playlist:<id>`, `streamer:<id>`,
+  `screen:<pause|startup>`).
 - **Loop & Einreihen (#94):** `data/queue.json` speichert `loop_mode`
   (`off`/`all`/`one`, Version 3; alte `loop`-Booleans werden beim Laden
   migriert). `one` startet den laufenden Eintrag neu (`repeatCurrent` im

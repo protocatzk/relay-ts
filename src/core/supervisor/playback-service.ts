@@ -13,6 +13,7 @@ export interface PlaybackServiceDeps {
   queue: QueueController;
   status: () => StatusSnapshot;
   activePlaylist: () => PlaylistRunState | null;
+  held?: () => boolean;
   resolveChannelLabel: (channel: string) => { label: string; kind: QueueEntryKind };
   resolvePlaylistChannel: (
     playlistId: string,
@@ -48,6 +49,7 @@ export class PlaybackService {
       next: this.resolveNext(status, active, isQueue, queueEntries),
       loop: this.resolveLoop(isQueue),
       queue_index: isQueue ? (active?.index ?? null) : null,
+      held: this.deps.held?.() ?? false,
       updated_at: new Date().toISOString(),
     };
   }

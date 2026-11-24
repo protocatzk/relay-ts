@@ -904,6 +904,12 @@ export const api = {
     play: () => request<{ ok: true; status: StatusPayload }>('/api/playback/play', { method: 'POST' }),
     pause: () => request<{ ok: true; status: StatusPayload }>('/api/playback/pause', { method: 'POST' }),
     resume: () => request<{ ok: true; status: StatusPayload }>('/api/playback/resume', { method: 'POST' }),
+    hold: () => request<{ ok: true; status: StatusPayload }>('/api/playback/hold', { method: 'POST' }),
+    release: () => request<{ ok: true; status: StatusPayload }>('/api/playback/release', { method: 'POST' }),
+    history: () =>
+      request<{ history: { channel: string; label: string; played_at: string }[] }>(
+        '/api/queue/history',
+      ),
     stop: () => request<{ ok: true; status: StatusPayload }>('/api/playback/stop', { method: 'POST' }),
     next: () => request<{ ok: true; status: StatusPayload }>('/api/playback/next', { method: 'POST' }),
     previous: () =>

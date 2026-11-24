@@ -14,6 +14,7 @@ const media = ref<MediaFile[]>([]);
 const selectedMedia = ref('');
 const selectedStreamer = ref('');
 const selectedScreen = ref<'pause' | 'startup'>('pause');
+const history = ref<{ channel: string; label: string; played_at: string }[]>([]);
 const selectedPlaylist = ref('');
 const playlistMode = ref<'replace' | 'append'>('replace');
 const busy = ref(false);
@@ -110,6 +111,14 @@ function kindLabel(kind: QueueEntryKind): string {
   return KIND_LABELS[kind] ?? kind;
 }
 
+async function loadHistory(): Promise<void> {
+  try {
+    history.value = (await api.playback.history()).history;
+  } catch {
+    history.value = [];
+  }
+}
+
 async function loadMedia(): Promise<void> {
   try {
     media.value = (await api.media.list()).files;
@@ -155,6 +164,21 @@ function duplicate(id: string): void {
 }
 
 /** Copies a playlist into the queue (#94). */
+function enqueueHistory(channel: string): void {
+  void (async () => {
+    busy.value = true;
+    try {
+      const res = await api.playback.enqueue(channel, 'end');
+      applyQueue(res.queue);
+      pushToast('Wieder ans Ende der Queue gehängt.', 'success');
+    } catch (error) {
+      pushToast(errorMessage(error), 'error');
+    } finally {
+      busy.value = false;
+    }
+  })();
+}
+
 function loadPlaylist(): void {
   const id = selectedPlaylist.value;
   if (!id) return;
@@ -317,7 +341,16 @@ async function clear(): Promise<void> {
   await run(() => api.queue.clear());
 }
 
-onMounted(() => void loadMedia());
+onMounted(() => {
+  void loadMedia();
+  void loadHistory();
+});
+
+// Refresh the history whenever the queue snapshot changes.
+watch(
+  () => queue.value?.index,
+  () => void loadHistory(),
+);
 </script>
 
 <template>
@@ -585,6 +618,25 @@ onMounted(() => void loadMedia());
     <div v-else class="empty compact">
       <p>Noch keine Einträge.</p>
     </div>
+
+    <details v-if="history.length > 0" class="regie-history">
+      <summary>Zuletzt gespielt ({{ history.length }})</summary>
+      <ul>
+        <li v-for="item in history.slice(0, 8)" :key="`${item.channel}-${item.played_at}`">
+          <span class="regie-history-label" :title="item.channel">{{ item.label }}</span>
+          <span class="mono">{{ new Date(item.played_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</span>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            :disabled="busy"
+            title="Erneut ans Ende der Queue hängen"
+            @click="enqueueHistory(item.channel)"
+          >
+            +
+          </button>
+        </li>
+      </ul>
+    </details>
 
     <div class="regie-footer">
       <button

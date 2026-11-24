@@ -32,6 +32,7 @@ describe('Playback API routes', () => {
     next: { kind: 'streamer', id: 'e2', label: 'Bravo', channel: 'bravo' },
     loop: 'off',
     queue_index: 0,
+    held: false,
     updated_at: new Date().toISOString(),
     ...overrides,
   });
@@ -59,6 +60,8 @@ describe('Playback API routes', () => {
       queuePlayNow: vi.fn(async () => ({ state: 'live' })),
       showScreen: vi.fn(async () => ({ state: 'paused' })),
       hideScreen: vi.fn(async () => ({ state: 'live' })),
+      holdPlayback: vi.fn(async () => ({ state: 'paused' })),
+      resumePlayback: vi.fn(async () => ({ state: 'live' })),
       stop: vi.fn(async () => ({ state: 'idle' })),
       playlistNext: vi.fn(async () => ({ state: 'live' })),
       playlistPrevious: vi.fn(async () => ({ state: 'live' })),
@@ -108,7 +111,11 @@ describe('Playback API routes', () => {
 
     const resume = await app.inject({ method: 'POST', url: '/api/playback/resume', headers: auth });
     expect(resume.statusCode).toBe(200);
-    expect(supervisor.hideScreen).toHaveBeenCalled();
+    expect(supervisor.resumePlayback).toHaveBeenCalled();
+
+    const hold = await app.inject({ method: 'POST', url: '/api/playback/hold', headers: auth });
+    expect(hold.statusCode).toBe(200);
+    expect(supervisor.holdPlayback).toHaveBeenCalled();
   });
 
   it('POST /api/playback/next picks the queue when it is active', async () => {

@@ -155,6 +155,8 @@ export interface PlaybackState {
   next: PlaybackEntry | null;
   loop: PlaybackLoop;
   queue_index: number | null;
+  /** True while the operator holds automatic progression (#94). */
+  held: boolean;
   updated_at: string;
 }
 

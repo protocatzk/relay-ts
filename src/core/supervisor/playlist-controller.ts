@@ -39,6 +39,10 @@ export interface PlaylistControllerDeps {
   resolveQueueKey(): string;
   /** True when the running entry should restart instead of advancing (#94). */
   repeatCurrent?(): boolean;
+  /** Called after an entry actually started; used for the queue history (#94). */
+  onEntryStart?(playlistId: string, channel: string): void;
+  /** Snapshot for callers that need to return the unchanged state. */
+  buildStatus?(): StatusSnapshot;
   stopAll(): Promise<StatusSnapshot>;
   transition(state: StreamState, reason?: string): void;
   emitStatus(): void;
@@ -57,6 +61,8 @@ export class PlaylistController {
   private endTimer?: NodeJS.Timeout;
   private endAt: number | null = null;
   private advancePending = false;
+  /** "Hold" keeps the run state but stops all automatic progression (#94). */
+  private held = false;
 
   constructor(deps: PlaylistControllerDeps) {
     this.deps = deps;
@@ -64,6 +70,25 @@ export class PlaylistController {
 
   get current(): PlaylistRunState | null {
     return this.state;
+  }
+
+  isHeld(): boolean {
+    return this.held;
+  }
+
+  /** Stops auto-advance without losing the current entry (#94). */
+  hold(): void {
+    this.held = true;
+    this.clearTimers();
+  }
+
+  /** Undoes `hold`, re-arming the end timer of the running playlist. */
+  release(): void {
+    this.held = false;
+    if (this.state) {
+      this.endAt = this.endTimestamp(this.state.playlist);
+      this.scheduleEndLocked();
+    }
   }
 
   get isAdvancePending(): boolean {
@@ -140,7 +165,7 @@ export class PlaylistController {
   }
 
   scheduleAdvance(): void {
-    if (!this.state || !this.state.playlist.auto_advance) return;
+    if (!this.state || !this.state.playlist.auto_advance || this.held) return;
     if (this.advanceTimer) return;
     const delay = Math.max(0, this.state.playlist.advance_delay_seconds) * 1000;
     this.advancePending = true;
@@ -234,6 +259,7 @@ export class PlaylistController {
         tried += 1;
         try {
           const status = await this.deps.startScreen(type);
+          this.deps.onEntryStart?.(playlist.id, channel);
           this.activate({ playlist, index });
           this.deps.emitAll();
           return status;
@@ -257,11 +283,13 @@ export class PlaylistController {
           continue;
         }
         try {
-          return await this.deps.startFile(file, {
+          const status = await this.deps.startFile(file, {
             key,
             playlist: { playlist, index },
             seekSeconds: index === startIndex ? seekSeconds : undefined,
           });
+          this.deps.onEntryStart?.(playlist.id, channel);
+          return status;
         } catch (error) {
           lastError = toErrorMessage(error);
           this.deps.logger.warn(
@@ -284,10 +312,12 @@ export class PlaylistController {
         continue;
       }
       try {
-        return await this.deps.startStreamer(streamer, {
+        const status = await this.deps.startStreamer(streamer, {
           key,
           playlist: { playlist, index },
         });
+        this.deps.onEntryStart?.(playlist.id, channel);
+        return status;
       } catch (error) {
         lastError = toErrorMessage(error);
         this.deps.logger.warn(
@@ -308,6 +338,15 @@ export class PlaylistController {
   private async advanceLocked(reason: 'manual' | 'offline' | 'end_after'): Promise<StatusSnapshot> {
     const state = this.state;
     if (!state) throw new ValidationError('Es ist keine Playlist aktiv');
+    // Automatic advances (offline/end) pause while the operator holds (#94).
+    if (this.held && reason !== 'manual') {
+      this.deps.logger.info(
+        { playlist: state.playlist.id },
+        'Playlist hält – kein automatischer Wechsel',
+      );
+      this.deps.emitStatus();
+      return this.deps.buildStatus?.() ?? this.deps.stopAll();
+    }
     const playlist = this.deps.resolvePlaylist(state.playlist.id) ?? state.playlist;
     if (reason === 'end_after') return this.deps.stopAll();
     if (this.advanceTimer) clearTimeout(this.advanceTimer);

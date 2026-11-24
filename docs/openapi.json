@@ -2715,6 +2715,56 @@
         }
       }
     },
+    "/api/queue/history": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Zuletzt gespielte Queue-Einträge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "channel": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "played_at": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/queue/previous": {
       "post": {
         "tags": [
@@ -5836,7 +5886,8 @@
                       "start_playlist",
                       "start_queue",
                       "start_screen",
-                      "stop"
+                      "stop",
+                      "playback"
                     ]
                   },
                   "target_id": {
@@ -5947,7 +5998,8 @@
                       "start_playlist",
                       "start_queue",
                       "start_screen",
-                      "stop"
+                      "stop",
+                      "playback"
                     ]
                   },
                   "target_id": {
@@ -7042,6 +7094,78 @@
           "playback"
         ],
         "summary": "Vorherigen Eintrag abspielen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/hold": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Wiedergabe anhalten ohne den Eintrag zu verlieren",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/release": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Hold beenden",
         "parameters": [],
         "responses": {
           "200": {

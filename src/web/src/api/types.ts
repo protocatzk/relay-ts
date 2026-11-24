@@ -292,6 +292,7 @@ export interface PlaybackState {
   next: PlaybackEntry | null;
   loop: PlaybackLoop;
   queue_index: number | null;
+  held: boolean;
   updated_at: string;
 }
 
@@ -503,7 +504,9 @@ export type ScheduleAction =
   | 'start_playlist'
   | 'start_queue'
   | 'start_screen'
-  | 'stop';
+  | 'stop'
+  /** Target-based playback (#94): queue, playlist:<id>, streamer:<id>, screen:<type>. */
+  | 'playback';
 
 export interface ScheduleRule {
   id: string;

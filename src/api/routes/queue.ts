@@ -74,6 +74,8 @@ export async function registerQueueRoutes(app: FastifyInstance, ctx: ApiContext)
     };
   });
 
+  app.get('/api/queue/history', async () => ({ history: ctx.supervisor.queueHistory() }));
+
   app.post('/api/queue/previous', async () => ({
     ok: true,
     status: await ctx.supervisor.queuePrevious(),

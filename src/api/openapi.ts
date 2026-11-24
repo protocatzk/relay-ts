@@ -652,6 +652,28 @@ const routes: RouteDoc[] = [
     response: ref('QueueEnvelope'),
   },
   {
+    method: 'get',
+    path: '/api/queue/history',
+    tag: 'queue',
+    summary: 'Zuletzt gespielte Queue-Einträge',
+    response: {
+      type: 'object',
+      properties: {
+        history: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              channel: { type: 'string' },
+              label: { type: 'string' },
+              played_at: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
     method: 'post',
     path: '/api/queue/previous',
     tag: 'queue',
@@ -1130,6 +1152,8 @@ const routes: RouteDoc[] = [
     ['stop', 'Wiedergabe stoppen'],
     ['next', 'Nächsten Eintrag abspielen'],
     ['previous', 'Vorherigen Eintrag abspielen'],
+    ['hold', 'Wiedergabe anhalten ohne den Eintrag zu verlieren'],
+    ['release', 'Hold beenden'],
   ].map(([action, summary]) => ({
     method: 'post' as const,
     path: `/api/playback/${action}`,

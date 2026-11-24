@@ -176,6 +176,23 @@ async function main(): Promise<void> {
           case 'stop':
             await supervisor.stop();
             break;
+          case 'playback': {
+            const target = rule.target_id ?? '';
+            if (target === 'queue') {
+              await supervisor.queuePlay(0);
+            } else if (target.startsWith('playlist:')) {
+              await supervisor.playPlaylist(target.slice('playlist:'.length));
+            } else if (target.startsWith('streamer:')) {
+              await supervisor.start(target.slice('streamer:'.length));
+            } else if (target.startsWith('screen:')) {
+              await supervisor.showScreen(
+                target.endsWith('startup') ? 'startup' : 'pause',
+              );
+            } else {
+              throw new ValidationError('Ungültiges Playback-Ziel');
+            }
+            break;
+          }
         }
       },
     },
@@ -389,6 +406,13 @@ async function main(): Promise<void> {
           queueRemove: (id: string) => auditTelegram('queue.remove', id, () => supervisor.queueRemove(id)),
           queueSeek: (seconds: number) => auditTelegram('queue.seek', String(seconds), () => supervisor.seekActiveVideo(seconds)),
           queuePlayNow: (channel: string) => auditTelegram('queue.now', channel, () => supervisor.queuePlayNow(channel)),
+          queuePrevious: () => auditTelegram('queue.previous', null, () => supervisor.queuePrevious()),
+          playbackHold: () =>
+            auditTelegram('playback.hold', null, () =>
+              supervisor.buildPlaybackState().held
+                ? supervisor.resumePlayback()
+                : supervisor.holdPlayback(),
+            ),
         },
         notify: {
           chatId: config.telegram.notifyChatId,

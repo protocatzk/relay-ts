@@ -26,6 +26,7 @@ const ACTIONS: { value: ScheduleAction; label: string }[] = [
   { value: 'start_queue', label: 'Regie-Queue starten' },
   { value: 'start_screen', label: 'Screen anzeigen' },
   { value: 'stop', label: 'Stream stoppen' },
+  { value: 'playback', label: 'Wiedergabe (Ziel)' },
 ];
 
 const schedules = ref<ScheduleRule[]>([]);
@@ -49,7 +50,8 @@ const needsTarget = computed(
   () =>
     draft.action === 'start_streamer' ||
     draft.action === 'start_playlist' ||
-    draft.action === 'start_screen',
+    draft.action === 'start_screen' ||
+    draft.action === 'playback',
 );
 
 function resetDraft(): void {
@@ -91,6 +93,8 @@ function onActionChange(): void {
     draft.target_id = store.playlists[0]?.id ?? '';
   } else if (draft.action === 'start_screen') {
     draft.target_id = 'pause';
+  } else if (draft.action === 'playback') {
+    draft.target_id = 'queue';
   } else {
     draft.target_id = null;
   }
@@ -276,6 +280,20 @@ onMounted(() => {
             <select id="sched-target-screen" v-model="draft.target_id">
               <option value="pause">Pausenscreen</option>
               <option value="startup">Startbildschirm</option>
+            </select>
+          </div>
+          <div v-else-if="draft.action === 'playback'" class="field">
+            <label for="sched-target-playback">Wiedergabe-Ziel</label>
+            <select id="sched-target-playback" v-model="draft.target_id">
+              <option value="queue">Regie-Queue ab Anfang</option>
+              <option value="screen:pause">Pausenscreen</option>
+              <option value="screen:startup">Startbildschirm</option>
+              <option v-for="p in store.playlists" :key="p.id" :value="`playlist:${p.id}`">
+                Playlist: {{ p.name }}
+              </option>
+              <option v-for="s in store.streamers" :key="s.id" :value="`streamer:${s.id}`">
+                Streamer: {{ s.name }}
+              </option>
             </select>
           </div>
         </div>

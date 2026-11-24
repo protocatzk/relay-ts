@@ -178,3 +178,28 @@ describe('queue loop modes and playlist import (#94)', () => {
     expect(controller.get()[2]?.channel).toBe('alpha');
   });
 });
+
+describe('queue history (#94)', () => {
+  it('records started entries, newest first, and collapses repeats', () => {
+    const { controller } = setup();
+    controller.recordHistory('alpha');
+    controller.recordHistory('alpha');
+    controller.recordHistory('beta');
+
+    const history = controller.history();
+    expect(history.map((entry) => entry.channel)).toEqual(['beta', 'alpha']);
+    expect(history[0]?.label).toBe('Beta');
+    expect(typeof history[0]?.played_at).toBe('string');
+  });
+
+  it('keeps only the last twenty entries across reloads', () => {
+    const { controller, path, dataDir, store } = setup();
+    for (let index = 0; index < 25; index += 1) {
+      controller.recordHistory(index % 2 === 0 ? 'alpha' : 'beta');
+    }
+    expect(controller.history()).toHaveLength(20);
+
+    const reread = new QueueController({ path, dataDir, store, logger });
+    expect(reread.history()).toHaveLength(20);
+  });
+});

@@ -12,6 +12,9 @@ export const SCHEDULE_ACTIONS = [
   'start_queue',
   'start_screen',
   'stop',
+  // Unified playback target (#94): "queue", "playlist:<id>", "streamer:<id>",
+  // "screen:pause" or "screen:startup".
+  'playback',
 ] as const;
 
 export type ScheduleAction = (typeof SCHEDULE_ACTIONS)[number];
@@ -190,6 +193,20 @@ function normalizeTarget(action: ScheduleAction, rawTarget: string | null | unde
   if (action === 'start_screen') {
     if (target !== 'pause' && target !== 'startup') {
       throw new ValidationError('Screen-Ziel muss "pause" oder "startup" sein');
+    }
+    return target;
+  }
+  if (action === 'playback') {
+    if (!target) {
+      throw new ValidationError(
+        'Ziel fehlt: "queue", "playlist:<id>", "streamer:<id>" oder "screen:<pause|startup>"',
+      );
+    }
+    const allowed = /^(queue|playlist:.+|streamer:.+|screen:(pause|startup))$/;
+    if (!allowed.test(target)) {
+      throw new ValidationError(
+        'Ungültiges Ziel: "queue", "playlist:<id>", "streamer:<id>" oder "screen:<pause|startup>"',
+      );
     }
     return target;
   }

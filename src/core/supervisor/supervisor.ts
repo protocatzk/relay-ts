@@ -165,7 +165,13 @@ export class Supervisor {
       startFile: (file, options) => this.startFileLocked(file, options),
       startScreen: (type) => this.showScreenLocked(type),
       resolveQueueKey: () => this.resolveQueueKey(),
-      repeatCurrent: () => this.playlistController.current?.playlist.id === QUEUE_PLAYLIST_ID && this.queue.loopModeValue() === 'one',
+      repeatCurrent: () =>
+        this.playlistController.current?.playlist.id === QUEUE_PLAYLIST_ID &&
+        this.queue.loopModeValue() === 'one',
+      onEntryStart: (playlistId, channel) => {
+        if (playlistId === QUEUE_PLAYLIST_ID) this.queue.recordHistory(channel);
+      },
+      buildStatus: () => this.buildStatus(),
       stopAll: () => this.stopInternalLocked(),
       transition: (state, reason) => this.transitionTo(state, reason),
       emitStatus: () => this.emitStatus(),
@@ -192,6 +198,7 @@ export class Supervisor {
       status: () => this.buildStatus(),
       activePlaylist: () => this.playlistController.current,
       resolveChannelLabel: (channel) => this.channelInfo(channel),
+      held: () => this.playlistController.isHeld(),
       resolvePlaylistChannel: (playlistId, index) => {
         const playlist =
           playlistId === QUEUE_PLAYLIST_ID
@@ -755,6 +762,22 @@ export class Supervisor {
     return this.buildStatus();
   }
 
+  /** Hold: keep the entry, show the pause screen, stop auto-advance (#94). */
+  async holdPlayback(): Promise<StatusSnapshot> {
+    this.playlistController.hold();
+    const status = await this.showScreen('pause');
+    this.emitPlayback();
+    return status;
+  }
+
+  /** Release a hold and continue with the kept entry (#94). */
+  async resumePlayback(): Promise<StatusSnapshot> {
+    this.playlistController.release();
+    const status = await this.hideScreen();
+    this.emitPlayback();
+    return status;
+  }
+
   async hideScreen(): Promise<StatusSnapshot> {
     return this.lock.run(async () => {
       const streamer = this.activeStreamer;
@@ -807,6 +830,11 @@ export class Supervisor {
   /** Unified playback view for the cockpit transport (#94). */
   buildPlaybackState(): PlaybackState {
     return this.playbackService.build();
+  }
+
+  /** Last played queue entries, newest first (#94). */
+  queueHistory() {
+    return this.queue.history();
   }
 
   async queueAdd(channel: string): Promise<QueueSnapshot> {

@@ -184,6 +184,8 @@ export interface TelegramControl {
   queueRemove?(id: string): Promise<unknown>;
   queueSeek?(seconds: number): Promise<unknown>;
   queuePlayNow?(channel: string): Promise<unknown>;
+  queuePrevious?(): Promise<unknown>;
+  playbackHold?(): Promise<unknown>;
 }
 
 export interface TelegramBotOptions {
@@ -1032,9 +1034,13 @@ export class TelegramBot {
       keyboardRows.unshift([
         { text: '⏮ -30s', callback_data: 'queue:seek:-30' },
         { text: '⏭ +30s', callback_data: 'queue:seek:30' },
+        { text: '⏮ Zurück', callback_data: 'queue:prev' },
         { text: '⏭ Nächster', callback_data: 'queue:next' },
       ]);
     }
+    keyboardRows.push([
+      { text: queue.playing ? '⏸ Hold' : '▶️ Play', callback_data: 'queue:hold' },
+    ]);
 
     keyboardRows.push(this.backRow());
 
@@ -1943,6 +1949,18 @@ export class TelegramBot {
       if (first === 'next') {
         await this.answerCallback(query.id, 'Nächster Eintrag');
         await control?.queueNext?.();
+        await this.sendQueue(chatId, query);
+        return true;
+      }
+      if (first === 'prev') {
+        await this.answerCallback(query.id, 'Vorheriger Eintrag');
+        await control?.queuePrevious?.();
+        await this.sendQueue(chatId, query);
+        return true;
+      }
+      if (first === 'hold') {
+        await this.answerCallback(query.id, 'Hold umgeschaltet');
+        await control?.playbackHold?.();
         await this.sendQueue(chatId, query);
         return true;
       }

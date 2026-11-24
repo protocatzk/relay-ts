@@ -52,7 +52,15 @@ export async function registerPlaybackRoutes(app: FastifyInstance, ctx: ApiConte
   });
 
   app.post('/api/playback/resume', async () => {
-    return { ok: true, status: await supervisor().hideScreen() };
+    return { ok: true, status: await supervisor().resumePlayback() };
+  });
+
+  app.post('/api/playback/hold', async () => {
+    return { ok: true, status: await supervisor().holdPlayback() };
+  });
+
+  app.post('/api/playback/release', async () => {
+    return { ok: true, status: await supervisor().resumePlayback() };
   });
 
   app.post('/api/playback/stop', async () => {

@@ -258,8 +258,11 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   `now`/`next`/`end`, Playlist→Queue als Kopie (ersetzen/anhängen), Discovery
   kann ans Ende einreihen, Stream-Deck hat Weiter/Zurück/Play-Pause, MCP bietet
   `relay_playback_state`, `relay_playback_control` und `relay_queue_enqueue`.
-- **Offen:** Historie der letzten Einträge, „Hold“ ohne Eintragsverlust,
-  Telegram `/queue` mit Zurück/Play-Pause, Scheduler-Aktion `playback`.
+- **Teil 3 (#94):** Historie der letzten 20 Einträge (`GET /api/queue/history`,
+  „Zuletzt gespielt“ in der Queue-Karte mit „+“ zum Wiedereinreihen), „Hold“
+  friert die Wiedergabe ein und stoppt Auto-Advance ohne den Eintrag zu
+  verlieren, Telegram `/queue` mit Zurück/Hold, Scheduler-Aktion `playback`
+  mit Ziel (`queue`, `playlist:<id>`, `streamer:<id>`, `screen:<typ>`).
 
 ## Definition of Done
 

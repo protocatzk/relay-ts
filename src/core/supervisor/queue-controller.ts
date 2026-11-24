@@ -13,6 +13,7 @@ import { ValidationError } from '../../utils/errors.js';
 export const QUEUE_PLAYLIST_ID = '__regie__';
 
 const MAX_QUEUE_ENTRIES = 200;
+const MAX_HISTORY = 20;
 const QUEUE_FILE_VERSION = 3;
 
 export interface QueueEntry {
@@ -31,6 +32,12 @@ export interface QueuePlayback {
 
 type QueueLoopMode = 'off' | 'all' | 'one';
 
+export interface QueueHistoryEntry {
+  channel: string;
+  label: string;
+  played_at: string;
+}
+
 interface QueueFile {
   version: number;
   entries: QueueEntry[];
@@ -38,6 +45,7 @@ interface QueueFile {
   /** Legacy boolean from version 2; migrated into `loop_mode` on load. */
   loop?: boolean;
   loop_mode?: QueueLoopMode;
+  history?: QueueHistoryEntry[];
 }
 
 export interface QueueControllerDeps {
@@ -58,6 +66,7 @@ export class QueueController {
   private entries: QueueEntry[] = [];
   private playback: QueuePlayback | null = null;
   private loopMode: QueueLoopMode = 'off';
+  private historyEntries: QueueHistoryEntry[] = [];
   private loaded = false;
 
   constructor(deps: QueueControllerDeps) {
@@ -208,6 +217,25 @@ export class QueueController {
     return true;
   }
 
+  /** Last played entries, newest first (#94). */
+  history(): QueueHistoryEntry[] {
+    this.load();
+    return [...this.historyEntries];
+  }
+
+  /** Records a started entry; duplicates in a row are collapsed. */
+  recordHistory(channel: string): void {
+    this.load();
+    const label = this.labelOf(channel);
+    const last = this.historyEntries[0];
+    if (last && last.channel === channel) return;
+    this.historyEntries = [
+      { channel, label, played_at: new Date().toISOString() },
+      ...this.historyEntries,
+    ].slice(0, MAX_HISTORY);
+    this.persist();
+  }
+
   /** Replaces the whole queue; used by "Playlist in die Queue laden" (#94). */
   replaceAll(channels: string[]): void {
     this.load();
@@ -333,6 +361,17 @@ export class QueueController {
         : raw.loop === true
           ? 'all'
           : 'off';
+    this.historyEntries = Array.isArray(raw.history)
+      ? raw.history
+          .filter(
+            (entry): entry is QueueHistoryEntry =>
+              Boolean(entry) &&
+              typeof entry.channel === 'string' &&
+              typeof entry.label === 'string' &&
+              typeof entry.played_at === 'string',
+          )
+          .slice(0, MAX_HISTORY)
+      : [];
     const playback = (raw as { playback?: QueuePlayback | null }).playback;
     if (
       playback &&
@@ -362,6 +401,7 @@ export class QueueController {
         entries: this.entries,
         playback: this.playback,
         loop_mode: this.loopMode,
+        history: this.historyEntries,
       } satisfies QueueFile);
     } catch (error) {
       this.deps.logger.warn(
