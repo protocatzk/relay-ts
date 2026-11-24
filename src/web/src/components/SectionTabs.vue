@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { rememberSectionTab, sectionFor } from '@/src/navigation';
+import { prefetchPath } from '@/src/router/prefetch';
 
 const route = useRoute();
 
@@ -30,6 +31,8 @@ watch(
       class="section-tab"
       :class="{ 'is-active': isActive(tab.to) }"
       :aria-current="isActive(tab.to) ? 'page' : undefined"
+      @pointerenter="prefetchPath(tab.to)"
+      @focus="prefetchPath(tab.to)"
     >
       {{ tab.label }}
     </RouterLink>

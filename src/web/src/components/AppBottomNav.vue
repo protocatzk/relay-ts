@@ -7,6 +7,16 @@ import {
   sectionEntry,
   sectionFor,
 } from '@/src/navigation';
+import { prefetchPath } from '@/src/router/prefetch';
+import { useStore } from '@/src/composables/useStore';
+
+const { store } = useStore();
+
+/** Green dot while the sink is on air (#88). */
+const streaming = computed(() => {
+  const status = store.status;
+  return Boolean(status && status.state === 'live' && status.sink.running);
+});
 
 const route = useRoute();
 
@@ -60,8 +70,10 @@ function onKeydown(event: KeyboardEvent): void {
       :to="entries[section.id]"
       class="bnav-item"
       :class="{ 'is-active': activeSection === section.id }"
+      @pointerenter="prefetchPath(entries[section.id])"
+      @focus="prefetchPath(entries[section.id])"
       :aria-current="activeSection === section.id ? 'page' : undefined"
-      :aria-label="section.label"
+      :aria-label="section.id === 'live' && streaming ? `${section.label} – Stream läuft` : section.label"
       :aria-description="section.description"
       :title="`${section.label} – ${section.description}`"
     >
@@ -77,6 +89,7 @@ function onKeydown(event: KeyboardEvent): void {
           stroke-linejoin="round"
         />
       </svg>
+      <span v-if="section.id === 'live' && streaming" class="bnav-signal" aria-hidden="true"></span>
       <span class="bnav-label">{{ section.label }}</span>
     </RouterLink>
   </nav>

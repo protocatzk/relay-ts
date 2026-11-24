@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { ApiError, api } from '@/src/api/client';
 import { store } from '@/src/composables/useStore';
+import { registerPrefetchRoutes } from '@/src/router/prefetch';
 import type { SectionId } from '@/src/navigation';
 
 declare module 'vue-router' {
@@ -115,6 +116,9 @@ const router = createRouter({
   routes,
   scrollBehavior: () => ({ top: 0 }),
 });
+
+// Warm-up imports for the primary destinations (#88).
+registerPrefetchRoutes(routes);
 
 router.beforeEach(async (to) => {
   if (to.name === 'login') {

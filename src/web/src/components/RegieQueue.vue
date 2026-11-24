@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type { MediaFile, QueueEntryKind, QueueSnapshot, QueueViewEntry } from '@/src/api/types';
+import AppSkeleton from '@/src/components/ui/AppSkeleton.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
@@ -223,6 +224,50 @@ function play(index: number): void {
   void run(() => api.queue.play(index));
 }
 
+/* ------------------------------------------------------------ touch swipe (#88) */
+
+const swipe = ref<{ id: string; startX: number; startY: number; dx: number } | null>(null);
+/** Horizontal distance in px that counts as a swipe instead of a tap. */
+const SWIPE_THRESHOLD = 72;
+
+function onSwipeStart(entry: QueueViewEntry & { id: string }, event: PointerEvent): void {
+  if (event.pointerType === 'mouse') return;
+  swipe.value = { id: entry.id, startX: event.clientX, startY: event.clientY, dx: 0 };
+}
+
+function onSwipeMove(event: PointerEvent): void {
+  const state = swipe.value;
+  if (!state) return;
+  const dx = event.clientX - state.startX;
+  const dy = event.clientY - state.startY;
+  // Vertical movement means the operator is scrolling the list, not swiping.
+  if (Math.abs(dy) > 24 && Math.abs(dy) > Math.abs(dx)) {
+    swipe.value = null;
+    return;
+  }
+  state.dx = dx;
+}
+
+function swipeOffset(id: string): string {
+  const state = swipe.value;
+  if (!state || state.id !== id || Math.abs(state.dx) < 8) return 'none';
+  const clamped = Math.max(-120, Math.min(120, state.dx));
+  return `translateX(${clamped}px)`;
+}
+
+function onSwipeEnd(entry: QueueViewEntry & { id: string }, index: number): void {
+  const state = swipe.value;
+  swipe.value = null;
+  if (!state || state.id !== entry.id) return;
+  if (state.dx <= -SWIPE_THRESHOLD) {
+    remove(entry.id);
+    return;
+  }
+  if (state.dx >= SWIPE_THRESHOLD) {
+    play(index);
+  }
+}
+
 function next(): void {
   void run(() => api.queue.next());
 }
@@ -273,7 +318,9 @@ onMounted(() => void loadMedia());
       </div>
     </div>
 
-    <div class="regie-add">
+    <details class="regie-add-details">
+      <summary>Eintrag hinzufügen</summary>
+      <div class="regie-add">
       <div class="regie-add-row">
         <select v-model="selectedMedia" aria-label="Video auswählen">
           <option value="" disabled>Video wählen …</option>
@@ -324,7 +371,8 @@ onMounted(() => void loadMedia());
           + Screen
         </button>
       </div>
-    </div>
+      </div>
+    </details>
 
     <div v-if="activeMedia" class="regie-seek">
       <div class="regie-seek-head">
@@ -355,7 +403,11 @@ onMounted(() => void loadMedia());
       </div>
     </div>
 
-    <ol v-if="entries.length > 0" ref="listEl" class="regie-list">
+    <div v-if="!queue" class="regie-skeleton">
+      <AppSkeleton :lines="3" height="40px" radius="8px" width="100%" />
+      <span class="sr-only">Regie-Queue wird geladen</span>
+    </div>
+    <ol v-else-if="entries.length > 0" ref="listEl" class="regie-list">
       <li
         v-for="(entry, index) in entries"
         :key="entry.id"
@@ -363,7 +415,13 @@ onMounted(() => void loadMedia());
         :class="{
           'is-active': activeIndex === index,
           'is-drag-over': dragOverIndex === index && draggingId !== entry.id,
+          'is-swiping': swipe?.id === entry.id && Math.abs(swipe.dx) > 8,
         }"
+        :style="{ transform: swipeOffset(entry.id) }"
+        @pointerdown="onSwipeStart(entry, $event)"
+        @pointermove="onSwipeMove"
+        @pointerup="onSwipeEnd(entry, index)"
+        @pointercancel="swipe = null"
         draggable="true"
         @dragstart="onDragStart(entry.id, $event)"
         @dragover.prevent="onDragOver(index)"
