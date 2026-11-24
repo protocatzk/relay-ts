@@ -10,7 +10,7 @@ Radius 12/8/999, Cyan-Akzent).
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
-- Aktuelle Version: **0.36.0**
+- Aktuelle Version: **0.36.1**
 - Node.js **20.19+** (Docker nutzt Node 22 Alpine)
 - Paketmanager: npm
 - Sprache im Code: Englisch; UI-Texte und README: Deutsch
