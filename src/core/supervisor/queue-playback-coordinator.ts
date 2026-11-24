@@ -121,6 +121,18 @@ export class QueuePlaybackCoordinator {
     return this.deps.playlistController.next();
   }
 
+  /** One entry back inside the running queue (#94). */
+  async previous(): Promise<StatusSnapshot> {
+    if (this.deps.playlistController.current?.playlist.id !== QUEUE_PLAYLIST_ID) {
+      throw new ValidationError('Die Regie-Queue ist nicht aktiv');
+    }
+    const index = this.buildSnapshot().index ?? 0;
+    if (index <= 0) {
+      throw new ValidationError('Kein vorheriger Eintrag in der Regie-Queue');
+    }
+    return this.play(index - 1);
+  }
+
   async stop(): Promise<StatusSnapshot> {
     return this.deps.stop();
   }

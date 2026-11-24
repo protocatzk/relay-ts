@@ -74,6 +74,12 @@ export async function registerQueueRoutes(app: FastifyInstance, ctx: ApiContext)
     };
   });
 
+  app.post('/api/queue/previous', async () => ({
+    ok: true,
+    status: await ctx.supervisor.queuePrevious(),
+    queue: ctx.supervisor.buildQueueSnapshot(),
+  }));
+
   app.post('/api/queue/next', async () => ({
     ok: true,
     status: await ctx.supervisor.queueNext(),

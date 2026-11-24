@@ -15,7 +15,13 @@ import {
   toErrorMessage,
 } from '../../utils/errors.js';
 import { VERSION } from '../../version.js';
-import type { EventBus, StatusSnapshot, StreamState } from '../events.js';
+import type {
+  EventBus,
+  PlaybackState,
+  QueueEntryKind,
+  StatusSnapshot,
+  StreamState,
+} from '../events.js';
 import type { SettingsService } from '../store/settings-service.js';
 import type { StreamerStore, StreamerView } from '../store/streamer-store.js';
 import { DelayBuffer } from '../relay/delay-buffer.js';
@@ -35,6 +41,7 @@ import { SourceRecoveryController } from './source-recovery.js';
 import { StreamerLauncher, type StartStreamerOptions } from './streamer-launcher.js';
 import { SinkWatchdogCoordinator } from './sink-watchdog-coordinator.js';
 import { QueuePlaybackCoordinator } from './queue-playback-coordinator.js';
+import { PlaybackService } from './playback-service.js';
 import type { RtmpIngestServer } from '../ingest/rtmp-server.js';
 import {
   formatStreamTitle,
@@ -124,6 +131,8 @@ export class Supervisor {
   private readonly playlistController: PlaylistController;
   private readonly queue: QueueController;
   private readonly queueCoordinator: QueuePlaybackCoordinator;
+  private readonly playbackService: PlaybackService;
+  private lastPlaybackSignature = '';
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
@@ -176,6 +185,32 @@ export class Supervisor {
       stop: () => this.stop(),
       startFileLocked: (f, o) => this.startFileLocked(f, o),
     });
+
+    this.playbackService = new PlaybackService({
+      queue: this.queue,
+      status: () => this.buildStatus(),
+      activePlaylist: () => this.playlistController.current,
+      resolveChannelLabel: (channel) => this.channelInfo(channel),
+      resolvePlaylistChannel: (playlistId, index) => {
+        const playlist =
+          playlistId === QUEUE_PLAYLIST_ID
+            ? null
+            : (this.deps.store.playlists().find((entry) => entry.id === playlistId) ?? null);
+        const channel = playlist?.channels[index];
+        return channel ? this.channelInfo(channel) : null;
+      },
+    });
+  }
+
+  /** Normalises a channel string into a playback entry (#94). */
+  private channelInfo(channel: string): { label: string; kind: QueueEntryKind; channel: string } {
+    if (channel.startsWith('file:')) {
+      return { label: channel.slice('file:'.length), kind: 'file', channel };
+    }
+    if (channel === 'screen:pause') return { label: 'Pausenscreen', kind: 'screen', channel };
+    if (channel === 'screen:startup') return { label: 'Startbildschirm', kind: 'screen', channel };
+    const streamer = this.deps.store.findForChannel(channel);
+    return { label: streamer?.name ?? channel, kind: 'streamer', channel };
   }
 
   private get state(): StreamState {
@@ -768,6 +803,11 @@ export class Supervisor {
     return this.queueCoordinator.buildSnapshot();
   }
 
+  /** Unified playback view for the cockpit transport (#94). */
+  buildPlaybackState(): PlaybackState {
+    return this.playbackService.build();
+  }
+
   async queueAdd(channel: string): Promise<QueueSnapshot> {
     return this.queueCoordinator.add(channel);
   }
@@ -805,6 +845,10 @@ export class Supervisor {
 
   async queueNext(): Promise<StatusSnapshot> {
     return this.queueCoordinator.next();
+  }
+
+  async queuePrevious(): Promise<StatusSnapshot> {
+    return this.queueCoordinator.previous();
   }
 
   async queueStop(): Promise<StatusSnapshot> {
@@ -1071,13 +1115,33 @@ export class Supervisor {
 
   emitStatus(force = false): void {
     if (!force && !this.deps.bus.hasObservers()) return;
-    this.deps.bus.emit({ type: 'status', data: this.buildStatus() });
+    const status = this.buildStatus();
+    this.deps.bus.emit({ type: 'status', data: status });
+    this.emitPlayback(force, status);
+  }
+
+  /** Emits the playback view only when it actually changed. */
+  emitPlayback(force = false, status?: StatusSnapshot): void {
+    if (!force && !this.deps.bus.hasObservers()) return;
+    try {
+      const state = this.playbackService.build(status);
+      const signature = JSON.stringify({ ...state, updated_at: '' });
+      if (signature === this.lastPlaybackSignature) return;
+      this.lastPlaybackSignature = signature;
+      this.deps.bus.emit({ type: 'playback', data: state });
+    } catch (error) {
+      this.deps.logger.warn(
+        { err: toErrorMessage(error) },
+        'Playback-Ansicht konnte nicht erzeugt werden',
+      );
+    }
   }
 
   emitQueue(force = false): void {
     if (!force && !this.deps.bus.hasObservers()) return;
     try {
       this.deps.bus.emit({ type: 'queue', data: this.buildQueueSnapshot() });
+      this.emitPlayback(force);
     } catch (error) {
       this.deps.logger.warn(
         { err: toErrorMessage(error) },

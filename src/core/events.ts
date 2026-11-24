@@ -130,6 +130,34 @@ export interface QueueViewEntry {
   duration_seconds: number | null;
 }
 
+/** One thing the app can put on air (#94). */
+export interface PlaybackEntry {
+  kind: QueueEntryKind;
+  id: string;
+  label: string;
+  channel: string;
+}
+
+export type PlaybackSource = 'queue' | 'playlist' | 'streamer' | 'screen' | 'idle';
+export type PlaybackLoop = 'off' | 'all' | 'one';
+
+/**
+ * Unified playback view (#94): one transport for queue, playlist, a single
+ * streamer and screens.
+ */
+export interface PlaybackState {
+  source: PlaybackSource;
+  playing: boolean;
+  paused: boolean;
+  position_seconds: number | null;
+  duration_seconds: number | null;
+  current: PlaybackEntry | null;
+  next: PlaybackEntry | null;
+  loop: PlaybackLoop;
+  queue_index: number | null;
+  updated_at: string;
+}
+
 /** Ephemeral-by-content, persisted "regie" queue of videos, streamers and screens. */
 export interface QueueSnapshot {
   entries: QueueViewEntry[];
@@ -144,6 +172,7 @@ export type SystemEvent =
   | { type: 'log'; data: LogEntry }
   | { type: 'earnings'; data: EarningsSnapshot }
   | { type: 'queue'; data: QueueSnapshot }
+  | { type: 'playback'; data: PlaybackState }
   | { type: 'scene'; data: { active_scene_id: string | null; active_scene_name: string | null } }
   | { type: 'discovery'; data: DiscoveryResponse };
 

@@ -1084,6 +1084,82 @@ const routes: RouteDoc[] = [
     response: { type: 'string' },
   },
 
+  // Playback transport (#94)
+  {
+    method: 'get',
+    path: '/api/playback',
+    tag: 'playback',
+    summary: 'Einheitlicher Wiedergabe-Zustand (Queue, Playlist, Streamer, Screen)',
+    response: {
+      type: 'object',
+      required: ['source', 'playing', 'paused', 'loop', 'updated_at'],
+      properties: {
+        source: { type: 'string', enum: ['queue', 'playlist', 'streamer', 'screen', 'idle'] },
+        playing: { type: 'boolean' },
+        paused: { type: 'boolean' },
+        position_seconds: { type: 'number', nullable: true },
+        duration_seconds: { type: 'number', nullable: true },
+        current: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            kind: { type: 'string', enum: ['file', 'streamer', 'screen'] },
+            id: { type: 'string' },
+            label: { type: 'string' },
+            channel: { type: 'string' },
+          },
+        },
+        next: { type: 'object', nullable: true },
+        loop: { type: 'string', enum: ['off', 'all', 'one'] },
+        queue_index: { type: 'integer', nullable: true },
+        updated_at: { type: 'string' },
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/api/playback/{action}',
+    tag: 'playback',
+    summary: 'Transport: play, pause, resume, stop, next, previous',
+    parameters: [
+      {
+        name: 'action',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', enum: ['play', 'pause', 'resume', 'stop', 'next', 'previous'] },
+      },
+    ],
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+  {
+    method: 'post',
+    path: '/api/playback/seek',
+    tag: 'playback',
+    summary: 'Position im laufenden lokalen Video setzen',
+    body: { type: 'object', required: ['seconds'], properties: { seconds: { type: 'number' } } },
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+  {
+    method: 'post',
+    path: '/api/playback/loop',
+    tag: 'playback',
+    summary: 'Loop-Modus der Regie-Queue setzen',
+    body: {
+      type: 'object',
+      required: ['loop'],
+      properties: { loop: { type: 'string', enum: ['off', 'all', 'one'] } },
+    },
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+  {
+    method: 'post',
+    path: '/api/playback/queue-now',
+    tag: 'playback',
+    summary: 'Kanal sofort in der Regie-Queue abspielen',
+    body: { type: 'object', required: ['channel'], properties: { channel: { type: 'string' } } },
+    response: { type: 'object', properties: { ok: { type: 'boolean' } } },
+  },
+
   // Discovery
   {
     method: 'get',
