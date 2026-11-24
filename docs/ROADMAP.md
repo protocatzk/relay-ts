@@ -330,6 +330,15 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   freie X/Y-Offsets (`Chat → Queue-Anzeige`). Queue-Änderungen erreichen das
   laufende Canvas ohne Sink-Neustart.
 
+### v0.36.2 – Queue in der Statusleiste
+
+**Status: veröffentlicht in 0.36.2.**
+
+- Im Säulen-Monitor sitzt die Queue-Leiste jetzt als zweite Zeile in der
+  Statusleiste (Top-Banner) statt mittig im Bild. Der Banner wächst um die
+  Zeile, der Chat-Monitor rückt entsprechend nach unten; ohne Top-Banner
+  bleibt die Leiste am oberen Rand.
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:

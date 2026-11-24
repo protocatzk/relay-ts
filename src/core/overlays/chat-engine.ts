@@ -675,15 +675,48 @@ export class ChatOverlayEngine {
   }
 
   /**
-   * Draws the queue strip. Standard layout anchors it at the bottom of the
-   * chat panel, pillar mode centers it in the frame; both honour the free
-   * `queue_offset_x/y` (#97).
+   * Draws the queue strip below the chat panel (standard layout). Pillar mode
+   * renders it into the top banner instead (#97).
    */
   private renderQueueBar(
     ctx: SKRSContext2D,
     width: number,
     height: number,
-    mode: 'standard' | 'pillar',
+    isPreviewSample: boolean,
+  ): void {
+    const cfg = this.options.overlays.chat;
+    const barHeight = queueBarHeight(cfg, 'standard');
+    this.drawQueueStrip(
+      ctx,
+      {
+        x: 24 + cfg.queue_offset_x,
+        y: height - barHeight - 4 + cfg.queue_offset_y,
+        width: Math.max(80, width - 48),
+        height: barHeight,
+        fontSize: queueFontSize(cfg, 'standard'),
+        centered: false,
+        showBox: cfg.queue_show_box,
+      },
+      isPreviewSample,
+    );
+  }
+
+  /**
+   * Shared queue strip renderer. `area` is the available box; `centered`
+   * reduces the strip to its measured width and centers it (used when no top
+   * banner exists in pillar mode).
+   */
+  private drawQueueStrip(
+    ctx: SKRSContext2D,
+    area: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      fontSize: number;
+      centered: boolean;
+      showBox: boolean;
+    },
     isPreviewSample: boolean,
   ): void {
     const cfg = this.options.overlays.chat;
@@ -692,8 +725,6 @@ export class ChatOverlayEngine {
     const window = buildQueueWindow(queue.labels, queue.activeIndex, cfg.queue_max_entries);
     if (window.labels.length === 0) return;
 
-    const font = queueFontSize(cfg, mode);
-    const barHeight = queueBarHeight(cfg, mode);
     const fontColor = parseColor(cfg.queue_font_color, { r: 255, g: 255, b: 255, a: 1 });
     const activeColor = parseColor(cfg.queue_active_color, { r: 0, g: 240, b: 255, a: 1 });
     const boxColor = parseColor(cfg.queue_box_color, { r: 0, g: 0, b: 0, a: 0.45 });
@@ -708,25 +739,20 @@ export class ChatOverlayEngine {
     if (window.hasAfter) nodes.push({ text: ' …', active: false, muted: true });
 
     ctx.save();
-    ctx.font = `700 ${font}px ${fontFamily}`;
+    ctx.font = `700 ${area.fontSize}px ${fontFamily}`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
 
     const widths = nodes.map((node) => ctx.measureText(node.text).width);
     const total = widths.reduce((sum, value) => sum + value, 0);
-    const maxWidth =
-      mode === 'pillar' ? Math.max(120, Math.round(width * 0.9)) : Math.max(80, width - 48);
+    const maxWidth = Math.max(80, area.width);
     const shownWidth = Math.min(total, maxWidth);
-    const x0 =
-      (mode === 'pillar' ? Math.round((width - shownWidth) / 2) : 24) + cfg.queue_offset_x;
-    const y0 =
-      (mode === 'pillar'
-        ? Math.round(height / 2 - barHeight / 2)
-        : height - barHeight - 4) + cfg.queue_offset_y;
+    const x0 = area.centered ? Math.round(area.x + (maxWidth - shownWidth) / 2) : area.x;
+    const y0 = area.y;
 
-    if (cfg.queue_show_box) {
+    if (area.showBox) {
       ctx.fillStyle = rgba(boxColor);
-      roundedRect(ctx, x0 - 10, y0, shownWidth + 20, barHeight, 8);
+      roundedRect(ctx, x0 - 10, y0, shownWidth + 20, area.height, 8);
       ctx.fill();
     }
 
@@ -738,12 +764,12 @@ export class ChatOverlayEngine {
       if (x + nodeWidth > right + 0.5) {
         // Not enough room: summarize the rest instead of squeezing labels.
         ctx.fillStyle = `rgba(${fontColor.r},${fontColor.g},${fontColor.b},0.6)`;
-        ctx.fillText('…', x, y0 + barHeight / 2);
+        ctx.fillText('…', x, y0 + area.height / 2);
         break;
       }
       if (node.active) {
         ctx.fillStyle = `rgba(${activeColor.r},${activeColor.g},${activeColor.b},0.18)`;
-        roundedRect(ctx, x - 6, y0 + 4, nodeWidth + 12, barHeight - 8, 6);
+        roundedRect(ctx, x - 6, y0 + 4, nodeWidth + 12, area.height - 8, 6);
         ctx.fill();
         ctx.fillStyle = rgba(activeColor);
       } else if (node.muted) {
@@ -751,7 +777,7 @@ export class ChatOverlayEngine {
       } else {
         ctx.fillStyle = rgba(fontColor);
       }
-      ctx.fillText(node.text, x, y0 + barHeight / 2);
+      ctx.fillText(node.text, x, y0 + area.height / 2);
       x += nodeWidth;
     }
     ctx.restore();
@@ -787,13 +813,20 @@ export class ChatOverlayEngine {
     ctx.clearRect(0, 0, width, height);
 
     const card = this.shouldRenderEarningsCard(isPreviewSample);
+    const queue = this.queueFor(isPreviewSample);
+    const queueVisible = cfg.queue_enabled && queue.labels.length > 0;
+    const queueFont = queueFontSize(cfg, 'pillar');
+    const queueHeight = queueBarHeight(cfg, 'pillar');
+    const bannerRowHeight = 54;
+    const bannerHeight = bannerRowHeight + (queueVisible ? queueHeight + 6 : 0);
 
     // 1. Top Banner: Modern, refined frosted dark glass with subtle gradient accent
     if (cfg.top_banner_enabled !== false) {
       const bx = 16;
       const by = 12;
       const bw = width - 32;
-      const bh = 54;
+      const bh = bannerHeight;
+      const rowCenterY = by + bannerRowHeight / 2;
       const radius = 6;
 
       ctx.save();
@@ -828,7 +861,7 @@ export class ChatOverlayEngine {
 
       // LIVE pill
       const liveBadgeX = bx + 16;
-      const liveBadgeY = by + (bh - 24) / 2;
+      const liveBadgeY = by + (bannerRowHeight - 24) / 2;
       const liveBadgeW = 46;
       const liveBadgeH = 24;
       ctx.fillStyle = '#dc2626';
@@ -875,23 +908,23 @@ export class ChatOverlayEngine {
 
       const maxTitleLen = bw < 800 ? 18 : bw < 1200 ? 26 : 38;
       const truncatedTitle = titleText.length > maxTitleLen ? `${titleText.slice(0, maxTitleLen - 1)}…` : titleText;
-      ctx.fillText(truncatedTitle, cursorX, by + bh / 2);
+      ctx.fillText(truncatedTitle, cursorX, rowCenterY);
       cursorX += ctx.measureText(truncatedTitle).width + 16;
 
       // Stats: Messages & Activity
       if (cfg.banner_show_stats !== false) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.fillRect(cursorX, by + 16, 1, bh - 32);
+        ctx.fillRect(cursorX, by + 16, 1, bannerRowHeight - 32);
         cursorX += 14;
 
         ctx.font = `600 12px ${fontFamily}`;
         ctx.fillStyle = '#94a3b8';
         const msgStat = `💬 ${messages.length}`;
-        ctx.fillText(msgStat, cursorX, by + bh / 2);
+        ctx.fillText(msgStat, cursorX, rowCenterY);
         cursorX += ctx.measureText(msgStat).width + 14;
 
         ctx.fillStyle = '#00ff88';
-        ctx.fillText('⚡ STREAM', cursorX, by + bh / 2);
+        ctx.fillText('⚡ STREAM', cursorX, rowCenterY);
       }
 
       // Center Mode Tag (only in preview sample)
@@ -899,7 +932,7 @@ export class ChatOverlayEngine {
         const tagW = 160;
         const tagH = 22;
         const tagX = bx + (bw - tagW) / 2;
-        const tagY = by + (bh - tagH) / 2;
+        const tagY = by + (bannerRowHeight - tagH) / 2;
         ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
         ctx.lineWidth = 1;
@@ -925,7 +958,7 @@ export class ChatOverlayEngine {
           const current = card.net ?? 0;
           const ratio = Math.max(0, Math.min(1, current / card.goalAmount));
           const goalX = rightCursor - goalW;
-          const goalY = by + (bh - goalH) / 2 + 7;
+          const goalY = by + (bannerRowHeight - goalH) / 2 + 7;
 
           // Goal label & percent above bar
           ctx.font = `500 10px ${fontFamily}`;
@@ -984,44 +1017,77 @@ export class ChatOverlayEngine {
         if (earnStartX > cursorX + 20) {
           ctx.font = `500 11px ${fontFamily}`;
           ctx.fillStyle = '#94a3b8';
-          ctx.fillText(labelText, earnStartX, by + bh / 2);
+          ctx.fillText(labelText, earnStartX, rowCenterY);
 
           let curX = earnStartX + labelW + 6;
           if (coinsStr) {
             ctx.font = `600 12px ${fontFamily}`;
             ctx.fillStyle = '#f8fafc';
-            ctx.fillText(coinsStr, curX, by + bh / 2);
+            ctx.fillText(coinsStr, curX, rowCenterY);
             curX += coinsW;
           }
 
           if (netStr) {
             ctx.font = `700 12px ${fontFamily}`;
             ctx.fillStyle = '#00ff88';
-            ctx.fillText(netStr, curX, by + bh / 2);
+            ctx.fillText(netStr, curX, rowCenterY);
             curX += netW;
           }
 
           if (periodStr) {
             ctx.font = `600 11px ${fontFamily}`;
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText(periodStr, curX + 4, by + bh / 2);
+            ctx.fillText(periodStr, curX + 4, rowCenterY);
           }
         }
       }
+
+      if (queueVisible) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fillRect(bx + 16, by + bannerRowHeight, bw - 32, 1);
+        this.drawQueueStrip(
+          ctx,
+          {
+            x: bx + 16 + cfg.queue_offset_x,
+            y: by + bannerRowHeight + 3 + cfg.queue_offset_y,
+            width: bw - 32,
+            height: queueHeight,
+            fontSize: queueFont,
+            centered: false,
+            showBox: false,
+          },
+          isPreviewSample,
+        );
+      }
       ctx.restore();
+    } else if (queueVisible) {
+      // Without a top banner the queue keeps its own box at the top edge.
+      this.drawQueueStrip(
+        ctx,
+        {
+          x: 16 + cfg.queue_offset_x,
+          y: 12 + cfg.queue_offset_y,
+          width: width - 32,
+          height: queueHeight,
+          fontSize: queueFont,
+          centered: true,
+          showBox: cfg.queue_show_box,
+        },
+        isPreviewSample,
+      );
     }
 
     // 2. Chat Monitor on Left Pillarbox: Refined aesthetics, smooth cards, clean spacing
     if (cfg.chat_monitor_enabled !== false) {
       const mx = 16;
-      const my = 76;
+      const my = cfg.top_banner_enabled !== false ? 12 + bannerHeight + 10 : 76;
       const autoMw = Math.min(420, Math.max(300, Math.round(width * 0.22)));
       const mw = cfg.panel_width > 0
         ? Math.min(Math.round(width * 0.45), Math.max(200, cfg.panel_width))
         : autoMw;
       const mh = cfg.panel_height > 0
-        ? Math.min(height - 88, Math.max(120, cfg.panel_height))
-        : height - 88;
+        ? Math.min(height - my - 12, Math.max(120, cfg.panel_height))
+        : height - my - 12;
       const radius = 6;
 
       ctx.save();
@@ -1173,9 +1239,6 @@ export class ChatOverlayEngine {
       ctx.restore();
     }
 
-    if (cfg.queue_enabled) {
-      this.renderQueueBar(ctx, width, height, 'pillar', isPreviewSample);
-    }
   }
 
   private buildStarshipCanopy(
@@ -2028,7 +2091,7 @@ export class ChatOverlayEngine {
     }
 
     if (cfg.queue_enabled) {
-      this.renderQueueBar(ctx, width, height, 'standard', isPreviewSample);
+      this.renderQueueBar(ctx, width, height, isPreviewSample);
     }
   }
 }

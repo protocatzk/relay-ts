@@ -547,7 +547,8 @@ Chat-Statistik. Uhr und Text haben eigene Ränder und optionale Hintergrundboxen
 
 **Queue im Chat-Overlay:** Die Regie-Queue kann als Leiste im Chat-Overlay
 erscheinen (`Chat → Queue-Anzeige`). Im Standard-Layout sitzt sie unter dem
-Chat im Panel, im Säulen-Monitor mittig im Bild; `X`/`Y` verschieben sie frei.
+Chat im Panel, im Säulen-Monitor in der Statusleiste (Top-Banner); `X`/`Y`
+verschieben sie frei.
 Format: `Streamer 1 → Streamer 2 → aktuell → Streamer 3 …` — der laufende
 Eintrag ist farblich hervorgehoben, davor/danach stehen die nächsten Einträge
 (Anzahl einstellbar). Queue-Änderungen erscheinen ohne Sink-Neustart; der

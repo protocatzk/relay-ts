@@ -197,7 +197,9 @@ Wichtige Pfade:
   einen kontrollierten Sink-Neustart.
 - Die Queue-Leiste im Chat-Overlay (`settings.overlays.chat.queue_*`) zeigt
   die Regie-Queue als `A → B → aktuell → C …` (Standard unter dem Chat im
-  Panel, Säulen-Monitor mittig; freie `queue_offset_x/y`). Sie wird im
+  Panel, Säulen-Monitor als zweite Zeile in der Statusleiste; freie
+  `queue_offset_x/y`). Die Statusleiste wächst dabei um die Queue-Zeile, der
+  Chat-Monitor rückt nach unten. Sie wird im
   Chat-Canvas gerendert, der laufende Eintrag ist hervorgehoben, und
   `OverlayRuntime.updateQueue()` schiebt Queue-Änderungen ohne Sink-Neustart
   in das laufende Canvas (Aufruf aus `emitQueue`).
