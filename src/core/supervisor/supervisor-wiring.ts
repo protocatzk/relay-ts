@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { AppError, toErrorMessage } from '../../utils/errors.js';
 import { incMetric } from '../metrics.js';
 import type { Settings, StreamerConfig } from '../config/schema.js';
-import type { StatusSnapshot, StreamState } from '../events.js';
+import type { QueueSnapshot, StatusSnapshot, StreamState } from '../events.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
 import { DelayBuffer } from '../relay/delay-buffer.js';
 import { MpegTsRelay } from '../relay/relay-server.js';
@@ -74,6 +74,7 @@ export interface SupervisorWiringHost {
   scheduleReconnect(delayMs?: number): void;
   reencodeSource(reconnect: boolean): boolean;
   buildStatus(): StatusSnapshot;
+  buildQueueSnapshot(): QueueSnapshot;
   transitionTo(next: StreamState, reason?: string): void;
   emitStatus(): void;
   emitAll(): void;
@@ -356,6 +357,7 @@ export async function createSupervisorSubsystems(
     logger,
     history: earningsHistory,
     getActive: () => host.activeStreamer,
+    queue: () => host.buildQueueSnapshot(),
     onUpdate: (snapshot, overlayText) => {
       overlays.updateEarnings(overlayText);
       overlayRuntimeRef?.updateEarnings(snapshot);
@@ -371,6 +373,7 @@ export async function createSupervisorSubsystems(
     logoPath: join(config.paths.webDir, 'logo.png'),
     cookiesFile: config.paths.cookiesFile,
     sessionFor: (streamer) => ({ cookieFile: sessionFor(streamer).cookieFile }),
+    queue: () => host.buildQueueSnapshot(),
   });
   overlayRuntimeRef = overlayRuntime;
   await overlayRuntime.loadLogo();

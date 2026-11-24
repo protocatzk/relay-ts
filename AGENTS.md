@@ -280,7 +280,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   max. 4000 Punkte); Dashboard zeigt Chart, Delta und Veraltet-Hinweis.
 - Einnahmen-Overlay wird im Overlay-Studio bearbeitet (mehrzeiliges Template,
   Position, Offsets, Farben, Margin, Box); Einstellungen enthalten nur
-  Quelle/Zeitraum/View.
+  Quelle/Zeitraum/View. `{queue}` rendert die Regie-Queue für Zuschauer
+  (laufender Eintrag mit `▶`, max. 5 Zeilen, Rest „… +N“, leer = `–`) und wird
+  bei Queue-Änderungen über `EarningsMonitor.refreshQueueOverlay()` ohne neuen
+  Poll aktualisiert.
 - Zeitraum-Schnellwahl im Dashboard nutzt `POST /api/earnings/period`.
 - Fehlende Geldwerte werden aus `total_coins` und `rates` berechnet.
 - Bei temporären Fehlern bleiben letzte Werte sichtbar; fehlende Streamer

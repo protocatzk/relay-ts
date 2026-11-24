@@ -44,9 +44,15 @@ defineEmits<{
           maxlength="500"
         ></textarea>
         <p class="field-hint">
-          Variablen: <code class="mono">{coins}</code>, <code class="mono">{diamonds}</code>,
-          <code class="mono">{eur}</code>, <code class="mono">{usd}</code>, <code class="mono">{likes}</code>,
-          <code class="mono">{streamers}</code>, <code class="mono">{period}</code>
+          Variablen: <code class="mono">{net}</code>, <code class="mono">{gross}</code>,
+          <code class="mono">{coins}</code>, <code class="mono">{gifts}</code>,
+          <code class="mono">{viewers}</code>, <code class="mono">{followers}</code>,
+          <code class="mono">{period}</code>, <code class="mono">{goal}</code>,
+          <code class="mono">{queue}</code>
+        </p>
+        <p class="field-hint">
+          <code class="mono">{queue}</code> zeigt mehrzeilig den laufenden und die nächsten
+          Queue-Einträge (max. 5, danach „… +N“).
         </p>
       </div>
       <div class="field">

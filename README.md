@@ -626,7 +626,12 @@ enthalten nur noch Quelle, Intervall, Zeitraum und Dashboard-Ansicht.
 **Overlay-Platzhalter:** `{period}`, `{net}`, `{gross}`, `{coins}`, `{gifts}`,
 `{gifters}`, `{session_net}`, `{session_gross}`, `{session_coins}`,
 `{viewers}`, `{followers}`, `{live}`, `{top_gift}`, `{top_gifter}`,
-`{display_name}`, `{last_seen}`, `{name}`, `{username}`, `{currency}`.
+`{display_name}`, `{last_seen}`, `{name}`, `{username}`, `{currency}`, `{queue}`.
+
+`{queue}` zeigt mehrzeilig die aktuelle Regie-Queue: den laufenden Eintrag mit
+`▶`, danach die nächsten Einträge (max. 5, Rest als „… +N“). Die Anzeige
+aktualisiert sich bei Queue-Änderungen ohne auf den nächsten Einnahmen-Poll zu
+warten; eine leere Queue erscheint als `–`.
 
 ---
 

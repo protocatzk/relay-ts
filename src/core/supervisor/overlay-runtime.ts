@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 import { loadImage, type Image } from '@napi-rs/canvas';
 import type { Settings, StreamerConfig } from '../config/schema.js';
-import type { StatusSnapshot } from '../events.js';
+import type { QueueSnapshot, StatusSnapshot } from '../events.js';
 import { isoOrNull } from '../../utils/format.js';
 import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatAnalytics, type ChatAnalyticsSnapshot } from '../overlays/chat-analytics.js';
@@ -24,6 +24,8 @@ export interface OverlayRuntimeDeps {
   cookiesFile?: string;
   /** Per-streamer TikTok session for the chat Webcast client (#95). */
   sessionFor?: (streamer: StreamerConfig) => { cookieFile: string | null };
+  /** Current regie queue for the `{queue}` earnings placeholder (#95). */
+  queue?: () => QueueSnapshot;
 }
 
 export interface RebuiltOverlayEngine {
@@ -43,6 +45,7 @@ export class OverlayRuntime {
   private readonly logoPath: string;
   private readonly cookiesFile?: string;
   private readonly sessionFor?: (streamer: StreamerConfig) => { cookieFile: string | null };
+  private readonly queue?: () => QueueSnapshot;
 
   private chat?: ChatService;
   private chatEngine?: ChatOverlayEngine;
@@ -64,6 +67,7 @@ export class OverlayRuntime {
     this.logoPath = deps.logoPath;
     this.cookiesFile = deps.cookiesFile;
     this.sessionFor = deps.sessionFor;
+    this.queue = deps.queue;
   }
 
   /** Loads the built-in RELAY logo once; failures simply disable the overlay. */
@@ -342,6 +346,7 @@ export class OverlayRuntime {
       this.settings.earnings.overlay_template,
       snapshot,
       this.settings.earnings,
+      this.queue?.(),
     );
   }
 
@@ -398,7 +403,7 @@ export class OverlayRuntime {
   private studioEarningsText(settings: Settings, sample: boolean): string {
     const current = this.earnings.get() ?? null;
     if (current && (current.net !== null || current.gross !== null || current.coins !== null)) {
-      return formatEarningsOverlay(settings.earnings.overlay_template, current, settings.earnings);
+      return formatEarningsOverlay(settings.earnings.overlay_template, current, settings.earnings, this.queue?.());
     }
     if (!sample) return '';
     const demo = {
@@ -435,6 +440,6 @@ export class OverlayRuntime {
       top_gifter: { username: 'viewer', display_name: null, coins: 1200 },
       last_seen_at: new Date().toISOString(),
     } as EarningsSnapshot;
-    return formatEarningsOverlay(settings.earnings.overlay_template, demo, settings.earnings);
+    return formatEarningsOverlay(settings.earnings.overlay_template, demo, settings.earnings, this.queue?.());
   }
 }

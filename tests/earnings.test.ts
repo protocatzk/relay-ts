@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatEarningsOverlay,
+  formatQueueOverlay,
   parseEarningsPayload,
   type EarningsSnapshot,
 } from '../src/core/earnings/monitor.js';
+import type { QueueSnapshot } from '../src/core/events.js';
 import { StreamerSchema } from '../src/core/config/schema.js';
 
 const streamer = StreamerSchema.parse({ id: 'kiyan', name: 'Kiyan', tiktok: 'kiyan_069' });
@@ -194,6 +196,96 @@ describe('earnings parser', () => {
       snapshot({ net: 205.28, coins: 42505 }),
     );
     expect(text).toBe('Heute\n205.28 EUR\n42505 Coins');
+  });
+
+  it('renders the current queue for viewers (#95)', () => {
+    const queue: QueueSnapshot = {
+      entries: ['Intro', 'Streamer A', 'Streamer B', 'Streamer C', 'Streamer D', 'Streamer E', 'Streamer F'].map(
+        (label, index) => ({
+          id: `e${index}`,
+          channel: `channel-${index}`,
+          kind: 'streamer',
+          label,
+          duration_seconds: null,
+        }),
+      ),
+      playing: true,
+      index: 1,
+      loop: false,
+    };
+
+    expect(formatQueueOverlay(queue)).toBe(
+      '▶ Streamer A\nStreamer B\nStreamer C\nStreamer D\nStreamer E\n… +1',
+    );
+    expect(formatQueueOverlay(undefined)).toBe('–');
+    expect(formatQueueOverlay({ ...queue, entries: [], index: null, playing: false })).toBe('–');
+    // An idle queue starts at the top and marks no entry as running.
+    expect(formatQueueOverlay({ ...queue, playing: false, index: null }).split('\n')[0]).toBe('Intro');
+  });
+
+  it('substitutes {queue} in the earnings overlay template', () => {
+    const queue: QueueSnapshot = {
+      entries: [
+        { id: 'a', channel: 'a', kind: 'streamer', label: 'Alpha', duration_seconds: null },
+        { id: 'b', channel: 'b', kind: 'streamer', label: 'Beta', duration_seconds: null },
+      ],
+      playing: true,
+      index: 0,
+      loop: false,
+    };
+    const text = formatEarningsOverlay(
+      'Jetzt:\n{queue}\n· {coins} Coins',
+      snapshot({ coins: 1200 }),
+      undefined,
+      queue,
+    );
+    expect(text).toBe('Jetzt:\n▶ Alpha\nBeta\n· 1200 Coins');
+    expect(
+      formatEarningsOverlay('{queue}', snapshot(), undefined, null),
+    ).toBe('–');
+  });
+
+  it('re-emits the overlay on queue changes without duplicates (#95)', async () => {
+    const { EarningsMonitor } = await import('../src/core/earnings/monitor.js');
+    const { DEFAULT_SETTINGS } = await import('../src/core/config/schema.js');
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      earnings: {
+        ...DEFAULT_SETTINGS.earnings,
+        overlay_enabled: true,
+        overlay_template: '{queue}',
+      },
+    };
+    let queue: QueueSnapshot = {
+      entries: [{ id: 'a', channel: 'a', kind: 'streamer', label: 'Alpha', duration_seconds: null }],
+      playing: false,
+      index: null,
+      loop: false,
+    };
+    const texts: string[] = [];
+    const monitor = new EarningsMonitor({
+      settings,
+      logger: { info: () => {}, warn: () => {} } as any,
+      getActive: () => streamer,
+      onUpdate: (_snapshot: EarningsSnapshot, text: string) => texts.push(text),
+      queue: () => queue,
+    });
+
+    monitor.refreshQueueOverlay();
+    monitor.refreshQueueOverlay();
+    expect(texts).toEqual(['Alpha']);
+
+    queue = {
+      entries: [
+        { id: 'b', channel: 'b', kind: 'streamer', label: 'Beta', duration_seconds: null },
+        { id: 'c', channel: 'c', kind: 'streamer', label: 'Gamma', duration_seconds: null },
+      ],
+      playing: true,
+      index: 0,
+      loop: false,
+    };
+    monitor.refreshQueueOverlay();
+    expect(texts).toEqual(['Alpha', '▶ Beta\nGamma']);
   });
 
   it('returns no data without an active streamer', () => {

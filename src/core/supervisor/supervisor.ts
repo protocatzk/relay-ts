@@ -1190,6 +1190,8 @@ export class Supervisor {
   }
 
   emitQueue(force = false): void {
+    // `{queue}` in the earnings overlay follows queue edits immediately (#95).
+    this.earnings?.refreshQueueOverlay?.();
     if (!force && !this.deps.bus.hasObservers()) return;
     try {
       this.deps.bus.emit({ type: 'queue', data: this.buildQueueSnapshot() });

@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import type { Settings, StreamerConfig } from '../config/schema.js';
+import type { QueueSnapshot } from '../events.js';
 import { normalizeHandle } from '../../utils/format.js';
 import { incMetric } from '../metrics.js';
 import {
@@ -117,6 +118,8 @@ export interface EarningsMonitorOptions {
   getActive: () => StreamerConfig | null;
   onUpdate: (snapshot: EarningsSnapshot, overlayText: string) => void;
   history?: EarningsHistoryStore;
+  /** Current regie queue for the `{queue}` overlay placeholder (#95). */
+  queue?: () => QueueSnapshot;
 }
 
 type ParsedEarnings = Pick<
@@ -647,10 +650,37 @@ export function computeEarningsGoal(
   };
 }
 
+/** Maximum entries the `{queue}` placeholder shows before summarizing the rest. */
+export const QUEUE_OVERLAY_MAX_LINES = 5;
+
+/**
+ * Renders the current regie queue for viewers: the running entry first, then
+ * the next ones, one per line (#95).
+ */
+export function formatQueueOverlay(
+  queue: QueueSnapshot | null | undefined,
+  maxLines = QUEUE_OVERLAY_MAX_LINES,
+): string {
+  if (!queue || queue.entries.length === 0) return '–';
+  const start =
+    queue.index !== null && queue.index >= 0
+      ? Math.min(queue.index, queue.entries.length - 1)
+      : 0;
+  const visible = queue.entries.slice(start, start + Math.max(1, maxLines));
+  const lines = visible.map((entry, offset) => {
+    const current = queue.playing && start + offset === queue.index;
+    return `${current ? '▶ ' : ''}${entry.label}`;
+  });
+  const remaining = queue.entries.length - (start + visible.length);
+  if (remaining > 0) lines.push(`… +${remaining}`);
+  return lines.join('\n');
+}
+
 export function formatEarningsOverlay(
   template: string,
   snapshot: EarningsSnapshot,
   goalConfig?: EarningsGoalConfig,
+  queue?: QueueSnapshot | null,
 ): string {
   const value = (number: number | null, digits = 2): string =>
     number === null ? '–' : number.toFixed(digits);
@@ -692,7 +722,8 @@ export function formatEarningsOverlay(
     .replaceAll('{goal_label}', goalLabel)
     .replaceAll('{goal_percent}', goal.enabled ? `${goal.percent} %` : '–')
     .replaceAll('{goal_remaining}', goal.enabled ? value(goal.remaining) : '–')
-    .replaceAll('{goal_bar}', goal.enabled ? goal.bar : '');
+    .replaceAll('{goal_bar}', goal.enabled ? goal.bar : '')
+    .replaceAll('{queue}', formatQueueOverlay(queue));
 
   const hasGoalPlaceholder =
     template.includes('{goal') &&
@@ -714,6 +745,7 @@ export class EarningsMonitor {
   private timer?: NodeJS.Timeout;
   private snapshot: EarningsSnapshot;
   private lastErrorLog = 0;
+  private lastQueueText: string | null = null;
 
   constructor(options: EarningsMonitorOptions) {
     this.options = options;
@@ -731,6 +763,7 @@ export class EarningsMonitor {
       status: !configured ? 'unconfigured' : settings.enabled ? 'inactive' : 'disabled',
       source: safeSource(settings.source_url),
     };
+    this.lastQueueText = null;
     this.emit();
     if (!settings.enabled || !configured) return;
     void this.poll();
@@ -877,6 +910,20 @@ export class EarningsMonitor {
     return this.options.history?.query(active.id, selected, limit) ?? [];
   }
 
+  /**
+   * Re-renders the overlay when the queue changed, so `{queue}` stays live
+   * without waiting for the next earnings poll (#95).
+   */
+  refreshQueueOverlay(): void {
+    if (!this.options.queue) return;
+    if (!this.options.settings.earnings.overlay_enabled) return;
+    if (!this.options.settings.earnings.overlay_template.includes('{queue}')) return;
+    const text = formatQueueOverlay(this.options.queue());
+    if (text === this.lastQueueText) return;
+    this.lastQueueText = text;
+    this.emit();
+  }
+
   private emit(): void {
     const snapshot = this.get();
     this.options.onUpdate(
@@ -885,6 +932,7 @@ export class EarningsMonitor {
         this.options.settings.earnings.overlay_template,
         snapshot,
         this.options.settings.earnings,
+        this.options.queue?.(),
       ),
     );
   }
