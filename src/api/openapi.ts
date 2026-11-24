@@ -1100,6 +1100,64 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'get',
+    path: '/api/discovery/suggest',
+    tag: 'discovery',
+    summary: 'Profil-Vorschläge für die Suche (Cockpit-Panel)',
+    parameters: [
+      { name: 'q', in: 'query', required: true, schema: { type: 'string', example: 'gaming' } },
+      { name: 'limit', in: 'query', schema: { type: 'integer', example: 8 } },
+      { name: 'region', in: 'query', schema: { type: 'string', example: 'DE' } },
+    ],
+    response: {
+      type: 'object',
+      required: ['suggestions', 'providers'],
+      properties: {
+        suggestions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['handle', 'display_name'],
+            properties: {
+              handle: { type: 'string' },
+              display_name: { type: 'string' },
+              avatar_url: { type: 'string', nullable: true },
+            },
+          },
+        },
+        providers: {
+          type: 'array',
+          items: { type: 'object' },
+        },
+      },
+    },
+  },
+  {
+    method: 'get',
+    path: '/api/discovery/status',
+    tag: 'discovery',
+    summary: 'Live-Status für bis zu 20 Handles (Batch)',
+    parameters: [
+      {
+        name: 'handles',
+        in: 'query',
+        required: true,
+        schema: { type: 'string', example: 'alpha,bravo' },
+      },
+    ],
+    response: {
+      type: 'object',
+      required: ['statuses', 'checked_at'],
+      properties: {
+        statuses: {
+          type: 'object',
+          additionalProperties: { type: 'string', enum: ['live', 'offline', 'unknown'] },
+        },
+        checked_at: { type: 'string' },
+      },
+    },
+  },
+  {
+    method: 'get',
     path: '/api/discovery/following',
     tag: 'discovery',
     summary: 'Gefolgte Live-Streams des aktiven TikTok-Accounts abrufen',
@@ -1373,6 +1431,14 @@ const routes: RouteDoc[] = [
     path: '/api/discovery/preview/:handle',
     tag: 'discovery',
     summary: 'HTTP-FLV Live-Vorschau für einen TikTok-Streamer streamen',
+    parameters: [
+      {
+        name: 'fallback',
+        in: 'query',
+        schema: { type: 'string', enum: ['1', 'true'] },
+        description: 'Antwortet mit 204 statt 404, wenn der Raum offline ist',
+      },
+    ],
     responseType: 'video/x-flv',
     response: { type: 'string' },
   },

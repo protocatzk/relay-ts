@@ -709,6 +709,24 @@ export interface DiscoveryHit {
   fetched_at: string;
 }
 
+export type DiscoveryLiveState = 'live' | 'offline' | 'unknown';
+
+export interface DiscoverySuggestion {
+  handle: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
+export interface DiscoverySuggestResponse {
+  suggestions: DiscoverySuggestion[];
+  providers: DiscoveryProviderStatus[];
+}
+
+export interface DiscoveryStatusResponse {
+  statuses: Record<string, DiscoveryLiveState>;
+  checked_at: string;
+}
+
 export interface DiscoveryResponse {
   hits: DiscoveryHit[];
   providers: DiscoveryProviderStatus[];

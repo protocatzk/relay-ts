@@ -3,6 +3,7 @@ import type {
   DiscoveryProvider,
   DiscoveryProviderState,
   DiscoveryProviderStatus,
+  DiscoverySuggestion,
 } from './types.js';
 import { readCookieHeader } from '../resolver.js';
 import {
@@ -197,6 +198,63 @@ export class SearchProvider implements DiscoveryProvider {
         : error instanceof Error
           ? error.message
           : String(error);
+      return [];
+    }
+  }
+
+  /**
+   * Profile suggestions for the header search (#92). Uses the public user
+   * suggestion endpoint; results are handles only, live status is resolved by
+   * the caller.
+   */
+  async suggest(
+    q: string,
+    opts: { limit?: number; region?: string } = {},
+  ): Promise<DiscoverySuggestion[]> {
+    const cleanQuery = q.trim().replace(/^@+/, '');
+    if (!cleanQuery) return [];
+    const { region, language, locale } = resolveRegionLocale(opts.region);
+    const limit = Math.min(20, Math.max(1, opts.limit ?? 8));
+    const headers: Record<string, string> = {
+      accept: 'application/json, text/plain, */*',
+      'accept-language': `${locale},${language};q=0.9,en;q=0.8`,
+      referer: `https://www.tiktok.com/search/user?q=${encodeURIComponent(cleanQuery)}`,
+      'user-agent':
+        this.options.userAgent ??
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    };
+    if (this.options.cookiesFile) {
+      const cookie = readCookieHeader(this.options.cookiesFile);
+      if (cookie) headers.cookie = cookie;
+    }
+
+    const url = new URL('https://www.tiktok.com/api/comment/search/sug/user/');
+    url.searchParams.set('aid', '1988');
+    url.searchParams.set('app_name', 'tiktok_web');
+    url.searchParams.set('device_platform', 'web_pc');
+    url.searchParams.set('region', region);
+    url.searchParams.set('keyword', cleanQuery);
+
+    try {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(6_000) });
+      if (!response.ok) return [];
+      const payload = (await response.json()) as unknown;
+      const seen = new Set<string>();
+      const suggestions: DiscoverySuggestion[] = [];
+      for (const hit of parseSearchPayload(payload)) {
+        const handle = hit.handle.replace(/^@+/, '');
+        if (!handle || seen.has(handle)) continue;
+        seen.add(handle);
+        suggestions.push({
+          handle,
+          display_name: hit.display_name || handle,
+          avatar_url: hit.avatar_url,
+        });
+        if (suggestions.length >= limit) break;
+      }
+      return suggestions;
+    } catch {
+      // Suggestions are best effort; the search itself still works.
       return [];
     }
   }

@@ -24,6 +24,16 @@ export interface DiscoveryHit {
   fetched_at: string;
 }
 
+/** Live state of a single room, used by the cockpit discovery card. */
+export type DiscoveryLiveState = 'live' | 'offline' | 'unknown';
+
+/** Lightweight profile suggestion for the header search and the panel. */
+export interface DiscoverySuggestion {
+  handle: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
 export interface DiscoveryResponse {
   hits: DiscoveryHit[];
   providers: DiscoveryProviderStatus[];
@@ -41,6 +51,7 @@ export interface DiscoveryProvider {
     accountId?: string;
     sessionId?: string;
   }): Promise<DiscoveryHit[]>;
+  suggest?(q: string, opts?: { limit?: number; region?: string }): Promise<DiscoverySuggestion[]>;
   health(): DiscoveryProviderStatus;
 }
 

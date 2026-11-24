@@ -39,6 +39,24 @@ const RoomParamsSchema = z.object({
   handle: z.string().min(1).max(100),
 });
 
+const SuggestQuerySchema = z.object({
+  q: z.string().min(1).max(100),
+  limit: z.coerce.number().int().min(1).max(20).optional(),
+  region: z.string().max(10).optional(),
+});
+
+const StatusQuerySchema = z.object({
+  /** Comma separated handles, at most 20 (enforced in the service as well). */
+  handles: z.string().min(1).max(1200),
+});
+
+const PreviewQuerySchema = z.object({
+  /** 1 = return 204 instead of 404 when the room is offline (#92). */
+  fallback: z
+    .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')])
+    .optional(),
+});
+
 const AddBodySchema = z.object({
   handle: z.string().min(1).max(100),
   name: z.string().max(120).optional(),
@@ -95,6 +113,46 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
   );
 
   app.get(
+    '/api/discovery/suggest',
+    { config: { rateLimit: RATE_LIMIT_CONFIG } },
+    async (request: FastifyRequest) => {
+      const parsed = SuggestQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Ungültige Suchparameter: ${formatZodError(parsed.error)}`,
+          parsed.error.issues,
+        );
+      }
+      return getDiscovery().suggest(parsed.data.q, {
+        limit: parsed.data.limit,
+        region: parsed.data.region,
+      });
+    },
+  );
+
+  app.get(
+    '/api/discovery/status',
+    { config: { rateLimit: RATE_LIMIT_CONFIG } },
+    async (request: FastifyRequest) => {
+      const parsed = StatusQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Ungültige Handle-Liste: ${formatZodError(parsed.error)}`,
+          parsed.error.issues,
+        );
+      }
+      const handles = parsed.data.handles
+        .split(',')
+        .map((handle) => handle.trim())
+        .filter(Boolean);
+      if (handles.length === 0) {
+        throw new ValidationError('Mindestens ein Handle angeben');
+      }
+      return getDiscovery().statusForHandles(handles);
+    },
+  );
+
+  app.get(
     '/api/discovery/preview/:handle',
     { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -102,9 +160,16 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
       if (!parsed.success) {
         throw new ValidationError(`Ungültiger Handle-Parameter: ${formatZodError(parsed.error)}`, parsed.error.issues);
       }
+      const query = PreviewQuerySchema.safeParse(request.query);
+      const wantsFallback =
+        query.success && (query.data.fallback === '1' || query.data.fallback === 'true');
 
       const flvUrl = await getDiscovery().resolvePreviewStreamUrl(parsed.data.handle);
       if (!flvUrl || !isAllowedTikTokStreamUrl(flvUrl)) {
+        if (wantsFallback) {
+          // The zapper keeps zapping instead of rendering an error state (#92).
+          return reply.code(204).send();
+        }
         throw new NotFoundError(`Kein aktiver Live-Stream für „${parsed.data.handle}“ verfügbar`);
       }
 

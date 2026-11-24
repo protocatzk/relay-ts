@@ -10,14 +10,23 @@ import { normalizeHandle } from '../../../utils/format.js';
 import { FollowingProvider } from './following-provider.js';
 import type {
   DiscoveryHit,
+  DiscoveryLiveState,
   DiscoveryProvider,
   DiscoveryProviderName,
   DiscoveryProviderStatus,
   DiscoveryResponse,
+  DiscoverySuggestion,
 } from './types.js';
 import { getRememberedStreamUrl, LivePageProvider } from './live-page-provider.js';
 import { RoomInfoProvider } from './room-info-provider.js';
 import { SearchProvider } from './search-provider.js';
+
+/** Suggestions: short cache so typing stays snappy without extra requests. */
+const SUGGEST_TTL_MS = 5_000;
+/** Live status per handle for the cockpit card. */
+const STATUS_TTL_MS = 30_000;
+const STATUS_CONCURRENCY = 4;
+const MAX_STATUS_HANDLES = 20;
 
 export interface DiscoveryServiceDeps {
   store: StreamerStore;
@@ -36,6 +45,10 @@ export class DiscoveryService {
   private readonly trendingCache = new Map<string, { response: DiscoveryResponse; expiresAt: number }>();
   private readonly searchCache = new Map<string, { response: DiscoveryResponse; expiresAt: number }>();
   private readonly roomCache = new Map<string, { hit: DiscoveryHit | null; expiresAt: number }>();
+  /** Header-search suggestions are cheap to repeat; cache them briefly. */
+  private readonly suggestCache = new Map<string, { items: DiscoverySuggestion[]; expiresAt: number }>();
+  /** Batch live status for the cockpit card; never hammer the room API. */
+  private readonly statusCache = new Map<string, { state: DiscoveryLiveState; expiresAt: number }>();
 
   constructor(private readonly deps: DiscoveryServiceDeps) {
     if (deps.providers) {
@@ -82,6 +95,8 @@ export class DiscoveryService {
     this.trendingCache.clear();
     this.searchCache.clear();
     this.roomCache.clear();
+    this.suggestCache.clear();
+    this.statusCache.clear();
   }
 
   private filterHits(hits: DiscoveryHit[]): DiscoveryHit[] {
@@ -338,6 +353,90 @@ export class DiscoveryService {
     }
 
     return getRememberedStreamUrl(normalized);
+  }
+
+  /**
+   * Header-search suggestions (#92). Cached for a few seconds so typing does
+   * not trigger one provider request per keystroke.
+   */
+  async suggest(
+    q: string,
+    opts: { limit?: number; region?: string } = {},
+  ): Promise<{ suggestions: DiscoverySuggestion[]; providers: DiscoveryProviderStatus[] }> {
+    const settings = this.deps.settingsService.get().discovery;
+    const region = (opts.region ?? settings.region ?? 'DE').toUpperCase();
+    const limit = Math.min(20, Math.max(1, opts.limit ?? 8));
+    const trimmed = q.trim();
+    if (!trimmed) return { suggestions: [], providers: this.providerStatuses() };
+
+    const cacheKey = `${region}::${trimmed.toLowerCase()}::${limit}`;
+    const now = Date.now();
+    const cached = this.suggestCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return { suggestions: cached.items, providers: this.providerStatuses() };
+    }
+
+    const provider = this.providers.get('search_api');
+    let items: DiscoverySuggestion[] = [];
+    if (provider?.suggest) {
+      try {
+        items = await provider.suggest(trimmed, { limit, region });
+      } catch (error) {
+        this.deps.logger.debug({ err: error }, 'Discovery-Suggest fehlgeschlagen');
+      }
+    }
+    this.suggestCache.set(cacheKey, { items, expiresAt: now + SUGGEST_TTL_MS });
+    return { suggestions: items, providers: this.providerStatuses() };
+  }
+
+  /**
+   * Batch live status for the cockpit card (#92). Unknown handles stay
+   * `unknown` — a failed lookup must never look like an offline stream.
+   */
+  async statusForHandles(handles: string[]): Promise<{
+    statuses: Record<string, DiscoveryLiveState>;
+    checked_at: string;
+  }> {
+    const unique = Array.from(
+      new Set(handles.map((handle) => normalizeHandle(handle)).filter((handle): handle is string => Boolean(handle))),
+    ).slice(0, MAX_STATUS_HANDLES);
+
+    const provider = this.providers.get('room_info');
+    const statuses: Record<string, DiscoveryLiveState> = {};
+    const now = Date.now();
+    const missing: string[] = [];
+
+    for (const handle of unique) {
+      const cached = this.statusCache.get(handle);
+      if (cached && cached.expiresAt > now) {
+        statuses[handle] = cached.state;
+      } else {
+        missing.push(handle);
+      }
+    }
+
+    // Small concurrency window: enough for a cockpit card, gentle on TikTok.
+    for (let index = 0; index < missing.length; index += STATUS_CONCURRENCY) {
+      const slice = missing.slice(index, index + STATUS_CONCURRENCY);
+      const results = await Promise.all(
+        slice.map(async (handle) => {
+          if (!provider?.roomInfo) return { handle, state: 'unknown' as DiscoveryLiveState };
+          try {
+            const hit = await provider.roomInfo(handle);
+            if (!hit) return { handle, state: 'unknown' as DiscoveryLiveState };
+            return { handle, state: (hit.live ? 'live' : 'offline') as DiscoveryLiveState };
+          } catch {
+            return { handle, state: 'unknown' as DiscoveryLiveState };
+          }
+        }),
+      );
+      for (const entry of results) {
+        statuses[entry.handle] = entry.state;
+        this.statusCache.set(entry.handle, { state: entry.state, expiresAt: Date.now() + STATUS_TTL_MS });
+      }
+    }
+
+    return { statuses, checked_at: new Date().toISOString() };
   }
 
   addStreamer(handle: string, name?: string): { streamer: StreamerConfig; created: boolean } {

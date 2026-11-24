@@ -22,6 +22,8 @@ import type {
   DiscoveryHit,
   DiscoveryProviderStatus,
   DiscoveryResponse,
+  DiscoveryStatusResponse,
+  DiscoverySuggestResponse,
   EarningsHistoryPoint,
   EarningsPeriod,
   EarningsSnapshot,
@@ -863,6 +865,16 @@ export const api = {
     room: (handle: string) =>
       request<{ hit: DiscoveryHit | null; providers: DiscoveryProviderStatus[] }>(
         `/api/discovery/room/${encodeURIComponent(handle)}`,
+      ),
+    suggest: (q: string, opts?: { limit?: number; region?: string }) => {
+      const search = new URLSearchParams({ q });
+      if (opts?.limit) search.set('limit', String(opts.limit));
+      if (opts?.region) search.set('region', opts.region);
+      return request<DiscoverySuggestResponse>(`/api/discovery/suggest?${search.toString()}`);
+    },
+    status: (handles: string[]) =>
+      request<DiscoveryStatusResponse>(
+        `/api/discovery/status?handles=${encodeURIComponent(handles.join(','))}`,
       ),
     add: (handle: string, name?: string) =>
       request<{ ok: true; streamer: Streamer; created: boolean }>('/api/discovery/add', {

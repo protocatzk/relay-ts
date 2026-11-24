@@ -25,6 +25,7 @@ describe('Discovery API Routes', () => {
   let store: StreamerStore;
   let service: DiscoveryService;
   let supervisor: any;
+  let suggestCalls = 0;
 
   beforeAll(async () => {
     const dir = mkdtempSync(join(tmpdir(), 'relay-discovery-api-'));
@@ -76,11 +77,16 @@ describe('Discovery API Routes', () => {
       fetched_at: new Date().toISOString(),
     };
 
+    suggestCalls = 0;
     const mockProvider: DiscoveryProvider = {
       name: 'room_info',
       health: () => ({ name: 'room_info', status: 'online', last_error: null, last_ok_at: null }),
       trending: async () => [mockLiveHit],
       search: async (q: string) => (q.includes('live') ? [mockLiveHit] : []),
+      suggest: async () => {
+        suggestCalls += 1;
+        return [{ handle: 'live_gamer', display_name: 'Live Gamer', avatar_url: null }];
+      },
       roomInfo: async (handle: string) => {
         if (handle === 'live_gamer') return mockLiveHit;
         if (handle === 'offline_streamer') return mockOfflineHit;
@@ -88,7 +94,16 @@ describe('Discovery API Routes', () => {
       },
     };
 
-    const providers = new Map<string, DiscoveryProvider>([['room_info', mockProvider]]);
+    const searchProvider: DiscoveryProvider = {
+      ...mockProvider,
+      name: 'search_api',
+      health: () => ({ name: 'search_api', status: 'online', last_error: null, last_ok_at: null }),
+    };
+
+    const providers = new Map<string, DiscoveryProvider>([
+      ['room_info', mockProvider],
+      ['search_api', searchProvider],
+    ]);
 
     service = new DiscoveryService({
       store,
@@ -234,6 +249,77 @@ describe('Discovery API Routes', () => {
 
     const { entries } = audit.query({ limit: 10 });
     expect(entries.some((e) => e.action === 'discovery.switch')).toBe(true);
+  });
+
+  it('GET /api/discovery/suggest returns profile suggestions and caches them', async () => {
+    const first = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/suggest?q=live&limit=5',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(first.statusCode).toBe(200);
+    const body = first.json();
+    expect(body.suggestions).toHaveLength(1);
+    expect(body.suggestions[0].handle).toBe('live_gamer');
+    expect(body.providers).toBeDefined();
+
+    const callsAfterFirst = suggestCalls;
+    const second = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/suggest?q=live&limit=5',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(second.statusCode).toBe(200);
+    // Cached: no extra provider round-trip for the same term.
+    expect(suggestCalls).toBe(callsAfterFirst);
+  });
+
+  it('GET /api/discovery/suggest rejects empty queries', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/suggest?q=',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/discovery/status maps live, offline and unknown handles', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/status?handles=live_gamer,offline_streamer,ghost_user',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.statuses.live_gamer).toBe('live');
+    expect(body.statuses.offline_streamer).toBe('offline');
+    expect(body.statuses.ghost_user).toBe('unknown');
+    expect(typeof body.checked_at).toBe('string');
+  });
+
+  it('GET /api/discovery/status requires at least one handle', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/status?handles=',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/discovery/preview honours the fallback flag for offline rooms', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/preview/offline_streamer?fallback=1',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(res.statusCode).toBe(204);
+
+    const strict = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/preview/offline_streamer',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(strict.statusCode).toBe(404);
   });
 
   it('enforces rate limiting when too many requests arrive', async () => {

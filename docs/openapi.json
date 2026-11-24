@@ -6783,6 +6783,158 @@
         }
       }
     },
+    "/api/discovery/suggest": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Profil-Vorschläge für die Suche (Cockpit-Panel)",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "gaming"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 8
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "DE"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "suggestions",
+                    "providers"
+                  ],
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "handle",
+                          "display_name"
+                        ],
+                        "properties": {
+                          "handle": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          },
+                          "avatar_url": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/status": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Live-Status für bis zu 20 Handles (Batch)",
+        "parameters": [
+          {
+            "name": "handles",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "alpha,bravo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "statuses",
+                    "checked_at"
+                  ],
+                  "properties": {
+                    "statuses": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "enum": [
+                          "live",
+                          "offline",
+                          "unknown"
+                        ]
+                      }
+                    },
+                    "checked_at": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/discovery/following": {
       "get": {
         "tags": [
@@ -7746,6 +7898,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "fallback",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true"
+              ]
+            },
+            "description": "Antwortet mit 204 statt 404, wenn der Raum offline ist"
           }
         ],
         "responses": {
