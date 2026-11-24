@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Logger } from 'pino';
 import { z } from 'zod';
 import { writeFileAtomic } from '../../utils/fs.js';
@@ -30,6 +31,11 @@ export interface TikTokAccountPublic {
 export interface TikTokAccountStoreOptions {
   filePath: string;
   cookiesFile: string;
+  /**
+   * Directory for per-account cookie files (`<id>.txt`, mode 0600). Streamers
+   * with an explicit TikTok account read their own file from here (#95).
+   */
+  cookiesDir?: string;
   logger: Logger;
   initialSessionId?: string;
   initialTargetIdc?: string;
@@ -38,12 +44,14 @@ export interface TikTokAccountStoreOptions {
 export class TikTokAccountStore {
   private readonly filePath: string;
   private readonly cookiesFile: string;
+  private readonly cookiesDir?: string;
   private readonly logger: Logger;
   private accounts: TikTokAccount[] = [];
 
   constructor(options: TikTokAccountStoreOptions) {
     this.filePath = options.filePath;
     this.cookiesFile = options.cookiesFile;
+    this.cookiesDir = options.cookiesDir;
     this.logger = options.logger;
     this.load(options.initialSessionId, options.initialTargetIdc);
   }
@@ -111,6 +119,34 @@ export class TikTokAccountStore {
     return this.accounts.find((acc) => acc.id === id) ?? null;
   }
 
+  /**
+   * Netscape cookie file for one account, written on demand (mode 0600).
+   * Without a cookie directory the global file is reused (legacy layouts).
+   */
+  cookieFileFor(account: TikTokAccount | string): string {
+    const resolved = typeof account === 'string' ? this.getById(account) : account;
+    if (!resolved) {
+      throw new NotFoundError('TikTok-Konto nicht gefunden');
+    }
+    if (!this.cookiesDir) {
+      ensureCookieFile(this.cookiesFile, resolved.sessionId, resolved.targetIdc);
+      return this.cookiesFile;
+    }
+    mkdirSync(this.cookiesDir, { recursive: true, mode: 0o700 });
+    const file = join(this.cookiesDir, `${resolved.id}.txt`);
+    ensureCookieFile(file, resolved.sessionId, resolved.targetIdc);
+    return file;
+  }
+
+  /** Cookie header for API calls with this account's session. */
+  cookieHeaderFor(account: TikTokAccount | string): string | null {
+    const resolved = typeof account === 'string' ? this.getById(account) : account;
+    if (!resolved) return null;
+    return `sessionid=${resolved.sessionId}${
+      resolved.targetIdc ? `; tt-target-idc=${resolved.targetIdc}` : ''
+    }`;
+  }
+
   create(input: { label: string; sessionId: string; targetIdc?: string; username?: string }): TikTokAccountPublic {
     const id = `acc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const parsed = TikTokAccountSchema.safeParse({
@@ -176,8 +212,12 @@ export class TikTokAccountStore {
       throw new NotFoundError(`TikTok Account ${id} nicht gefunden`);
     }
 
-    const wasActive = this.accounts[index]!.active;
+    const removed = this.accounts[index]!;
+    const wasActive = removed.active;
     this.accounts.splice(index, 1);
+    if (this.cookiesDir) {
+      rmSync(join(this.cookiesDir, `${removed.id}.txt`), { force: true });
+    }
 
     if (wasActive && this.accounts.length > 0) {
       this.accounts[0]!.active = true;

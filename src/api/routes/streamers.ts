@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ApiContext } from '../context.js';
 import { normalizeHandle } from '../../utils/format.js';
 import { NotFoundError, ValidationError } from '../../utils/errors.js';
+import { resolveHttpActor } from '../audit-middleware.js';
 
 const StartBody = z.object({}).passthrough();
 
@@ -17,6 +18,7 @@ const BulkAddBody = z.object({
   channels: z.array(z.string().min(1)).min(1).max(200),
   playlist_id: z.string().optional(),
   group: z.string().trim().max(64).optional(),
+  tiktok_account: z.string().trim().max(64).optional(),
 });
 
 function slugify(value: string): string {
@@ -32,6 +34,37 @@ function slugify(value: string): string {
 
 function viewById(ctx: ApiContext, id: string) {
   return ctx.supervisor.streamersView().find((streamer) => streamer.id === id);
+}
+
+/** Rejects unknown TikTok account ids before they reach the store (#95). */
+function assertTikTokAccount(ctx: ApiContext, body: unknown): void {
+  const id = (body as { tiktok_account?: unknown } | null)?.tiktok_account;
+  if (typeof id !== 'string' || !id.trim()) return;
+  if (!ctx.tiktokAccounts) {
+    throw new ValidationError('TikTok-Konten sind auf dieser Instanz nicht verfügbar');
+  }
+  if (!ctx.tiktokAccounts.getById(id.trim())) {
+    throw new ValidationError(`TikTok-Konto "${id.trim()}" wurde nicht gefunden`);
+  }
+}
+
+function auditAccountChange(
+  ctx: ApiContext,
+  request: Parameters<typeof resolveHttpActor>[0],
+  streamerId: string,
+  previous: string,
+  next: string,
+): void {
+  if (previous === next) return;
+  const actorInfo = resolveHttpActor(request, ctx);
+  ctx.audit?.record({
+    actor: actorInfo.actor,
+    source: actorInfo.source,
+    action: 'streamer.tiktok_account',
+    target: streamerId,
+    result: 'ok',
+    detail: `Konto: ${previous || 'aktiv'} → ${next || 'aktiv'}`,
+  });
 }
 
 export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiContext): Promise<void> {
@@ -54,7 +87,9 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
   });
 
   app.post('/api/streamers', async (request, reply) => {
+    assertTikTokAccount(ctx, request.body);
     const streamer = ctx.store.create(request.body);
+    auditAccountChange(ctx, request, streamer.id, '', streamer.tiktok_account ?? '');
     ctx.supervisor.notifyStreamersChanged();
     const view = viewById(ctx, streamer.id);
     return reply.code(201).send({ streamer: view });
@@ -65,6 +100,7 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
     if (!parsed.success) {
       throw new ValidationError('Ungültige Sammel-Anlage', parsed.error.issues);
     }
+    assertTikTokAccount(ctx, parsed.data);
     const created: string[] = [];
     const skipped: string[] = [];
     const seen = new Set<string>();
@@ -98,6 +134,7 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
         quality: 'best',
         enabled: true,
         ...(parsed.data.group ? { group: parsed.data.group } : {}),
+        ...(parsed.data.tiktok_account ? { tiktok_account: parsed.data.tiktok_account } : {}),
       });
       created.push(id);
     }
@@ -133,7 +170,16 @@ export async function registerStreamerRoutes(app: FastifyInstance, ctx: ApiConte
 
   app.put('/api/streamers/:id', async (request) => {
     const { id } = request.params as { id: string };
+    assertTikTokAccount(ctx, request.body);
+    const previous = ctx.store.get(id)?.tiktok_account ?? '';
     const streamer = ctx.store.update(id, request.body);
+    auditAccountChange(
+      ctx,
+      request,
+      id,
+      previous,
+      (request.body as { tiktok_account?: string } | null)?.tiktok_account?.trim() ?? previous,
+    );
     ctx.supervisor.notifyStreamersChanged();
     return { streamer: viewById(ctx, streamer.id) };
   });

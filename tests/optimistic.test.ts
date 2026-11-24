@@ -85,6 +85,9 @@ function streamer(id: string, online: boolean | null, active = false): Streamer 
     priority: 0,
     enabled: true,
     own_stream: false,
+    tiktok_account: '',
+    tiktok_account_label: '',
+    tiktok_account_missing: false,
     video_mode: 'copy',
     status: { online, active },
   };

@@ -162,4 +162,39 @@ describe('OnlineMonitor', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('uses the session pinned to each streamer (#95)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => livePayload('alice'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const monitor = new OnlineMonitor({
+      settings: settingsWith({ provider: 'tiktok', account_id: 'online_acc' }),
+      logger,
+      onStatuses: () => {},
+      listStreamers: () => [
+        { ...streamer('alice'), tiktok_account: 'streamer_acc' },
+        streamer('bob'),
+      ],
+      cookiesFile: '/nonexistent/cookies.txt',
+      accountCookie: (id) => (id === 'online_acc' ? 'sessionid=online' : null),
+      streamerCookie: (item) =>
+        item.tiktok_account === 'streamer_acc' ? 'sessionid=pinned; tt-target-idc=useast2b' : null,
+    });
+
+    try {
+      await monitor.checkNow();
+
+      const cookies = fetchMock.mock.calls.map(
+        (call) => (call[1] as { headers: Record<string, string> }).headers.cookie,
+      );
+      expect(cookies[0]).toBe('sessionid=pinned; tt-target-idc=useast2b');
+      expect(cookies[1]).toBe('sessionid=online');
+    } finally {
+      monitor.stop();
+      vi.unstubAllGlobals();
+    }
+  });
 });

@@ -131,6 +131,7 @@ async function main(): Promise<void> {
   const tiktokAccounts = new TikTokAccountStore({
     filePath: join(config.paths.dataDir, 'tiktok-accounts.json'),
     cookiesFile: config.paths.cookiesFile,
+    cookiesDir: join(config.paths.dataDir, 'cookies'),
     logger: logger.child({ module: 'tiktok-accounts' }),
     initialSessionId: config.media.tiktokSessionId,
     initialTargetIdc: config.media.tiktokTargetIdc,

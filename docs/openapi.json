@@ -7863,6 +7863,10 @@
                           },
                           "created_at": {
                             "type": "string"
+                          },
+                          "streamer_count": {
+                            "type": "integer",
+                            "description": "Anzahl der Streamer mit dieser Session (#95)."
                           }
                         }
                       }
@@ -8027,7 +8031,7 @@
         "tags": [
           "discovery"
         ],
-        "summary": "TikTok-Account entfernen",
+        "summary": "TikTok-Account entfernen (409 bei zugeordneten Streamern, ?reassign=active löst sie)",
         "parameters": [
           {
             "name": "id",
@@ -8051,6 +8055,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean"
+                    },
+                    "reassigned": {
+                      "type": "integer"
                     }
                   }
                 }
@@ -10081,6 +10088,11 @@
             "type": "string",
             "maxLength": 64
           },
+          "tiktok_account": {
+            "default": "",
+            "type": "string",
+            "maxLength": 64
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -10273,6 +10285,10 @@
             "type": "boolean"
           },
           "group": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "tiktok_account": {
             "type": "string",
             "maxLength": 64
           },

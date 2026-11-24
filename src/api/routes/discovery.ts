@@ -230,8 +230,14 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
   app.get(
     '/api/discovery/accounts',
     async () => {
+      const streamers = ctx.store.list();
+      const accounts = ctx.tiktokAccounts ? ctx.tiktokAccounts.list() : [];
       return {
-        accounts: ctx.tiktokAccounts ? ctx.tiktokAccounts.list() : [],
+        accounts: accounts.map((account) => ({
+          ...account,
+          streamer_count: streamers.filter((streamer) => streamer.tiktok_account === account.id)
+            .length,
+        })),
         active: ctx.tiktokAccounts ? ctx.tiktokAccounts.getActive() : null,
       };
     },
@@ -264,12 +270,29 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
 
   app.delete(
     '/api/discovery/accounts/:id',
-    async (request: FastifyRequest) => {
+    async (request: FastifyRequest, reply) => {
       if (!ctx.tiktokAccounts) throw new NotFoundError('TikTok-Account-Store nicht verfügbar');
       const { id } = request.params as { id: string };
+      const assigned = ctx.store.list().filter((streamer) => streamer.tiktok_account === id);
+      if (assigned.length > 0) {
+        const query = request.query as { reassign?: string } | undefined;
+        if (query?.reassign !== 'active') {
+          return reply.code(409).send({
+            error: {
+              code: 'account_in_use',
+              message: `Das Konto ist ${assigned.length} Streamer(n) zugeordnet`,
+            },
+            streamers: assigned.map((streamer) => ({ id: streamer.id, name: streamer.name })),
+          });
+        }
+        for (const streamer of assigned) {
+          ctx.store.update(streamer.id, { tiktok_account: '' });
+        }
+        ctx.supervisor.notifyStreamersChanged();
+      }
       ctx.tiktokAccounts.remove(id);
       getDiscovery().clearCaches();
-      return { ok: true };
+      return { ok: true, reassigned: assigned.length };
     },
   );
 
@@ -300,7 +323,7 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
       const result = getDiscovery().addStreamer(parsed.data.handle, parsed.data.name);
       return {
         ok: true,
-        streamer: ctx.store.view(result.streamer),
+        streamer: ctx.store.view(result.streamer, null, null, ctx.tiktokAccounts),
         created: result.created,
       };
     },
@@ -317,7 +340,7 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
       const result = await getDiscovery().queueNow(parsed.data.handle, parsed.data.mode);
       return {
         ok: true,
-        streamer: ctx.store.view(result.streamer),
+        streamer: ctx.store.view(result.streamer, null, null, ctx.tiktokAccounts),
         created: result.created,
         queue: result.queue,
         status: result.status,
@@ -336,7 +359,7 @@ export async function registerDiscoveryRoutes(app: FastifyInstance, ctx: ApiCont
       const result = await getDiscovery().switchToStreamer(parsed.data.handle);
       return {
         ok: true,
-        streamer: ctx.store.view(result.streamer),
+        streamer: ctx.store.view(result.streamer, null, null, ctx.tiktokAccounts),
         created: result.created,
         status: result.status,
       };

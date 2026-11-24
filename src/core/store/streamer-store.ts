@@ -32,6 +32,10 @@ export interface StreamerView {
   enabled: boolean;
   own_stream: boolean;
   group: string;
+  /** TikTok account pinned to this streamer ('' = active account, #95). */
+  tiktok_account: string;
+  tiktok_account_label: string;
+  tiktok_account_missing: boolean;
   source?: 'manual' | 'discovery';
   video_mode: StreamerConfig['video_mode'];
   youtube_key_set: boolean;
@@ -274,8 +278,15 @@ export class StreamerStore {
     );
   }
 
-  view(streamer: StreamerConfig, activeId: string | null = null, online: boolean | null = null): StreamerView {
+  view(
+    streamer: StreamerConfig,
+    activeId: string | null = null,
+    online: boolean | null = null,
+    accounts?: { getById(id: string): { label: string } | null },
+  ): StreamerView {
     const key = resolveStreamKey(streamer);
+    const tiktokAccount = streamer.tiktok_account ?? '';
+    const account = tiktokAccount ? (accounts?.getById(tiktokAccount) ?? null) : null;
     return {
       id: streamer.id,
       name: streamer.name,
@@ -287,6 +298,9 @@ export class StreamerStore {
       enabled: streamer.enabled,
       own_stream: streamer.own_stream,
       group: streamer.group ?? '',
+      tiktok_account: tiktokAccount,
+      tiktok_account_label: account?.label ?? '',
+      tiktok_account_missing: Boolean(tiktokAccount) && !account,
       source: streamer.source,
       video_mode: streamer.video_mode,
       youtube_key_set: key.source !== 'none',

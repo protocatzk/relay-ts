@@ -22,6 +22,8 @@ export interface OverlayRuntimeDeps {
   logger: Logger;
   logoPath: string;
   cookiesFile?: string;
+  /** Per-streamer TikTok session for the chat Webcast client (#95). */
+  sessionFor?: (streamer: StreamerConfig) => { cookieFile: string | null };
 }
 
 export interface RebuiltOverlayEngine {
@@ -40,6 +42,7 @@ export class OverlayRuntime {
   private readonly logger: Logger;
   private readonly logoPath: string;
   private readonly cookiesFile?: string;
+  private readonly sessionFor?: (streamer: StreamerConfig) => { cookieFile: string | null };
 
   private chat?: ChatService;
   private chatEngine?: ChatOverlayEngine;
@@ -60,6 +63,7 @@ export class OverlayRuntime {
     this.logger = deps.logger;
     this.logoPath = deps.logoPath;
     this.cookiesFile = deps.cookiesFile;
+    this.sessionFor = deps.sessionFor;
   }
 
   /** Loads the built-in RELAY logo once; failures simply disable the overlay. */
@@ -239,7 +243,7 @@ export class OverlayRuntime {
       chat: this.settings.overlays.chat,
       settings: this.settings,
       logger: this.logger,
-      cookiesFile: this.cookiesFile,
+      cookiesFile: this.sessionFor?.(streamer).cookieFile ?? this.cookiesFile,
       onMessages: (messages) => {
         this.currentMessages = messages;
         this.analytics.record(messages);

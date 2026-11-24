@@ -18,6 +18,7 @@ import { PauseController } from './pause-controller.js';
 import { Watchdog } from './watchdog.js';
 import { AutoRefresh } from './auto-refresh.js';
 import { OnlineMonitor } from '../online/monitor.js';
+import { resolveStreamerSession } from '../account/tiktok-session.js';
 import { EarningsHistoryStore } from '../earnings/history.js';
 import { EarningsMonitor } from '../earnings/monitor.js';
 import { OverlayRuntime } from './overlay-runtime.js';
@@ -104,6 +105,16 @@ export async function createSupervisorSubsystems(
   const { config, logger } = host.deps;
   const relayEndpoint = { host: config.media.relayHost, port: config.media.relayPort };
 
+  // Streamers may pin their own TikTok account (#95); warnings are logged once.
+  const sessionWarnings = new Set<string>();
+  const sessionFor = (streamer: StreamerConfig) =>
+    resolveStreamerSession(streamer, {
+      accounts: host.deps.tiktokAccounts,
+      fallbackCookieFile: config.paths.cookiesFile,
+      logger,
+      warned: sessionWarnings,
+    });
+
   const buffer = new DelayBuffer({
     host: relayEndpoint.host,
     port: relayEndpoint.port + 1,
@@ -147,6 +158,7 @@ export async function createSupervisorSubsystems(
       media: config.media,
       logger,
       cookiesFile: config.paths.cookiesFile,
+      sessionFor,
       redact: host.deps.redact,
     });
   const source = new TikTokSource({
@@ -324,6 +336,7 @@ export async function createSupervisorSubsystems(
     },
     listStreamers: () => host.deps.store.list(),
     cookiesFile: config.paths.cookiesFile,
+    streamerCookie: (streamer) => sessionFor(streamer).cookieHeader,
     accountCookie: (accountId) => {
       const account = host.deps.tiktokAccounts?.getById(accountId);
       if (!account) return null;
@@ -357,6 +370,7 @@ export async function createSupervisorSubsystems(
     logger,
     logoPath: join(config.paths.webDir, 'logo.png'),
     cookiesFile: config.paths.cookiesFile,
+    sessionFor: (streamer) => ({ cookieFile: sessionFor(streamer).cookieFile }),
   });
   overlayRuntimeRef = overlayRuntime;
   await overlayRuntime.loadLogo();

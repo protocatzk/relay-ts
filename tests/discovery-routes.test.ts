@@ -10,6 +10,7 @@ import { EventBus } from '../src/core/events.js';
 import { StreamerStore } from '../src/core/store/streamer-store.js';
 import { SettingsService } from '../src/core/store/settings-service.js';
 import { AuditLogStore } from '../src/core/audit-log.js';
+import { TikTokAccountStore } from '../src/core/account/tiktok-account-store.js';
 import { DiscoveryService } from '../src/core/source/discovery/discovery-service.js';
 import type { DiscoveryHit, DiscoveryProvider } from '../src/core/source/discovery/types.js';
 import { buildServer } from '../src/api/server.js';
@@ -23,6 +24,7 @@ describe('Discovery API Routes', () => {
   let app: FastifyInstance;
   let audit: AuditLogStore;
   let store: StreamerStore;
+  let accounts: TikTokAccountStore;
   let service: DiscoveryService;
   let supervisor: any;
   let suggestCalls = 0;
@@ -41,6 +43,12 @@ describe('Discovery API Routes', () => {
     );
 
     audit = new AuditLogStore(join(dir, 'audit.jsonl'));
+    accounts = new TikTokAccountStore({
+      filePath: join(dir, 'tiktok-accounts.json'),
+      cookiesFile: config.paths.cookiesFile,
+      cookiesDir: join(dir, 'cookies'),
+      logger,
+    });
 
     const settingsService = new SettingsService(config.paths.settingsFile, DEFAULT_SETTINGS, logger);
 
@@ -51,6 +59,7 @@ describe('Discovery API Routes', () => {
       queueAdd: vi.fn().mockResolvedValue({}),
       buildQueueSnapshot: vi.fn().mockReturnValue({ entries: [], playing: false, index: null, loop: false }),
       start: vi.fn().mockResolvedValue({ state: 'live', version: VERSION }),
+      notifyStreamersChanged: vi.fn(),
     };
 
     const mockLiveHit: DiscoveryHit = {
@@ -126,11 +135,57 @@ describe('Discovery API Routes', () => {
       authSessions: new AuthSessionStore(join(dir, 'sessions.json')),
       audit,
       discovery: service,
+      tiktokAccounts: accounts,
     });
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('counts streamers per TikTok account and guards deletion (#95)', async () => {
+    const account = accounts.create({ label: 'Testkonto', sessionId: 'session-test' });
+    store.create({ id: 'alpha', name: 'Alpha', tiktok: 'alpha', tiktok_account: account.id });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/discovery/accounts',
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(list.statusCode).toBe(200);
+    const entry = list
+      .json()
+      .accounts.find((item: { id: string }) => item.id === account.id);
+    expect(entry.streamer_count).toBe(1);
+
+    const blocked = await app.inject({
+      method: 'DELETE',
+      url: `/api/discovery/accounts/${account.id}`,
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().streamers).toEqual([{ id: 'alpha', name: 'Alpha' }]);
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/discovery/accounts/${account.id}?reassign=active`,
+      headers: { authorization: 'Bearer test-token' },
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().reassigned).toBe(1);
+    expect(store.require('alpha').tiktok_account).toBe('');
+  });
+
+  it('rejects unknown TikTok accounts on streamer writes (#95)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/streamers',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { id: 'beta', name: 'Beta', tiktok: 'beta', tiktok_account: 'missing' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message ?? res.json().error?.message ?? '').toMatch(/TikTok-Konto/);
+    expect(store.get('beta')).toBeUndefined();
   });
 
   it('GET /api/discovery/trending returns hits and provider statuses', async () => {

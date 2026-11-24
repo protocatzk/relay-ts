@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import type { LoadedConfig } from '../src/core/config/loader.js';
@@ -656,6 +659,39 @@ describe('resolver', () => {
     expect(() =>
       parseApiLivePayload({ data: { user: { status: 4 }, liveRoom: { status: 4 } } }, 'best'),
     ).toThrow(/keinen aktiven Live-Room/);
+  });
+
+  it('passes the cookie file of the pinned streamer session (#95)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'relay-resolver-'));
+    const cookieFile = join(dir, 'pinned.txt');
+    writeFileSync(cookieFile, '# Netscape HTTP Cookie File\n.tiktok.com\tTRUE\t/\tTRUE\t0\tsessionid\tpinned\n');
+    let captured: string[] = [];
+    const resolver = new TikTokResolver({
+      media,
+      logger: pino({ level: 'silent' }),
+      cookiesFile: '/nonexistent/global.txt',
+      sessionFor: () => ({ cookieFile, cookieHeader: 'sessionid=pinned' }),
+      runner: async (_bin, args) => {
+        captured = args as string[];
+        return {
+          code: 0,
+          stderr: '',
+          stdout: JSON.stringify({
+            is_live: true,
+            title: 'Test',
+            formats: [{ url: 'https://cdn/x.flv', vcodec: 'avc1', height: 720 }],
+          }),
+        };
+      },
+    });
+    try {
+      await resolver.resolve(streamer);
+      const index = captured.indexOf('--cookies');
+      expect(index).toBeGreaterThan(-1);
+      expect(captured[index + 1]).toBe(cookieFile);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('parses a dumped JSON document', async () => {

@@ -150,6 +150,8 @@ export const StreamerFieldsSchema = z
     enabled: z.boolean().default(true),
     own_stream: z.boolean().default(false),
     group: z.string().trim().max(64).default(''),
+    /** TikTok account whose session is used for this streamer ('' = active account). */
+    tiktok_account: z.string().trim().max(64).default(''),
     source: z.enum(['manual', 'discovery']).optional(),
     // Kept for compatibility with the Python restreamer configuration.
     video_mode: z.enum(['copy', 'reencode']).default('copy'),
@@ -171,6 +173,7 @@ export const StreamerUpdateSchema = z
     enabled: z.boolean().optional(),
     own_stream: z.boolean().optional(),
     group: z.string().trim().max(64).optional(),
+    tiktok_account: z.string().trim().max(64).optional(),
     source: z.enum(['manual', 'discovery']).optional(),
     video_mode: z.enum(['copy', 'reencode']).optional(),
   })

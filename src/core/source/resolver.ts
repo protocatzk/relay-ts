@@ -17,6 +17,11 @@ export interface ResolverDeps {
   media: MediaConfig;
   logger: Logger;
   cookiesFile: string;
+  /**
+   * Per-streamer TikTok session (#95). Falls back to `cookiesFile` when the
+   * streamer has no explicit account.
+   */
+  sessionFor?: (streamer: StreamerConfig) => { cookieFile: string | null; cookieHeader: string | null };
   redact?: (text: string) => string;
   runner?: typeof runCommand;
   /** Injectable for tests; defaults to the TikTok mobile API. */
@@ -261,7 +266,8 @@ export class TikTokResolver {
       referer: `https://www.tiktok.com/@${handle}/live`,
       'user-agent': this.deps.media.sourceUserAgent,
     };
-    const cookie = readCookieHeader(this.deps.cookiesFile);
+    const session = this.deps.sessionFor?.(streamer);
+    const cookie = session?.cookieHeader ?? readCookieHeader(session?.cookieFile ?? this.deps.cookiesFile);
     if (cookie) headers.cookie = cookie;
 
     let payload: unknown;
@@ -304,8 +310,9 @@ export class TikTokResolver {
   }
 
   private async resolveWithYtDlp(streamer: StreamerConfig): Promise<ResolvedStream> {
+    const session = this.deps.sessionFor?.(streamer);
     const args = buildResolveArgs(streamer, {
-      cookiesFile: this.deps.cookiesFile,
+      cookiesFile: session?.cookieFile ?? this.deps.cookiesFile,
       media: this.deps.media,
     });
     this.deps.logger.info(

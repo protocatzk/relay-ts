@@ -1327,6 +1327,10 @@ const routes: RouteDoc[] = [
               active: { type: 'boolean' },
               has_cookie: { type: 'boolean' },
               created_at: { type: 'string' },
+              streamer_count: {
+                type: 'integer',
+                description: 'Anzahl der Streamer mit dieser Session (#95).',
+              },
             },
           },
         },
@@ -1376,12 +1380,13 @@ const routes: RouteDoc[] = [
     method: 'delete',
     path: '/api/discovery/accounts/:id',
     tag: 'discovery',
-    summary: 'TikTok-Account entfernen',
+    summary: 'TikTok-Account entfernen (409 bei zugeordneten Streamern, ?reassign=active löst sie)',
     response: {
       type: 'object',
       required: ['ok'],
       properties: {
         ok: { type: 'boolean' },
+        reassigned: { type: 'integer' },
       },
     },
   },

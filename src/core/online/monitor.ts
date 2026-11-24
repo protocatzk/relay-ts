@@ -12,6 +12,11 @@ export interface OnlineMonitorOptions {
   listStreamers?: () => StreamerConfig[];
   /** Netscape cookie file; TikTok's api-live needs a session for real data. */
   cookiesFile?: string;
+  /**
+   * Cookie header for the TikTok account explicitly assigned to a streamer
+   * (#95). Returns null when the streamer uses the active account.
+   */
+  streamerCookie?: (streamer: StreamerConfig) => string | null;
   /** Builds a Cookie header for a configured TikTok account id. */
   accountCookie?: (accountId: string) => string | null;
   userAgent?: string;
@@ -212,7 +217,7 @@ export class OnlineMonitor {
 
     const accountId = this.options.settings.online.account_id?.trim() ?? '';
     const accountCookie = accountId ? (this.options.accountCookie?.(accountId) ?? null) : null;
-    const cookie =
+    const defaultCookie =
       accountCookie ??
       (this.options.cookiesFile ? readCookieHeader(this.options.cookiesFile) : null);
     const previous = new Map(this.statuses);
@@ -227,6 +232,10 @@ export class OnlineMonitor {
         if (!streamer) return;
         const handle = normalizeHandle(streamer.tiktok);
         if (!handle) continue;
+        // Per-streamer sessions win over the global online account (#95).
+        const cookie = streamer.tiktok_account
+          ? (this.options.streamerCookie?.(streamer) ?? defaultCookie)
+          : defaultCookie;
         try {
           const url = `https://www.tiktok.com/api-live/user/room?aid=1988&sourceType=54&uniqueId=${encodeURIComponent(handle)}`;
           const response = await fetch(url, {

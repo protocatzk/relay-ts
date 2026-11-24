@@ -1147,6 +1147,7 @@ export class Supervisor {
       this.online,
       this.deps.store,
       this.startingStreamerId,
+      this.deps.tiktokAccounts,
     );
   }
 
