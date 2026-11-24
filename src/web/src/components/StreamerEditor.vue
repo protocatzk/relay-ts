@@ -60,7 +60,8 @@ const form = reactive<StreamerForm>({
   priority: source?.priority ?? 0,
   enabled: source?.enabled ?? true,
   own_stream: source?.own_stream ?? false,
-  tiktok_account: source?.tiktok_account ?? '',
+  // A deleted account falls back to the active one; saving clears the dangling id.
+  tiktok_account: source?.tiktok_account_missing ? '' : (source?.tiktok_account ?? ''),
 });
 
 const idTouched = ref(source !== null);
