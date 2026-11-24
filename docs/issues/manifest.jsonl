@@ -46,3 +46,4 @@
 {"title":"Discovery: Handlichkeit und Einbau ins Cockpit","file":"46-discovery-cockpit.md","labels":["ui","ux","frontend","P2"]}
 {"title":"Queue als zentrale Abspielsteuerung der App","file":"47-queue-central-playback.md","labels":["queue","streaming","ui","ux","api","P2"]}
 {"title":"TikTok-Session pro Streamer festlegen","file":"48-tiktok-session-per-streamer.md","labels":["streaming","api","security","ui","P2"]}
+{"title":"Musik-Soundboard parallel zum Stream","file":"49-music-soundboard.md","labels":["streaming","api","ui","media","P2"]}
