@@ -375,6 +375,7 @@ export class OverlayRuntime {
       last_message_at: isoOrNull(this.lastMessageAt),
       api_configured: Boolean(chat?.api_url || this.settings.chat.api_url),
       canvas_active: Boolean(this.chatEngine),
+      viewers: this.chat?.viewers ?? null,
     };
   }
 

@@ -398,6 +398,8 @@ export interface ChatStatus {
   last_message_at: string | null;
   api_configured: boolean;
   canvas_active: boolean;
+  /** Live viewer count from the webcast socket; null when unknown. */
+  viewers: number | null;
 }
 
 export interface TitlePreview {

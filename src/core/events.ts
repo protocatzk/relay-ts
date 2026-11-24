@@ -74,6 +74,8 @@ export interface StatusSnapshot {
     last_message_at: string | null;
     api_configured: boolean;
     canvas_active: boolean;
+    /** Live viewer count from the webcast socket; null when unknown (#88). */
+    viewers: number | null;
   };
   media: {
     file: string;

@@ -87,6 +87,7 @@ function status(): StatusSnapshot {
       last_message_at: null,
       api_configured: false,
       canvas_active: false,
+      viewers: null,
     },
     media: null,
     version: VERSION,

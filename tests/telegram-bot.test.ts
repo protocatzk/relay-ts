@@ -76,6 +76,7 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
       last_message_at: null,
       api_configured: true,
       canvas_active: true,
+      viewers: null,
     },
     media: null,
     version: '0.4.0',

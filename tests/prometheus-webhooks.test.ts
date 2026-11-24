@@ -96,6 +96,7 @@ function makeStatus(): StatusSnapshot {
       last_message_at: null,
       api_configured: false,
       canvas_active: true,
+      viewers: null,
     },
     media: null,
     version: VERSION,

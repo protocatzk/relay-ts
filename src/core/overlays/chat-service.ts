@@ -52,10 +52,16 @@ export class ChatService {
   private lastFingerprint = '';
   private config: ChatOverlayConfig;
   private webcastClient?: WebcastLiveRoomClient;
+  private currentViewers: number | null = null;
 
   constructor(options: ChatServiceOptions) {
     this.options = options;
     this.config = options.chat;
+  }
+
+  /** Current live viewer count as reported by the webcast socket or room poll. */
+  get viewers(): number | null {
+    return this.currentViewers;
   }
 
   private get apiUrl(): string {
@@ -78,9 +84,11 @@ export class ChatService {
         this.addIncomingMessage(msg);
       },
       onViewerUpdate: (viewers) => {
+        this.currentViewers = viewers;
         this.options.onViewerUpdate?.(viewers);
       },
       onRoomStats: (stats) => {
+        if (stats.viewers !== null) this.currentViewers = stats.viewers;
         this.options.onRoomStats?.(stats);
       },
     });
@@ -113,6 +121,7 @@ export class ChatService {
     if (this.pump) clearInterval(this.pump);
     this.timer = undefined;
     this.pump = undefined;
+    this.currentViewers = null;
     if (!clear) return;
     this.messages = [];
     this.seen.clear();

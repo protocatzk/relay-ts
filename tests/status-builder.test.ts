@@ -13,6 +13,7 @@ const chat = {
   last_message_at: '2026-11-19T12:00:00.000Z',
   api_configured: true,
   canvas_active: true,
+  viewers: 1248,
 };
 
 const streamer = StreamerSchema.parse({
