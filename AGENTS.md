@@ -310,6 +310,12 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   Pausenscreen, behält aber den aktiven Queue-/Playlist-Eintrag als `current`
   (Transport setzt dort fort). Der Cockpit-Transport (`PlaybackTransport.vue`)
   ist die einzige Weiter/Zurück-Steuerung im UI.
+- **Loop & Einreihen (#94):** `data/queue.json` speichert `loop_mode`
+  (`off`/`all`/`one`, Version 3; alte `loop`-Booleans werden beim Laden
+  migriert). `one` startet den laufenden Eintrag neu (`repeatCurrent` im
+  PlaylistController). Einreihen läuft über `POST /api/playback/enqueue`
+  (`mode: now|next|end`); `POST /api/playback/queue-from-playlist` kopiert eine
+  Playlist in die Queue (`replace|append`).
 - Dashboard-Karte `RegieQueue.vue`; das SSE-Event `queue` hält den Stand aktuell.
 
 ## Stream Discovery (Eigene Webcast-Implementierung)

@@ -253,8 +253,13 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   Nächstes“ und steuert Wiedergabe, Vor/Zurück, Stopp, Seek und Queue-Loop.
   Die Action-Zeile behält nur noch nicht-transportbezogene Regie-Aufgaben
   (Umschalten, Discovery, Sink). Queue-Karte hat jetzt „Zurück“.
-- **Offen (Teil 2):** Playlist→Queue-Kopie, Einzelstreamer als Queue-Eintrag,
-  Loop `one`, Historie, Hold, Stream-Deck-/Telegram-/MCP-Ausbau.
+- **Teil 2 (#94):** Loop-Modi `off`/`all`/`one` (Persistenz-Migration vom
+  Boolean, `one` wiederholt den laufenden Eintrag), einheitliches Einreihen mit
+  `now`/`next`/`end`, Playlist→Queue als Kopie (ersetzen/anhängen), Discovery
+  kann ans Ende einreihen, Stream-Deck hat Weiter/Zurück/Play-Pause, MCP bietet
+  `relay_playback_state`, `relay_playback_control` und `relay_queue_enqueue`.
+- **Offen:** Historie der letzten Einträge, „Hold“ ohne Eintragsverlust,
+  Telegram `/queue` mit Zurück/Play-Pause, Scheduler-Aktion `playback`.
 
 ## Definition of Done
 
