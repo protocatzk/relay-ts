@@ -5,7 +5,8 @@ Hinweise für AI-Agenten und Entwickler, die an RELAY arbeiten.
 ## Projekt
 
 RELAY ist ein Node.js/TypeScript-Restreamer: TikTok-Live → interner MPEG-TS-Relay
-→ ffmpeg-Sink → YouTube. Dazu gehört ein Vue-3-Dashboard im TokTracker-Stil.
+→ ffmpeg-Sink → YouTube. Dazu gehört ein Vue-3-Dashboard im Cockpit-Stil (Elevation,
+Radius 12/8/999, Cyan-Akzent).
 
 Die produktive Instanz läuft unter **https://relay.positronium.dev**.
 
@@ -191,7 +192,9 @@ Wichtige Pfade:
   Das ist ein kurzer, kontrollierter Reconnect.
 - Zuschauerzahl: Das Chat-Overlay startet den `WebcastLiveRoomClient`.
   `roomUser.total` ist der aktuelle Stand (`totalUser` ist kumuliert, `viewerCount`
-  fehlt in tiktok-live-connector 2.5). Der 15-s-Poll von
+  fehlt in tiktok-live-connector 2.5). Der Wert liegt als `status.chat.viewers`
+  (Zahl oder `null`) im Status-Snapshot und speist die Cockpit-Kennzahl.
+  Der 15-s-Poll von
   `api-live/user/room` muss die Cookies aus `data/cookies.txt` mitsenden, sonst
   antwortet TikTok mit einem Stub (`userCount: 0`, leerer Titel) und überschreibt
   die echten Werte; bei frischen WebSocket-Events hat der Socket Vorrang.
@@ -517,8 +520,20 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 
 - Design-System in `src/web/src/styles/` (`tokens.css`, `base.css`, `layout.css`,
   `components.css`, `effects.css`) über `index.css`.
-- TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
-  Neon-Grün/Cyan (`--success`, `--accent`), Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
+- Shape/Elevation (#88): Radius `--radius-card` 12 px, `--radius-control` 8 px,
+  Chips 999 px; drei Flächen-Ebenen über `--elev-1/2/3`, Karten nutzen Elevation
+  statt reiner 1-px-Hierarchie. Akzent bleibt Cyan (`--accent`), semantische
+  Farben für live/ok/warn/danger; Inter/JetBrains Mono lokal aus
+  `src/web/public/fonts`.
+- Typografie: JetBrains Mono nur für Zahlen, IDs und Timestamps — Labels,
+  Überschriften und Fließtext in Inter (`font-variant-numeric: tabular-nums`).
+- Basis-Komponenten in `src/web/src/components/ui/` (`AppButton`, `AppCard`,
+  `AppBadge`, `AppField`, `AppSkeleton`, `AppListItem`) wrappen die bestehenden
+  `.btn`/`.card`/`.badge`/`.field`-Klassen und tragen die Varianten-API.
+  Neue Views nutzen diese Primitives statt handgebauter Klassensätze.
+- Motion: Übergänge laufen über `--motion-fast/base/slow` und
+  `--motion-ease`; `prefers-reduced-motion` setzt sie auf 0 ms. Routenwechsel
+  animiert `App.vue` mit `<Transition name="view">`.
 - Mobile: Tab-Leiste unten, Tabellen werden zu Karten, Touch-Ziele ≥ 38 px,
   Eingaben 16 px gegen iOS-Zoom, Safe-Area-Insets.
 - Hauptnavigation: vier Bereiche (`Live`, `Inhalte`, `Studio`, `System`) in
@@ -529,8 +544,18 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
 - Skip-Link: fokussiert `<main>` ohne Hash-Routenwechsel; die Tab-Leiste trägt
   `aria-current="page"`, die Unterseiten-Tabs ein eigenes `aria-label`.
   Details in `docs/ACCESSIBILITY.md`.
-- TokTracker-Stil: harte Kanten (Radius max. 2 px), 1-px-Rahmen, Mono-Labels,
-  Grün als Akzent, Inter/JetBrains Mono lokal aus `src/web/public/fonts`.
+- Regie-Aktionen: `src/web/src/actions.ts` ist die einzige Quelle für
+  Cockpit-Aktionszeile, Queue-Kontextmenü und Command Palette. Guards liegen
+  DOM-frei in `actions/guards.ts` (testbar ohne Browser); `useActions()` führt
+  sie mit Busy-State, Toast und Status-Refresh aus.
+- Optimistic UI: `status-patch.ts` hält einen lokalen Status-Guess inklusive
+  Rollback-Snapshot (`patchStatus`/`rollbackStatus`/`confirmStatus` in
+  `useStore`). Ein Guess überlebt Server-Snapshots nur `OPTIMISTIC_TTL_MS`
+  (2 s), danach gewinnt der Server. `runOptimistic()` kapselt das Muster.
+- Cockpit (`DashboardView.vue`): Statuszeile sticky, Action-Zeile, drei Spalten
+  (Vorschau · Regie-Queue · Kennzahlen), Vitals-Leiste, darunter Streamer-Liste
+  und Einnahmen. Zuschauerzahl kommt aus `status.chat.viewers` und wird bei
+  `null` ausgeblendet, nie als 0 gezeigt.
 - Studio-Preview: `POST /api/overlays/studio.png` mit ungespeicherten Overlays,
   clientseitig 220 ms Debounce + `AbortController`. Drag/Resize ändert
   `offset_x`/`offset_y` bzw. `font_size`; Presets sind JSON-Export/-Import.

@@ -20,6 +20,20 @@ Stand: **2026-11-20** · geprüft mit Chromium (Playwright) bei 320 px und 1280 
   Status-Ansagen für Screenreader. Das aktive Overlay ist per Tab erreichbar und
   lässt sich mit den Pfeiltasten verschieben.
 
+## Bewegung und Statusanzeigen
+
+- **Routenwechsel:** Views blenden mit 180 ms ein; `prefers-reduced-motion`
+  setzt alle Übergänge (`--motion-fast/base/slow`) auf 0 ms, es bleibt ein
+  harter Wechsel ohne Verschiebung.
+- **Signaling-Dot:** Die Bottom-Nav zeigt an „Live“ einen grünen Punkt, solange
+  der Stream läuft. Der Punkt ist `aria-hidden`; der Link trägt stattdessen
+  `aria-label="Live – Stream läuft"`, damit der Zustand auch akustisch ankommt.
+- **Skeletons:** Lade-Platzhalter sind `aria-hidden` und werden von einem
+  `.sr-only`-Text („Regie-Queue wird geladen“) begleitet.
+- **Optimistic UI:** Ein lokaler Statuswechsel wird nach spätestens 2 s vom
+  Serverstand ersetzt; Fehler lösen einen Rollback plus `role="status"`-Toast
+  aus, sodass die Änderung nie unbemerkt zurückgenommen wird.
+
 ## Struktur und Screenreader
 
 - Header, Hauptnavigation (`aria-label="Hauptnavigation"`), Unterseiten-Tabs,

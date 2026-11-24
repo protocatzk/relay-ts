@@ -335,6 +335,32 @@ Harte Kanten sind Teil der Marke. Größere Radien nur für mobile Sheets.
 - Modals: 1 px Rahmen + weicher Schatten, Backdrop `rgba(3,6,10,.72)`.
 - Glow nur bei Live, Fokus und dem Primärbutton, dort sparsam.
 
+### 6.5 Cockpit-Update seit 0.32.0 (#88)
+
+Das Dashboard hat die harten Kanten bewusst verlassen; die Tokens in
+`src/web/src/styles/tokens.css` sind dafür die einzige Quelle:
+
+| Token | Wert | Einsatz |
+| --- | --- | --- |
+| `--radius-card` | 12 px | Karten, Panels, Cockpit-Spalten |
+| `--radius-control` | 8 px | Buttons, Felder, Listenzeilen |
+| `--radius-pill` | 999 px | Badges, Chips, Avatare |
+| `--elev-1` | 2-px-Kontakt + 1-px-Kante | Standardkarten, flache Panels |
+| `--elev-2` | 8 px / 24 px Blur | interaktive Panels, schwebende Karten |
+| `--elev-3` | 24 px / 70 px Blur | Modals, Palette, Kontextmenüs |
+
+Regeln:
+
+- Elevation ersetzt die Rahmenhierarchie: eine Karte hat entweder `--elev-1`
+  (ruhig) oder `--elev-2` (interaktiv), nicht beides plus starken Rahmen.
+- Akzent bleibt Cyan (`--accent`); Statusfarben `--success`, `--warning`,
+  `--danger` tragen live/ok/warn/fehler – nie als einzige Information.
+- JetBrains Mono ausschließlich für Zahlen, IDs und Timestamps; Labels und
+  Überschriften in Inter, Werte mit `font-variant-numeric: tabular-nums`.
+- Bewegung über `--motion-fast/base/slow` mit `--motion-ease`;
+  `prefers-reduced-motion: reduce` setzt die Dauern auf 0 ms.
+- Referenzbilder: [`docs/design/mockups/cockpit/`](./design/mockups/cockpit/).
+
 ---
 
 ## 7 Komponenten

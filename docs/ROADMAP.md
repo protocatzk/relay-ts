@@ -156,7 +156,38 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | Live-Room Webcast (Chat & Einnahmen), Säulenmonitor-Polish, Discovery Following-Tab & TikTok Account-Switcher (#79) | P2 | Chat/Overlay/Discovery | abgeschlossen |
 | Automatisierungsbaukasten-System mit visueller UI (Trigger, Conditions & Actions) (#80) | P2 | Automation/UI/API | geplant |
 | API-Zugang konfigurieren und Keys erzeugen und managen (#82) | P2 | Security/API | geplant |
-| Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#83) | P1 | UI/UX | geplant |
+| Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#88) | P1 | UI/UX | abgeschlossen |
+| Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche | P3 | UI/UX | geplant |
+
+### v0.32.0 – Cockpit (#88)
+
+**Status: veröffentlicht in 0.32.0.**
+
+- **Design-System:** `tokens.css` mit drei Elevation-Ebenen (`--elev-1/2/3`),
+  Radius 12/8/999 px, Motion-Tokens inklusive `prefers-reduced-motion`.
+  Elf Altlasten mit 2-px-Radius entfernt; JetBrains Mono nur noch für Zahlen,
+  IDs und Timestamps.
+- **Basis-Komponenten:** `components/ui/` mit `AppButton`, `AppCard`,
+  `AppBadge`, `AppField`, `AppSkeleton`, `AppListItem` als Varianten-API über
+  den bestehenden `.btn`/`.card`/`.badge`-Klassen.
+- **Cockpit:** Statuszeile sticky (Ziel, Uptime, Zuschauer, Bitrate),
+  Action-Zeile, drei Spalten (Vorschau · Regie-Queue · Kennzahlen),
+  Vitals-Leiste, darunter Streamer-Liste und Einnahmen. Wartung & Chat sowie
+  Schnellstart sind eingeklappt und bleiben erreichbar.
+- **Action-Registry:** `actions.ts` + DOM-freie Guards in `actions/guards.ts`
+  speisen Cockpit-Zeile, Queue-Menü und Command Palette (inkl. „gesperrt“-Grund
+  und Tastatur-Navigation über deaktivierte Einträge).
+- **Optimistic UI:** `status-patch.ts` hält den lokalen Guess samt
+  Rollback-Snapshot; Patches überleben Server-Snapshots 2 s lang.
+  `runOptimistic()` kapselt das Muster für Screens, Queue und Zeitplan.
+- **Speed/Mobile:** Route-Prefetch für die vier Hauptziele, Skeletons statt
+  Spinner in der Queue, Signaling-Dot in der Bottom-Nav, Swipe-Aktionen
+  (links löschen, rechts sofort spielen) auf Queue-Einträgen.
+- **Neues Statusfeld:** `status.chat.viewers` (Zahl oder `null`) aus dem
+  Webcast-Client; die Kennzahl wird bei `null` ausgeblendet.
+- **Offen (0.33.0):** Navigation von fünf auf vier Bereiche straffen
+  (Discovery als Such-/Zapper-Modus in Live) sowie die verbleibende Migration
+  der Einzelansichten auf die Basis-Komponenten.
 
 ## Definition of Done
 
