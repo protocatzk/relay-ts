@@ -158,7 +158,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | API-Zugang konfigurieren und Keys erzeugen und managen (#82) | P2 | Security/API | geplant |
 | Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#88) | P1 | UI/UX | abgeschlossen |
 | Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche (#88) | P3 | UI/UX | abgeschlossen |
-| Discovery: Handlichkeit und Einbau ins Cockpit (#92) | P2 | UI/UX | geplant |
+| Discovery: Handlichkeit und Einbau ins Cockpit (#92) | P2 | UI/UX | abgeschlossen |
 
 ### v0.32.0 – Cockpit (#88)
 
@@ -213,6 +213,30 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   Theme-Toggle im Mobile-Menü, Studio-Tabs inkl. Version-Tab, Settings-Payload
   (`watchdog` + `sink`), Studio-IDs (`studio-video-pos-x/y`), Accordion-Gruppen
   auf Mobilgeräten, Service Worker in Tests blockiert.
+
+### v0.34.0 – Discovery im Cockpit (#92)
+
+**Status: veröffentlicht in 0.34.0.**
+
+- **Panel statt Tab:** Discovery erscheint als schwebendes Panel über dem
+  Cockpit. Ab 1280 px schiebt es das Grid (Widgets wandern unter die Queue),
+  960–1279 px überlagert es die Widgets-Spalte, auf dem Handy wird es ein
+  Bottom-Sheet mit Scrim. Breite per Griff ziehbar (320–560 px, gemerkt).
+- **Einstiege:** Shortcut `D`, echtes Suchfeld im Header (≥ 1100 px),
+  Action-Registry (`discovery.open`, `discovery.zapper`), Cockpit-Karte
+  „Discovery" mit Live-Zähler und den zwei stärksten Räumen, Palette.
+- **Workspace getrennt von der Hülle:** `DiscoveryWorkspace.vue` enthält Suche,
+  Filter, Liste und Zapper; ein späteres frei schwebendes Fenster kann denselben
+  Workspace hosten.
+- **Handlichkeit:** Filter (live, Region, Mindestzuschauer, Sortierung),
+  Trefferzähler, Suchverlauf (8 Einträge), Skeletons, Fehlerbanner mit Retry,
+  „aktualisiert vor X", Status-Badge statt „Speichern" für bekannte Streamer.
+- **Zapper:** Tastatur `←/→`, `Space`, `S`, `Q`, `A`, `F`, `?` inkl.
+  Hilfe-Overlay, Vorwärmen der nächsten zwei Räume (nur Metadaten), klarer
+  Fehlerzustand mit „Nächster Streamer".
+- **API:** `GET /api/discovery/suggest` (5-s-Cache, ≤ 8 Treffer),
+  `GET /api/discovery/status` (Batch, ≤ 20 Handles, 30-s-Cache,
+  `unknown` statt „offline"), `preview?fallback=1` → `204`.
 
 ## Definition of Done
 

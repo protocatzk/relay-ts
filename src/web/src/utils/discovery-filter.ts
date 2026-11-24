@@ -5,7 +5,7 @@
  * filter changes without another provider round-trip. Kept free of Vue and DOM
  * APIs so Vitest can cover the edge cases.
  */
-import type { DiscoveryHit, DiscoveryProviderStatus } from '@/src/api/types';
+import type { DiscoveryHit, DiscoveryProviderStatus } from '../api/types.js';
 
 export type DiscoverySort = 'live' | 'viewers' | 'name';
 

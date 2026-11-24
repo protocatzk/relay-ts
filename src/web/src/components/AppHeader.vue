@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import LiveMenu from '@/src/components/LiveMenu.vue';
 import TikTokAccountSwitcher from '@/src/components/TikTokAccountSwitcher.vue';
 import { openOmniSearch } from '@/src/composables/useOmniSearch';
+import { openDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 import { logout, useStore } from '@/src/composables/useStore';
 import { pushToast } from '@/src/composables/useToast';
@@ -18,6 +19,11 @@ const { activeAccount } = useTikTokAccounts();
 
 const accountSwitcherRef = ref<InstanceType<typeof TikTokAccountSwitcher> | null>(null);
 const mobileMenuOpen = ref(false);
+const discoveryQuery = ref('');
+
+function submitDiscoverySearch(): void {
+  openDiscoveryPanel({ query: discoveryQuery.value });
+}
 const mobileMenuPanel = ref<HTMLElement | null>(null);
 const mobileMenuTrigger = ref<HTMLButtonElement | null>(null);
 
@@ -116,6 +122,20 @@ onBeforeUnmount(() => {
 
     <!-- Actions Bar -->
     <div class="header-actions">
+      <!-- Discovery search opens the cockpit panel (#92) -->
+      <form class="header-discovery" role="search" @submit.prevent="submitDiscoverySearch">
+        <label class="sr-only" for="header-discovery-search">Discovery-Suche</label>
+        <input
+          id="header-discovery-search"
+          v-model="discoveryQuery"
+          type="search"
+          placeholder="Streamer, Handle oder Begriff …"
+          autocomplete="off"
+          spellcheck="false"
+          aria-keyshortcuts="D"
+        />
+      </form>
+
       <!-- Search is always accessible directly (Desktop & Mobile) -->
       <button
         type="button"

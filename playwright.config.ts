@@ -51,7 +51,7 @@ export default defineConfig({
   projects: [
     {
       name: 'mobile-320',
-      testMatch: ['**/mobile.spec.ts', '**/a11y.spec.ts'],
+      testMatch: ['**/mobile.spec.ts', '**/a11y.spec.ts', '**/discovery-panel.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 320, height: 720 },
@@ -61,7 +61,7 @@ export default defineConfig({
     },
     {
       name: 'desktop',
-      testMatch: ['**/a11y.spec.ts'],
+      testMatch: ['**/a11y.spec.ts', '**/discovery-panel.spec.ts'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 900 } },
     },
   ],

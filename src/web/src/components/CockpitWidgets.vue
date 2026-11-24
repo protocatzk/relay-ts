@@ -7,6 +7,8 @@
  */
 import { computed, ref } from 'vue';
 import Sparkline from '@/src/components/Sparkline.vue';
+import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
+import { openDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { formatBitrate, formatFps, formatNumber } from '@/src/utils/format';
 import type { ChatAnalyticsSnapshot, EarningsSnapshot, StatusPayload } from '@/src/api/types';
@@ -18,7 +20,16 @@ const props = defineProps<{
 }>();
 
 const { series } = useTelemetry();
+const feed = useDiscoveryFeed();
 const showAll = ref(false);
+const discoveryLive = computed(() => feed.liveHits.value.slice(0, 2));
+const discoveryCount = computed(() => feed.totalLive.value);
+
+/** Opens the panel already in the zapper for the picked room. */
+function openHit(handle: string): void {
+  feed.openZapperAt(handle);
+  openDiscoveryPanel();
+}
 
 const viewers = computed(() => props.status?.chat.viewers ?? null);
 const earningsValue = computed(() => {
@@ -123,6 +134,32 @@ const sinkTone = computed(() => {
         Peak {{ formatNumber(analytics.peak_per_minute) }} / min ·
         {{ formatNumber(analytics.unique_chatters) }} Chatter
       </p>
+    </section>
+
+    <section class="card widget-card" aria-label="Discovery-Kennzahlen">
+      <div class="widget-head">
+        <span class="widget-label">Discovery</span>
+        <button type="button" class="widget-toggle" @click="openDiscoveryPanel()">
+          Öffnen (D)
+        </button>
+      </div>
+      <strong class="widget-value mono">
+        {{ formatNumber(discoveryCount) }} <small>live</small>
+      </strong>
+      <ul v-if="discoveryLive.length > 0" class="widget-list">
+        <li v-for="hit in discoveryLive" :key="hit.handle">
+          <button
+            type="button"
+            class="widget-hit"
+            :title="`${hit.display_name} im Zapper vorhören`"
+            @click="openHit(hit.handle)"
+          >
+            {{ hit.display_name }}
+          </button>
+          <span class="mono">{{ hit.viewers === null ? '–' : formatNumber(hit.viewers) }}</span>
+        </li>
+      </ul>
+      <p v-else class="widget-sub">Keine Live-Treffer geladen.</p>
     </section>
   </div>
 </template>

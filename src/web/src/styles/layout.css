@@ -396,6 +396,34 @@
   margin-left: 4px;
 }
 
+/* Discovery search in the header (#92); the palette stays for commands. */
+.header-discovery {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .header-discovery {
+    display: flex;
+    flex: 0 1 300px;
+    min-width: 180px;
+  }
+
+  .header-discovery input {
+    width: 100%;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border-input);
+    border-radius: var(--radius-control);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .header-discovery input::placeholder {
+    color: var(--text-dim);
+  }
+}
+
 .theme-toggle {
   display: inline-flex;
   align-items: center;

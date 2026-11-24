@@ -4312,6 +4312,23 @@ select {
   gap: 8px;
 }
 
+.widget-hit {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-hit:hover {
+  text-decoration: underline;
+}
+
 /* Vitals strip. */
 .cockpit-vitals {
   display: grid;
@@ -4418,6 +4435,133 @@ select {
 
   .cockpit-head .page-actions > .btn {
     flex-basis: auto;
+  }
+}
+
+/* ------------------------------------------------------------------ Discovery panel (#92) */
+
+/* ≥1280 px: the panel gets its own space and the cockpit reflows. */
+@media (min-width: 1280px) {
+  .page-dashboard {
+    transition: padding-right var(--motion-base) var(--motion-ease);
+  }
+
+  .page-dashboard.is-discovery-open {
+    padding-right: calc(var(--discovery-w, 440px) + 10px);
+  }
+
+  /* Widgets drop below the queue so preview and queue keep a usable width. */
+  .page-dashboard.is-discovery-open .cockpit-grid {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  }
+
+  .page-dashboard.is-discovery-open .cockpit-col-widgets {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    align-items: start;
+  }
+}
+
+.discovery-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: rgba(3, 6, 10, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.discovery-panel {
+  position: fixed;
+  /* Below the sticky header and the section tab strip. */
+  top: calc(var(--header-h) + 52px);
+  bottom: 16px;
+  right: max(16px, calc((100vw - 1480px) / 2 + 16px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: var(--discovery-w, 440px);
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--elev-3);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  overflow: hidden;
+}
+
+.discovery-panel:focus {
+  outline: none;
+}
+
+.discovery-resize {
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 8px;
+  border-radius: 4px;
+  cursor: col-resize;
+}
+
+.discovery-resize:hover {
+  background: var(--accent-soft);
+}
+
+/* Phones: bottom sheet above the scrim and the tab bar. */
+.discovery-panel.is-sheet {
+  z-index: 80;
+  top: auto;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: min(85vh, 760px);
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 16px 16px 0 0;
+  border-bottom: 0;
+}
+
+/* Panel-scoped zapper: fill the available height instead of the page minimum. */
+.discovery-panel .zapper-container {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  gap: 0;
+}
+
+.discovery-panel .zapper-stage {
+  max-width: none;
+  border-radius: var(--radius-control);
+}
+
+.discovery-panel-enter-active,
+.discovery-panel-leave-active {
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
+}
+
+.discovery-panel-enter-from,
+.discovery-panel-leave-to {
+  opacity: 0;
+  transform: translateX(28px);
+}
+
+.discovery-panel-enter-from.is-sheet,
+.discovery-panel-leave-to.is-sheet {
+  transform: translateY(60px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-panel-enter-active,
+  .discovery-panel-leave-active {
+    transition: none;
+  }
+
+  .discovery-panel-enter-from,
+  .discovery-panel-leave-to {
+    transform: none;
   }
 }
 

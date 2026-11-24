@@ -6,6 +6,11 @@
  * be unit-tested without a browser; only `run` touches the network.
  */
 import { api } from '@/src/api/client';
+import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
+import {
+  openDiscoveryPanel,
+  toggleDiscoveryPanel,
+} from '@/src/composables/useDiscoveryPanel';
 import type { StatusPayload, Streamer } from '@/src/api/types';
 import {
   canStart,
@@ -185,6 +190,30 @@ export function buildActions(): ActionDef[] {
         return api.queue.now(input.queueEntryId);
       },
       success: () => ({ message: 'Eintrag wird sofort abgespielt.', kind: 'success' }),
+    },
+    {
+      id: 'discovery.open',
+      label: 'Discovery',
+      description: 'Live-Streamer suchen, vorhören und übernehmen',
+      section: 'stream',
+      keywords: ['discovery', 'suchen', 'finden', 'tiktok', 'zapper', 'trending'],
+      enabled: () => true,
+      run: async () => {
+        toggleDiscoveryPanel();
+      },
+      success: () => ({ message: 'Discovery geöffnet.', kind: 'info' }),
+    },
+    {
+      id: 'discovery.zapper',
+      label: 'Zapper',
+      description: 'Live-Zapper öffnen und durch Räume zappen',
+      section: 'stream',
+      keywords: ['zapper', 'durchzappen', 'discovery', 'vorhören'],
+      enabled: () => true,
+      run: async () => {
+        openDiscoveryPanel();
+        useDiscoveryFeed().openZapperAt();
+      },
     },
     {
       id: 'sink.restart',

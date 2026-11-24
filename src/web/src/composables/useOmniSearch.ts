@@ -4,6 +4,8 @@ import { SETTINGS_SECTIONS } from '@/src/utils/settings-sections';
 import { SECTIONS } from '@/src/navigation';
 import { store } from '@/src/composables/useStore';
 import { buildActions } from '@/src/actions';
+import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
+import { openDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { runRegistryAction } from '@/src/composables/useActions';
 
 export type OmniSearchCategory =
@@ -227,15 +229,29 @@ export function buildOmniSearchIndex(
 
   // 6. Direct Studio & Live Actions
   items.push({
+    id: 'act-discovery-panel',
+    title: 'Discovery öffnen',
+    subtitle: 'Live-Streamer suchen, vorhören und übernehmen (Cockpit-Panel)',
+    category: 'actions',
+    categoryLabel: 'Aktionen',
+    keywords: ['discovery', 'suchen', 'finden', 'tiktok', 'zapper', 'trending'],
+    icon: '🔎',
+    action: () => {
+      void openDiscoveryPanel();
+    },
+  });
+
+  items.push({
     id: 'act-discovery-zapper',
     title: 'TikTok Live-Zapper starten',
-    subtitle: 'Wechselt zu Discovery im Zapper-Modus',
+    subtitle: 'Discovery-Panel im Zapper-Modus öffnen',
     category: 'actions',
     categoryLabel: 'Aktionen',
     keywords: ['zapper', 'tiktok', 'durchzappen', 'live', 'discovery'],
     icon: '⚡',
-    action: (router) => {
-      void router.push('/discovery');
+    action: () => {
+      openDiscoveryPanel();
+      useDiscoveryFeed().openZapperAt();
     },
   });
 

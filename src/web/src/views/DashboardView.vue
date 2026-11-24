@@ -24,6 +24,7 @@ import RegieQueue from '@/src/components/RegieQueue.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import AppBadge from '@/src/components/ui/AppBadge.vue';
 import AppButton from '@/src/components/ui/AppButton.vue';
+import { useDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useStore } from '@/src/composables/useStore';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
@@ -46,6 +47,7 @@ const {
   refreshEarnings: syncEarnings,
 } = useStore();
 const { series } = useTelemetry();
+const { open: discoveryOpen } = useDiscoveryPanel();
 const { pushToast } = useToast();
 
 const busy = ref<string | null>(null);
@@ -360,7 +362,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="page page-dashboard cockpit">
+  <div class="page page-dashboard cockpit" :class="{ 'is-discovery-open': discoveryOpen }">
     <div class="page-head cockpit-head">
       <h1>Dashboard</h1>
       <div class="page-actions">

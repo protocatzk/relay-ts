@@ -9,6 +9,7 @@ import PwaPrompt from '@/src/components/PwaPrompt.vue';
 import ConfirmDialog from '@/src/components/ConfirmDialog.vue';
 import UnsavedChangesDialog from '@/src/components/UnsavedChangesDialog.vue';
 import CommandPalette from '@/src/components/CommandPalette.vue';
+import DiscoveryPanel from '@/src/components/discovery/DiscoveryPanel.vue';
 import { desktopNavSide } from '@/src/navigation';
 import { checkServerVersion } from '@/src/composables/usePwa';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
@@ -80,6 +81,7 @@ onBeforeUnmount(() => {
     <AppBottomNav />
   </div>
 
+  <DiscoveryPanel />
   <ToastHost />
   <PwaPrompt />
   <ConfirmDialog />

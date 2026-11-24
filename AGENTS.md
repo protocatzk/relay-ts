@@ -346,9 +346,24 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
     `GET /api/discovery/preview/:handle` ohne Re-Encoding (0 % CPU, reiner
     Bytestream-Passthrough mit sofortigem `AbortController`-Cleanup beim
     Umschalten) an `mpegts.js` (`type: 'flv'`) im Dashboard-Zapper gestreamt.
-    Mit den Pfeil-Buttons rechts (`▲` / `▼`) oder Pfeiltasten (`ArrowUp` / `ArrowDown`)
-    wird durch die Live-Räume gezappt; am Listenende lädt `page` automatisch
-    weitere Räume nach (Infinite Feed).
+    Mit den Pfeil-Buttons rechts (`▲` / `▼`) oder Pfeiltasten (`ArrowUp` / `Down`,
+    zusätzlich `←` / `→`) wird durch die Live-Räume gezappt; am Listenende lädt
+    `page` automatisch weitere Räume nach (Infinite Feed).
+  - **Discovery-Panel (#92):** Discovery liegt als schwebendes Panel über dem
+    Cockpit (`components/discovery/DiscoveryPanel.vue`): ab 1280 px schiebt es
+    das Grid (Widgets wandern unter die Queue), 960–1279 px überlagert es die
+    Widgets-Spalte, darunter wird es ein Bottom-Sheet. Inhalt und Hülle sind
+    getrennt (`DiscoveryWorkspace.vue` vs. Panel), damit später ein frei
+    schwebendes Fenster denselben Workspace hosten kann. Öffnen über `D`,
+    Header-Suche, Action-Registry (`discovery.open`, `discovery.zapper`) und die
+    Cockpit-Karte; `Esc` geht Zapper → Liste → zu. Zustand in
+    `useDiscoveryFeed`/`useDiscoveryPanel` (Modul-Singletons), Filter und
+    Sortierung in `utils/discovery-filter.ts`. Zapper-Shortcuts: `Space` Ton,
+    `S` umschalten, `Q` Queue, `A` speichern, `F` Vollbild, `?` Hilfe.
+  - **Discovery-API (#92):** `GET /api/discovery/suggest` (5-s-Cache) und
+    `GET /api/discovery/status` (Batch, ≤ 20 Handles, 30-s-Cache); unbekannte
+    Handles liefern `unknown`, nie `offline`. `preview?fallback=1` antwortet mit
+    `204` statt `404`, damit der Zapper ohne Fehlerbild weiterzappt.
 
 ## YouTube-Verwaltung
 
