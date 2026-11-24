@@ -318,6 +318,18 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   (laufender Eintrag mit `▶`, bis zu fünf Einträge, Rest „… +N“, leer = `–`)
   und aktualisiert sich bei Queue-Änderungen ohne neuen Einnahmen-Poll.
 
+### v0.36.1 – Queue im Chat-Overlay
+
+**Status: veröffentlicht in 0.36.1.**
+
+- Die Regie-Queue erscheint als Leiste im Chat-Overlay: Standard unter dem
+  Chat im Panel, im Säulen-Monitor mittig im Bild. Format
+  `Streamer 1 → Streamer 2 → aktuell → Streamer 3 …`, laufender Eintrag
+  hervorgehoben, Ränder als `…`.
+- Einstellbar sind Einträge (1–10), Schriftgröße, Farben, Hintergrundbox und
+  freie X/Y-Offsets (`Chat → Queue-Anzeige`). Queue-Änderungen erreichen das
+  laufende Canvas ohne Sink-Neustart.
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:
