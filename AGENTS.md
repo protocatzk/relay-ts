@@ -326,7 +326,10 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   nur noch Liste, Hinzufügen, Reihenfolge, „Zuletzt gespielt" und Leeren.
   Queue-Zeilen zeigen `deaktiviert`/`kein Key`/`unbekannt`; beim Abspielen wird
   ein deaktivierter Streamer automatisch aktiviert, ein fehlender YouTube-Key
-  bricht mit Fehlermeldung ab statt still zu überspringen.
+  bricht mit Fehlermeldung ab statt still zu überspringen. Die Liste läuft in
+  einem eigenen Fenster (`.regie-list-window`, max. 62 vh, blended am unteren
+  Rand aus, solange Einträge darunter liegen); „Eintrag hinzufügen" und
+  „Zuletzt gespielt" sind gestylte Accordions, die Reihen zeigen nur Symbole.
 - **Loop & Einreihen (#94):** `data/queue.json` speichert `loop_mode`
   (`off`/`all`/`one`, Version 3; alte `loop`-Booleans werden beim Laden
   migriert). `one` startet den laufenden Eintrag neu (`repeatCurrent` im

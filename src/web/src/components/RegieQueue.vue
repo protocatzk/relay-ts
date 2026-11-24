@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
 import type {
   MediaFile,
@@ -29,6 +29,8 @@ const editingDurationValue = ref('');
 const draggingId = ref<string | null>(null);
 const dragOverIndex = ref<number | null>(null);
 const listEl = ref<HTMLElement | null>(null);
+const listWindow = ref<HTMLElement | null>(null);
+const listScrollable = ref(false);
 
 const queue = computed(() => store.queue);
 const entries = computed(() => queue.value?.entries ?? []);
@@ -350,24 +352,49 @@ async function clear(): Promise<void> {
   await run(() => api.queue.clear());
 }
 
+/** Fades the list edge while more entries are below (#94). */
+function updateListScrollable(): void {
+  const element = listWindow.value;
+  if (!element) return;
+  listScrollable.value = element.scrollHeight - element.scrollTop - element.clientHeight > 4;
+}
+
+let resizeObserver: ResizeObserver | null = null;
+
 onMounted(() => {
   void loadMedia();
   void loadHistory();
+  if (typeof ResizeObserver !== 'undefined' && listWindow.value) {
+    resizeObserver = new ResizeObserver(updateListScrollable);
+    resizeObserver.observe(listWindow.value);
+    if (listEl.value) resizeObserver.observe(listEl.value);
+  }
+  void nextTick(updateListScrollable);
 });
+
+onBeforeUnmount(() => resizeObserver?.disconnect());
 
 // Refresh the history whenever the queue snapshot changes.
 watch(
   () => queue.value?.index,
   () => void loadHistory(),
 );
+
+watch(
+  () => entries.value.length,
+  () => void nextTick(updateListScrollable),
+);
 </script>
 
 <template>
   <section class="card regie-queue" aria-labelledby="regie-title">
-    <div class="card-head">
+    <div class="card-head regie-head">
       <div>
         <h2 id="regie-title" class="card-title">Regie-Queue</h2>
-        <p class="card-sub">Videos, Streamer und Screens per Drag sortieren.</p>
+        <p class="card-sub regie-head-sub">
+          {{ entries.length }} {{ entries.length === 1 ? 'Eintrag' : 'Einträge' }}
+          <template v-if="activeIndex !== null"> · #{{ activeIndex + 1 }} läuft</template>
+        </p>
       </div>
       <div class="card-badges">
         <span v-if="loopEnabled" class="badge tone-info badge-xs">Loop an</span>
@@ -379,80 +406,95 @@ watch(
       </div>
     </div>
 
-    <details class="regie-add-details">
-      <summary>Eintrag hinzufügen</summary>
+    <details class="regie-details regie-add-details">
+      <summary>
+        <span class="regie-details-chevron" aria-hidden="true"></span>
+        Eintrag hinzufügen
+      </summary>
       <div class="regie-add">
-      <div class="regie-add-row">
-        <select v-model="selectedMedia" aria-label="Video auswählen">
-          <option value="" disabled>Video wählen …</option>
-          <option v-for="file in media" :key="file.filename" :value="file.filename">
-            {{ file.filename }}{{ file.duration ? ` (${formatClock(file.duration)})` : '' }}
-          </option>
-        </select>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm"
-          :disabled="busy || !selectedMedia"
-          @click="addMedia"
-        >
-          + Video
-        </button>
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm"
-          :disabled="busy || !selectedMedia"
-          title="Video sofort abspielen (als Nächstes einschieben)"
-          @click="playNowMedia"
-        >
-          ▶ Sofort
-        </button>
-      </div>
-      <div class="regie-add-row">
-        <select v-model="selectedStreamer" aria-label="Streamer auswählen">
-          <option value="" disabled>Streamer wählen …</option>
-          <option v-for="streamer in enabledStreamers" :key="streamer.id" :value="streamer.id">
-            {{ streamer.name }}
-          </option>
-        </select>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm"
-          :disabled="busy || !selectedStreamer"
-          @click="addStreamer"
-        >
-          + Streamer
-        </button>
-      </div>
-      <div class="regie-add-row">
-        <select v-model="selectedPlaylist" aria-label="Playlist auswählen">
-          <option value="" disabled>Playlist laden …</option>
-          <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
-            {{ playlist.name }} ({{ playlist.channels.length }})
-          </option>
-        </select>
-        <select v-model="playlistMode" aria-label="Playlist-Modus" class="regie-mode-select">
-          <option value="replace">ersetzen</option>
-          <option value="append">anhängen</option>
-        </select>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm"
-          :disabled="busy || !selectedPlaylist"
-          title="Playlist als Kopie in die Regie-Queue laden"
-          @click="loadPlaylist"
-        >
-          + Playlist
-        </button>
-      </div>
-      <div class="regie-add-row">
-        <select v-model="selectedScreen" aria-label="Screen auswählen">
-          <option value="pause">Pausenscreen</option>
-          <option value="startup">Startbildschirm</option>
-        </select>
-        <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="addScreen">
-          + Screen
-        </button>
-      </div>
+        <div class="regie-add-group">
+          <span class="regie-add-label">Video</span>
+          <div class="regie-add-row">
+            <select v-model="selectedMedia" aria-label="Video auswählen">
+              <option value="" disabled>Video wählen …</option>
+              <option v-for="file in media" :key="file.filename" :value="file.filename">
+                {{ file.filename }}{{ file.duration ? ` (${formatClock(file.duration)})` : '' }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy || !selectedMedia"
+              @click="addMedia"
+            >
+              + Video
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="busy || !selectedMedia"
+              title="Video sofort abspielen (als Nächstes einschieben)"
+              @click="playNowMedia"
+            >
+              ▶ Sofort
+            </button>
+          </div>
+        </div>
+        <div class="regie-add-group">
+          <span class="regie-add-label">Streamer</span>
+          <div class="regie-add-row">
+            <select v-model="selectedStreamer" aria-label="Streamer auswählen">
+              <option value="" disabled>Streamer wählen …</option>
+              <option v-for="streamer in enabledStreamers" :key="streamer.id" :value="streamer.id">
+                {{ streamer.name }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy || !selectedStreamer"
+              @click="addStreamer"
+            >
+              + Streamer
+            </button>
+          </div>
+        </div>
+        <div class="regie-add-group">
+          <span class="regie-add-label">Playlist</span>
+          <div class="regie-add-row">
+            <select v-model="selectedPlaylist" aria-label="Playlist auswählen">
+              <option value="" disabled>Playlist laden …</option>
+              <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
+                {{ playlist.name }} ({{ playlist.channels.length }})
+              </option>
+            </select>
+            <select v-model="playlistMode" aria-label="Playlist-Modus" class="regie-mode-select">
+              <option value="replace">ersetzen</option>
+              <option value="append">anhängen</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy || !selectedPlaylist"
+              title="Playlist als Kopie in die Regie-Queue laden"
+              @click="loadPlaylist"
+            >
+              + Playlist
+            </button>
+          </div>
+        </div>
+        <div class="regie-add-group">
+          <span class="regie-add-label">Screen</span>
+          <div class="regie-add-row">
+            <select v-model="selectedScreen" aria-label="Screen auswählen">
+              <option value="pause">Pausenscreen</option>
+              <option value="startup">Startbildschirm</option>
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="addScreen">
+              + Screen
+            </button>
+          </div>
+        </div>
       </div>
     </details>
 
@@ -485,149 +527,159 @@ watch(
       </div>
     </div>
 
-    <div v-if="!queue" class="regie-skeleton">
-      <AppSkeleton :lines="3" height="40px" radius="8px" width="100%" />
-      <span class="sr-only">Regie-Queue wird geladen</span>
-    </div>
-    <ol v-else-if="entries.length > 0" ref="listEl" class="regie-list">
-      <li
-        v-for="(entry, index) in entries"
-        :key="entry.id"
-        class="regie-item"
-        :class="{
-          'is-active': activeIndex === index,
-          'is-drag-over': dragOverIndex === index && draggingId !== entry.id,
-          'is-swiping': swipe?.id === entry.id && Math.abs(swipe.dx) > 8,
-        }"
-        :style="{ transform: swipeOffset(entry.id) }"
-        @pointerdown="onSwipeStart(entry, $event)"
-        @pointermove="onSwipeMove"
-        @pointerup="onSwipeEnd(entry, index)"
-        @pointercancel="swipe = null"
-        draggable="true"
-        @dragstart="onDragStart(entry.id, $event)"
-        @dragover.prevent="onDragOver(index)"
-        @drop.prevent="onDrop(index)"
-        @dragend="onDragEnd"
-      >
-        <span
-          class="drag-handle mono"
-          title="Ziehen zum Verschieben"
-          @pointerdown="onPointerDragStart(entry.id, $event)"
-          @pointermove="onPointerDragMove"
-          @pointerup="onPointerDragEnd"
-          @pointercancel="onPointerDragEnd"
+    <div
+      ref="listWindow"
+      class="regie-list-window"
+      :class="{ 'is-scrollable': listScrollable }"
+      @scroll.passive="updateListScrollable"
+    >
+      <div v-if="!queue" class="regie-skeleton">
+        <AppSkeleton :lines="3" height="40px" radius="8px" width="100%" />
+        <span class="sr-only">Regie-Queue wird geladen</span>
+      </div>
+      <ol v-else-if="entries.length > 0" ref="listEl" class="regie-list">
+        <li
+          v-for="(entry, index) in entries"
+          :key="entry.id"
+          class="regie-item"
+          :class="{
+            'is-active': activeIndex === index,
+            'is-drag-over': dragOverIndex === index && draggingId !== entry.id,
+            'is-swiping': swipe?.id === entry.id && Math.abs(swipe.dx) > 8,
+          }"
+          :style="{ transform: swipeOffset(entry.id) }"
+          @pointerdown="onSwipeStart(entry, $event)"
+          @pointermove="onSwipeMove"
+          @pointerup="onSwipeEnd(entry, index)"
+          @pointercancel="swipe = null"
+          draggable="true"
+          @dragstart="onDragStart(entry.id, $event)"
+          @dragover.prevent="onDragOver(index)"
+          @drop.prevent="onDrop(index)"
+          @dragend="onDragEnd"
         >
-          ⋮⋮
-        </span>
-        <span class="regie-index mono">{{ index + 1 }}</span>
-        <span class="regie-kind" :class="`is-${entry.kind}`">{{ kindLabel(entry.kind) }}</span>
-        <span
-          v-if="entryStatus(entry)"
-          class="badge badge-xs"
-          :class="entryStatus(entry)?.tone"
-          :title="'Wird beim Abspielen automatisch aktiviert'"
-        >
-          {{ entryStatus(entry)?.label }}
-        </span>
-        <span class="regie-label" :title="entry.channel">
-          {{ entry.label }}
-          <template v-if="editingDurationId === entry.id">
-            <span class="regie-duration-edit">
-              <input
-                v-model="editingDurationValue"
-                type="number"
-                min="1"
-                max="86400"
-                class="regie-duration-input"
-                placeholder="Sek."
-                aria-label="Dauer in Sekunden"
-                @keydown.enter.prevent="saveDurationEdit(entry.id)"
-                @keydown.escape.prevent="cancelDurationEdit"
-              />
-              <button
-                type="button"
-                class="btn btn-ghost btn-xs"
-                @click="saveDurationEdit(entry.id)"
-              >
-                OK
-              </button>
-              <button type="button" class="btn btn-ghost btn-xs" @click="cancelDurationEdit">
-                ✕
-              </button>
-            </span>
-          </template>
-          <button
-            v-else-if="entry.kind === 'file' || entryDuration(entry).seconds !== null"
-            type="button"
-            class="regie-duration-pill mono"
-            :class="{ 'is-overridden': entryDuration(entry).overridden }"
-            title="Dauer anpassen (leer = automatisch)"
-            @click="startDurationEdit(entry)"
+          <span
+            class="drag-handle mono"
+            title="Ziehen zum Verschieben"
+            @pointerdown="onPointerDragStart(entry.id, $event)"
+            @pointermove="onPointerDragMove"
+            @pointerup="onPointerDragEnd"
+            @pointercancel="onPointerDragEnd"
           >
-            {{
-              entryDuration(entry).seconds !== null
-                ? formatClock(entryDuration(entry).seconds!)
-                : 'Dauer'
-            }}
-          </button>
-        </span>
-        <span class="regie-item-actions">
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="busy || index === 0"
-            aria-label="Nach oben"
-            @click="move(entry.id, -1)"
+            ⋮⋮
+          </span>
+          <span class="regie-index mono">{{ index + 1 }}</span>
+          <span class="regie-kind" :class="`is-${entry.kind}`">{{ kindLabel(entry.kind) }}</span>
+          <span
+            v-if="entryStatus(entry)"
+            class="badge badge-xs"
+            :class="entryStatus(entry)?.tone"
+            :title="'Wird beim Abspielen automatisch aktiviert'"
           >
-            ↑
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="busy || index === entries.length - 1"
-            aria-label="Nach unten"
-            @click="move(entry.id, 1)"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="busy"
-            aria-label="Eintrag duplizieren"
-            title="Duplizieren"
-            @click="duplicate(entry.id)"
-          >
-            ⧉
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="busy"
-            aria-label="Ab dieser Stelle abspielen"
-            @click="play(index)"
-          >
-            ▶
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="busy"
-            aria-label="Eintrag entfernen"
-            @click="remove(entry.id)"
-          >
-            ✕
-          </button>
-        </span>
-      </li>
-    </ol>
-    <div v-else class="empty compact">
-      <p>Noch keine Einträge.</p>
+            {{ entryStatus(entry)?.label }}
+          </span>
+          <span class="regie-label" :title="entry.channel">
+            {{ entry.label }}
+            <template v-if="editingDurationId === entry.id">
+              <span class="regie-duration-edit">
+                <input
+                  v-model="editingDurationValue"
+                  type="number"
+                  min="1"
+                  max="86400"
+                  class="regie-duration-input"
+                  placeholder="Sek."
+                  aria-label="Dauer in Sekunden"
+                  @keydown.enter.prevent="saveDurationEdit(entry.id)"
+                  @keydown.escape.prevent="cancelDurationEdit"
+                />
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  @click="saveDurationEdit(entry.id)"
+                >
+                  OK
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs" @click="cancelDurationEdit">
+                  ✕
+                </button>
+              </span>
+            </template>
+            <button
+              v-else-if="entry.kind === 'file' || entryDuration(entry).seconds !== null"
+              type="button"
+              class="regie-duration-pill mono"
+              :class="{ 'is-overridden': entryDuration(entry).overridden }"
+              title="Dauer anpassen (leer = automatisch)"
+              @click="startDurationEdit(entry)"
+            >
+              {{
+                entryDuration(entry).seconds !== null
+                  ? formatClock(entryDuration(entry).seconds!)
+                  : 'Dauer'
+              }}
+            </button>
+          </span>
+          <span class="regie-item-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy || index === 0"
+              aria-label="Nach oben"
+              @click="move(entry.id, -1)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy || index === entries.length - 1"
+              aria-label="Nach unten"
+              @click="move(entry.id, 1)"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy"
+              aria-label="Eintrag duplizieren"
+              title="Duplizieren"
+              @click="duplicate(entry.id)"
+            >
+              ⧉
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy"
+              aria-label="Ab dieser Stelle abspielen"
+              @click="play(index)"
+            >
+              ▶
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy"
+              aria-label="Eintrag entfernen"
+              @click="remove(entry.id)"
+            >
+              ✕
+            </button>
+          </span>
+        </li>
+      </ol>
+      <div v-else class="empty compact regie-empty">
+        <p>Noch keine Einträge.</p>
+      </div>
     </div>
 
-    <details v-if="history.length > 0" class="regie-history">
-      <summary>Zuletzt gespielt ({{ history.length }})</summary>
+    <details v-if="history.length > 0" class="regie-details regie-history">
+      <summary>
+        <span class="regie-details-chevron" aria-hidden="true"></span>
+        Zuletzt gespielt ({{ history.length }})
+      </summary>
       <ul>
         <li v-for="item in history.slice(0, 8)" :key="`${item.channel}-${item.played_at}`">
           <span class="regie-history-label" :title="item.channel">{{ item.label }}</span>
