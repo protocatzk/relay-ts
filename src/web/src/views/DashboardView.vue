@@ -46,6 +46,7 @@ const {
   refreshStreamers,
   refreshPlaylists,
   refreshEarnings: syncEarnings,
+  applyQueue,
 } = useStore();
 const { series } = useTelemetry();
 const { open: discoveryOpen } = useDiscoveryPanel();
@@ -297,6 +298,20 @@ async function switchStreamer(streamer: Streamer): Promise<void> {
     () => api.streamers.switchTo(streamer.id),
     `${streamer.name} wird gestartet.`,
   );
+}
+
+/** Appends a streamer to the regie queue (#94). */
+async function queueStreamer(streamer: Streamer): Promise<void> {
+  busy.value = `queue:${streamer.id}`;
+  try {
+    const result = await api.playback.enqueue(streamer.id, 'end');
+    applyQueue(result.queue);
+    pushToast(`„${streamer.name}“ steht jetzt in der Regie-Queue.`, 'success');
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+  } finally {
+    busy.value = null;
+  }
 }
 
 async function playSelectedPlaylist(): Promise<void> {
@@ -702,6 +717,17 @@ onBeforeUnmount(() => {
                 @click="switchStreamer(streamer)"
               >
                 Wechseln
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="busy !== null"
+                title="Ans Ende der Regie-Queue hängen"
+                :aria-label="`${streamer.name} zur Regie-Queue hinzufügen`"
+                @click="queueStreamer(streamer)"
+              >
+                <span v-if="busy === `queue:${streamer.id}`" class="spinner" aria-hidden="true"></span>
+                <template v-else>+ Queue</template>
               </button>
             </div>
           </li>
