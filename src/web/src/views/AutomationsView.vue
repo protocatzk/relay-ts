@@ -855,6 +855,15 @@ onMounted(() => {
   overflow: hidden;
 }
 
+/* Negative margin matches the desktop content padding; on phones the padding
+   is 12 px, so the bleed has to shrink with it (#88). */
+@media (max-width: 720px) {
+  .automations-view {
+    margin: 0;
+    height: calc(100vh - 150px);
+  }
+}
+
 .n8n-header {
   display: flex;
   align-items: center;

@@ -437,6 +437,8 @@
   display: flex;
   align-items: stretch;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
   padding: 0 28px;
   overflow-x: auto;
   scrollbar-width: none;

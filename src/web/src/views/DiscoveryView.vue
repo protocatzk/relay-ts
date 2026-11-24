@@ -847,7 +847,9 @@ onUnmounted(() => {
 /* CARDS GRID */
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* min() keeps the track inside a 320 px viewport instead of forcing 320 px
+     plus page padding (#88). */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: var(--space-3, 0.75rem);
 }
 

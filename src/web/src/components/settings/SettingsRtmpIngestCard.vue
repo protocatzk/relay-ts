@@ -205,7 +205,11 @@ function generateNewKey(): void {
   padding: 1.25rem;
   background: var(--bg-surface-secondary, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-control);
+  /* Long ingest URLs must wrap instead of widening the settings page (#88). */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .rtmp-connection-title {
@@ -240,12 +244,16 @@ function generateNewKey(): void {
 .obs-value {
   color: var(--text-main, #f8fafc);
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .obs-copy-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .copy-input-row {
