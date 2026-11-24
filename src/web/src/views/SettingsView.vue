@@ -428,11 +428,20 @@ function normalizeSettingsDefaults(settings: Settings): Settings {
   return settings;
 }
 
-async function loadSettings(silent = false): Promise<void> {
+/**
+ * Loads the settings form. With `keepEdits` the response never replaces a form
+ * the user already changed while the request was in flight (#88) – the edit
+ * would otherwise silently vanish and the dirty state with it.
+ */
+async function loadSettings(silent = false, keepEdits = false): Promise<void> {
   if (!silent) loading.value = true;
   loadError.value = '';
   try {
     const settings = normalizeSettingsDefaults(await api.settings.get());
+    if (keepEdits && dirty.value && form.value) {
+      baseline.value = clone(settings);
+      return;
+    }
     form.value = clone(settings);
     baseline.value = clone(settings);
     apiKey.value = '';
@@ -537,7 +546,7 @@ async function save(): Promise<void> {
 }
 
 onMounted(() => {
-  void loadSettings();
+  void loadSettings(false, true);
   void loadSessions();
 });
 

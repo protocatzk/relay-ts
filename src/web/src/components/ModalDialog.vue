@@ -11,8 +11,10 @@ const props = withDefaults(
     open: boolean;
     title: string;
     size?: 'sm' | 'md' | 'lg';
+    /** Renders above other stacked modals (confirm prompts). */
+    elevate?: boolean;
   }>(),
-  { size: 'md' },
+  { size: 'md', elevate: false },
 );
 
 const emit = defineEmits<{ close: [] }>();
@@ -98,7 +100,12 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="open" class="modal-backdrop" @mousedown="handleBackdrop">
+      <div
+        v-if="open"
+        class="modal-backdrop"
+        :class="{ 'modal-backdrop-elevated': elevate }"
+        @mousedown="handleBackdrop"
+      >
         <div
           ref="panel"
           class="modal"

@@ -6,7 +6,15 @@ const { state, stay, discard } = useUnsavedDialog();
 </script>
 
 <template>
-  <ModalDialog :open="state.open" :title="state.title" size="sm" @close="stay">
+  <!-- Stacked above any view modal: the discard prompt must never be covered
+       by the dialog that triggered it (#88). -->
+  <ModalDialog
+    :open="state.open"
+    :title="state.title"
+    size="sm"
+    elevate
+    @close="stay"
+  >
     <p>{{ state.message }}</p>
     <template #footer>
       <button type="button" class="btn btn-ghost" @click="stay">Bleiben</button>

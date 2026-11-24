@@ -148,6 +148,9 @@ export function initPwa(): void {
         reloadOnce();
       },
       onRegisteredSW(_swUrl, registration) {
+        // Registration can be blocked (private mode, iframes, tests); the app
+        // still works without a worker, so never assume it exists.
+        if (!registration) return;
         swRegistration = registration;
         scheduleUpdateChecks();
       },
@@ -161,6 +164,10 @@ export function initPwa(): void {
 async function refreshApp(): Promise<void> {
   state.updating = true;
   try {
+    if (!swRegistration) {
+      reloadOnce();
+      return;
+    }
     await updateSW?.(true);
     state.needRefresh = false;
   } finally {
