@@ -299,7 +299,17 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   beendet war. Ein manueller Stopp löscht den Stand.
 - API: `GET /api/queue`, `POST /api/queue/entries`,
   `DELETE /api/queue/entries/:id`, `POST /api/queue/move`,
-  `DELETE /api/queue`, `POST /api/queue/play|next|stop|now|seek`.
+  `DELETE /api/queue`, `POST /api/queue/play|previous|next|stop|now|seek`.
+- **Zentrale Abspielsteuerung (#94):** `PlaybackService` (read-only) leitet aus
+  Queue, Playlist, Einzelquelle und Screens **einen** Zustand ab
+  (`source`, `current`, `next`, `paused`, `position`, `loop`) und wird als
+  `GET /api/playback` plus SSE-Event `playback` ausgeliefert. Der Transport
+  läuft über `POST /api/playback/{play,pause,resume,stop,next,previous}`,
+  `/seek`, `/loop` und `/queue-now`; er delegiert an die bestehenden Controller,
+  `/api/queue/*` und `/api/playlists/*` bleiben als Aliase. „Pause“ zeigt den
+  Pausenscreen, behält aber den aktiven Queue-/Playlist-Eintrag als `current`
+  (Transport setzt dort fort). Der Cockpit-Transport (`PlaybackTransport.vue`)
+  ist die einzige Weiter/Zurück-Steuerung im UI.
 - Dashboard-Karte `RegieQueue.vue`; das SSE-Event `queue` hält den Stand aktuell.
 
 ## Stream Discovery (Eigene Webcast-Implementierung)

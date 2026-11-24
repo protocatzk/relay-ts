@@ -239,6 +239,23 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   `GET /api/discovery/status` (Batch, ≤ 20 Handles, 30-s-Cache,
   `unknown` statt „offline"), `preview?fallback=1` → `204`.
 
+### v0.35.0 – Queue als zentrale Abspielsteuerung (Teil 1)
+
+**Status: in Arbeit.**
+
+- **Ein Modell (#94 Phase A):** `PlaybackService` leitet einen einheitlichen
+  Zustand aus Queue, Playlist, Einzelquelle und Screens ab; `GET /api/playback`
+  und das SSE-Event `playback` liefern ihn. Transport über
+  `POST /api/playback/*` (play, pause, resume, stop, next, previous, seek, loop,
+  queue-now) mit den bestehenden Controllern als Ausführungsschicht; die
+  Alt-Routen bleiben Aliase.
+- **Transport im Cockpit (#94 Phase B):** Eine Leiste zeigt „läuft“ und „als
+  Nächstes“ und steuert Wiedergabe, Vor/Zurück, Stopp, Seek und Queue-Loop.
+  Die Action-Zeile behält nur noch nicht-transportbezogene Regie-Aufgaben
+  (Umschalten, Discovery, Sink). Queue-Karte hat jetzt „Zurück“.
+- **Offen (Teil 2):** Playlist→Queue-Kopie, Einzelstreamer als Queue-Eintrag,
+  Loop `one`, Historie, Hold, Stream-Deck-/Telegram-/MCP-Ausbau.
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:
