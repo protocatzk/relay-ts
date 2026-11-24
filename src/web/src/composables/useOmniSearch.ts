@@ -3,6 +3,8 @@ import type { Router } from 'vue-router';
 import { SETTINGS_SECTIONS } from '@/src/utils/settings-sections';
 import { SECTIONS } from '@/src/navigation';
 import { store } from '@/src/composables/useStore';
+import { buildActions } from '@/src/actions';
+import { runRegistryAction } from '@/src/composables/useActions';
 
 export type OmniSearchCategory =
   | 'settings'
@@ -21,6 +23,8 @@ export interface OmniSearchItem {
   keywords: string[];
   icon?: string;
   badge?: string;
+  /** Set when the entry cannot run right now (guard failed). */
+  disabledReason?: string;
   action: (router: Router) => void | Promise<void>;
 }
 
@@ -73,6 +77,40 @@ export function buildOmniSearchIndex(
         },
       });
     }
+  }
+
+  // 2. Regie actions from the shared registry (#88)
+  const actionIcons: Record<string, string> = {
+    'stream.start': '▶',
+    'stream.switch': '⇄',
+    'stream.stop': '■',
+    'screen.pause': '❚❚',
+    'screen.startup': '▣',
+    'queue.next': '≫',
+    'queue.nextEntry': '≫',
+    'queue.now': '⚡',
+    'sink.restart': '↻',
+    'source.refresh': '↻',
+  };
+  const actionContext = { status: store.status, streamers: store.streamers };
+  for (const action of buildActions()) {
+    const disabledReason = action.enabled(actionContext)
+      ? undefined
+      : (action.reason?.(actionContext) ?? 'Gerade nicht verfügbar');
+    items.push({
+      id: `action-${action.id}`,
+      title: `Aktion: ${action.label}`,
+      subtitle: disabledReason ?? action.description,
+      category: 'actions',
+      categoryLabel: 'Aktionen',
+      keywords: [...action.keywords, action.id],
+      icon: actionIcons[action.id] ?? '▶',
+      badge: disabledReason ? 'gesperrt' : undefined,
+      disabledReason,
+      action: () => {
+        void runRegistryAction(action.id);
+      },
+    });
   }
 
   // Stream-Deck & Login

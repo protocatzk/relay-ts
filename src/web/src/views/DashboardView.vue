@@ -1,14 +1,29 @@
 <script setup lang="ts">
+/**
+ * Cockpit dashboard (#88).
+ *
+ * Layout: one sticky status line, a regie action row, then three columns
+ * (preview · queue · widgets) and the vitals strip. Everything the operator
+ * needs during a show is reachable without changing pages.
+ */
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
-import type { ChatAnalyticsSnapshot, EarningsPeriod, Streamer, TitlePreview } from '@/src/api/types';
+import type {
+  ChatAnalyticsSnapshot,
+  EarningsPeriod,
+  Streamer,
+  TitlePreview,
+} from '@/src/api/types';
+import CockpitActions from '@/src/components/CockpitActions.vue';
+import CockpitWidgets from '@/src/components/CockpitWidgets.vue';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
-import RegieQueue from '@/src/components/RegieQueue.vue';
-import Sparkline from '@/src/components/Sparkline.vue';
-import StatusBadge from '@/src/components/StatusBadge.vue';
 import ModuleVital from '@/src/components/ModuleVital.vue';
+import RegieQueue from '@/src/components/RegieQueue.vue';
+import StatusBadge from '@/src/components/StatusBadge.vue';
+import AppBadge from '@/src/components/ui/AppBadge.vue';
+import AppButton from '@/src/components/ui/AppButton.vue';
 import { useStore } from '@/src/composables/useStore';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
@@ -20,10 +35,16 @@ import {
   formatSeconds,
   formatUptime,
 } from '@/src/utils/format';
-import { sortStreamersByLive, sortStreamersByPriority } from '@/src/utils/sort-streamers';
+import { sortStreamersByLive } from '@/src/utils/sort-streamers';
 
 const router = useRouter();
-const { store, refreshStatus, refreshStreamers, refreshPlaylists, refreshEarnings: syncEarnings } = useStore();
+const {
+  store,
+  refreshStatus,
+  refreshStreamers,
+  refreshPlaylists,
+  refreshEarnings: syncEarnings,
+} = useStore();
 const { series } = useTelemetry();
 const { pushToast } = useToast();
 
@@ -36,6 +57,18 @@ const status = computed(() => store.status);
 const state = computed(() => status.value?.state ?? null);
 const isPaused = computed(() => state.value === 'paused');
 const manualScreen = computed(() => status.value?.manual_screen ?? null);
+const activeStreamer = computed<Streamer | null>(() => {
+  const id = status.value?.active_streamer_id;
+  if (!id) return null;
+  return store.streamers.find((streamer) => streamer.id === id) ?? null;
+});
+const avatarInitials = computed(() => {
+  const name = status.value?.active_streamer_name ?? '';
+  const parts = name.replace(/^@/, '').split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return '–';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+});
 
 const sourceTone = computed(() => {
   if (state.value === 'error') return 'danger';
@@ -56,53 +89,48 @@ const sinkTone = computed(() => {
   if (state.value === 'live' && status.value?.sink.running) return 'success';
   return undefined;
 });
-const watchdogTone = computed(() =>
-  status.value?.watchdog.last_error ? 'danger' : undefined,
-);
+const watchdogTone = computed(() => (status.value?.watchdog.last_error ? 'danger' : undefined));
 
-const canStart = computed(
-  () =>
-    state.value !== 'starting' &&
-    state.value !== 'live' &&
-    state.value !== 'reconnecting' &&
-    state.value !== 'stopping',
-);
-const canStop = computed(() => {
-  if (state.value === 'stopping') return false;
-  return (
-    Boolean(status.value?.active_streamer_id) ||
-    manualScreen.value !== null ||
-    state.value === 'starting' ||
-    state.value === 'reconnecting'
-  );
-});
-const canPause = computed(
-  () =>
-    state.value === 'live' ||
-    state.value === 'paused' ||
-    state.value === 'reconnecting' ||
-    state.value === 'idle' ||
-    state.value === 'error',
-);
-
-const startCandidate = computed<Streamer | null>(() => {
-  const enabled = sortStreamersByPriority(store.streamers.filter((streamer) => streamer.enabled));
-  return (
-    enabled.find((streamer) => streamer.preferred && streamer.status.online === true) ??
-    enabled.find((streamer) => streamer.status.online === true) ??
-    enabled.find((streamer) => streamer.preferred) ??
-    enabled[0] ??
-    null
-  );
+const targetLabel = computed(() => {
+  if (status.value?.active_streamer_name) return status.value.active_streamer_name;
+  if (manualScreen.value === 'startup') return 'Startbildschirm';
+  if (manualScreen.value === 'pause') return 'Pausenscreen';
+  return 'Kein aktiver Stream';
 });
 
-const activePlaylist = computed(() => status.value?.active_playlist ?? null);
+const targetSub = computed(() => {
+  if (status.value?.active_playlist) {
+    return `Playlist „${status.value.active_playlist.name}“ · Kanal ${status.value.active_playlist.index + 1} von ${status.value.active_playlist.total}`;
+  }
+  if (status.value?.state === 'paused') {
+    if (manualScreen.value === 'startup') return 'Der Startbildschirm wird gesendet.';
+    return status.value.active_streamer_id
+      ? 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.'
+      : 'Der Pausenscreen wird gesendet.';
+  }
+  if (status.value?.state === 'error') {
+    return status.value.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.';
+  }
+  if (status.value) {
+    return status.value.source.online === false ? 'Quelle offline.' : 'TikTok → DelayBuffer → YouTube';
+  }
+  return 'Keine Statusdaten empfangen.';
+});
+
+const autoRefreshLabel = computed(() => {
+  const auto = status.value?.auto_refresh;
+  if (auto?.enabled && auto.next_refresh_in_seconds != null) {
+    return formatUptime(auto.next_refresh_in_seconds);
+  }
+  return '–';
+});
+
 const streamers = computed(() => sortStreamersByLive(store.streamers));
+
+/* ---------------------------------------------------------------- preview */
+
 const previewUrl = ref(api.overlays.previewUrl(false));
 const chatAnalytics = ref<ChatAnalyticsSnapshot | null>(null);
-const chatTest = reactive({ username: 'Testuser', text: '' });
-const sendingChat = ref(false);
-const titlePreview = ref<TitlePreview | null>(null);
 let previewTimer: number | null = null;
 let lastPreviewEtag: string | null = null;
 let previewObjectUrl: string | null = null;
@@ -129,7 +157,7 @@ async function refreshPreview(): Promise<void> {
       previewUrl.value = nextUrl;
     }
   } catch {
-    // Keep current preview if fetch failed
+    // Keep the current preview when the fetch fails.
   }
 }
 
@@ -147,13 +175,19 @@ function onVisibilityChange(): void {
   }
 }
 
+/* ------------------------------------------------------------ maintenance */
+
+const chatTest = reactive({ username: 'Testuser', text: '' });
+const sendingChat = ref(false);
+const titlePreview = ref<TitlePreview | null>(null);
+
 async function sendChatTest(): Promise<void> {
   if (!chatTest.text.trim()) return;
   sendingChat.value = true;
   try {
     await api.chat.test(chatTest.username.trim() || 'Testuser', chatTest.text.trim());
     chatTest.text = '';
-    refreshPreview();
+    void refreshPreview();
     pushToast('Testnachricht an das Overlay gesendet.', 'success');
   } catch (error) {
     pushToast(errorMessage(error), 'error');
@@ -162,12 +196,58 @@ async function sendChatTest(): Promise<void> {
   }
 }
 
-async function restartSink(): Promise<void> {
-  await run('sink', () => api.system.restartSink(), 'YouTube-Sink wird neu gestartet.');
+async function loadTitle(id: string | null | undefined): Promise<void> {
+  if (!id) {
+    titlePreview.value = null;
+    return;
+  }
+  try {
+    titlePreview.value = await api.streamers.title(id);
+  } catch {
+    titlePreview.value = null;
+  }
 }
 
-async function refreshSource(): Promise<void> {
-  await run('source', () => api.system.refreshSource(), 'Quell-URL wird aktualisiert.');
+async function copyTitle(): Promise<void> {
+  if (!titlePreview.value?.title) return;
+  try {
+    await navigator.clipboard.writeText(titlePreview.value.title);
+    pushToast('Titel kopiert.', 'success');
+  } catch {
+    pushToast('Kopieren nicht möglich.', 'error');
+  }
+}
+
+watch(
+  () => status.value?.active_streamer_id,
+  (id) => void loadTitle(id),
+  { immediate: true },
+);
+
+/* ---------------------------------------------------------------- actions */
+
+async function run(
+  key: string,
+  action: () => Promise<unknown>,
+  successMessage?: string,
+): Promise<unknown> {
+  busy.value = key;
+  try {
+    const result = await action();
+    await Promise.allSettled([refreshStatus(), refreshStreamers()]);
+    if (successMessage) pushToast(successMessage, 'success');
+    return result;
+  } catch (error) {
+    pushToast(errorMessage(error), 'error');
+    await Promise.allSettled([refreshStatus(), refreshStreamers()]);
+    return undefined;
+  } finally {
+    busy.value = null;
+  }
+}
+
+async function restartSink(): Promise<void> {
+  await run('sink', () => api.system.restartSink(), 'YouTube-Sink wird neu gestartet.');
 }
 
 async function reloadYaml(): Promise<void> {
@@ -200,158 +280,19 @@ async function changeEarningsPeriod(period: EarningsPeriod): Promise<void> {
   }
 }
 
-async function loadTitle(id: string | null | undefined): Promise<void> {
-  if (!id) {
-    titlePreview.value = null;
-    return;
-  }
-  try {
-    titlePreview.value = await api.streamers.title(id);
-  } catch {
-    titlePreview.value = null;
-  }
-}
-
-async function copyTitle(): Promise<void> {
-  if (!titlePreview.value?.title) return;
-  try {
-    await navigator.clipboard.writeText(titlePreview.value.title);
-    pushToast('Titel kopiert.', 'success');
-  } catch {
-    pushToast('Kopieren nicht möglich.', 'error');
-  }
-}
-
-watch(
-  () => status.value?.active_streamer_id,
-  (id) => void loadTitle(id),
-  { immediate: true },
-);
-
-function onlineLabel(streamer: Streamer): string {
-  if (streamer.status.online === true) return 'Online';
-  if (streamer.status.online === false) return 'Offline';
-  return 'Unbekannt';
-}
-
-function onlineClass(streamer: Streamer): string {
-  if (streamer.status.online === true) return 'is-online';
-  if (streamer.status.online === false) return 'is-offline';
-  return 'is-unknown';
-}
-
-type RunMessage = string | ((result: unknown) => { message: string; kind: 'success' | 'info' });
-
-function startResultMessage(
-  result: unknown,
-  name: string,
-): { message: string; kind: 'success' | 'info' } {
-  const state = (result as { status?: { state?: string } } | undefined)?.status?.state;
-  if (state === 'paused') {
-    return {
-      message: `${name} ist offline – Pausenscreen läuft, Start erfolgt automatisch sobald live.`,
-      kind: 'info',
-    };
-  }
-  return { message: `${name} wird gestartet.`, kind: 'success' };
-}
-
-async function run(
-  key: string,
-  action: () => Promise<unknown>,
-  successMessage?: RunMessage,
-): Promise<unknown> {
-  busy.value = key;
-  try {
-    const result = await action();
-    await Promise.allSettled([refreshStatus(), refreshStreamers()]);
-    if (typeof successMessage === 'function') {
-      const detail = successMessage(result);
-      pushToast(detail.message, detail.kind);
-    } else if (successMessage) {
-      pushToast(successMessage, 'success');
-    }
-    return result;
-  } catch (error) {
-    pushToast(errorMessage(error), 'error');
-    // A failed start may still have created a streamer.
-    await Promise.allSettled([refreshStatus(), refreshStreamers()]);
-    return undefined;
-  } finally {
-    busy.value = null;
-  }
-}
-
-async function startGlobal(): Promise<void> {
-  if (!canStart.value) return;
-  const candidate = startCandidate.value;
-  if (!candidate) {
-    pushToast('Kein aktivierter Streamer vorhanden. Bitte zuerst einen Streamer anlegen.', 'error');
-    return;
-  }
-  await run(
-    'start',
-    () => api.streamers.start(candidate.id),
-    (result) => startResultMessage(result, candidate.name),
-  );
-}
-
-async function stopGlobal(): Promise<void> {
-  const id = status.value?.active_streamer_id;
-  if (!id) {
-    if (manualScreen.value) {
-      await run('stop', () => api.screens.stop(), 'Screen beendet.');
-      return;
-    }
-    pushToast('Es läuft aktuell kein Stream.', 'error');
-    return;
-  }
-  await run('stop', () => api.streamers.stop(id), 'Stream wird gestoppt.');
-}
-
-function screenStopMessage(): string {
-  return status.value?.active_streamer_id ? 'Zurück zum Stream.' : 'Screen beendet.';
-}
-
-async function togglePause(): Promise<void> {
-  const shouldStop = isPaused.value && manualScreen.value !== 'startup';
-  await run(
-    shouldStop ? 'screen-stop' : 'pause',
-    () => (shouldStop ? api.screens.stop() : api.screens.show('pause')),
-    shouldStop ? screenStopMessage() : 'Pausenscreen aktiviert.',
-  );
-}
-
-async function toggleStartup(): Promise<void> {
-  const shouldStop = manualScreen.value === 'startup';
-  await run(
-    shouldStop ? 'screen-stop' : 'startup',
-    () => (shouldStop ? api.screens.stop() : api.screens.show('startup')),
-    shouldStop ? screenStopMessage() : 'Startbildschirm aktiviert.',
-  );
-}
-
 async function startStreamer(streamer: Streamer): Promise<void> {
-  await run(
-    `start:${streamer.id}`,
-    () => api.streamers.start(streamer.id),
-    (result) => startResultMessage(result, streamer.name),
-  );
+  await run(`start:${streamer.id}`, () => api.streamers.start(streamer.id), `${streamer.name} wird gestartet.`);
+}
+
+async function stopStreamer(streamer: Streamer): Promise<void> {
+  await run(`stop:${streamer.id}`, () => api.streamers.stop(streamer.id), `${streamer.name} wird gestoppt.`);
 }
 
 async function switchStreamer(streamer: Streamer): Promise<void> {
   await run(
     `switch:${streamer.id}`,
     () => api.streamers.switchTo(streamer.id),
-    (result) => startResultMessage(result, streamer.name),
-  );
-}
-
-async function stopStreamer(streamer: Streamer): Promise<void> {
-  await run(
-    `stop:${streamer.id}`,
-    () => api.streamers.stop(streamer.id),
-    `${streamer.name} wird gestoppt.`,
+    `${streamer.name} wird gestartet.`,
   );
 }
 
@@ -368,7 +309,7 @@ async function playSelectedPlaylist(): Promise<void> {
 
 async function submitQuickStart(): Promise<void> {
   if (!quick.tiktok.trim() || !quick.youtube_key.trim()) {
-    pushToast('Bitte TikTok-Handle und YouTube-Key angeben.', 'error');
+    pushToast('Bitte TikTok-Handle und YouTube-Stream-Key angeben.', 'error');
     return;
   }
   const payload = {
@@ -377,17 +318,19 @@ async function submitQuickStart(): Promise<void> {
     ...(quick.name.trim() ? { name: quick.name.trim() } : {}),
   };
   const displayName = quick.name.trim() || quick.tiktok.trim();
-  await run(
-    'quickstart',
-    async () => {
-      const result = await api.quickstart(payload);
-      quick.tiktok = '';
-      quick.youtube_key = '';
-      quick.name = '';
-      return result;
-    },
-    (result) => startResultMessage(result, displayName),
-  );
+  await run('quickstart', async () => {
+    const result = await api.quickstart(payload);
+    quick.tiktok = '';
+    quick.youtube_key = '';
+    quick.name = '';
+    return result;
+  }, `${displayName} wird gestartet.`);
+}
+
+function focusQueue(): void {
+  const el = document.querySelector<HTMLElement>('.cockpit-col-queue');
+  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  el?.querySelector<HTMLElement>('.regie-add button')?.focus();
 }
 
 watch(
@@ -417,23 +360,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="page page-dashboard">
-    <div class="page-head">
-      <div>
-        <h1>Dashboard</h1>
-      </div>
+  <div class="page page-dashboard cockpit">
+    <div class="page-head cockpit-head">
+      <h1>Dashboard</h1>
       <div class="page-actions">
-        <RouterLink
-          to="/deck"
-          class="btn btn-ghost btn-sm"
-          title="Stream-Deck im selben Tab öffnen"
-        >
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8" />
-            <path d="M3 9h18M3 15h18M9 3v18M15 3v18" stroke="currentColor" stroke-width="1.8" />
-          </svg>
+        <AppButton to="/deck" variant="ghost" size="sm" title="Stream-Deck im selben Tab öffnen">
           Stream-Deck
-        </RouterLink>
+        </AppButton>
         <button
           type="button"
           class="btn btn-ghost btn-sm"
@@ -445,155 +378,238 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <section class="card hero-card">
-      <div class="hero-bar">
-        <StatusBadge :state="state" large />
-        <div class="hero-titleblock">
-          <h2 class="hero-title">
-            {{
-              status?.active_streamer_name ??
-              (manualScreen === 'startup'
-                ? 'Startbildschirm'
-                : manualScreen === 'pause'
-                  ? 'Pausenscreen'
-                  : 'Kein aktiver Stream')
-            }}
-          </h2>
-          <p class="hero-sub">
-            <template v-if="status?.active_playlist">
-              Playlist „{{ status.active_playlist.name }}“ · Kanal
-              {{ status.active_playlist.index + 1 }} von {{ status.active_playlist.total }}
-            </template>
-            <template v-else-if="status?.state === 'paused'">
-              {{
-                manualScreen === 'startup'
-                  ? 'Der Startbildschirm wird gesendet.'
-                  : status.active_streamer_id
-                    ? 'Der Stream ist pausiert. Der Pausenscreen wird gesendet.'
-                    : 'Der Pausenscreen wird gesendet.'
-              }}
-            </template>
-            <template v-else-if="status?.state === 'error'">
-              {{ status.watchdog.last_error ?? 'Ein Fehler ist aufgetreten.' }}
-              <RouterLink to="/logs" class="hero-log-link">Logs ansehen</RouterLink>
-            </template>
-            <template v-else-if="status">
-              {{ status.source.online === false ? 'Quelle offline.' : 'Bereit.' }}
-            </template>
-            <template v-else>Keine Statusdaten empfangen.</template>
-            <span v-if="status?.active_scene_name" class="badge tone-info" style="margin-left: 8px">
+    <header class="cockpit-status">
+      <div class="cockpit-identity">
+        <span class="cockpit-avatar" aria-hidden="true">{{ avatarInitials }}</span>
+        <div class="cockpit-identity-text">
+          <div class="cockpit-name-row">
+            <strong>{{ targetLabel }}</strong>
+            <StatusBadge :state="state" />
+            <AppBadge v-if="status?.active_scene_name" tone="info" size="xs">
               Szene: {{ status.active_scene_name }}
-            </span>
+            </AppBadge>
+          </div>
+          <p class="cockpit-sub">
+            {{ targetSub }}
+            <RouterLink v-if="state === 'error'" to="/logs" class="hero-log-link">Logs ansehen</RouterLink>
           </p>
-        </div>
-        <div class="quick-actions">
-          <button
-            type="button"
-            class="btn btn-primary btn-sm"
-            :disabled="!canStart || busy !== null"
-            @click="startGlobal"
-          >
-            <span v-if="busy === 'start'" class="spinner" aria-hidden="true"></span>
-            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-              <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
-            </svg>
-            Start
-          </button>
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm"
-            :disabled="!canStop || busy !== null"
-            @click="stopGlobal"
-          >
-            <span v-if="busy === 'stop'" class="spinner" aria-hidden="true"></span>
-            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-              <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-            </svg>
-            Stop
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="!canPause || busy !== null"
-            @click="toggleStartup"
-          >
-            <span
-              v-if="busy === 'startup' || busy === 'screen-stop'"
-              class="spinner"
-              aria-hidden="true"
-            ></span>
-            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-              <rect
-                x="3"
-                y="4"
-                width="18"
-                height="13"
-                rx="2"
-                stroke="currentColor"
-                stroke-width="1.8"
-              />
-              <path
-                d="M8 21h8M12 17v4"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              />
-            </svg>
-            Startbild
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="!canPause || busy !== null"
-            @click="togglePause"
-          >
-            <span
-              v-if="busy === 'pause' || busy === 'screen-stop'"
-              class="spinner"
-              aria-hidden="true"
-            ></span>
-            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-              <path
-                v-if="manualScreen === 'pause' || (isPaused && manualScreen !== 'startup')"
-                d="m8 5 11 7-11 7V5Z"
-                fill="currentColor"
-              />
-              <path
-                v-else
-                d="M8 5v14M16 5v14"
-                stroke="currentColor"
-                stroke-width="2.4"
-                stroke-linecap="round"
-              />
-            </svg>
-            {{ manualScreen === 'pause' || (isPaused && manualScreen !== 'startup') ? 'Resume' : 'Pause' }}
-          </button>
         </div>
       </div>
 
-      <dl class="hero-facts">
+      <dl class="cockpit-metrics">        <div>
+          <dt>Ziel</dt>
+          <dd>{{ status?.active_streamer_name ?? '–' }}</dd>
+        </div>
         <div>
           <dt>Uptime</dt>
           <dd class="mono">{{ formatUptime(status?.uptime_seconds) }}</dd>
         </div>
         <div>
-          <dt>Playlist</dt>
-          <dd>{{ activePlaylist?.name ?? '–' }}</dd>
+          <dt>Zuschauer</dt>
+          <dd class="mono">
+            {{ status?.chat.viewers != null ? formatNumber(status.chat.viewers) : '–' }}
+          </dd>
+        </div>
+        <div>
+          <dt>Bitrate</dt>
+          <dd class="mono">{{ formatBitrate(status?.sink.bitrate_kbps) }}</dd>
         </div>
         <div>
           <dt>Auto-Refresh</dt>
-          <dd class="mono">
-            {{
-              status?.auto_refresh.enabled && status.auto_refresh.next_refresh_in_seconds != null
-                ? formatUptime(status.auto_refresh.next_refresh_in_seconds)
-                : '–'
-            }}
-          </dd>
+          <dd class="mono">{{ autoRefreshLabel }}</dd>
         </div>
       </dl>
-    </section>
 
-    <section class="vitals-rail" aria-label="System-Vitals">
+    </header>
+
+    <CockpitActions @queue-now="focusQueue" />
+
+    <div v-if="status?.watchdog.last_error" class="alert alert-warn" role="status">
+      <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
+      <RouterLink to="/logs" class="btn btn-ghost btn-sm">Logs</RouterLink>
+    </div>
+
+    <div class="cockpit-grid">
+      <section class="cockpit-col cockpit-col-preview" aria-label="Vorschau">
+        <LivePreview :state="state" />
+        <div class="cockpit-preview-note">
+          <span class="label">Chat-Overlay</span>
+          <AppBadge :tone="status?.chat.canvas_active ? 'success' : 'neutral'" size="xs">
+            {{ status?.chat.canvas_active ? 'Canvas live' : 'Canvas inaktiv' }}
+          </AppBadge>
+          <span class="mono">{{ status?.chat.messages ?? 0 }} Nachr.</span>
+          <AppButton to="/overlays" variant="ghost" size="xs">Overlay-Studio</AppButton>
+        </div>
+      </section>
+
+      <section class="cockpit-col cockpit-col-queue" aria-label="Regie-Queue">
+        <RegieQueue />
+      </section>
+
+      <aside class="cockpit-col cockpit-col-widgets" aria-label="Kennzahlen">
+        <CockpitWidgets
+          :status="status"
+          :earnings="store.earnings"
+          :analytics="chatAnalytics"
+        />
+
+        <details class="card cockpit-maintenance">
+          <summary class="cockpit-maintenance-summary">
+            <span class="card-title">Wartung &amp; Chat</span>
+            <span
+              class="badge badge-xs"
+              :class="status?.chat.api_configured ? 'tone-success' : 'tone-muted'"
+            >
+              {{ status?.chat.api_configured ? 'Chat-API OK' : 'Chat-API fehlt' }}
+            </span>
+          </summary>
+
+          <div class="cockpit-preview-stage">
+            <img :src="previewUrl" alt="Chat-Overlay-Vorschau" />
+          </div>
+
+          <dl class="settings-summary">
+            <div>
+              <dt>Chat-Engine</dt>
+              <dd>{{ status?.chat.engine ?? '–' }}</dd>
+            </div>
+            <div>
+              <dt>Nachrichten</dt>
+              <dd class="mono">{{ status?.chat.messages ?? 0 }}</dd>
+            </div>
+            <template v-if="chatAnalytics">
+              <div>
+                <dt>Rate (5 min)</dt>
+                <dd class="mono">{{ chatAnalytics.messages_per_minute }} / min</dd>
+              </div>
+              <div>
+                <dt>Peak (30 min)</dt>
+                <dd class="mono">{{ chatAnalytics.peak_per_minute }} / min</dd>
+              </div>
+            </template>
+          </dl>
+
+          <form class="stack compact" @submit.prevent="sendChatTest">
+            <div class="field">
+              <label for="dash-chat-text">Testnachricht</label>
+              <div class="input-with-button">
+                <input
+                  id="dash-chat-text"
+                  v-model="chatTest.text"
+                  type="text"
+                  maxlength="300"
+                  placeholder="Nachricht ins Overlay senden …"
+                />
+                <button
+                  type="submit"
+                  class="btn btn-primary btn-sm"
+                  :disabled="sendingChat || !chatTest.text.trim()"
+                >
+                  <span v-if="sendingChat" class="spinner" aria-hidden="true"></span>
+                  Senden
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div v-if="titlePreview" class="field">
+            <label for="dash-title">YouTube-Titel</label>
+            <div class="input-with-button">
+              <input id="dash-title" :value="titlePreview.title" type="text" readonly />
+              <button type="button" class="btn btn-ghost btn-sm" @click="copyTitle">Kopieren</button>
+            </div>
+          </div>
+
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm"
+              :disabled="busy !== null || !status?.sink.running"
+              @click="restartSink"
+            >
+              Sink neu starten
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="busy !== null" @click="reloadYaml">
+              YAML neu laden
+            </button>
+          </div>
+
+          <details class="cockpit-details">
+            <summary>Schnellstart &amp; Playlist</summary>
+            <form class="stack compact" @submit.prevent="submitQuickStart">
+              <div class="field">
+                <label for="quick-tiktok">TikTok-Handle <span class="req">*</span></label>
+                <input
+                  id="quick-tiktok"
+                  v-model="quick.tiktok"
+                  type="text"
+                  placeholder="@username"
+                  spellcheck="false"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label for="quick-key">YouTube-Stream-Key <span class="req">*</span></label>
+                <input
+                  id="quick-key"
+                  v-model="quick.youtube_key"
+                  type="password"
+                  placeholder="Stream-Key"
+                  autocomplete="new-password"
+                />
+              </div>
+              <div class="field">
+                <label for="quick-name">Name <span class="muted">(optional)</span></label>
+                <input
+                  id="quick-name"
+                  v-model="quick.name"
+                  type="text"
+                  placeholder="Anzeigename"
+                  autocomplete="off"
+                />
+              </div>
+              <button type="submit" class="btn btn-primary" :disabled="busy === 'quickstart'">
+                <span v-if="busy === 'quickstart'" class="spinner" aria-hidden="true"></span>
+                Jetzt starten
+              </button>
+            </form>
+
+            <div v-if="store.playlists.length > 0" class="stack compact">
+              <div class="field">
+                <label for="quick-playlist">Playlist</label>
+                <select id="quick-playlist" v-model="selectedPlaylist">
+                  <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
+                    {{ playlist.name }} ({{ playlist.channels.length }} Kanäle)
+                  </option>
+                </select>
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                :disabled="busy === 'playlist' || !selectedPlaylist"
+                @click="playSelectedPlaylist"
+              >
+                <span v-if="busy === 'playlist'" class="spinner" aria-hidden="true"></span>
+                Playlist abspielen
+              </button>
+              <div v-if="status?.active_playlist" class="info-row">
+                <span class="badge tone-info">Aktiv</span>
+                <span>{{ status.active_playlist.name }}</span>
+                <span class="mono muted">
+                  {{ status.active_playlist.index + 1 }}/{{ status.active_playlist.total }}
+                </span>
+              </div>
+            </div>
+            <div v-else class="empty compact">
+              <p>Noch keine Playlists vorhanden.</p>
+              <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
+            </div>
+          </details>
+        </details>
+      </aside>
+    </div>
+
+    <section class="cockpit-vitals" aria-label="System-Vitals">
       <ModuleVital
         label="Quelle"
         :value="formatBitrate(status?.source.bitrate_kbps)"
@@ -628,277 +644,29 @@ onBeforeUnmount(() => {
       />
     </section>
 
-    <div class="cockpit-layout">
-      <div class="dash-grid">
-      <div v-if="status?.watchdog.last_error" class="alert alert-warn span-3" role="status">
-        <strong>Watchdog:</strong> {{ status.watchdog.last_error }}
-        <RouterLink to="/logs" class="btn btn-ghost btn-sm">Logs</RouterLink>
-      </div>
-
-      <div class="dash-stack span-2">
-        <LivePreview :state="state" />
-        <RegieQueue />
-      </div>
-
-      <section class="card dashboard-live">
-      <div class="card-head">
-        <div>
-          <h2 class="card-title">Chat & Wartung</h2>
-        </div>
-        <div class="card-badges">
-          <span v-if="status?.chat.canvas_active" class="badge tone-success">Canvas live</span>
-          <span v-else class="badge tone-neutral">Canvas inaktiv</span>
-          <RouterLink to="/overlays" class="btn btn-ghost btn-sm">Overlay-Studio</RouterLink>
-        </div>
-      </div>
-      <div class="dashboard-live-grid">
-        <div class="dashboard-preview-stage">
-          <img :src="previewUrl" alt="Chat-Overlay-Vorschau" />
-        </div>
-        <div class="stack">
-          <dl class="settings-summary">
-            <div>
-              <dt>Chat-Engine</dt>
-              <dd>{{ status?.chat.engine ?? '–' }}</dd>
-            </div>
-            <div>
-              <dt>Nachrichten</dt>
-              <dd>{{ status?.chat.messages ?? 0 }}</dd>
-            </div>
-            <div>
-              <dt>Chat-API</dt>
-              <dd>{{ status?.chat.api_configured ? 'OK' : 'fehlt' }}</dd>
-            </div>
-            <template v-if="chatAnalytics">
-              <div>
-                <dt>Rate (5 min)</dt>
-                <dd class="mono">{{ chatAnalytics.messages_per_minute }} / min</dd>
-              </div>
-              <div>
-                <dt>Peak (30 min)</dt>
-                <dd class="mono">{{ chatAnalytics.peak_per_minute }} / min</dd>
-              </div>
-              <div>
-                <dt>Aktive Chatter</dt>
-                <dd class="mono">{{ chatAnalytics.unique_chatters }}</dd>
-              </div>
-            </template>
-          </dl>
-          <div v-if="chatAnalytics" class="chat-analytics-box">
-            <div class="chat-analytics-head">
-              <span class="label">Chat-Aktivität ({{ chatAnalytics.window_minutes }} min · {{ chatAnalytics.total_messages }} Nachr.)</span>
-            </div>
-            <Sparkline :values="chatAnalytics.series" :height="32" />
-            <div v-if="chatAnalytics.top_chatters.length > 0" class="chat-analytics-chips">
-              <span
-                v-for="chatter in chatAnalytics.top_chatters.slice(0, 3)"
-                :key="chatter.username"
-                class="badge badge-xs tone-neutral"
-              >
-                {{ chatter.username }} ({{ chatter.count }})
-              </span>
-            </div>
-          </div>
-          <form class="stack compact" @submit.prevent="sendChatTest">
-            <div class="field">
-              <label for="dash-chat-text">Testnachricht</label>
-              <div class="input-with-button">
-                <input
-                  id="dash-chat-text"
-                  v-model="chatTest.text"
-                  type="text"
-                  maxlength="300"
-                  placeholder="Nachricht ins Overlay senden …"
-                />
-                <button
-                  type="submit"
-                  class="btn btn-primary btn-sm"
-                  :disabled="sendingChat || !chatTest.text.trim()"
-                >
-                  <span v-if="sendingChat" class="spinner" aria-hidden="true"></span>
-                  Senden
-                </button>
-              </div>
-            </div>
-          </form>
-          <div v-if="titlePreview" class="field">
-            <label for="dash-title">YouTube-Titel</label>
-            <div class="input-with-button">
-              <input id="dash-title" :value="titlePreview.title" type="text" readonly />
-              <button type="button" class="btn btn-ghost btn-sm" @click="copyTitle">
-                Kopieren
-              </button>
-            </div>
-          </div>
-          <div class="quick-actions">
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null || !status?.sink.running"
-              @click="restartSink"
-            >
-              Sink neu starten
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null || !status?.active_streamer_id"
-              @click="refreshSource"
-            >
-              Quelle aktualisieren
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm"
-              :disabled="busy !== null"
-              @click="reloadYaml"
-            >
-              YAML neu laden
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-      <EarningsPanel
-        v-if="store.earnings"
-        class="span-2"
-        :earnings="store.earnings"
-        :refreshing="refreshingEarnings"
-        @refresh="refreshEarnings"
-        @period="changeEarningsPeriod"
-      />
-      <section class="card quickstart-card">
+    <div class="cockpit-lists">
+      <section class="card cockpit-streamers" aria-labelledby="cockpit-streamer-title">
         <div class="card-head">
           <div>
-            <h2 class="card-title">Schnellstart</h2>
-          </div>
-          <svg
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            aria-hidden="true"
-            class="card-icon"
-          >
-            <path
-              d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </div>
-
-        <div class="quickstart-block">
-          <h3 class="quickstart-title">TikTok-Stream</h3>
-          <form class="stack compact" @submit.prevent="submitQuickStart">
-            <div class="field">
-              <label for="quick-tiktok">TikTok-Handle <span class="req">*</span></label>
-              <input
-                id="quick-tiktok"
-                v-model="quick.tiktok"
-                type="text"
-                placeholder="@username"
-                spellcheck="false"
-                autocomplete="off"
-              />
-            </div>
-            <div class="field">
-              <label for="quick-key">YouTube-Stream-Key <span class="req">*</span></label>
-              <input
-                id="quick-key"
-                v-model="quick.youtube_key"
-                type="password"
-                placeholder="Stream-Key"
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="field">
-              <label for="quick-name">Name <span class="muted">(optional)</span></label>
-              <input
-                id="quick-name"
-                v-model="quick.name"
-                type="text"
-                placeholder="Anzeigename"
-                autocomplete="off"
-              />
-            </div>
-            <button type="submit" class="btn btn-primary" :disabled="busy === 'quickstart'">
-              <span v-if="busy === 'quickstart'" class="spinner" aria-hidden="true"></span>
-              Jetzt starten
-            </button>
-          </form>
-        </div>
-
-        <div class="quickstart-block">
-          <div class="quickstart-head">
-            <h3 class="quickstart-title">Playlist</h3>
-            <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Alle</RouterLink>
-          </div>
-          <div v-if="store.playlists.length > 0" class="stack compact">
-            <div class="field">
-              <label for="quick-playlist">Playlist</label>
-              <select id="quick-playlist" v-model="selectedPlaylist">
-                <option v-for="playlist in store.playlists" :key="playlist.id" :value="playlist.id">
-                  {{ playlist.name }} ({{ playlist.channels.length }} Kanäle)
-                </option>
-              </select>
-            </div>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              :disabled="busy === 'playlist' || !selectedPlaylist"
-              @click="playSelectedPlaylist"
-            >
-              <span v-if="busy === 'playlist'" class="spinner" aria-hidden="true"></span>
-              <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-                <path d="m8 5 11 7-11 7V5Z" fill="currentColor" />
-              </svg>
-              Playlist abspielen
-            </button>
-            <div v-if="activePlaylist" class="info-row">
-              <span class="badge tone-info">Aktiv</span>
-              <span>{{ activePlaylist.name }}</span>
-              <span class="mono muted"
-                >{{ activePlaylist.index + 1 }}/{{ activePlaylist.total }}</span
-              >
-            </div>
-          </div>
-          <div v-else class="empty compact">
-            <p>Noch keine Playlists vorhanden.</p>
-            <RouterLink to="/playlists" class="btn btn-ghost btn-sm">Playlists ansehen</RouterLink>
-          </div>
-        </div>
-      </section>
-      </div>
-
-      <aside class="card streamer-panel">
-        <div class="card-head">
-          <div>
-            <h2 class="card-title">Streamer</h2>
+            <h2 id="cockpit-streamer-title" class="card-title">Streamer</h2>
           </div>
           <RouterLink to="/streamers" class="btn btn-ghost btn-sm">Verwalten</RouterLink>
         </div>
 
         <div v-if="store.streamers.length === 0" class="empty">
           <p>Noch keine Streamer angelegt.</p>
-          <RouterLink to="/streamers" class="btn btn-primary btn-sm"
-            >Ersten Streamer anlegen</RouterLink
-          >
+          <RouterLink to="/streamers" class="btn btn-primary btn-sm">Ersten Streamer anlegen</RouterLink>
         </div>
 
         <ul v-else class="streamer-list">
           <li v-for="streamer in streamers" :key="streamer.id" class="streamer-row">
-            <span class="online-indicator" :class="onlineClass(streamer)">
+            <span class="online-indicator" :class="streamer.status.online === true ? 'is-online' : streamer.status.online === false ? 'is-offline' : 'is-unknown'">
               <span class="dot" aria-hidden="true"></span>
-              {{ onlineLabel(streamer) }}
+              {{ streamer.status.online === true ? 'Online' : streamer.status.online === false ? 'Offline' : 'Unbekannt' }}
             </span>
             <div class="streamer-identity">
               <strong>{{ streamer.name }}</strong>
-              <span class="streamer-meta"
-                >@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span
-              >
+              <span class="streamer-meta">@{{ streamer.tiktok.replace(/^@/, '') }} · {{ streamer.id }}</span>
             </div>
             <span class="badge tone-neutral">{{ streamer.quality }}</span>
             <span v-if="streamer.status.active" class="badge tone-success">Aktiv</span>
@@ -934,7 +702,18 @@ onBeforeUnmount(() => {
             </div>
           </li>
         </ul>
-      </aside>
+      </section>
+
+      <div class="cockpit-side">
+        <EarningsPanel
+          v-if="store.earnings"
+          :earnings="store.earnings"
+          :refreshing="refreshingEarnings"
+          @refresh="refreshEarnings"
+          @period="changeEarningsPeriod"
+        />
+
+      </div>
     </div>
   </div>
 </template>

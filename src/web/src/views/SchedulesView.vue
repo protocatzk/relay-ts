@@ -159,11 +159,19 @@ async function saveRule(): Promise<void> {
   }
 }
 
+/**
+ * Optimistic toggle (#88): the switch flips immediately, the list is reloaded
+ * after the server confirms and rolled back with a toast when the call fails.
+ */
 async function toggleEnabled(rule: ScheduleRule): Promise<void> {
+  const previous = schedules.value.map((entry) => ({ ...entry }));
+  const next = !rule.enabled;
+  rule.enabled = next;
   try {
-    await api.schedules.update(rule.id, { enabled: !rule.enabled });
+    await api.schedules.update(rule.id, { enabled: next });
     schedules.value = await api.schedules.list();
   } catch (error) {
+    schedules.value = previous;
     pushToast(errorMessage(error), 'error');
   }
 }

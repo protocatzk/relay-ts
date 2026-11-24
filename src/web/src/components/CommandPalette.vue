@@ -63,6 +63,7 @@ watch(isOmniSearchOpen, async (isOpen) => {
 });
 
 function handleSelect(item: OmniSearchItem): void {
+  if (item.disabledReason) return;
   closeOmniSearch();
   void item.action(router);
 }
@@ -72,6 +73,19 @@ function selectCurrent(): void {
   if (current) {
     handleSelect(current);
   }
+}
+
+/** Moves the highlight, skipping entries whose guard currently blocks them. */
+function moveActive(delta: 1 | -1): void {
+  const items = filteredItems.value;
+  if (items.length === 0) return;
+  let next = activeIndex.value;
+  for (let step = 0; step < items.length; step++) {
+    next = (next + delta + items.length) % items.length;
+    if (!items[next]?.disabledReason) break;
+  }
+  activeIndex.value = next;
+  scrollActiveIntoView();
 }
 
 function scrollActiveIntoView(): void {
@@ -103,17 +117,10 @@ function onKeydown(e: KeyboardEvent): void {
     closeOmniSearch();
   } else if (e.key === 'ArrowDown') {
     e.preventDefault();
-    if (filteredItems.value.length > 0) {
-      activeIndex.value = (activeIndex.value + 1) % filteredItems.value.length;
-      scrollActiveIntoView();
-    }
+    moveActive(1);
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    if (filteredItems.value.length > 0) {
-      activeIndex.value =
-        (activeIndex.value - 1 + filteredItems.value.length) % filteredItems.value.length;
-      scrollActiveIntoView();
-    }
+    moveActive(-1);
   } else if (e.key === 'Enter') {
     e.preventDefault();
     selectCurrent();
@@ -183,9 +190,10 @@ onBeforeUnmount(() => {
               v-for="(item, idx) in filteredItems"
               :key="item.id"
               class="omni-item"
-              :class="{ 'is-active': idx === activeIndex }"
+              :class="{ 'is-active': idx === activeIndex, 'is-disabled': Boolean(item.disabledReason) }"
               role="option"
               :aria-selected="idx === activeIndex"
+              :aria-disabled="item.disabledReason ? 'true' : undefined"
               @click="handleSelect(item)"
               @mouseenter="activeIndex = idx"
             >
@@ -324,6 +332,16 @@ onBeforeUnmount(() => {
   border-left-color: var(--color-accent, #38bdf8);
 }
 
+.omni-item.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.omni-item.is-disabled.is-active {
+  background: transparent;
+  border-left-color: transparent;
+}
+
 .omni-item-icon {
   font-size: 1.25rem;
   flex-shrink: 0;
@@ -348,6 +366,11 @@ onBeforeUnmount(() => {
 
 .omni-item.is-active .omni-item-title {
   color: var(--color-accent, #38bdf8);
+}
+
+.omni-item.is-disabled .omni-item-title,
+.omni-item.is-disabled.is-active .omni-item-title {
+  color: var(--text-muted, #777);
 }
 
 .omni-badge {

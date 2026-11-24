@@ -11,6 +11,7 @@ import type {
   StatusPayload,
   Streamer,
 } from '@/src/api/types';
+import { StatusPatchStore } from '@/src/composables/status-patch';
 import { recordStatus, resetTelemetry } from '@/src/composables/useTelemetry';
 
 export type ConnectionMode = 'connecting' | 'live' | 'offline';
@@ -114,11 +115,44 @@ export function clearLogs(): void {
 export async function refreshStatus(): Promise<void> {
   store.loading.status = true;
   try {
-    store.status = markRaw(await api.status.get());
+    const next = await api.status.get();
+    store.status = markRaw(mergePendingPatch(next));
     recordStatus(store.status);
   } finally {
     store.loading.status = false;
   }
+}
+
+/* ------------------------------------------------------- optimistic status (#88) */
+
+const statusPatcher = new StatusPatchStore(store);
+
+/** True while an optimistic status patch has not been confirmed or rolled back. */
+export function hasPendingPatch(): boolean {
+  return statusPatcher.hasPending;
+}
+
+/**
+ * Applies a local guess immediately so the UI reacts within one frame. The
+ * previous server snapshot is kept for `rollbackStatus`.
+ */
+export function patchStatus(patch: Partial<StatusPayload>): void {
+  statusPatcher.patch(patch);
+}
+
+/** Drops the local guess and restores the snapshot from before the click. */
+export function rollbackStatus(): void {
+  statusPatcher.rollback();
+}
+
+/** Keeps whatever the server says next; the guess has been confirmed. */
+export function confirmStatus(): void {
+  statusPatcher.confirm();
+}
+
+/** Merges a fresh server snapshot without discarding a young local guess. */
+function mergePendingPatch(next: StatusPayload): StatusPayload {
+  return statusPatcher.merge(next);
 }
 
 export async function refreshStreamers(): Promise<void> {
@@ -203,8 +237,8 @@ function connectEvents(): void {
     try {
       const payload = JSON.parse((event as MessageEvent<string>).data) as StatusPayload;
       if (payload && typeof payload === 'object' && 'state' in payload) {
-        store.status = markRaw(payload);
-        recordStatus(payload);
+        store.status = markRaw(mergePendingPatch(payload));
+        recordStatus(store.status!);
       }
     } catch {
       /* ignore malformed events */
@@ -373,5 +407,9 @@ export function useStore() {
     appendLog,
     mergeLogs,
     clearLogs,
+    patchStatus,
+    rollbackStatus,
+    confirmStatus,
+    hasPendingPatch,
   };
 }
