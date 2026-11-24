@@ -18,7 +18,9 @@ test.describe('mobile layout and navigation', () => {
       { path: '/#/diagnostics', heading: 'Diagnose' },
     ];
     for (const item of pages) {
-      await page.goto(item.path);
+      // Wait for the data-driven cards (diagnostics, logs) before measuring, so
+      // a transient placeholder cannot look like an overflow.
+      await page.goto(item.path, { waitUntil: 'networkidle' });
       await expect(page.getByRole('heading', { level: 1, name: item.heading })).toBeVisible();
       await page.waitForTimeout(250);
       await expectNoHorizontalOverflow(page, item.path);

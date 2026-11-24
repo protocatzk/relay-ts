@@ -173,6 +173,8 @@
   margin-top: 3px;
   color: var(--text-muted);
   font-size: 12.5px;
+  /* CPU models and file paths are long; never widen the page for them. */
+  overflow-wrap: anywhere;
 }
 
 .card-icon {
@@ -1468,6 +1470,8 @@ select {
   text-align: right;
   font-size: 12.5px;
   min-width: 0;
+  /* Long CPU/encoder strings must wrap instead of widening the page (#94). */
+  overflow-wrap: anywhere;
 }
 
 .diag-wrap {
