@@ -4,13 +4,15 @@ import { SECTIONS } from '../src/web/src/navigation.js';
 
 describe('OmniSearch Navigation & Settings coverage', () => {
   it('covers all primary navigation sections', () => {
-    expect(SECTIONS.length).toBeGreaterThanOrEqual(5);
+    expect(SECTIONS.length).toBeGreaterThanOrEqual(4);
     const sectionLabels = SECTIONS.map((s) => s.label);
     expect(sectionLabels).toContain('Live');
-    expect(sectionLabels).toContain('Discovery');
     expect(sectionLabels).toContain('Inhalte');
     expect(sectionLabels).toContain('Studio');
     expect(sectionLabels).toContain('System');
+    // Discovery moved into the Live section as a sub-tab (#88).
+    const live = SECTIONS.find((section) => section.id === 'live');
+    expect(live?.tabs.map((tab) => tab.to)).toContain('/discovery');
   });
 
   it('covers all defined settings sections with labels and DOM IDs', () => {

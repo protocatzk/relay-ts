@@ -31,7 +31,7 @@ const routes: RouteRecordRaw[] = [
     path: '/discovery',
     name: 'discovery',
     component: () => import('@/src/views/DiscoveryView.vue'),
-    meta: { title: 'Discovery', section: 'discovery' },
+    meta: { title: 'Discovery', section: 'live' },
   },
   {
     path: '/playlists',

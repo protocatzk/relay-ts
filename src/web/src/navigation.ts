@@ -39,7 +39,7 @@ export function toggleDesktopNavSide(): void {
   setDesktopNavSide(desktopNavSide.value === 'left' ? 'right' : 'left');
 }
 
-export type SectionId = 'live' | 'discovery' | 'inhalte' | 'studio' | 'system';
+export type SectionId = 'live' | 'inhalte' | 'studio' | 'system';
 
 export interface IconSegment {
   d: string;
@@ -66,21 +66,13 @@ export const SECTIONS: NavSection[] = [
   {
     id: 'live',
     label: 'Live',
-    description: 'Status, Steuerung und Vorschau',
+    description: 'Cockpit, Steuerung und Discovery-Zapper',
     to: '/',
     segments: [{ d: 'M3 12h3.5l2.5-7 4 14 2.5-7H21' }],
-    tabs: [],
-  },
-  {
-    id: 'discovery',
-    label: 'Discovery',
-    description: 'TikTok Live-Zapper, Trending und Suche',
-    to: '/discovery',
-    segments: [
-      { d: 'M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z' },
-      { d: 'm16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36z' },
+    tabs: [
+      { label: 'Cockpit', to: '/' },
+      { label: 'Discovery', to: '/discovery' },
     ],
-    tabs: [],
   },
   {
     id: 'inhalte',

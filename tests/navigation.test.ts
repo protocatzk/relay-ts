@@ -23,10 +23,10 @@ describe('navigation helper', () => {
     setAvatarFallbackCustomUrl('');
   });
 
-  it('exposes five primary sections with labels and valid paths', () => {
-    expect(SECTIONS).toHaveLength(5);
+  it('exposes four primary sections with labels and valid paths', () => {
+    expect(SECTIONS).toHaveLength(4);
     const ids = SECTIONS.map((s) => s.id);
-    expect(ids).toEqual(['live', 'discovery', 'inhalte', 'studio', 'system']);
+    expect(ids).toEqual(['live', 'inhalte', 'studio', 'system']);
     for (const section of SECTIONS) {
       expect(section.label).toBeTruthy();
       expect(section.to).toBeTruthy();
