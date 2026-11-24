@@ -938,6 +938,7 @@
 }
 
 .bnav-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -981,6 +982,39 @@
   display: block;
   flex-shrink: 0;
   margin: 0 auto;
+}
+
+/* Streaming indicator on the Live entry (#88). */
+.bnav-signal {
+  position: absolute;
+  top: 6px;
+  right: 50%;
+  width: 7px;
+  height: 7px;
+  margin-right: -16px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 8px var(--success);
+}
+
+.bnav-item.is-active .bnav-signal {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 8px var(--success);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bnav-signal {
+    animation: bnav-signal-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes bnav-signal-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .bnav-label {

@@ -60,3 +60,43 @@ body::after {
   -webkit-backdrop-filter: none;
   background: var(--surface);
 }
+
+/* ------------------------------------------------------------------ View transitions */
+
+/* Route change animation (#88). The duration comes from --motion-* and drops to
+   0 ms when the user prefers reduced motion. */
+.view-enter-active,
+.view-leave-active {
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-base) var(--motion-ease);
+}
+
+.view-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.view-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-enter-active,
+  .view-leave-active {
+    transition: none;
+  }
+
+  .view-enter-from,
+  .view-leave-to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Low-power mode skips the sweep animation on skeletons. */
+[data-effects='low'] .skeleton {
+  animation: none;
+  background: var(--surface-3);
+}

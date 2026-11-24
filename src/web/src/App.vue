@@ -12,6 +12,7 @@ import CommandPalette from '@/src/components/CommandPalette.vue';
 import { desktopNavSide } from '@/src/navigation';
 import { checkServerVersion } from '@/src/composables/usePwa';
 import { bootstrap, stopEvents, useStore } from '@/src/composables/useStore';
+import { prefetchPrimaryRoutes } from '@/src/router/prefetch';
 
 const route = useRoute();
 const { store } = useStore();
@@ -27,6 +28,8 @@ function focusMain(event: MouseEvent): void {
 
 onMounted(() => {
   if (store.authenticated) void bootstrap();
+  // Warm the primary view chunks once the shell has painted (#88).
+  prefetchPrimaryRoutes();
 });
 
 watch(
@@ -63,7 +66,11 @@ onBeforeUnmount(() => {
       <AppHeader />
       <SectionTabs />
       <main id="main-content" ref="mainContent" class="content" tabindex="-1">
-        <router-view />
+        <RouterView v-slot="{ Component, route: viewRoute }">
+          <Transition name="view" mode="out-in">
+            <component :is="Component" :key="viewRoute.path" />
+          </Transition>
+        </RouterView>
       </main>
       <footer class="app-footer">
         <span>RELAY Restreamer</span>
