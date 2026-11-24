@@ -16,6 +16,10 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // The PWA service worker reloads the page when a new build is waiting; that
+    // races with form edits and makes UI tests flaky (#88). UI behaviour is
+    // tested without the worker.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: 'sh -c "mkdir -p .playwright && npm run build:web && npm run dev"',

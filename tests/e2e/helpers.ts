@@ -26,3 +26,18 @@ export async function expectNoHorizontalOverflow(page: Page, label: string): Pro
     `${label}: scrollWidth ${metrics.scrollWidth} > clientWidth ${metrics.clientWidth}`,
   ).toBeLessThanOrEqual(metrics.clientWidth + 1);
 }
+
+/**
+ * Flips the theme on any viewport. Below 520 px the control lives in the
+ * "Weitere Optionen" header menu instead of the toolbar (#88).
+ */
+export async function toggleTheme(page: Page): Promise<void> {
+  const direct = page.getByRole('button', { name: /Theme:/ });
+  if (await direct.isVisible()) {
+    await direct.click();
+    return;
+  }
+  const more = page.getByRole('button', { name: 'Weitere Optionen & Konto' });
+  await more.click();
+  await page.getByRole('menuitem', { name: /Erscheinungsbild/ }).click();
+}

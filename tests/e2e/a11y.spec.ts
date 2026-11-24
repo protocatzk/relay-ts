@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ensureStreamer } from './helpers';
+import { ensureStreamer, toggleTheme } from './helpers';
 
 test.describe('accessibility smoke checks', () => {
   test('skip link, landmarks and headings are present', async ({ page }) => {
@@ -67,9 +67,8 @@ test.describe('accessibility smoke checks', () => {
 
   test('theme toggle switches between dark and light', async ({ page }) => {
     await page.goto('/#/');
-    const toggle = page.getByRole('button', { name: /Theme:/ });
     const initial = await page.evaluate(() => document.documentElement.dataset.theme ?? 'dark');
-    await toggle.click();
+    await toggleTheme(page);
     const next = await page.evaluate(() => document.documentElement.dataset.theme ?? 'dark');
     expect(next).not.toBe(initial);
     await expectNoOverflow(page);
@@ -84,6 +83,7 @@ test.describe('accessibility smoke checks', () => {
     const clockTab = tablist.getByRole('tab', { name: 'Uhrzeit' });
     const videoTab = tablist.getByRole('tab', { name: 'Video' });
     const earningsTab = tablist.getByRole('tab', { name: 'Einnahmen' });
+    const versionTab = tablist.getByRole('tab', { name: 'Version' });
 
     await expect(chatTab).toHaveAttribute('aria-selected', 'true');
     await expect(chatTab).toHaveAttribute('tabindex', '0');
@@ -103,15 +103,21 @@ test.describe('accessibility smoke checks', () => {
     await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'studio-tab-clock');
 
     await page.keyboard.press('End');
-    await expect(earningsTab).toBeFocused();
-    await expect(earningsTab).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('tabpanel')).toHaveAttribute('id', 'studio-panel-earnings');
+    await expect(versionTab).toBeFocused();
+    await expect(versionTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel')).toHaveAttribute('id', 'studio-panel-version');
 
     await page.keyboard.press('Home');
     await expect(videoTab).toBeFocused();
     await expect(videoTab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('tabpanel')).toHaveAttribute('id', 'studio-panel-video');
 
+    // ArrowLeft from the first tab wraps to the last one (Version).
+    await page.keyboard.press('ArrowLeft');
+    await expect(versionTab).toBeFocused();
+    await expect(versionTab).toHaveAttribute('aria-selected', 'true');
+
+    // ArrowLeft again moves one tab back to Einnahmen.
     await page.keyboard.press('ArrowLeft');
     await expect(earningsTab).toBeFocused();
     await expect(earningsTab).toHaveAttribute('aria-selected', 'true');
@@ -136,11 +142,17 @@ test.describe('accessibility smoke checks', () => {
     await expect(page.getByRole('dialog', { name: 'Ungespeicherte Änderungen' })).toHaveCount(0);
 
     // Dirty state on /settings: beforeunload is prevented and route change opens dialog.
+    const settingsLoaded = page.waitForResponse(
+      (response) => response.url().endsWith('/api/settings') && response.request().method() === 'GET',
+    );
     await page.goto('/#/settings');
+    await settingsLoaded;
     const titleInput = page.locator('#title-template');
     await expect(titleInput).toBeVisible();
     const originalTitle = await titleInput.inputValue();
     await titleInput.fill(`${originalTitle} (entwurf)`);
+    // Wait for the dirty watcher to register the beforeunload guard.
+    await expect(page.getByText('Ungespeicherte Änderungen').first()).toBeVisible();
 
     const dirtyPrevented = await page.evaluate(() => {
       const event = new Event('beforeunload', { cancelable: true });
@@ -166,7 +178,15 @@ test.describe('accessibility smoke checks', () => {
     // Dirty state on /overlays also guards route navigation.
     await page.goto('/#/overlays');
     await expect(page.getByRole('heading', { level: 1, name: 'Overlay-Studio' })).toBeVisible();
+    // On phones the studio sections are accordions; open the chat tab and its
+    // "Layout & Begrenzungen" group before editing.
+    await page.getByRole('tab', { name: 'Chat' }).click();
+    const layoutGroup = page.locator('.studio-group', { hasText: 'Layout & Begrenzungen' }).first();
+    if (!(await layoutGroup.evaluate((el) => (el as HTMLDetailsElement).open))) {
+      await layoutGroup.locator('summary').click();
+    }
     const chatFont = page.locator('#studio-chat-font-size');
+    await expect(chatFont).toBeVisible();
     const currentFont = await chatFont.inputValue();
     await chatFont.fill(currentFont === '24' ? '26' : '24');
     await page
@@ -219,7 +239,12 @@ test.describe('accessibility smoke checks', () => {
     );
     await watchdogCard.getByRole('button', { name: 'Watchdog speichern' }).click();
     const putRequest = await putRequestPromise;
-    expect(Object.keys(putRequest.postDataJSON() as Record<string, unknown>)).toEqual(['watchdog']);
+    // The watchdog card also owns the sink read/write timeout, so both
+    // sections travel in one request.
+    expect(Object.keys(putRequest.postDataJSON() as Record<string, unknown>).sort()).toEqual([
+      'sink',
+      'watchdog',
+    ]);
     await expect(page.getByText('Bereich „Watchdog“ gespeichert.').first()).toBeVisible();
 
     // Watchdog is clean again; YouTube-Titel still keeps its unsaved edit.

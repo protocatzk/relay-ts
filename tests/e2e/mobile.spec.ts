@@ -58,7 +58,7 @@ test.describe('mobile layout and navigation', () => {
     await page.goto('/#/streamers');
     const tabs = page.getByRole('navigation', { name: 'Inhalte: Unterseiten' });
     await expect(tabs).toBeVisible();
-    await expect(tabs.getByRole('link')).toHaveCount(4);
+    await expect(tabs.getByRole('link')).toHaveCount(5);
     await expect(tabs.getByRole('link', { name: 'Streamer' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -81,6 +81,25 @@ test.describe('mobile layout and navigation', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Logs' })).toBeVisible();
     await system.getByRole('link', { name: 'Diagnose' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Diagnose' })).toBeVisible();
+  });
+
+  test('live section carries cockpit and discovery tabs', async ({ page }) => {
+    await page.goto('/#/');
+    const tabs = page.getByRole('navigation', { name: 'Live: Unterseiten' });
+    await expect(tabs.getByRole('link')).toHaveCount(2);
+    await expect(tabs.getByRole('link', { name: 'Cockpit' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await tabs.getByRole('link', { name: 'Discovery' }).click();
+    await expect(page).toHaveURL(/#\/discovery$/);
+    await expect(
+      page.getByRole('navigation', { name: 'Hauptnavigation' }).getByRole('link', {
+        name: 'Live',
+        exact: true,
+      }),
+    ).toHaveAttribute('aria-current', 'page');
   });
 
   test('bottom navigation keeps the Stream-Deck reachable from Live', async ({ page }) => {
@@ -191,11 +210,12 @@ test.describe('mobile layout and navigation', () => {
     await expect(page.getByRole('heading', { name: 'Live-Vorschau' })).toBeVisible();
     await clickStudioTab(page, 'Einnahmen');
     await expect(page.getByLabel('Template')).toBeVisible();
-    await expect(page.getByLabel('Offset X (px)')).toBeVisible();
+    await expect(page.getByLabel('Feinjustierung X (px)')).toBeVisible();
     await expect(page.locator('#studio-earnings-font-color')).toBeVisible();
     const templateValue = `{net} € · Studio-${Date.now()}`;
     await page.getByLabel('Template').fill(templateValue);
-    await page.getByRole('button', { name: 'Speichern' }).click();
+    // Header and sticky footer both offer "Speichern"; use the header one.
+    await page.getByRole('button', { name: 'Speichern', exact: true }).first().click();
     await expect(
       page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
     ).toBeVisible();
@@ -207,8 +227,8 @@ test.describe('mobile layout and navigation', () => {
     const videoToggle = page.getByRole('switch', { name: /Video-Layout/ });
     await videoToggle.check();
     const scale = page.locator('#studio-video-scale');
-    const posX = page.locator('#studio-video-position-x');
-    const posY = page.locator('#studio-video-position-y');
+    const posX = page.locator('#studio-video-pos-x');
+    const posY = page.locator('#studio-video-pos-y');
     // Pick targets that differ from the persisted state so the test stays repeatable.
     const scaleTarget = (await scale.inputValue()) === '160' ? '150' : '160';
     const xTarget = (await posX.inputValue()) === '25' ? '30' : '25';
@@ -216,22 +236,22 @@ test.describe('mobile layout and navigation', () => {
     await scale.fill(scaleTarget);
     await posX.fill(xTarget);
     await posY.fill(yTarget);
-    await page.getByRole('button', { name: 'Speichern' }).click();
+    await page.getByRole('button', { name: 'Speichern', exact: true }).first().click();
     await expect(
       page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
     ).toBeVisible();
     await page.reload();
     await clickStudioTab(page, 'Video');
     await expect(page.locator('#studio-video-scale')).toHaveValue(scaleTarget);
-    await expect(page.locator('#studio-video-position-x')).toHaveValue(xTarget);
-    await expect(page.locator('#studio-video-position-y')).toHaveValue(yTarget);
+    await expect(page.locator('#studio-video-pos-x')).toHaveValue(xTarget);
+    await expect(page.locator('#studio-video-pos-y')).toHaveValue(yTarget);
 
     await page.getByRole('switch', { name: /Video-Layout/ }).uncheck();
     const resetScale = (await page.locator('#studio-video-scale').inputValue()) === '100' ? '90' : '100';
     await page.locator('#studio-video-scale').fill(resetScale);
-    await page.locator('#studio-video-position-x').fill('50');
-    await page.locator('#studio-video-position-y').fill('50');
-    await page.getByRole('button', { name: 'Speichern' }).click();
+    await page.locator('#studio-video-pos-x').fill('50');
+    await page.locator('#studio-video-pos-y').fill('50');
+    await page.getByRole('button', { name: 'Speichern', exact: true }).first().click();
     await expect(
       page.getByText('Globale Overlay- und Video-Einstellungen gespeichert.').first(),
     ).toBeVisible();
@@ -249,7 +269,9 @@ test.describe('tablet overlay studio', () => {
     await expect(page.getByRole('button', { name: 'Positionieren' })).toBeVisible();
     const preview = await page.locator('.overlay-preview-card').boundingBox();
     const settings = await page.locator('.overlay-settings-card').boundingBox();
-    expect(preview?.width ?? 0).toBeGreaterThan(280);
+    // Two columns with the desktop nav rail reserved (104 px), so the preview
+    // settles around 260-280 px at 768 px width.
+    expect(preview?.width ?? 0).toBeGreaterThan(240);
     // Tablet uses a two-column editor: preview left, settings right.
     expect((preview?.x ?? 0) + (preview?.width ?? 0)).toBeLessThan(settings?.x ?? 0);
     await expectNoHorizontalOverflow(page, 'tablet overlay studio');
