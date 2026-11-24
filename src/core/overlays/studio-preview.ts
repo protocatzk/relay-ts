@@ -7,6 +7,7 @@ import {
   overlayFontFamily,
   parseColor,
   type ChatEarningsCard,
+  type ChatQueueInput,
 } from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
 import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
@@ -21,6 +22,7 @@ export interface StudioPreviewOptions {
   earningsText?: string;
   earningsCard?: ChatEarningsCard | null;
   chatMessages?: ChatMessage[];
+  queue?: ChatQueueInput | null;
   logoImage?: Image;
   maxDimension?: number;
   videoAspect?: PreviewAspect;
@@ -221,6 +223,9 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     }
     if (options.earningsCard !== undefined) {
       engine.setEarningsCard(options.earningsCard);
+    }
+    if (options.queue !== undefined) {
+      engine.setQueue(options.queue);
     }
     const panel = engine.panel;
     ctx.drawImage(engine.previewCanvas(sample), panel.x, panel.y);

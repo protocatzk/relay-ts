@@ -3144,6 +3144,15 @@
                           "show_badges": true,
                           "show_tiers": true,
                           "show_stats": false,
+                          "queue_enabled": false,
+                          "queue_max_entries": 5,
+                          "queue_font_size": 0,
+                          "queue_font_color": "white",
+                          "queue_active_color": "#00f0ff",
+                          "queue_box_color": "black@0.45",
+                          "queue_show_box": true,
+                          "queue_offset_x": 0,
+                          "queue_offset_y": 0,
                           "show_earnings_card": false,
                           "earnings_card_interval_seconds": 120,
                           "name_colors": true,
@@ -3306,6 +3315,53 @@
                           "show_stats": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "queue_max_entries": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10
+                          },
+                          "queue_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
+                          "queue_font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_active_color": {
+                            "default": "#00f0ff",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "queue_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "queue_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
                           },
                           "show_earnings_card": {
                             "default": false,
@@ -4518,6 +4574,15 @@
                           "show_badges": true,
                           "show_tiers": true,
                           "show_stats": false,
+                          "queue_enabled": false,
+                          "queue_max_entries": 5,
+                          "queue_font_size": 0,
+                          "queue_font_color": "white",
+                          "queue_active_color": "#00f0ff",
+                          "queue_box_color": "black@0.45",
+                          "queue_show_box": true,
+                          "queue_offset_x": 0,
+                          "queue_offset_y": 0,
                           "show_earnings_card": false,
                           "earnings_card_interval_seconds": 120,
                           "name_colors": true,
@@ -4680,6 +4745,53 @@
                           "show_stats": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "queue_max_entries": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10
+                          },
+                          "queue_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
+                          "queue_font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_active_color": {
+                            "default": "#00f0ff",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "queue_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "queue_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
                           },
                           "show_earnings_card": {
                             "default": false,
@@ -5160,6 +5272,15 @@
                           "show_badges": true,
                           "show_tiers": true,
                           "show_stats": false,
+                          "queue_enabled": false,
+                          "queue_max_entries": 5,
+                          "queue_font_size": 0,
+                          "queue_font_color": "white",
+                          "queue_active_color": "#00f0ff",
+                          "queue_box_color": "black@0.45",
+                          "queue_show_box": true,
+                          "queue_offset_x": 0,
+                          "queue_offset_y": 0,
                           "show_earnings_card": false,
                           "earnings_card_interval_seconds": 120,
                           "name_colors": true,
@@ -5322,6 +5443,53 @@
                           "show_stats": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_enabled": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "queue_max_entries": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10
+                          },
+                          "queue_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
+                          "queue_font_color": {
+                            "default": "white",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_active_color": {
+                            "default": "#00f0ff",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_box_color": {
+                            "default": "black@0.45",
+                            "type": "string",
+                            "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                          },
+                          "queue_show_box": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "queue_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "queue_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
                           },
                           "show_earnings_card": {
                             "default": false,
@@ -11198,6 +11366,15 @@
                 "show_badges": true,
                 "show_tiers": true,
                 "show_stats": false,
+                "queue_enabled": false,
+                "queue_max_entries": 5,
+                "queue_font_size": 0,
+                "queue_font_color": "white",
+                "queue_active_color": "#00f0ff",
+                "queue_box_color": "black@0.45",
+                "queue_show_box": true,
+                "queue_offset_x": 0,
+                "queue_offset_y": 0,
                 "show_earnings_card": false,
                 "earnings_card_interval_seconds": 120,
                 "name_colors": true,
@@ -11289,6 +11466,15 @@
                   "show_badges": true,
                   "show_tiers": true,
                   "show_stats": false,
+                  "queue_enabled": false,
+                  "queue_max_entries": 5,
+                  "queue_font_size": 0,
+                  "queue_font_color": "white",
+                  "queue_active_color": "#00f0ff",
+                  "queue_box_color": "black@0.45",
+                  "queue_show_box": true,
+                  "queue_offset_x": 0,
+                  "queue_offset_y": 0,
                   "show_earnings_card": false,
                   "earnings_card_interval_seconds": 120,
                   "name_colors": true,
@@ -11451,6 +11637,53 @@
                   "show_stats": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "queue_enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "queue_max_entries": {
+                    "default": 5,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  },
+                  "queue_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
+                  "queue_font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_active_color": {
+                    "default": "#00f0ff",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "queue_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "queue_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
                   },
                   "show_earnings_card": {
                     "default": false,
@@ -12853,6 +13086,15 @@
                 "show_badges": true,
                 "show_tiers": true,
                 "show_stats": false,
+                "queue_enabled": false,
+                "queue_max_entries": 5,
+                "queue_font_size": 0,
+                "queue_font_color": "white",
+                "queue_active_color": "#00f0ff",
+                "queue_box_color": "black@0.45",
+                "queue_show_box": true,
+                "queue_offset_x": 0,
+                "queue_offset_y": 0,
                 "show_earnings_card": false,
                 "earnings_card_interval_seconds": 120,
                 "name_colors": true,
@@ -12944,6 +13186,15 @@
                   "show_badges": true,
                   "show_tiers": true,
                   "show_stats": false,
+                  "queue_enabled": false,
+                  "queue_max_entries": 5,
+                  "queue_font_size": 0,
+                  "queue_font_color": "white",
+                  "queue_active_color": "#00f0ff",
+                  "queue_box_color": "black@0.45",
+                  "queue_show_box": true,
+                  "queue_offset_x": 0,
+                  "queue_offset_y": 0,
                   "show_earnings_card": false,
                   "earnings_card_interval_seconds": 120,
                   "name_colors": true,
@@ -13106,6 +13357,53 @@
                   "show_stats": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "queue_enabled": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "queue_max_entries": {
+                    "default": 5,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  },
+                  "queue_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
+                  "queue_font_color": {
+                    "default": "white",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_active_color": {
+                    "default": "#00f0ff",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_box_color": {
+                    "default": "black@0.45",
+                    "type": "string",
+                    "pattern": "^(#?[0-9a-fA-F]{6}(@[0-9.]+)?|[a-zA-Z]+(@[0-9.]+)?)$"
+                  },
+                  "queue_show_box": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "queue_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "queue_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
                   },
                   "show_earnings_card": {
                     "default": false,

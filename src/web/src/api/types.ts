@@ -46,6 +46,15 @@ export interface ChatOverlay {
   show_badges: boolean;
   show_tiers: boolean;
   show_stats: boolean;
+  queue_enabled: boolean;
+  queue_max_entries: number;
+  queue_font_size: number;
+  queue_font_color: string;
+  queue_active_color: string;
+  queue_box_color: string;
+  queue_show_box: boolean;
+  queue_offset_x: number;
+  queue_offset_y: number;
   show_earnings_card?: boolean;
   earnings_card_interval_seconds?: number;
   name_colors: boolean;

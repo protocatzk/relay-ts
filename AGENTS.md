@@ -195,6 +195,12 @@ Wichtige Pfade:
   und RTMP-Ausgabe mit
   `-tcp_nodelay 1 -rw_timeout 15000000`; gehäufte DTS-Fehler (≥ 10 in 15 s) triggern
   einen kontrollierten Sink-Neustart.
+- Die Queue-Leiste im Chat-Overlay (`settings.overlays.chat.queue_*`) zeigt
+  die Regie-Queue als `A → B → aktuell → C …` (Standard unter dem Chat im
+  Panel, Säulen-Monitor mittig; freie `queue_offset_x/y`). Sie wird im
+  Chat-Canvas gerendert, der laufende Eintrag ist hervorgehoben, und
+  `OverlayRuntime.updateQueue()` schiebt Queue-Änderungen ohne Sink-Neustart
+  in das laufende Canvas (Aufruf aus `emitQueue`).
 - Bei aktivem DelayBuffer wird der YouTube-Sink erst nach dem Prefill gestartet
   (`startSinkOrPrefillLocked`, `sinkStarting`), damit YouTube beim Kaltstart
   sofort Medien statt Stille erhält.

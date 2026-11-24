@@ -201,6 +201,87 @@ defineEmits<{
     </StudioGroup>
 
     <StudioGroup
+      title="Queue-Anzeige"
+      :open="groupOpen('chat', 'queue', 2)"
+      @update:open="$emit('setGroupOpen', 'chat', 'queue', $event)"
+    >
+      <div class="checkbox-grid studio-checks">
+        <label class="checkbox">
+          <input v-model="chat.queue_enabled" type="checkbox" />
+          Regie-Queue im Chat-Overlay anzeigen
+        </label>
+      </div>
+      <template v-if="chat.queue_enabled">
+        <div class="studio-grid" style="margin-top: 0.75rem;">
+          <div class="field">
+            <label for="studio-chat-queue-max">Einträge</label>
+            <input
+              id="studio-chat-queue-max"
+              v-model.number="chat.queue_max_entries"
+              type="number"
+              min="1"
+              max="10"
+            />
+            <p class="field-hint">Laufender Eintrag mittig, davor/danach die nächsten.</p>
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-font-size">Schriftgröße (px, 0 = automatisch)</label>
+            <input
+              id="studio-chat-queue-font-size"
+              v-model.number="chat.queue_font_size"
+              type="number"
+              min="0"
+              max="72"
+            />
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-offset-x">Feinjustierung X (px)</label>
+            <input
+              id="studio-chat-queue-offset-x"
+              v-model.number="chat.queue_offset_x"
+              type="number"
+              min="-1920"
+              max="1920"
+            />
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-offset-y">Feinjustierung Y (px)</label>
+            <input
+              id="studio-chat-queue-offset-y"
+              v-model.number="chat.queue_offset_y"
+              type="number"
+              min="-1080"
+              max="1080"
+            />
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-font-color">Textfarbe</label>
+            <ColorInput id="studio-chat-queue-font-color" v-model="chat.queue_font_color" />
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-active-color">Farbe des laufenden Eintrags</label>
+            <ColorInput id="studio-chat-queue-active-color" v-model="chat.queue_active_color" />
+          </div>
+          <div class="field">
+            <label for="studio-chat-queue-box-color">Hintergrund</label>
+            <ColorInput id="studio-chat-queue-box-color" v-model="chat.queue_box_color" alpha />
+          </div>
+        </div>
+        <div class="checkbox-grid studio-checks">
+          <label class="checkbox">
+            <input v-model="chat.queue_show_box" type="checkbox" />
+            Hintergrundbox anzeigen
+          </label>
+        </div>
+        <p class="field-hint">
+          Standard-Layout: unterhalb des Chats im Panel. Säulen-Monitor: mittig im Bild.
+          Format: <code class="mono">Streamer 1 → Streamer 2 → aktuell → Streamer 3 …</code>
+          — X/Y verschiebt die Leiste frei.
+        </p>
+      </template>
+    </StudioGroup>
+
+    <StudioGroup
       title="Datenquelle & Verbindung"
       :open="groupOpen('chat', 'source', 3)"
       @update:open="$emit('setGroupOpen', 'chat', 'source', $event)"

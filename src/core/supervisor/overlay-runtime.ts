@@ -5,7 +5,11 @@ import type { QueueSnapshot, StatusSnapshot } from '../events.js';
 import { isoOrNull } from '../../utils/format.js';
 import { ChatService, type ChatMessage } from '../overlays/chat-service.js';
 import { ChatAnalytics, type ChatAnalyticsSnapshot } from '../overlays/chat-analytics.js';
-import { ChatOverlayEngine, type ChatEarningsCard } from '../overlays/chat-engine.js';
+import {
+  ChatOverlayEngine,
+  type ChatEarningsCard,
+  type ChatQueueInput,
+} from '../overlays/chat-engine.js';
 import { LogoOverlayEngine } from '../overlays/logo-engine.js';
 import type { OverlayManager } from '../overlays/overlay-manager.js';
 import { renderStudioPreview, type PreviewAspect } from '../overlays/studio-preview.js';
@@ -122,6 +126,7 @@ export class OverlayRuntime {
       logger: this.logger,
     });
     engine.setEarningsCard(this.currentEarningsCard());
+    engine.setQueue(this.queueInput());
     if (this.currentStreamer) {
       engine.setStreamer({
         name: this.currentStreamer.name,
@@ -130,6 +135,24 @@ export class OverlayRuntime {
       });
     }
     return engine;
+  }
+
+  /** Current queue for the chat overlay strip (#97). */
+  private queueInput(): ChatQueueInput | null {
+    const snapshot = this.queue?.();
+    if (!snapshot) return null;
+    return {
+      labels: snapshot.entries.map((entry) => entry.label),
+      activeIndex: snapshot.index ?? null,
+    };
+  }
+
+  /** Pushes queue edits into the running chat canvas without a sink restart. */
+  updateQueue(): void {
+    const queue = this.queueInput();
+    this.chatEngine?.setQueue(queue);
+    this.previewEngine?.setQueue(queue);
+    this.previewEngineDirty = true;
   }
 
   createLogoEngine(): LogoOverlayEngine | undefined {
@@ -331,6 +354,7 @@ export class OverlayRuntime {
       logger: this.logger,
       sample,
       chatMessages,
+      queue: this.queueInput(),
       logoImage: this.logoImage,
       earningsText: this.studioEarningsText(settings, sample),
       earningsCard: this.currentEarningsCard(),
@@ -395,6 +419,7 @@ export class OverlayRuntime {
         overlays: this.settings.overlays,
         logger: this.logger,
       });
+      this.previewEngine.setQueue(this.queueInput());
       this.previewEngineDirty = false;
     }
     return this.previewEngine;

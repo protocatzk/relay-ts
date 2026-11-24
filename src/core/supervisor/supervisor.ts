@@ -1192,6 +1192,8 @@ export class Supervisor {
   emitQueue(force = false): void {
     // `{queue}` in the earnings overlay follows queue edits immediately (#95).
     this.earnings?.refreshQueueOverlay?.();
+    // The chat overlay queue strip follows edits without restarting the sink (#97).
+    this.overlayRuntime?.updateQueue?.();
     if (!force && !this.deps.bus.hasObservers()) return;
     try {
       this.deps.bus.emit({ type: 'queue', data: this.buildQueueSnapshot() });

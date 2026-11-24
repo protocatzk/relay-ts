@@ -271,6 +271,72 @@ const SAMPLE_MESSAGES: ChatMessage[] = [
   },
 ];
 
+/** Queue data rendered by the chat overlay (#97). */
+export interface ChatQueueInput {
+  labels: string[];
+  /** Index of the running entry in `labels`, or null when the queue is idle. */
+  activeIndex: number | null;
+}
+
+export interface QueueWindow {
+  labels: string[];
+  /** Index of the running entry inside `labels`; -1 when none is active. */
+  activeOffset: number;
+  hasBefore: boolean;
+  hasAfter: boolean;
+}
+
+/**
+ * Picks the entries around the running one so the active streamer sits in the
+ * middle of the strip: `1 … 2  [current]  3 … 4`.
+ */
+export function buildQueueWindow(
+  labels: string[],
+  activeIndex: number | null,
+  maxEntries: number,
+): QueueWindow {
+  const max = Math.max(1, Math.floor(maxEntries));
+  if (labels.length === 0) {
+    return { labels: [], activeOffset: -1, hasBefore: false, hasAfter: false };
+  }
+  const active =
+    activeIndex !== null && activeIndex >= 0 && activeIndex < labels.length
+      ? activeIndex
+      : null;
+  let start = 0;
+  if (active !== null) {
+    const before = Math.floor((max - 1) / 2);
+    start = Math.max(0, Math.min(active - before, labels.length - max));
+  }
+  const end = Math.min(labels.length, start + max);
+  return {
+    labels: labels.slice(start, end),
+    activeOffset: active === null ? -1 : active - start,
+    hasBefore: start > 0,
+    hasAfter: end < labels.length,
+  };
+}
+
+type ChatCfg = Settings['overlays']['chat'];
+
+/** Font size for the queue strip: explicit value or derived from the chat size. */
+function queueFontSize(cfg: ChatCfg, mode: 'standard' | 'pillar'): number {
+  if (cfg.queue_font_size > 0) return cfg.queue_font_size;
+  const base = cfg.font_size > 0 ? cfg.font_size : 22;
+  return mode === 'pillar'
+    ? Math.max(12, Math.min(30, Math.round(base * 0.62)))
+    : Math.max(10, Math.round(base * 0.72));
+}
+
+function queueBarHeight(cfg: ChatCfg, mode: 'standard' | 'pillar'): number {
+  return Math.round(queueFontSize(cfg, mode) * 1.6) + 14;
+}
+
+const SAMPLE_QUEUE: ChatQueueInput = {
+  labels: ['Streamer 1', 'Streamer 2', 'Streamer 3', 'Streamer 4', 'Streamer 5'],
+  activeIndex: 2,
+};
+
 export interface ChatPanelSpec {
   width: number;
   height: number;
@@ -319,6 +385,8 @@ export class ChatOverlayEngine {
   private earningsCard: ChatEarningsCard | null = null;
   private lastEarningsCardKey = '';
   private streamerInfo: ChatStreamerInfo | null = null;
+  private queue: ChatQueueInput = { labels: [], activeIndex: null };
+  private lastQueueKey = '';
   private stream?: NodeJS.WritableStream;
   private timer?: NodeJS.Timeout;
   private dirty = true;
@@ -356,8 +424,11 @@ export class ChatOverlayEngine {
       const lineHeight = Math.round(cfg.font_size * 1.55);
       const nameLineHeight = Math.round(cfg.font_size * 0.82 * 1.3);
       const assumedBubbleLines = 2;
+      const queueHeight = cfg.queue_enabled ? queueBarHeight(cfg, 'standard') + 8 : 0;
       const autoHeight =
-        cfg.max_lines * (32 + nameLineHeight + lineHeight * assumedBubbleLines) + 32;
+        cfg.max_lines * (32 + nameLineHeight + lineHeight * assumedBubbleLines) +
+        32 +
+        queueHeight;
       const height =
         cfg.panel_height > 0
           ? Math.max(80, Math.min(outputHeight - margin * 2, cfg.panel_height))
@@ -405,6 +476,16 @@ export class ChatOverlayEngine {
 
   setStreamer(streamer: ChatStreamerInfo | null): void {
     this.streamerInfo = streamer;
+    this.dirty = true;
+  }
+
+  /** Updates the queue strip (#97); redraws only when the content changed. */
+  setQueue(input: ChatQueueInput | null): void {
+    const next = input ?? { labels: [], activeIndex: null };
+    const key = `${next.activeIndex ?? '-'}\u0001${next.labels.join('\u0001')}`;
+    if (key === this.lastQueueKey) return;
+    this.lastQueueKey = key;
+    this.queue = { labels: [...next.labels], activeIndex: next.activeIndex };
     this.dirty = true;
   }
 
@@ -586,6 +667,94 @@ export class ChatOverlayEngine {
     this.render(this.ctx, this.spec.width, this.spec.height, messages, false);
     const image = this.ctx.getImageData(0, 0, this.spec.width, this.spec.height);
     return Buffer.from(image.data.buffer, image.data.byteOffset, image.data.byteLength);
+  }
+
+  private queueFor(isPreviewSample: boolean): ChatQueueInput {
+    if (this.queue.labels.length === 0 && isPreviewSample) return SAMPLE_QUEUE;
+    return this.queue;
+  }
+
+  /**
+   * Draws the queue strip. Standard layout anchors it at the bottom of the
+   * chat panel, pillar mode centers it in the frame; both honour the free
+   * `queue_offset_x/y` (#97).
+   */
+  private renderQueueBar(
+    ctx: SKRSContext2D,
+    width: number,
+    height: number,
+    mode: 'standard' | 'pillar',
+    isPreviewSample: boolean,
+  ): void {
+    const cfg = this.options.overlays.chat;
+    const queue = this.queueFor(isPreviewSample);
+    if (queue.labels.length === 0) return;
+    const window = buildQueueWindow(queue.labels, queue.activeIndex, cfg.queue_max_entries);
+    if (window.labels.length === 0) return;
+
+    const font = queueFontSize(cfg, mode);
+    const barHeight = queueBarHeight(cfg, mode);
+    const fontColor = parseColor(cfg.queue_font_color, { r: 255, g: 255, b: 255, a: 1 });
+    const activeColor = parseColor(cfg.queue_active_color, { r: 0, g: 240, b: 255, a: 1 });
+    const boxColor = parseColor(cfg.queue_box_color, { r: 0, g: 0, b: 0, a: 0.45 });
+
+    type Node = { text: string; active: boolean; muted: boolean };
+    const nodes: Node[] = [];
+    if (window.hasBefore) nodes.push({ text: '…', active: false, muted: true });
+    window.labels.forEach((label, index) => {
+      if (nodes.length > 0) nodes.push({ text: ' → ', active: false, muted: true });
+      nodes.push({ text: label, active: index === window.activeOffset, muted: false });
+    });
+    if (window.hasAfter) nodes.push({ text: ' …', active: false, muted: true });
+
+    ctx.save();
+    ctx.font = `700 ${font}px ${fontFamily}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    const widths = nodes.map((node) => ctx.measureText(node.text).width);
+    const total = widths.reduce((sum, value) => sum + value, 0);
+    const maxWidth =
+      mode === 'pillar' ? Math.max(120, Math.round(width * 0.9)) : Math.max(80, width - 48);
+    const shownWidth = Math.min(total, maxWidth);
+    const x0 =
+      (mode === 'pillar' ? Math.round((width - shownWidth) / 2) : 24) + cfg.queue_offset_x;
+    const y0 =
+      (mode === 'pillar'
+        ? Math.round(height / 2 - barHeight / 2)
+        : height - barHeight - 4) + cfg.queue_offset_y;
+
+    if (cfg.queue_show_box) {
+      ctx.fillStyle = rgba(boxColor);
+      roundedRect(ctx, x0 - 10, y0, shownWidth + 20, barHeight, 8);
+      ctx.fill();
+    }
+
+    const right = x0 + shownWidth;
+    let x = x0;
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index]!;
+      const nodeWidth = widths[index]!;
+      if (x + nodeWidth > right + 0.5) {
+        // Not enough room: summarize the rest instead of squeezing labels.
+        ctx.fillStyle = `rgba(${fontColor.r},${fontColor.g},${fontColor.b},0.6)`;
+        ctx.fillText('…', x, y0 + barHeight / 2);
+        break;
+      }
+      if (node.active) {
+        ctx.fillStyle = `rgba(${activeColor.r},${activeColor.g},${activeColor.b},0.18)`;
+        roundedRect(ctx, x - 6, y0 + 4, nodeWidth + 12, barHeight - 8, 6);
+        ctx.fill();
+        ctx.fillStyle = rgba(activeColor);
+      } else if (node.muted) {
+        ctx.fillStyle = `rgba(${fontColor.r},${fontColor.g},${fontColor.b},0.6)`;
+      } else {
+        ctx.fillStyle = rgba(fontColor);
+      }
+      ctx.fillText(node.text, x, y0 + barHeight / 2);
+      x += nodeWidth;
+    }
+    ctx.restore();
   }
 
   private shouldRenderEarningsCard(isPreviewSample: boolean): ChatEarningsCard | null {
@@ -1002,6 +1171,10 @@ export class ChatOverlayEngine {
       }
 
       ctx.restore();
+    }
+
+    if (cfg.queue_enabled) {
+      this.renderQueueBar(ctx, width, height, 'pillar', isPreviewSample);
     }
   }
 
@@ -1694,7 +1867,8 @@ export class ChatOverlayEngine {
     }
     ctx.clearRect(0, 0, width, height);
     const card = this.shouldRenderEarningsCard(isPreviewSample);
-    if (messages.length === 0 && !card) return;
+    const queue = this.queueFor(isPreviewSample);
+    if (messages.length === 0 && !card && !(cfg.queue_enabled && queue.labels.length > 0)) return;
 
     const padding = 12;
     const gap = 6;
@@ -1800,7 +1974,9 @@ export class ChatOverlayEngine {
       topLimit += cardHeight + gap;
     }
 
-    let bottom = height - padding;
+    // Keep the queue strip clear so the newest bubble never runs into it (#97).
+    const queueReserve = cfg.queue_enabled ? queueBarHeight(cfg, 'standard') + 8 : 0;
+    let bottom = height - padding - queueReserve;
 
     for (let index = visible.length - 1; index >= 0; index -= 1) {
       const message = visible[index]!;
@@ -1849,6 +2025,10 @@ export class ChatOverlayEngine {
         lineY += textLineHeight;
       }
       bottom = top - gap;
+    }
+
+    if (cfg.queue_enabled) {
+      this.renderQueueBar(ctx, width, height, 'standard', isPreviewSample);
     }
   }
 }
