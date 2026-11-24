@@ -2715,6 +2715,37 @@
         }
       }
     },
+    "/api/queue/previous": {
+      "post": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Vorherigen Queue-Eintrag starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/queue/next": {
       "post": {
         "tags": [
@@ -6825,30 +6856,193 @@
         }
       }
     },
-    "/api/playback/{action}": {
+    "/api/playback/play": {
       "post": {
         "tags": [
           "playback"
         ],
-        "summary": "Transport: play, pause, resume, stop, next, previous",
-        "parameters": [
-          {
-            "name": "action",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "play",
-                "pause",
-                "resume",
-                "stop",
-                "next",
-                "previous"
-              ]
+        "summary": "Wiedergabe starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
             }
           }
+        }
+      }
+    },
+    "/api/playback/pause": {
+      "post": {
+        "tags": [
+          "playback"
         ],
+        "summary": "Wiedergabe pausieren (Pausenscreen)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/resume": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Wiedergabe fortsetzen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/stop": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Wiedergabe stoppen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/next": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Nächsten Eintrag abspielen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/previous": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Vorherigen Eintrag abspielen",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "OK",

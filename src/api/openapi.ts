@@ -653,6 +653,13 @@ const routes: RouteDoc[] = [
   },
   {
     method: 'post',
+    path: '/api/queue/previous',
+    tag: 'queue',
+    summary: 'Vorherigen Queue-Eintrag starten',
+    response: ref('QueueEnvelope'),
+  },
+  {
+    method: 'post',
     path: '/api/queue/next',
     tag: 'queue',
     summary: 'Nächsten Queue-Eintrag starten',
@@ -1116,21 +1123,20 @@ const routes: RouteDoc[] = [
       },
     },
   },
-  {
-    method: 'post',
-    path: '/api/playback/{action}',
+  ...[
+    ['play', 'Wiedergabe starten'],
+    ['pause', 'Wiedergabe pausieren (Pausenscreen)'],
+    ['resume', 'Wiedergabe fortsetzen'],
+    ['stop', 'Wiedergabe stoppen'],
+    ['next', 'Nächsten Eintrag abspielen'],
+    ['previous', 'Vorherigen Eintrag abspielen'],
+  ].map(([action, summary]) => ({
+    method: 'post' as const,
+    path: `/api/playback/${action}`,
     tag: 'playback',
-    summary: 'Transport: play, pause, resume, stop, next, previous',
-    parameters: [
-      {
-        name: 'action',
-        in: 'path',
-        required: true,
-        schema: { type: 'string', enum: ['play', 'pause', 'resume', 'stop', 'next', 'previous'] },
-      },
-    ],
+    summary,
     response: { type: 'object', properties: { ok: { type: 'boolean' } } },
-  },
+  })),
   {
     method: 'post',
     path: '/api/playback/seek',
