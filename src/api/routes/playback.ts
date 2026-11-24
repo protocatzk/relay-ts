@@ -43,6 +43,11 @@ export async function registerPlaybackRoutes(app: FastifyInstance, ctx: ApiConte
     if (active) {
       return { ok: true, status: await supervisor().playPlaylist(active.id) };
     }
+    // Nothing is running: the regie queue is the default play surface (#94).
+    const queue = supervisor().buildQueueSnapshot();
+    if (queue.entries.length > 0) {
+      return { ok: true, status: await supervisor().queuePlay(queue.index ?? 0) };
+    }
     throw new ValidationError('Es ist nichts abspielbar');
   });
 

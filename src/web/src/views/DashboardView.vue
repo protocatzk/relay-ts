@@ -331,8 +331,9 @@ async function submitQuickStart(): Promise<void> {
 }
 
 function focusQueue(): void {
-  const el = document.querySelector<HTMLElement>('.cockpit-col-queue');
+  const el = document.querySelector<HTMLElement>('.cockpit-queue');
   el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  el?.querySelector<HTMLElement>('.regie-add-details > summary')?.focus?.();
   el?.querySelector<HTMLElement>('.regie-add button')?.focus();
 }
 
@@ -434,6 +435,8 @@ onBeforeUnmount(() => {
       <RouterLink to="/logs" class="btn btn-ghost btn-sm">Logs</RouterLink>
     </div>
 
+    <RegieQueue class="cockpit-queue" />
+
     <div class="cockpit-grid">
       <section class="cockpit-col cockpit-col-preview" aria-label="Vorschau">
         <LivePreview :state="state" />
@@ -445,10 +448,6 @@ onBeforeUnmount(() => {
           <span class="mono">{{ status?.chat.messages ?? 0 }} Nachr.</span>
           <AppButton to="/overlays" variant="ghost" size="xs">Overlay-Studio</AppButton>
         </div>
-      </section>
-
-      <section class="cockpit-col cockpit-col-queue" aria-label="Regie-Queue">
-        <RegieQueue />
       </section>
 
       <aside class="cockpit-col cockpit-col-widgets" aria-label="Kennzahlen">

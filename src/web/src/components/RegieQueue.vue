@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { api, errorMessage } from '@/src/api/client';
-import type { MediaFile, QueueEntryKind, QueueSnapshot, QueueViewEntry } from '@/src/api/types';
+import type {
+  MediaFile,
+  QueueEntryKind,
+  QueueSnapshot,
+  QueueViewEntry,
+  Streamer,
+} from '@/src/api/types';
 import AppSkeleton from '@/src/components/ui/AppSkeleton.vue';
 import { confirmAction } from '@/src/composables/useConfirm';
 import { useStore } from '@/src/composables/useStore';
@@ -32,6 +38,25 @@ const enabledStreamers = computed(() => store.streamers.filter((streamer) => str
 const activeMedia = computed(() => store.status?.media ?? null);
 const seekValue = ref(0);
 const seeking = ref(false);
+
+/** Streamer state for a queue entry (#94). */
+function entryStreamer(entry: QueueViewEntry): Streamer | undefined {
+  if (entry.kind !== 'streamer') return undefined;
+  return store.streamers.find(
+    (candidate) => candidate.id === entry.channel || candidate.tiktok === entry.channel,
+  );
+}
+
+function entryStatus(entry: QueueViewEntry): { label: string; tone: string } | null {
+  if (entry.kind !== 'streamer') return null;
+  const streamer = entryStreamer(entry);
+  if (!streamer) return { label: 'unbekannt', tone: 'tone-muted' };
+  if (!streamer.enabled) return { label: 'deaktiviert', tone: 'tone-warning' };
+  if (!streamer.youtube_key_set && streamer.youtube_key_source === 'none') {
+    return { label: 'kein Key', tone: 'tone-danger' };
+  }
+  return null;
+}
 
 const mediaDurations = computed(() => {
   const map = new Map<string, number>();
@@ -201,10 +226,6 @@ function loadPlaylist(): void {
   })();
 }
 
-function toggleLoop(): void {
-  void run(() => api.queue.setLoop(!loopEnabled.value));
-}
-
 function move(id: string, direction: number): void {
   const index = entries.value.findIndex((entry) => entry.id === id);
   if (index < 0) return;
@@ -317,18 +338,6 @@ function onSwipeEnd(entry: QueueViewEntry & { id: string }, index: number): void
   }
 }
 
-function next(): void {
-  void run(() => api.queue.next());
-}
-
-function previous(): void {
-  void run(() => api.queue.previous());
-}
-
-function stop(): void {
-  void run(() => api.queue.stop());
-}
-
 async function clear(): Promise<void> {
   if (
     !(await confirmAction('Regie-Queue leeren?', {
@@ -361,17 +370,7 @@ watch(
         <p class="card-sub">Videos, Streamer und Screens per Drag sortieren.</p>
       </div>
       <div class="card-badges">
-        <button
-          type="button"
-          class="chip"
-          :class="{ 'is-active': loopEnabled }"
-          :aria-pressed="loopEnabled"
-          :disabled="busy"
-          title="Queue am Ende wieder von vorn starten"
-          @click="toggleLoop"
-        >
-          Loop {{ loopEnabled ? 'An' : 'Aus' }}
-        </button>
+        <span v-if="loopEnabled" class="badge tone-info badge-xs">Loop an</span>
         <span v-if="queue?.playing" class="badge tone-success">Läuft</span>
         <span v-else class="badge tone-muted">Gestoppt</span>
         <span v-if="entries.length > 0" class="badge tone-neutral mono">
@@ -523,6 +522,14 @@ watch(
         </span>
         <span class="regie-index mono">{{ index + 1 }}</span>
         <span class="regie-kind" :class="`is-${entry.kind}`">{{ kindLabel(entry.kind) }}</span>
+        <span
+          v-if="entryStatus(entry)"
+          class="badge badge-xs"
+          :class="entryStatus(entry)?.tone"
+          :title="'Wird beim Abspielen automatisch aktiviert'"
+        >
+          {{ entryStatus(entry)?.label }}
+        </span>
         <span class="regie-label" :title="entry.channel">
           {{ entry.label }}
           <template v-if="editingDurationId === entry.id">
@@ -639,29 +646,6 @@ watch(
     </details>
 
     <div class="regie-footer">
-      <button
-        type="button"
-        class="btn btn-primary"
-        :disabled="busy || entries.length === 0"
-        @click="play(0)"
-      >
-        Abspielen
-      </button>
-      <button
-        type="button"
-        class="btn btn-ghost"
-        :disabled="busy || !queue?.playing || activeIndex === null || activeIndex <= 0"
-        title="Vorherigen Eintrag abspielen"
-        @click="previous"
-      >
-        ⏮ Zurück
-      </button>
-      <button type="button" class="btn btn-ghost" :disabled="busy || !queue?.playing" @click="next">
-        Überspringen
-      </button>
-      <button type="button" class="btn btn-ghost" :disabled="busy || !queue?.playing" @click="stop">
-        Stopp
-      </button>
       <button
         type="button"
         class="btn btn-ghost"

@@ -17,13 +17,27 @@ export async function ensureStreamer(request: APIRequestContext): Promise<void> 
 }
 
 export async function expectNoHorizontalOverflow(page: Page, label: string): Promise<void> {
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
+  const metrics = await page.evaluate(() => {
+    const docWidth = document.documentElement.clientWidth;
+    const offenders: string[] = [];
+    for (const element of Array.from(document.querySelectorAll('body *'))) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.right <= docWidth + 1) continue;
+      const cls = (element.getAttribute('class') ?? '').slice(0, 40);
+      const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      offenders.push(`${element.tagName.toLowerCase()}.${cls}[${Math.round(rect.right)}] ${text}`);
+      if (offenders.length >= 4) break;
+    }
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: docWidth,
+      offenders,
+    };
+  });
   expect(
     metrics.scrollWidth,
-    `${label}: scrollWidth ${metrics.scrollWidth} > clientWidth ${metrics.clientWidth}`,
+    `${label}: scrollWidth ${metrics.scrollWidth} > clientWidth ${metrics.clientWidth} · ${metrics.offenders.join(' | ')}`,
   ).toBeLessThanOrEqual(metrics.clientWidth + 1);
 }
 

@@ -87,9 +87,10 @@ test.describe('discovery panel', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/#/', { waitUntil: 'networkidle' });
 
-    const columnsClosed = await page.evaluate(
-      () => getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length,
-    );
+    const closed = await page.evaluate(() => ({
+      columns: getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length,
+      queueWidth: document.querySelector('.cockpit-queue')!.getBoundingClientRect().width,
+    }));
     await page.keyboard.press('d');
     await expect(page.locator('.discovery-panel')).toBeVisible();
 
@@ -100,15 +101,17 @@ test.describe('discovery panel', () => {
           getComputedStyle(document.querySelector('.page-dashboard') as HTMLElement).paddingRight,
         ) > 300,
     );
-    const metrics = await page.evaluate(() => {
-      const grid = getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length;
-      const pageEl = document.querySelector('.page-dashboard') as HTMLElement;
-      return { grid, padding: getComputedStyle(pageEl).paddingRight };
-    });
-    expect(columnsClosed).toBe(3);
-    // Widgets move below the queue, so the cockpit keeps two columns.
-    expect(metrics.grid).toBe(2);
-    expect(parseFloat(metrics.padding)).toBeGreaterThan(300);
+    const open = await page.evaluate(() => ({
+      columns: getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length,
+      padding: parseFloat(getComputedStyle(document.querySelector('.page-dashboard')!).paddingRight),
+      queueWidth: document.querySelector('.cockpit-queue')!.getBoundingClientRect().width,
+    }));
+    // The cockpit keeps its two columns; the panel reserves space and the
+    // full-width queue shrinks with it (#94).
+    expect(closed.columns).toBe(2);
+    expect(open.columns).toBe(2);
+    expect(open.padding).toBeGreaterThan(300);
+    expect(open.queueWidth).toBeLessThan(closed.queueWidth);
     await expectNoHorizontalOverflow(page, 'cockpit with discovery panel');
   });
 

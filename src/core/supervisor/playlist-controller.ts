@@ -300,14 +300,40 @@ export class PlaylistController {
           continue;
         }
       }
-      const streamer = this.resolveChannel(channel);
+      let streamer = this.resolveChannel(channel);
+      // The regie queue is the app's playback surface: starting an entry
+      // enables a disabled streamer instead of silently skipping it (#94).
+      if (playlist.id === QUEUE_PLAYLIST_ID && !streamer.enabled) {
+        try {
+          streamer = this.deps.store.update(streamer.id, { enabled: true });
+          this.deps.logger.info(
+            { streamer: streamer.id, playlist: playlist.id },
+            'Deaktivierter Queue-Eintrag automatisch aktiviert',
+          );
+        } catch (error) {
+          this.deps.logger.warn(
+            { streamer: streamer.id, err: toErrorMessage(error) },
+            'Queue-Eintrag konnte nicht aktiviert werden',
+          );
+        }
+      }
       const playlistKey = resolveStreamKey(playlist).key;
       const streamerKey = resolveStreamKey(streamer).key;
       // Explicitly marked own streams keep their own YouTube key even inside
       // a playlist with a shared key.
       const key = streamer.own_stream && streamerKey ? streamerKey : playlistKey || streamerKey;
       tried += 1;
-      if (!streamer.enabled || !key) {
+      if (!key) {
+        if (playlist.id === QUEUE_PLAYLIST_ID) {
+          // Do not skip silently: the operator pressed play on this entry.
+          throw new ValidationError(
+            `„${streamer.name}“ hat keinen YouTube-Stream-Key`,
+          );
+        }
+        index += 1;
+        continue;
+      }
+      if (!streamer.enabled) {
         index += 1;
         continue;
       }

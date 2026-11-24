@@ -264,6 +264,19 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   verlieren, Telegram `/queue` mit Zurück/Hold, Scheduler-Aktion `playback`
   mit Ziel (`queue`, `playlist:<id>`, `streamer:<id>`, `screen:<typ>`).
 
+### v0.35.1 – Queue als App-Spielfläche (#94)
+
+- Regie-Queue steht im Cockpit direkt unter der Action-Zeile über die volle
+  Breite; darunter folgen Vorschau und Kennzahlen. Transport-Aktionen gibt es
+  nur noch einmal (in `PlaybackTransport.vue`), die Karte behält Liste,
+  Hinzufügen, Reihenfolge und „Zuletzt gespielt".
+- Queue-Zeilen zeigen ihren Streamer-Status (`deaktiviert`, `kein Key`,
+  `unbekannt`). Beim Abspielen wird ein deaktivierter Streamer automatisch
+  aktiviert; fehlt der Key, erscheint ein Fehler statt eines stillen
+  Überspringens. Der Transport-Play startet ohne aktive Quelle die Queue.
+- Diagnose: Empfehlungszeilen brechen auf schmalen Viewports um (320-px-
+  Overflow behoben), E2E meldet bei Overflows jetzt die Verursacher.
+
 ## Definition of Done
 
 Ein Issue gilt als erledigt, wenn:

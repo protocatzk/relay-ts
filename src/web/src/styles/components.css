@@ -1524,12 +1524,15 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   padding: 12px 14px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--surface-2);
 }
+
+/* The action link keeps its text, so the text block has to give way (#94). */
 
 .recommendation-item.rec-warning {
   border-left: 3px solid var(--danger);
@@ -1547,10 +1550,13 @@ select {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0;
 }
 
 .rec-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -4146,9 +4152,20 @@ select {
 /* Three columns: preview · queue · widgets. */
 .cockpit-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1.25fr) minmax(260px, 340px);
+  /* Queue sits above (#94); preview and widgets share the row below. */
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   gap: 10px;
   align-items: start;
+}
+
+/* Full-width regie queue directly under the transport/action row (#94). */
+.cockpit-queue {
+  min-height: 0;
+}
+
+.cockpit-queue .regie-list {
+  max-height: min(46vh, 460px);
+  overflow-y: auto;
 }
 
 .cockpit-col {
@@ -4430,13 +4447,6 @@ select {
   .cockpit-grid {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   }
-
-  .cockpit-col-widgets {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    align-items: start;
-  }
 }
 
 @media (max-width: 960px) {
@@ -4494,14 +4504,7 @@ select {
 
   /* Widgets drop below the queue so preview and queue keep a usable width. */
   .page-dashboard.is-discovery-open .cockpit-grid {
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  }
-
-  .page-dashboard.is-discovery-open .cockpit-col-widgets {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    align-items: start;
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
   }
 }
 

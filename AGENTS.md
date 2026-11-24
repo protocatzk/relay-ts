@@ -319,6 +319,14 @@ Defaults → streamers.yml (settings) → settings.yml → .env (nur fehlende Ke
   erreichbar. Telegram `/queue` hat Zurück und Hold, der Scheduler kennt die
   Aktion `playback` mit Ziel (`queue`, `playlist:<id>`, `streamer:<id>`,
   `screen:<pause|startup>`).
+- **Queue als App-Spielfläche (#94):** Die Regie-Queue steht im Cockpit direkt
+  unter Transport/Action-Zeile und läuft über die volle Breite; darunter folgen
+  Vorschau und Kennzahlen. Transport-Aktionen (Play/Pause, Vor/Zurück, Stopp,
+  Loop, Hold) liegen ausschließlich in `PlaybackTransport.vue`, die Karte hat
+  nur noch Liste, Hinzufügen, Reihenfolge, „Zuletzt gespielt" und Leeren.
+  Queue-Zeilen zeigen `deaktiviert`/`kein Key`/`unbekannt`; beim Abspielen wird
+  ein deaktivierter Streamer automatisch aktiviert, ein fehlender YouTube-Key
+  bricht mit Fehlermeldung ab statt still zu überspringen.
 - **Loop & Einreihen (#94):** `data/queue.json` speichert `loop_mode`
   (`off`/`all`/`one`, Version 3; alte `loop`-Booleans werden beim Laden
   migriert). `one` startet den laufenden Eintrag neu (`repeatCurrent` im
