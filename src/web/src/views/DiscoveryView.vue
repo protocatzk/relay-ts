@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue';
-import { api, errorMessage } from '@/src/api/client';
-import type { DiscoveryHit, DiscoveryProviderStatus, Streamer } from '@/src/api/types';
-import { useStore } from '@/src/composables/useStore';
-import { useToast } from '@/src/composables/useToast';
+import { defineAsyncComponent, nextTick, onMounted, ref } from 'vue';
+import type { DiscoveryProviderStatus } from '@/src/api/types';
+import {
+  QUICK_TOPICS,
+  REGION_OPTIONS,
+  useDiscoveryFeed,
+} from '@/src/composables/useDiscoveryFeed';
 import { useTikTokAccounts } from '@/src/composables/useTikTokAccounts';
 import DiscoveryCardItem from '@/src/components/discovery/DiscoveryCardItem.vue';
 import TikTokAccountSwitcher from '@/src/components/TikTokAccountSwitcher.vue';
@@ -13,381 +15,103 @@ const DiscoveryZapperPlayer = defineAsyncComponent(
   () => import('@/src/components/discovery/DiscoveryZapperPlayer.vue'),
 );
 
-const { store, refreshStreamers, refreshStatus } = useStore();
-const { pushToast } = useToast();
 const { accounts, activeAccount, refreshAccounts, activateAccount } = useTikTokAccounts();
+const feed = useDiscoveryFeed();
+
+// Feed state, exposed under the names the template already uses.
+const query = feed.query;
+const mode = feed.mode;
+const viewMode = feed.pane;
+const selectedRegion = feed.region;
+const onlyLive = feed.onlyLive;
+const loading = feed.loading;
+const loadingMore = feed.loadingMore;
+const hasMorePages = feed.hasMore;
+const error = feed.error;
+const hits = feed.hits;
+const providers = feed.providers;
+const actionBusy = feed.actionBusy;
+const failedAvatars = feed.failedAvatars;
+const zapperIndex = feed.zapperIndex;
+const selectedAccountId = feed.selectedAccountId;
+const displayedHits = feed.visibleHits;
+const zapperHits = feed.liveHits;
+const currentZapperHit = feed.currentZapperHit;
+const providerErrors = feed.providerErrors;
+const getExisting = feed.getExisting;
+
+const loadTrending = feed.loadTrending;
+const runSearch = feed.runSearch;
+const loadFollowing = feed.loadFollowing;
+const loadMoreHits = feed.loadMore;
+const handleAdd = feed.handleAdd;
+const handleActivate = feed.handleActivate;
+const handleQueue = feed.handleQueue;
+const handleSwitch = feed.handleSwitch;
+
+const regionOptions = REGION_OPTIONS;
+const quickTopics = QUICK_TOPICS;
 
 const accountSwitcherRef = ref<{ openDialog: () => void } | null>(null);
-const selectedAccountId = ref<string>('');
-
-const query = ref('');
-const mode = ref<'trending' | 'search' | 'following'>('trending');
-const viewMode = ref<'grid' | 'zapper'>('grid');
-const selectedRegion = ref('DE');
-const onlyLive = ref(false);
-const loading = ref(false);
-const loadingMore = ref(false);
-const currentPage = ref(0);
-const hasMorePages = ref(true);
-const error = ref<string | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
-const hits = ref<DiscoveryHit[]>([]);
-const providers = ref<DiscoveryProviderStatus[]>([]);
-const lastFetchedAt = ref<number>(0);
-const actionBusy = ref<string | null>(null);
-const justAdded = ref<Map<string, Streamer>>(new Map());
-const failedAvatars = ref<Set<string>>(new Set());
-
-// Live-Zapper state
-const zapperIndex = ref(0);
-
-const regionOptions = [
-  { code: 'DE', label: '🇩🇪 Deutschland (DE)' },
-  { code: 'AT', label: '🇦🇹 Österreich (AT)' },
-  { code: 'CH', label: '🇨🇭 Schweiz (CH)' },
-  { code: 'US', label: '🇺🇸 USA (US)' },
-  { code: 'GB', label: '🇬🇧 Großbritannien (GB)' },
-  { code: 'FR', label: '🇫🇷 Frankreich (FR)' },
-  { code: 'ES', label: '🇪🇸 Spanien (ES)' },
-  { code: 'IT', label: '🇮🇹 Italien (IT)' },
-  { code: 'NL', label: '🇳🇱 Niederlande (NL)' },
-  { code: 'PL', label: '🇵🇱 Polen (PL)' },
-  { code: 'TR', label: '🇹🇷 Türkei (TR)' },
-  { code: 'BR', label: '🇧🇷 Brasilien (BR)' },
-  { code: 'JP', label: '🇯🇵 Japan (JP)' },
-];
-
-const quickTopics = [
-  { label: '🇩🇪 Deutsch', keyword: 'deutsch' },
-  { label: '🎮 Gaming', keyword: 'gaming' },
-  { label: '🎵 Musik', keyword: 'musik' },
-  { label: '💬 Talk', keyword: 'talk' },
-  { label: 'Fortnite', keyword: 'fortnite' },
-  { label: '🍳 Lifestyle', keyword: 'kochen' },
-];
-
-const zapperHits = computed(() => hits.value.filter((h) => h.live));
-const currentZapperHit = computed<DiscoveryHit | null>(
-  () => zapperHits.value[zapperIndex.value] ?? zapperHits.value[0] ?? null,
-);
-
-// Keep in sync with store.discovery if SSE pushes updates for default region
-watch(
-  () => store.discovery,
-  (val) => {
-    if (
-      val &&
-      mode.value === 'trending' &&
-      !query.value.trim() &&
-      selectedRegion.value === 'DE' &&
-      viewMode.value === 'grid'
-    ) {
-      hits.value = val.hits;
-      providers.value = val.providers;
-      lastFetchedAt.value = Date.now();
-    }
-  },
-  { immediate: true },
-);
-
 function onAvatarError(handle: string): void {
-  if (!failedAvatars.value.has(handle)) {
-    const next = new Set(failedAvatars.value);
-    next.add(handle);
-    failedAvatars.value = next;
-  }
+  feed.markAvatarFailed(handle);
 }
 
-async function loadMoreHits(): Promise<void> {
-  if (loadingMore.value || loading.value || !hasMorePages.value) return;
-  loadingMore.value = true;
-  const nextPage = currentPage.value + 1;
-  try {
-    const trimmed = query.value.trim();
-    const res =
-      mode.value === 'search' && trimmed
-        ? await api.discovery.search(trimmed, { region: selectedRegion.value, page: nextPage, limit: 20 })
-        : mode.value === 'following'
-        ? await api.discovery.following({
-            page: nextPage,
-            limit: 20,
-            account_id: selectedAccountId.value || undefined,
-          })
-        : await api.discovery.trending({ region: selectedRegion.value, page: nextPage, limit: 30 });
-
-    const existingHandles = new Set(hits.value.map((h) => h.handle));
-    const freshHits = res.hits.filter((h) => !existingHandles.has(h.handle));
-    if (freshHits.length === 0) {
-      hasMorePages.value = false;
-    } else {
-      hits.value = [...hits.value, ...freshHits];
-      currentPage.value = nextPage;
-    }
-  } catch {
-    // Silent on background pagination
-  } finally {
-    loadingMore.value = false;
-  }
+function providerClass(status: DiscoveryProviderStatus): string {
+  return `provider-${feed.providerTone(status)}`;
 }
 
 function openZapperAt(handle?: string): void {
-  if (handle) {
-    const idx = zapperHits.value.findIndex((h) => h.handle === handle);
-    zapperIndex.value = idx >= 0 ? idx : 0;
-  } else if (zapperIndex.value >= zapperHits.value.length) {
-    zapperIndex.value = 0;
-  }
-  viewMode.value = 'zapper';
-  if (zapperIndex.value >= zapperHits.value.length - 2) {
-    void loadMoreHits();
-  }
+  feed.openZapperAt(handle);
 }
 
 function switchViewMode(target: 'grid' | 'zapper'): void {
-  if (target === 'grid') {
-    viewMode.value = 'grid';
-  } else {
-    openZapperAt();
-  }
+  if (target === 'grid') feed.showGrid();
+  else feed.openZapperAt();
 }
 
-async function loadTrending(): Promise<void> {
-  mode.value = 'trending';
-  loading.value = true;
-  error.value = null;
-  currentPage.value = 0;
-  hasMorePages.value = true;
-  try {
-    const res = await api.discovery.trending({
-      region: selectedRegion.value,
-      limit: 30,
-      page: 0,
-    });
-    hits.value = res.hits;
-    providers.value = res.providers;
-    lastFetchedAt.value = Date.now();
-  } catch (err) {
-    error.value = errorMessage(err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function runSearch(): Promise<void> {
-  const trimmed = query.value.trim();
-  if (!trimmed) {
-    await loadTrending();
-    return;
-  }
-
-  mode.value = 'search';
-  loading.value = true;
-  error.value = null;
-  currentPage.value = 0;
-  hasMorePages.value = true;
-  try {
-    const res = await api.discovery.search(trimmed, {
-      region: selectedRegion.value,
-      limit: 20,
-      page: 0,
-    });
-    hits.value = res.hits;
-    providers.value = res.providers;
-    lastFetchedAt.value = Date.now();
-  } catch (err) {
-    error.value = errorMessage(err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadFollowing(opts?: { accountId?: string }): Promise<void> {
-  mode.value = 'following';
-  loading.value = true;
-  error.value = null;
-  currentPage.value = 0;
-  hasMorePages.value = true;
-  const targetAccId = opts?.accountId ?? selectedAccountId.value;
-  try {
-    const res = await api.discovery.following({
-      limit: 20,
-      page: 0,
-      account_id: targetAccId || undefined,
-    });
-    hits.value = res.hits;
-    providers.value = res.providers;
-    lastFetchedAt.value = Date.now();
-  } catch (err) {
-    error.value = errorMessage(err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function handleAccountChange(): Promise<void> {
-  if (selectedAccountId.value) {
-    await activateAccount(selectedAccountId.value);
-  }
-  await loadFollowing({ accountId: selectedAccountId.value });
+function handleAccountChange(): void {
+  const target = selectedAccountId.value;
+  void (async () => {
+    if (target) await activateAccount(target);
+    await feed.loadFollowing({ accountId: target });
+  })();
 }
 
 function handleRegionChange(): void {
-  if (mode.value === 'following') {
-    void loadFollowing();
-  } else if (mode.value === 'search' && query.value.trim()) {
-    void runSearch();
-  } else {
-    void loadTrending();
-  }
+  feed.setRegion(selectedRegion.value);
 }
 
 function selectTopic(keyword: string): void {
-  query.value = keyword;
-  mode.value = 'search';
-  void runSearch();
-  void nextTick(() => {
-    searchInputRef.value?.focus();
-  });
+  feed.selectTopic(keyword);
+  void nextTick(() => searchInputRef.value?.focus());
 }
 
 function handleSearchSubmit(event: Event): void {
   event.preventDefault();
-  void runSearch();
+  void feed.runSearch();
 }
 
 function handleSearchInput(): void {
-  if (!query.value.trim() && mode.value === 'search') {
-    void loadTrending();
-  }
+  feed.setQuery(query.value);
+  if (!query.value.trim() && mode.value === 'search') void feed.loadTrending();
 }
 
 function switchMode(newMode: 'trending' | 'search' | 'following'): void {
   if (mode.value === newMode) return;
-  if (newMode === 'trending') {
-    query.value = '';
-    void loadTrending();
-  } else if (newMode === 'following') {
-    query.value = '';
-    if (!selectedAccountId.value && activeAccount.value?.id) {
-      selectedAccountId.value = activeAccount.value.id;
-    }
-    void loadFollowing();
-  } else {
-    mode.value = 'search';
-    void nextTick(() => {
-      searchInputRef.value?.focus();
-    });
-  }
-}
-
-const existingStreamersMap = computed(() => {
-  const map = new Map<string, Streamer>();
-  for (const s of store.streamers) {
-    map.set(s.tiktok.toLowerCase().replace(/^@/, ''), s);
-  }
-  return map;
-});
-
-const displayedHits = computed(() => {
-  let list = hits.value;
-  if (onlyLive.value) {
-    list = list.filter((h) => h.live);
-  }
-  return list;
-});
-
-const providerErrors = computed(() =>
-  providers.value.filter((p) => p.status !== 'online' && p.last_error),
-);
-
-function getExisting(handle: string): Streamer | undefined {
-  const normalized = handle.toLowerCase().replace(/^@/, '');
-  return existingStreamersMap.value.get(normalized) || justAdded.value.get(normalized);
-}
-
-async function handleAdd(hit: DiscoveryHit): Promise<void> {
-  actionBusy.value = `add:${hit.handle}`;
-  try {
-    const res = await api.discovery.add(hit.handle, hit.display_name);
-    justAdded.value.set(hit.handle.toLowerCase().replace(/^@/, ''), res.streamer);
-    await refreshStreamers();
-    pushToast(`„${hit.display_name}“ wurde deaktiviert angelegt.`, 'success');
-  } catch (err) {
-    pushToast(`Speichern fehlgeschlagen: ${errorMessage(err)}`, 'error');
-  } finally {
-    actionBusy.value = null;
-  }
-}
-
-async function handleActivate(streamer: Streamer): Promise<void> {
-  actionBusy.value = `activate:${streamer.id}`;
-  try {
-    await api.streamers.update(streamer.id, { enabled: true });
-    await refreshStreamers();
-    pushToast(`„${streamer.name}“ ist nun aktiv.`, 'success');
-  } catch (err) {
-    pushToast(`Aktivieren fehlgeschlagen: ${errorMessage(err)}`, 'error');
-  } finally {
-    actionBusy.value = null;
-  }
-}
-
-async function handleQueue(hit: DiscoveryHit): Promise<void> {
-  actionBusy.value = `queue:${hit.handle}`;
-  try {
-    await api.discovery.queue(hit.handle, 'next');
-    await refreshStreamers();
-    pushToast(`„${hit.display_name}“ ist das nächste Ziel in der Regie-Queue.`, 'success');
-  } catch (err) {
-    pushToast(`Queue-Einreihen fehlgeschlagen: ${errorMessage(err)}`, 'error');
-  } finally {
-    actionBusy.value = null;
-  }
-}
-
-async function handleSwitch(hit: DiscoveryHit): Promise<void> {
-  actionBusy.value = `switch:${hit.handle}`;
-  try {
-    await api.discovery.switch(hit.handle);
-    await Promise.all([refreshStreamers(), refreshStatus()]);
-    pushToast(`Restream auf „${hit.display_name}“ gestartet.`, 'success');
-  } catch (err) {
-    pushToast(`Umschalten fehlgeschlagen: ${errorMessage(err)}`, 'error');
-  } finally {
-    actionBusy.value = null;
-  }
-}
-
-function providerClass(status: DiscoveryProviderStatus): string {
-  if (status.status === 'online') return 'provider-online';
-  if (status.status === 'rate_limited') return 'provider-limited';
-  return 'provider-offline';
-}
-
-function onVisibilityChange(): void {
-  if (document.hidden) return;
-  if (viewMode.value !== 'zapper' && Date.now() - lastFetchedAt.value > 60_000) {
-    if (mode.value === 'trending') void loadTrending();
-    else if (mode.value === 'following') void loadFollowing();
-    else if (query.value.trim()) void runSearch();
-  }
+  feed.setMode(newMode);
+  if (newMode === 'search') void nextTick(() => searchInputRef.value?.focus());
 }
 
 onMounted(() => {
-  document.addEventListener('visibilitychange', onVisibilityChange);
+  feed.start();
   void refreshAccounts().then(() => {
-    if (activeAccount.value?.id) {
+    if (activeAccount.value?.id && !selectedAccountId.value) {
       selectedAccountId.value = activeAccount.value.id;
     }
   });
-  if (hits.value.length === 0) {
-    void loadTrending();
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
