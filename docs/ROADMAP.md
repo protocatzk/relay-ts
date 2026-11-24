@@ -158,6 +158,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 | API-Zugang konfigurieren und Keys erzeugen und managen (#82) | P2 | Security/API | geplant |
 | Dashboard-Redesign: Anwenderfreundlichkeit, Geschwindigkeit und App-Gefühl (#88) | P1 | UI/UX | abgeschlossen |
 | Navigation straffen: Discovery in Live integrieren, 5 → 4 Bereiche (#88) | P3 | UI/UX | abgeschlossen |
+| Discovery: Handlichkeit und Einbau ins Cockpit (#92) | P2 | UI/UX | geplant |
 
 ### v0.32.0 – Cockpit (#88)
 
