@@ -40,6 +40,8 @@ import type {
   Playlist,
   PlaylistInput,
   PlaylistsResponse,
+  PlaybackLoop,
+  PlaybackState,
   QueueSnapshot,
   RecordingClipInput,
   RecordingClipResponse,
@@ -247,6 +249,7 @@ export interface QueueApi {
   clear(): Promise<{ queue: QueueSnapshot }>;
   play(index?: number): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   next(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
+  previous(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   stop(): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   now(channel: string): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
   seek(seconds: number): Promise<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>;
@@ -501,6 +504,10 @@ export const api = {
       request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/play', {
         method: 'POST',
         body: { index },
+      }),
+    previous: () =>
+      request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/previous', {
+        method: 'POST',
       }),
     next: () =>
       request<{ ok: true; status: StatusPayload; queue: QueueSnapshot }>('/api/queue/next', {
@@ -892,6 +899,32 @@ export const api = {
         { method: 'POST', body: { handle } },
       ),
   },
+  playback: {
+    get: () => request<PlaybackState>('/api/playback'),
+    play: () => request<{ ok: true; status: StatusPayload }>('/api/playback/play', { method: 'POST' }),
+    pause: () => request<{ ok: true; status: StatusPayload }>('/api/playback/pause', { method: 'POST' }),
+    resume: () => request<{ ok: true; status: StatusPayload }>('/api/playback/resume', { method: 'POST' }),
+    stop: () => request<{ ok: true; status: StatusPayload }>('/api/playback/stop', { method: 'POST' }),
+    next: () => request<{ ok: true; status: StatusPayload }>('/api/playback/next', { method: 'POST' }),
+    previous: () =>
+      request<{ ok: true; status: StatusPayload }>('/api/playback/previous', { method: 'POST' }),
+    seek: (seconds: number) =>
+      request<{ ok: true; status: StatusPayload }>('/api/playback/seek', {
+        method: 'POST',
+        body: { seconds },
+      }),
+    loop: (loop: PlaybackLoop) =>
+      request<{ ok: true; queue: QueueSnapshot; state: PlaybackState }>('/api/playback/loop', {
+        method: 'POST',
+        body: { loop },
+      }),
+    queueNow: (channel: string) =>
+      request<{ ok: true; status: StatusPayload }>('/api/playback/queue-now', {
+        method: 'POST',
+        body: { channel },
+      }),
+  },
+
   automations: {
     list: () => request<AutomationsListResponse>('/api/automations'),
     get: (id: string) => request<{ workflow: AutomationWorkflow }>(`/api/automations/${encodeURIComponent(id)}`),

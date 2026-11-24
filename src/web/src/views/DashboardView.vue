@@ -16,6 +16,7 @@ import type {
   TitlePreview,
 } from '@/src/api/types';
 import CockpitActions from '@/src/components/CockpitActions.vue';
+import PlaybackTransport from '@/src/components/cockpit/PlaybackTransport.vue';
 import CockpitWidgets from '@/src/components/CockpitWidgets.vue';
 import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
@@ -423,6 +424,8 @@ onBeforeUnmount(() => {
       </dl>
 
     </header>
+
+    <PlaybackTransport />
 
     <CockpitActions @queue-now="focusQueue" />
 

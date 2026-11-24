@@ -16,14 +16,11 @@ const emit = defineEmits<{ 'queue-now': [] }>();
 const { actions, busyId, isEnabled, reasonFor, runAction } = useActions();
 
 /** Order shown in the cockpit, independent of registry order. */
-const BASE_ORDER = [
-  'stream.switch',
-  'screen.pause',
-  'stream.stop',
-  'queue.next',
-  'discovery.open',
-  'sink.restart',
-];
+/**
+ * Transport actions (play/pause/stop/next/previous) live in `PlaybackTransport`
+ * (#94); the action row keeps the regie tasks that are not part of playback.
+ */
+const BASE_ORDER = ['stream.switch', 'discovery.open', 'sink.restart'];
 
 interface Entry {
   action: ActionDef;

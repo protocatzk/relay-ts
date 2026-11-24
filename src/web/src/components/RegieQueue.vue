@@ -272,6 +272,10 @@ function next(): void {
   void run(() => api.queue.next());
 }
 
+function previous(): void {
+  void run(() => api.queue.previous());
+}
+
 function stop(): void {
   void run(() => api.queue.stop());
 }
@@ -544,6 +548,15 @@ onMounted(() => void loadMedia());
         @click="play(0)"
       >
         Abspielen
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost"
+        :disabled="busy || !queue?.playing || activeIndex === null || activeIndex <= 0"
+        title="Vorherigen Eintrag abspielen"
+        @click="previous"
+      >
+        ⏮ Zurück
       </button>
       <button type="button" class="btn btn-ghost" :disabled="busy || !queue?.playing" @click="next">
         Überspringen

@@ -7,6 +7,7 @@ import type {
   LogEntry,
   LoginResult,
   Playlist,
+  PlaybackState,
   QueueSnapshot,
   StatusPayload,
   Streamer,
@@ -25,6 +26,7 @@ export interface StoreState {
   playlists: Playlist[];
   earnings: EarningsSnapshot | null;
   queue: QueueSnapshot | null;
+  playback: PlaybackState | null;
   discovery: DiscoveryResponse | null;
   logs: LogEntry[];
   sseConnected: boolean;
@@ -48,6 +50,7 @@ export const store = reactive<StoreState>({
   playlists: [],
   earnings: null,
   queue: null,
+  playback: null,
   discovery: null,
   logs: [],
   sseConnected: false,
@@ -182,6 +185,11 @@ export async function refreshQueue(): Promise<void> {
   store.queue = markRaw(await api.queue.get());
 }
 
+/** Unified playback view (#94); SSE pushes updates, this primes the cockpit. */
+export async function refreshPlayback(): Promise<void> {
+  store.playback = markRaw(await api.playback.get());
+}
+
 /** Applies a queue snapshot returned by a mutation without an extra round-trip. */
 export function applyQueue(snapshot: QueueSnapshot): void {
   store.queue = markRaw(snapshot);
@@ -201,6 +209,7 @@ function startPolling(): void {
   void refreshStatus().catch(() => undefined);
   void refreshEarnings().catch(() => undefined);
   void refreshQueue().catch(() => undefined);
+  void refreshPlayback().catch(() => undefined);
   pollTimer = window.setInterval(() => {
     void refreshStatus().catch(() => undefined);
     void refreshStreamers().catch(() => undefined);
@@ -278,6 +287,17 @@ function connectEvents(): void {
     }
   });
 
+  source.addEventListener('playback', (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as PlaybackState;
+      if (payload && typeof payload === 'object' && 'source' in payload) {
+        store.playback = markRaw(payload);
+      }
+    } catch {
+      /* ignore malformed events */
+    }
+  });
+
   source.addEventListener('queue', (event) => {
     try {
       const payload = JSON.parse((event as MessageEvent<string>).data) as QueueSnapshot;
@@ -326,6 +346,7 @@ export async function bootstrap(): Promise<void> {
     refreshPlaylists(),
     refreshEarnings(),
     refreshQueue(),
+    refreshPlayback(),
   ]);
   connectEvents();
 }
@@ -396,6 +417,7 @@ export function useStore() {
     refreshPlaylists,
     refreshEarnings,
     refreshQueue,
+    refreshPlayback,
     applyQueue,
     refreshLogs,
     connectEvents,

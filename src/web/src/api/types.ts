@@ -271,6 +271,30 @@ export interface QueueViewEntry {
   duration_seconds?: number | null;
 }
 
+/** Unified playback view for the cockpit transport (#94). */
+export interface PlaybackEntry {
+  kind: 'file' | 'streamer' | 'screen';
+  id: string;
+  label: string;
+  channel: string;
+}
+
+export type PlaybackSource = 'queue' | 'playlist' | 'streamer' | 'screen' | 'idle';
+export type PlaybackLoop = 'off' | 'all' | 'one';
+
+export interface PlaybackState {
+  source: PlaybackSource;
+  playing: boolean;
+  paused: boolean;
+  position_seconds: number | null;
+  duration_seconds: number | null;
+  current: PlaybackEntry | null;
+  next: PlaybackEntry | null;
+  loop: PlaybackLoop;
+  queue_index: number | null;
+  updated_at: string;
+}
+
 export interface QueueSnapshot {
   entries: QueueViewEntry[];
   playing: boolean;
