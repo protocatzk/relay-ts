@@ -241,7 +241,7 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 
 ### v0.35.0 – Queue als zentrale Abspielsteuerung (Teil 1)
 
-**Status: in Arbeit.**
+**Status: veröffentlicht in 0.35.0.**
 
 - **Ein Modell (#94 Phase A):** `PlaybackService` leitet einen einheitlichen
   Zustand aus Queue, Playlist, Einzelquelle und Screens ab; `GET /api/playback`
@@ -266,6 +266,8 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
 
 ### v0.35.1 – Queue als App-Spielfläche (#94)
 
+**Status: veröffentlicht in 0.35.1.**
+
 - Regie-Queue steht im Cockpit direkt unter der Action-Zeile über die volle
   Breite; darunter folgen Vorschau und Kennzahlen. Transport-Aktionen gibt es
   nur noch einmal (in `PlaybackTransport.vue`), die Karte behält Liste,
@@ -276,6 +278,28 @@ Per-Streamer-Overlays sind enthalten; OpenAPI bleibt als Folge-Issue offen.
   Überspringens. Der Transport-Play startet ohne aktive Quelle die Queue.
 - Diagnose: Empfehlungszeilen brechen auf schmalen Viewports um (320-px-
   Overflow behoben), E2E meldet bei Overflows jetzt die Verursacher.
+
+### v0.35.2 – Streamer direkt in die Queue
+
+**Status: veröffentlicht in 0.35.2.**
+
+- Jede Zeile der Cockpit-Streamerliste hat „+ Queue“ und hängt den Streamer ans
+  Ende der Regie-Queue; der zurückgegebene Snapshot wird direkt übernommen und
+  per Toast bestätigt.
+
+### v0.35.3 – Queue-Listenfenster und gestylte Spoiler (#94)
+
+**Status: veröffentlicht in 0.35.3.**
+
+- Die Queue-Karte nutzt die volle Breite und hält die Liste in einem eigenen
+  Fenster (max. 62 vh, eigener Scroll, ausblendender unterer Rand solange
+  Einträge darunter liegen); kurze Queues bleiben kompakt, lange scrollen.
+- „Eintrag hinzufügen“ und „Zuletzt gespielt“ sind gestylte Accordions; die
+  Hinzufügen-Controls liegen in beschrifteten Gruppen (Video, Streamer,
+  Playlist, Screen) und werden nicht mehr abgeschnitten.
+- Zeilen sind einzeilig (Griff, Nummer, Art, Label, Dauer, Symbol-Aktionen),
+  der laufende Eintrag trägt eine Akzentkante. Mobil stapeln die Controls, die
+  Karte wächst mit dem Inhalt, Verschieben läuft über Griff und Swipe.
 
 ## Definition of Done
 
