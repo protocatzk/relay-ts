@@ -233,7 +233,7 @@ export class YouTubeAuthService {
     };
   }
 
-  begin(): { url: string } {
+  begin(redirectUriOverride?: string): { url: string } {
     if (!this.configured) {
       throw new AppError(
         'youtube_not_configured',
@@ -246,10 +246,19 @@ export class YouTubeAuthService {
       const oldest = [...this.pending.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt)[0];
       if (oldest) this.pending.delete(oldest[0]);
     }
+    const configured = this.options.config.redirectUri;
+    const isLocalDefault = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(configured);
+    const redirectUri = redirectUriOverride && isLocalDefault ? redirectUriOverride : configured;
     const state = createState();
     const { verifier, challenge } = createPkcePair();
-    this.pending.set(state, { verifier, createdAt: this.now() });
-    return { url: buildAuthorizationUrl(this.options.config, state, challenge) };
+    this.pending.set(state, { verifier, createdAt: this.now(), redirectUri } as {
+      verifier: string;
+      createdAt: number;
+      redirectUri?: string;
+    });
+    return {
+      url: buildAuthorizationUrl({ ...this.options.config, redirectUri }, state, challenge),
+    };
   }
 
   async complete(params: {
@@ -275,7 +284,13 @@ export class YouTubeAuthService {
 
     let tokens: TokenResponse;
     try {
-      tokens = await exchangeCode(this.options.config, params.code, authorization.verifier);
+      const redirectUri =
+        (authorization as { redirectUri?: string }).redirectUri ?? this.options.config.redirectUri;
+      tokens = await exchangeCode(
+        { ...this.options.config, redirectUri },
+        params.code,
+        authorization.verifier,
+      );
     } catch (error) {
       this.options.logger.warn({ err: toErrorMessage(error) }, 'YouTube-Token-Austausch fehlgeschlagen');
       return { ok: false, reason: 'exchange_failed' };

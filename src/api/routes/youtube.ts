@@ -230,7 +230,20 @@ export async function registerYouTubeRoutes(app: FastifyInstance, ctx: ApiContex
   app.get(
     '/api/youtube/oauth/start',
     { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
-    async () => service.begin(),
+    async (request) => {
+      const forwardedHost = request.headers['x-forwarded-host'];
+      const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ?? request.headers.host;
+      const forwardedProto = request.headers['x-forwarded-proto'];
+      const proto =
+        (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)?.split(',')[0]?.trim() ||
+        request.protocol ||
+        'https';
+      const redirectUriOverride =
+        host && !/^(localhost|127\.0\.0\.1)(:|$)/i.test(host)
+          ? `${proto}://${host}/api/youtube/oauth/callback`
+          : undefined;
+      return service.begin(redirectUriOverride);
+    },
   );
 
   app.get(
