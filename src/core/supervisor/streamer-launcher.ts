@@ -221,7 +221,7 @@ export class StreamerLauncher {
       this.deps.sourceSession.start(
         streamer,
         stream,
-        this.deps.reencodeSource(false),
+        this.deps.reencodeSource(reusable),
         timestampOffset,
       );
       this.deps.sourceSession.markProducerStarted(timestampOffset);
