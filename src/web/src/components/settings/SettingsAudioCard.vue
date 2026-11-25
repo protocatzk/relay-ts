@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SoundboardSettings } from '@/src/api/types';
 import ToggleField from '@/src/components/ToggleField.vue';
 
 interface AudioModel {
@@ -12,6 +13,7 @@ interface AudioModel {
 
 defineProps<{
   audio: AudioModel;
+  soundboard?: SoundboardSettings;
   dirty: boolean;
   saving: boolean;
   busySaving: boolean;
@@ -104,6 +106,54 @@ defineEmits<{
           />
         </div>
       </div>
+
+      <template v-if="soundboard">
+        <hr class="settings-divider" />
+        <h3 class="settings-subtitle">Soundboard</h3>
+        <ToggleField
+          v-model="soundboard.enabled"
+          label="Soundboard-Mischung im Stream aktivieren"
+          description="Öffnet pipe:5 am YouTube-Sink für SFX-Pads und Musikbett (Änderung startet den Sink neu)."
+        />
+        <ToggleField
+          v-model="soundboard.ducking"
+          label="Automatisches Ducking"
+          description="Senkt den Stream-Ton ab, solange ein Soundboard-Audio spielt."
+        />
+        <div class="settings-grid">
+          <div class="field">
+            <label for="sb-duck-db">Ducking-Stärke (dB)</label>
+            <input
+              id="sb-duck-db"
+              v-model.number="soundboard.duck_db"
+              type="number"
+              min="-30"
+              max="-3"
+              step="1"
+            />
+          </div>
+          <div class="field">
+            <label for="sb-max-concurrent">Max. gleichzeitige SFX</label>
+            <input
+              id="sb-max-concurrent"
+              v-model.number="soundboard.max_concurrent"
+              type="number"
+              min="1"
+              max="16"
+            />
+          </div>
+          <div class="field">
+            <label for="sb-cache-mb">PCM-Cache (MB)</label>
+            <input
+              id="sb-cache-mb"
+              v-model.number="soundboard.cache_mb"
+              type="number"
+              min="16"
+              max="1024"
+            />
+          </div>
+        </div>
+      </template>
     </div>
   </section>
 </template>

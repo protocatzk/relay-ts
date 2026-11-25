@@ -137,8 +137,15 @@ watch(
 let previewObserver: IntersectionObserver | null = null;
 let autoPausedByScroll = false;
 
+watch(
+  canPlay,
+  (ok) => {
+    if (ok && broadcasts.value.length === 0) void loadChat();
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
-  void loadChat();
   if ('IntersectionObserver' in window && video.value) {
     previewObserver = new IntersectionObserver(
       (entries) => {

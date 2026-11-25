@@ -413,6 +413,16 @@ function normalizeSettingsDefaults(settings: Settings): Settings {
     silence_threshold_db: -50,
     silence_seconds: 15,
   };
+  settings.soundboard ??= {
+    enabled: false,
+    ducking: true,
+    duck_db: -12,
+    master_gain_db: 0,
+    sfx_gain_db: 0,
+    music_gain_db: 0,
+    max_concurrent: 4,
+    cache_mb: 128,
+  };
   settings.webhooks ??= {
     enabled: false,
     url_set: false,
@@ -637,6 +647,7 @@ onBeforeUnmount(() => {
       <SettingsAudioCard
         v-if="form.audio"
         :audio="form.audio"
+        :soundboard="form.soundboard"
         :dirty="sectionDirty('audio')"
         :saving="savingSection === 'audio'"
         :busy-saving="busySaving"

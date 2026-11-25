@@ -28,6 +28,7 @@ import AppButton from '@/src/components/ui/AppButton.vue';
 import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
 import { useDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
+import { runOptimistic } from '@/src/composables/useOptimistic';
 import { useStore } from '@/src/composables/useStore';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
@@ -154,6 +155,7 @@ const filteredStreamers = computed(() => {
 const soundboardPads = computed(() =>
   (store.soundboard?.sounds ?? []).filter((s) => s.kind === 'sfx').slice(0, 4),
 );
+const activeSoundboardIds = computed(() => new Set((store.soundboard?.playing ?? []).map((p) => p.id)));
 
 /* ---------------------------------------------------------------- preview */
 
@@ -309,19 +311,57 @@ async function changeEarningsPeriod(period: EarningsPeriod): Promise<void> {
 }
 
 async function startStreamer(streamer: Streamer): Promise<void> {
-  await run(`start:${streamer.id}`, () => api.streamers.start(streamer.id), `${streamer.name} wird gestartet.`);
+  busy.value = `start:${streamer.id}`;
+  try {
+    await runOptimistic({
+      patch: {
+        state: 'starting',
+        active_streamer_id: streamer.id,
+        active_streamer_name: streamer.name,
+      },
+      mutation: () => api.streamers.start(streamer.id),
+      successMessage: `${streamer.name} wird gestartet.`,
+    });
+    await refreshStreamers();
+  } finally {
+    busy.value = null;
+  }
 }
 
 async function stopStreamer(streamer: Streamer): Promise<void> {
-  await run(`stop:${streamer.id}`, () => api.streamers.stop(streamer.id), `${streamer.name} wird gestoppt.`);
+  busy.value = `stop:${streamer.id}`;
+  try {
+    await runOptimistic({
+      patch: {
+        state: 'stopping',
+        active_streamer_id: null,
+        active_streamer_name: null,
+      },
+      mutation: () => api.streamers.stop(streamer.id),
+      successMessage: `${streamer.name} wird gestoppt.`,
+    });
+    await refreshStreamers();
+  } finally {
+    busy.value = null;
+  }
 }
 
 async function switchStreamer(streamer: Streamer): Promise<void> {
-  await run(
-    `switch:${streamer.id}`,
-    () => api.streamers.switchTo(streamer.id),
-    `${streamer.name} wird gestartet.`,
-  );
+  busy.value = `switch:${streamer.id}`;
+  try {
+    await runOptimistic({
+      patch: {
+        state: 'starting',
+        active_streamer_id: streamer.id,
+        active_streamer_name: streamer.name,
+      },
+      mutation: () => api.streamers.switchTo(streamer.id),
+      successMessage: `${streamer.name} wird gestartet.`,
+    });
+    await refreshStreamers();
+  } finally {
+    busy.value = null;
+  }
 }
 
 /** Appends a streamer to the regie queue (#94). */
@@ -404,6 +444,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page page-dashboard cockpit cockpit-v2" :class="{ 'is-discovery-open': discoveryOpen }">
+    <h1 class="sr-only">Dashboard</h1>
     <!-- Kompakte 1-Zeilen Command-Bar (Status + Transport + Aktionen) -->
     <header class="cockpit-command-bar">
       <div class="cockpit-status-compact">
@@ -428,7 +469,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="cockpit-top-tools">
           <CockpitActions @queue-now="focusQueue" />
-          <AppButton to="/deck" variant="ghost" size="sm" title="Stream-Deck öffnen">Deck</AppButton>
+          <AppButton to="/deck" variant="ghost" size="sm" title="Stream-Deck öffnen">Stream-Deck</AppButton>
           <button
             type="button"
             class="btn btn-ghost btn-sm"
@@ -630,6 +671,7 @@ onBeforeUnmount(() => {
               :key="pad.id"
               type="button"
               class="btn btn-ghost btn-sm cockpit-sb-pad"
+              :class="{ 'is-playing': activeSoundboardIds.has(pad.id) }"
               @click="api.soundboard.play(pad.id)"
             >
               {{ pad.name }}
@@ -850,6 +892,7 @@ onBeforeUnmount(() => {
 .cockpit-sb-tools { display: flex; gap: 4px; }
 .cockpit-sb-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .cockpit-sb-pad { justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cockpit-sb-pad.is-playing { border-color: var(--accent, #22d3ee); background: rgba(34, 211, 238, 0.14); }
 .cockpit-streamers { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 320px; max-height: calc(100vh - 360px); }
 .cockpit-col3-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
 .cockpit-seg-switch { display: flex; background: var(--surface-1, rgba(0,0,0,0.25)); padding: 2px; border-radius: 8px; border: 1px solid var(--border); }

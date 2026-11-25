@@ -274,7 +274,7 @@ export class TikTokResolver {
     try {
       const response = await fetch(url, {
         headers,
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(6_000),
       });
       if (!response.ok) {
         throw new ResolveError(`TikTok Live-API antwortete mit HTTP ${response.status}`);

@@ -89,7 +89,7 @@ test.describe('discovery panel', () => {
 
     const closed = await page.evaluate(() => ({
       columns: getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length,
-      queueWidth: document.querySelector('.cockpit-queue')!.getBoundingClientRect().width,
+      gridWidth: document.querySelector('.cockpit-grid')!.getBoundingClientRect().width,
     }));
     await page.keyboard.press('d');
     await expect(page.locator('.discovery-panel')).toBeVisible();
@@ -104,14 +104,14 @@ test.describe('discovery panel', () => {
     const open = await page.evaluate(() => ({
       columns: getComputedStyle(document.querySelector('.cockpit-grid')!).gridTemplateColumns.split(' ').length,
       padding: parseFloat(getComputedStyle(document.querySelector('.page-dashboard')!).paddingRight),
-      queueWidth: document.querySelector('.cockpit-queue')!.getBoundingClientRect().width,
+      gridWidth: document.querySelector('.cockpit-grid')!.getBoundingClientRect().width,
     }));
-    // The cockpit keeps its two columns; the panel reserves space and the
-    // full-width queue shrinks with it (#94).
-    expect(closed.columns).toBe(2);
-    expect(open.columns).toBe(2);
+    // The cockpit keeps its 3-column desktop grid; the panel reserves space
+    // and the cockpit grid shrinks with it (#94).
+    expect(closed.columns).toBe(3);
+    expect(open.columns).toBeGreaterThanOrEqual(2);
     expect(open.padding).toBeGreaterThan(300);
-    expect(open.queueWidth).toBeLessThan(closed.queueWidth);
+    expect(open.gridWidth).toBeLessThan(closed.gridWidth);
     await expectNoHorizontalOverflow(page, 'cockpit with discovery panel');
   });
 

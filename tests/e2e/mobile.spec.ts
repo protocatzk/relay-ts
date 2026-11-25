@@ -60,7 +60,7 @@ test.describe('mobile layout and navigation', () => {
     await page.goto('/#/streamers');
     const tabs = page.getByRole('navigation', { name: 'Inhalte: Unterseiten' });
     await expect(tabs).toBeVisible();
-    await expect(tabs.getByRole('link')).toHaveCount(5);
+    await expect(tabs.getByRole('link')).toHaveCount(6);
     await expect(tabs.getByRole('link', { name: 'Streamer' })).toHaveAttribute(
       'aria-current',
       'page',

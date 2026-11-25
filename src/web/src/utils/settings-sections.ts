@@ -127,6 +127,16 @@ export function buildSectionPayload(
         silence_threshold_db: -50,
         silence_seconds: 15,
       };
+      const sb = current.soundboard ?? {
+        enabled: false,
+        ducking: true,
+        duck_db: -12,
+        master_gain_db: 0,
+        sfx_gain_db: 0,
+        music_gain_db: 0,
+        max_concurrent: 4,
+        cache_mb: 128,
+      };
       return {
         audio: {
           normalize: audio.normalize,
@@ -135,6 +145,16 @@ export function buildSectionPayload(
           silence_detect: audio.silence_detect,
           silence_threshold_db: toNumber(audio.silence_threshold_db, -50),
           silence_seconds: toNumber(audio.silence_seconds, 15),
+        },
+        soundboard: {
+          enabled: sb.enabled,
+          ducking: sb.ducking,
+          duck_db: toNumber(sb.duck_db, -12),
+          master_gain_db: toNumber(sb.master_gain_db, 0),
+          sfx_gain_db: toNumber(sb.sfx_gain_db, 0),
+          music_gain_db: toNumber(sb.music_gain_db, 0),
+          max_concurrent: toNumber(sb.max_concurrent, 4),
+          cache_mb: toNumber(sb.cache_mb, 128),
         },
       };
     }

@@ -340,6 +340,7 @@ describe('settings sections partial updates', () => {
       'online',
       'pause',
       'sink',
+      'soundboard',
       'source',
       'startup',
       'streaming',

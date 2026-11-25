@@ -12,7 +12,14 @@ const state = computed(() => store.soundboard);
 const sounds = computed(() => state.value?.sounds ?? []);
 const sfxSounds = computed(() => sounds.value.filter((s) => s.kind === 'sfx'));
 const musicSounds = computed(() => sounds.value.filter((s) => s.kind === 'music'));
-const playingIds = computed(() => new Set((state.value?.playing ?? []).map((p) => p.id)));
+const playingMap = computed(() => new Map((state.value?.playing ?? []).map((p) => [p.id, p])));
+const playingIds = computed(() => new Set(playingMap.value.keys()));
+
+function padProgress(id: string): number {
+  const active = playingMap.value.get(id);
+  if (!active || active.duration <= 0) return 0;
+  return Math.min(100, Math.max(0, (active.position / active.duration) * 100));
+}
 
 const uploading = ref(false);
 const uploadKind = ref<SoundKind>('sfx');
@@ -304,9 +311,16 @@ onUnmounted(() => {
           >
             <span class="sb-pad-top">
               <span v-if="sound.hotkey" class="sb-hotkey mono">{{ sound.hotkey }}</span>
-              <span class="sb-dur mono">{{ formatDuration(sound.duration) }}</span>
+              <span class="sb-dur mono">
+                {{ playingIds.has(sound.id) ? `-${formatDuration(Math.max(0, sound.duration - (playingMap.get(sound.id)?.position ?? 0)))}` : formatDuration(sound.duration) }}
+              </span>
             </span>
             <strong class="sb-pad-name">{{ sound.name }}</strong>
+            <span
+              v-if="playingIds.has(sound.id)"
+              class="sb-pad-progress"
+              :style="{ width: `${padProgress(sound.id)}%` }"
+            ></span>
           </button>
           <div class="sb-pad-tools">
             <button type="button" class="btn-icon" title="Bearbeiten" @click="openEdit(sound)">✎</button>
@@ -345,8 +359,16 @@ onUnmounted(() => {
         </div>
       </div>
       <div v-if="state?.music" class="sb-now-playing">
-        <span>Läuft: <strong>{{ state.music.name }}</strong></span>
-        <span class="mono">{{ formatDuration(state.music.position) }} / {{ formatDuration(state.music.duration) }}</span>
+        <div class="sb-now-playing-row">
+          <span>Läuft: <strong>{{ state.music.name }}</strong></span>
+          <span class="mono">{{ formatDuration(state.music.position) }} / {{ formatDuration(state.music.duration) }}</span>
+        </div>
+        <div class="sb-music-progress-track">
+          <div
+            class="sb-music-progress-fill"
+            :style="{ width: `${state.music.duration > 0 ? Math.min(100, (state.music.position / state.music.duration) * 100) : 0}%` }"
+          ></div>
+        </div>
       </div>
       <div v-if="musicSounds.length === 0" class="muted sb-empty">
         Noch keine Musiktitel hochgeladen.
@@ -443,6 +465,8 @@ onUnmounted(() => {
 .sb-pad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
 .sb-pad-wrap { position: relative; }
 .sb-pad {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   min-height: 76px;
   padding: 0.65rem;
@@ -468,7 +492,11 @@ onUnmounted(() => {
 .sb-music-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-md, 8px); background: var(--elev-2, rgba(255,255,255,0.03)); }
 .sb-music-row.active { outline: 1px solid var(--accent, #22d3ee); }
 .sb-music-play { flex: 1; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; font-weight: 500; }
-.sb-now-playing { display: flex; justify-content: space-between; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius-md, 8px); background: rgba(34, 211, 238, 0.1); }
+.sb-now-playing { display: flex; flex-direction: column; gap: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius-md, 8px); background: rgba(34, 211, 238, 0.1); }
+.sb-now-playing-row { display: flex; justify-content: space-between; gap: 0.5rem; }
+.sb-music-progress-track { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.sb-music-progress-fill { height: 100%; background: var(--accent, #22d3ee); transition: width 0.2s linear; }
+.sb-pad-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pad-color, #22d3ee); transition: width 0.2s linear; }
 .sb-upload.drag-over { outline: 2px dashed var(--accent, #22d3ee); }
 .sb-upload-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; z-index: 60; padding: 1rem; }
