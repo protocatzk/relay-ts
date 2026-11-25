@@ -136,6 +136,7 @@ export class Supervisor {
   private readonly queueCoordinator: QueuePlaybackCoordinator;
   private readonly playbackService: PlaybackService;
   private lastPlaybackSignature = '';
+  private lastStreamersSignature = '';
   private startedAt: Date | null = null;
   private lastError: string | null = null;
   private activeTitle = '';
@@ -1234,7 +1235,11 @@ export class Supervisor {
   emitStreamers(force = false): void {
     if (!force && !this.deps.bus.hasObservers()) return;
     try {
-      this.deps.bus.emit({ type: 'streamers', data: this.streamersView() });
+      const view = this.streamersView();
+      const signature = JSON.stringify(view);
+      if (!force && signature === this.lastStreamersSignature) return;
+      this.lastStreamersSignature = signature;
+      this.deps.bus.emit({ type: 'streamers', data: view });
     } catch (error) {
       this.deps.logger.warn(
         { err: toErrorMessage(error) },

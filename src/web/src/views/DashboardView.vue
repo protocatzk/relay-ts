@@ -6,7 +6,7 @@
  * (preview · queue · widgets) and the vitals strip. Everything the operator
  * needs during a show is reachable without changing pages.
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, errorMessage } from '@/src/api/client';
 import type {
@@ -16,15 +16,20 @@ import type {
   TitlePreview,
 } from '@/src/api/types';
 import CockpitActions from '@/src/components/CockpitActions.vue';
-import CockpitDiscoveryCard from '@/src/components/cockpit/CockpitDiscoveryCard.vue';
 import PlaybackTransport from '@/src/components/cockpit/PlaybackTransport.vue';
-import EarningsPanel from '@/src/components/EarningsPanel.vue';
 import LivePreview from '@/src/components/LivePreview.vue';
 import ModuleVital from '@/src/components/ModuleVital.vue';
 import RegieQueue from '@/src/components/RegieQueue.vue';
 import StatusBadge from '@/src/components/StatusBadge.vue';
 import AppBadge from '@/src/components/ui/AppBadge.vue';
 import AppButton from '@/src/components/ui/AppButton.vue';
+
+const CockpitDiscoveryCard = defineAsyncComponent(
+  () => import('@/src/components/cockpit/CockpitDiscoveryCard.vue'),
+);
+const EarningsPanel = defineAsyncComponent(
+  () => import('@/src/components/EarningsPanel.vue'),
+);
 import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
 import { useDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
@@ -969,8 +974,7 @@ onBeforeUnmount(() => {
     padding: 8px 12px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: var(--glass-bg-strong, var(--surface-2));
-    backdrop-filter: blur(12px);
+    background: var(--surface, var(--surface-2));
   }
   .cockpit-mob-transport-info { min-width: 0; display: flex; flex-direction: column; font-size: 12px; }
   .cockpit-mob-transport-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
