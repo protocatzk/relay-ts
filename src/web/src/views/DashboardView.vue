@@ -27,6 +27,7 @@ import AppBadge from '@/src/components/ui/AppBadge.vue';
 import AppButton from '@/src/components/ui/AppButton.vue';
 import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
 import { useDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
+import { useMediaQuery } from '@/src/composables/useMediaQuery';
 import { useStore } from '@/src/composables/useStore';
 import { useTelemetry } from '@/src/composables/useTelemetry';
 import { useToast } from '@/src/composables/useToast';
@@ -58,6 +59,7 @@ const col3Tab = ref<'streamers' | 'discovery'>('streamers');
 const streamerFilter = ref<'live' | 'all'>('live');
 const streamerSearch = ref('');
 const mobileTab = ref<'queue' | 'live' | 'discovery' | 'monitor' | 'stats'>('queue');
+const isMobile = useMediaQuery('(max-width: 720px)');
 
 const busy = ref<string | null>(null);
 const refreshingEarnings = ref(false);
@@ -459,6 +461,7 @@ onBeforeUnmount(() => {
     <div class="cockpit-grid cockpit-grid-3col">
       <!-- SPALTE 1: Monitor, Vitals & Wartung -->
       <section
+        v-if="!isMobile || mobileTab === 'monitor'"
         class="cockpit-col cockpit-col-preview mob-pane"
         :class="{ 'is-mob-active': mobileTab === 'monitor' }"
         aria-label="Monitor und Technik"
@@ -606,6 +609,7 @@ onBeforeUnmount(() => {
 
       <!-- SPALTE 2: Regie-Queue & Soundboard -->
       <section
+        v-if="!isMobile || mobileTab === 'queue'"
         class="cockpit-col cockpit-col-center mob-pane"
         :class="{ 'is-mob-active': mobileTab === 'queue' }"
         aria-label="Regie-Queue und Soundboard"
@@ -636,11 +640,13 @@ onBeforeUnmount(() => {
 
       <!-- SPALTE 3: Streamer-Schaltbrett, Discovery & Einnahmen -->
       <section
+        v-if="!isMobile || mobileTab === 'live' || mobileTab === 'discovery' || mobileTab === 'stats'"
         class="cockpit-col cockpit-col-right mob-pane"
         :class="{ 'is-mob-active': mobileTab === 'live' || mobileTab === 'discovery' || mobileTab === 'stats' }"
         aria-label="Streamer, Discovery und Einnahmen"
       >
         <section
+          v-if="!isMobile || mobileTab === 'live' || mobileTab === 'discovery'"
           class="card cockpit-streamers mob-subpane"
           :class="{ 'is-mob-active': mobileTab === 'live' || mobileTab === 'discovery' }"
           aria-labelledby="cockpit-streamer-title"
@@ -778,7 +784,11 @@ onBeforeUnmount(() => {
           <CockpitDiscoveryCard v-else />
         </section>
 
-        <div class="cockpit-earnings-wrap mob-subpane" :class="{ 'is-mob-active': mobileTab === 'stats' }">
+        <div
+          v-if="!isMobile || mobileTab === 'stats'"
+          class="cockpit-earnings-wrap mob-subpane"
+          :class="{ 'is-mob-active': mobileTab === 'stats' }"
+        >
           <EarningsPanel
             v-if="store.earnings"
             :earnings="store.earnings"

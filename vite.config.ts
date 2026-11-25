@@ -74,6 +74,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,ico}'],
+        globIgnores: [
+          '**/mpegts-*.js',
+          '**/OverlaysView-*.js',
+          '**/SettingsView-*.js',
+          '**/AutomationsView-*.js',
+          '**/DiscoveryZapperPlayer-*.js',
+        ],
         navigateFallback: '/index.html',
         // Never let the service worker intercept or cache API traffic.
         navigateFallbackDenylist: [/^\/api\//, /^\/health/],
@@ -81,6 +88,17 @@ export default defineConfig({
           {
             urlPattern: /^https?:\/\/[^/]+\/api\/.*/,
             handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /\/assets\/.*\.js$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'lazy-chunks-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Tage
+              },
+            },
           },
           {
             urlPattern: /\.(?:woff2|woff|ttf|eot)$/,

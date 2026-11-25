@@ -358,16 +358,8 @@ export function stopEvents(): void {
 export async function bootstrap(): Promise<void> {
   if (initialized) return;
   initialized = true;
-  await Promise.allSettled([
-    refreshStatus(),
-    refreshStreamers(),
-    refreshPlaylists(),
-    refreshEarnings(),
-    refreshQueue(),
-    refreshPlayback(),
-    refreshSoundboard(),
-  ]);
   connectEvents();
+  await Promise.allSettled([refreshPlaylists()]);
 }
 
 export function resetSession(): void {

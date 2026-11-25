@@ -7,6 +7,7 @@ import Fastify, {
   type FastifyRequest,
 } from 'fastify';
 import cookie from '@fastify/cookie';
+import compress from '@fastify/compress';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -73,6 +74,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   });
 
   await app.register(cookie, { secret: ctx.config.server.sessionSecret });
+  await app.register(compress, { threshold: 1024 });
   await app.register(rateLimit, { global: false });
   await app.register(multipart, {
     limits: {
