@@ -2,8 +2,8 @@
 #
 # RELAY – Release-Version bumpen, prüfen, committen und taggen.
 #
-# Aktualisiert package.json, package-lock.json, src/version.ts und
-# docs/openapi.json, führt npm run check && npm run build aus, erstellt einen
+# Aktualisiert package.json, package-lock.json, src/version.ts, docs/openapi.json,
+# AGENTS.md und README.md, führt npm run check && npm run build aus, erstellt einen
 # Release-Commit sowie einen annotierten Git-Tag v<version> und pusht optional.
 #
 # Verwendung:
@@ -84,7 +84,7 @@ fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   log "DRY-RUN: $CURRENT_VERSION -> $NEXT_VERSION (Tag $TAG auf Branch $BRANCH)"
-  log "DRY-RUN: Dateien: package.json, package-lock.json, src/version.ts, docs/openapi.json"
+  log "DRY-RUN: Dateien: package.json, package-lock.json, src/version.ts, docs/openapi.json, AGENTS.md, README.md"
   [[ "$RUN_CHECK" -eq 1 ]] && log "DRY-RUN: würde 'npm run check && npm run build' ausführen"
   [[ "$PUSH" -eq 1 ]] && log "DRY-RUN: würde 'git push origin $BRANCH $TAG' ausführen"
   exit 0
@@ -95,9 +95,13 @@ npm version "$NEXT_VERSION" --no-git-tag-version >/dev/null
 
 printf "export const VERSION = '%s';\n" "$NEXT_VERSION" > "$ROOT/src/version.ts"
 
-log "AGENTS.md-Versionsangabe aktualisieren"
-if grep -qE '^- Aktuelle Version: \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*$' AGENTS.md; then
-  sed -i -E "s/^- Aktuelle Version: \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*\$/- Aktuelle Version: **$NEXT_VERSION**/" AGENTS.md
+log "AGENTS.md- und README.md-Versionsangabe aktualisieren"
+if grep -qE '^- Aktuelle Version: \*\*[^*]+\*\*$' AGENTS.md; then
+  sed -i -E "s/^- Aktuelle Version: \*\*[^*]+\*\*\$/- Aktuelle Version: **$NEXT_VERSION**/" AGENTS.md
+fi
+BADGE_VERSION="${NEXT_VERSION//-/--}"
+if grep -qE 'badge/version-.+-[^-)]+\)' README.md; then
+  sed -i -E "s|(badge/version-).+(-[^-)]+\))|\1${BADGE_VERSION}\2|" README.md
 fi
 
 log "OpenAPI-Spezifikation aktualisieren"
@@ -116,7 +120,7 @@ if ! git config user.name >/dev/null 2>&1 || ! git config user.email >/dev/null 
   git_identity_args=(-c user.name="Restreamer TS" -c user.email="restreamer-ts@localhost")
 fi
 
-git add package.json package-lock.json src/version.ts docs/openapi.json
+git add package.json package-lock.json src/version.ts docs/openapi.json AGENTS.md README.md
 git "${git_identity_args[@]}" commit -m "chore: release $TAG"
 git "${git_identity_args[@]}" tag -a "$TAG" -m "Release $TAG"
 
