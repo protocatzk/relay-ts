@@ -35,9 +35,9 @@
 .content {
   flex: 1;
   width: 100%;
-  max-width: 1480px;
+  max-width: none;
   margin: 0 auto;
-  padding: 26px 28px 44px;
+  padding: 14px 18px 24px;
 }
 
 .content:focus {
@@ -47,14 +47,17 @@
 .app-footer {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
-  max-width: 1480px;
+  max-width: none;
   width: 100%;
   margin: 0 auto;
-  padding: 14px 28px 24px;
+  padding: 6px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-1, var(--surface));
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }

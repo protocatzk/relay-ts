@@ -74,7 +74,12 @@ onBeforeUnmount(() => {
         </RouterView>
       </main>
       <footer class="app-footer">
-        <span>RELAY Restreamer</span>
+        <span v-if="store.status" class="app-footer-vitals">
+          Quelle: {{ store.status.source.connected ? `${store.status.source.bitrate_kbps ?? 0} kbps` : 'Offline' }}
+          · Relay: {{ (store.status.relay.buffer_seconds ?? 0).toFixed(1) }} s
+          · Sink: {{ store.status.sink.running ? `${store.status.sink.bitrate_kbps ?? 0} kbps` : 'Aus' }}
+        </span>
+        <span v-else>RELAY Studio</span>
         <span v-if="store.status" class="mono">v{{ store.status.version }}</span>
       </footer>
     </div>
