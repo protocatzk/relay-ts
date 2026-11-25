@@ -486,6 +486,59 @@ export interface AudioSettings {
   silence_seconds: number;
 }
 
+export interface SoundboardSettings {
+  enabled: boolean;
+  ducking: boolean;
+  duck_db: number;
+  master_gain_db: number;
+  sfx_gain_db: number;
+  music_gain_db: number;
+  max_concurrent: number;
+  cache_mb: number;
+}
+
+export type SoundKind = 'sfx' | 'music';
+export type MusicLoopMode = 'off' | 'one' | 'all';
+
+export interface SoundEntry {
+  id: string;
+  name: string;
+  file: string;
+  kind: SoundKind;
+  duration: number;
+  gain_db: number;
+  color: string;
+  hotkey: string;
+  created_at: string;
+}
+
+export interface SoundboardState {
+  enabled: boolean;
+  attached: boolean;
+  playing: Array<{
+    id: string;
+    name: string;
+    kind: SoundKind;
+    started_at: string;
+    position: number;
+    duration: number;
+  }>;
+  music: {
+    id: string;
+    name: string;
+    paused: boolean;
+    loop: MusicLoopMode;
+    position: number;
+    duration: number;
+  } | null;
+  master_gain_db: number;
+  sfx_gain_db: number;
+  music_gain_db: number;
+  ducking: boolean;
+  duck_db: number;
+  sounds: SoundEntry[];
+}
+
 export type WebhookEventType =
   | 'stream_error'
   | 'pause_limit'
@@ -778,6 +831,7 @@ export interface Settings {
   video: VideoSettings;
   sink?: SinkSettings;
   audio?: AudioSettings;
+  soundboard?: SoundboardSettings;
   source: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;
@@ -945,6 +999,7 @@ export interface SettingsUpdate {
   video: VideoSettings;
   sink?: SinkSettings;
   audio?: AudioSettings;
+  soundboard?: SoundboardSettings;
   source?: SourceSettings;
   watchdog: WatchdogSettings;
   auto_refresh: AutoRefreshSettings;

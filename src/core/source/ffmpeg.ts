@@ -169,6 +169,13 @@ export interface SinkOverlayInput {
   fd?: number;
 }
 
+export interface SinkSoundboardInput {
+  /** File descriptor number; 5 by default. */
+  fd?: number;
+  ducking?: boolean;
+  duckDb?: number;
+}
+
 export interface SinkCommandOptions {
   media: MediaConfig;
   settings: Settings;
@@ -177,6 +184,7 @@ export interface SinkCommandOptions {
   overlayFilters?: string[];
   overlayInput?: SinkOverlayInput;
   logoInput?: SinkOverlayInput;
+  soundboardInput?: SinkSoundboardInput;
   /** Overrides the probed encoder (tests, diagnostics). */
   encoder?: VideoEncoder;
 }
@@ -319,6 +327,22 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     );
   }
 
+  const soundboard = options.soundboardInput;
+  if (soundboard) {
+    inputArgs.push(
+      '-thread_queue_size',
+      '512',
+      '-f',
+      's16le',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-i',
+      `pipe:${soundboard.fd ?? 5}`,
+    );
+  }
+
   // Overlay inputs are blended in order (chat first, logo second) so the logo
   // stays on top. Each input is a rawvideo RGBA pipe.
   const graphParts: string[] = [];
@@ -335,12 +359,32 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
           `format=auto:eof_action=repeat:repeatlast=1${tail}`,
       );
     });
+  } else if (soundboard) {
+    graphParts.push(`[0:v]${filters.join(',')}[vout]`);
+  }
+
+  if (soundboard) {
+    const boardIdx = 1 + overlayInputs.length;
+    graphParts.push(`[0:a]${buildAudioFilter(settings)}[orig]`);
+    graphParts.push(`[${boardIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo[board]`);
+    if (soundboard.ducking !== false) {
+      const duckDb = soundboard.duckDb ?? -12;
+      // Map duck_db (-30..-3) to sidechaincompress ratio (2..8) and sensitive threshold.
+      const ratio = Math.max(2, Math.min(8, Math.round(Math.abs(duckDb) / 3)));
+      graphParts.push('[board]asplit[key][mix]');
+      graphParts.push(`[orig][key]sidechaincompress=threshold=0.015:ratio=${ratio}:attack=5:release=300[ducked]`);
+      graphParts.push('[ducked][mix]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:attack=5:release=50[aout]');
+    } else {
+      graphParts.push('[orig][board]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:attack=5:release=50[aout]');
+    }
   }
 
   const videoArgs =
-    overlayInputs.length > 0
-      ? ['-map', '[vout]', '-map', '0:a:0?', '-filter_complex', graphParts.join(';')]
-      : ['-map', '0:v:0?', '-map', '0:a:0?', '-vf', filters.join(',')];
+    soundboard
+      ? ['-map', '[vout]', '-map', '[aout]', '-filter_complex', graphParts.join(';')]
+      : overlayInputs.length > 0
+        ? ['-map', '[vout]', '-map', '0:a:0?', '-filter_complex', graphParts.join(';')]
+        : ['-map', '0:v:0?', '-map', '0:a:0?', '-vf', filters.join(',')];
 
   // Output options must be repeated for every output URL (primary + backup),
   // otherwise ffmpeg cannot infer the FLV muxer for the second output.
@@ -360,8 +404,7 @@ export function buildSinkCommand(options: SinkCommandOptions): string[] {
     }),
     '-force_key_frames',
     'expr:gte(t,n_forced*2)',
-    '-af',
-    buildAudioFilter(settings),
+    ...(soundboard ? [] : ['-af', buildAudioFilter(settings)]),
     '-c:a',
     'aac',
     '-profile:a',

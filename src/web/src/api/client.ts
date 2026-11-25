@@ -43,6 +43,10 @@ import type {
   PlaybackLoop,
   PlaybackState,
   QueueSnapshot,
+  SoundboardState,
+  SoundEntry,
+  SoundKind,
+  MusicLoopMode,
   RecordingClipInput,
   RecordingClipResponse,
   RecordingFile,
@@ -986,6 +990,72 @@ export const api = {
     delete: (id: string) =>
       request<{ success: true }>(`/api/api-keys/${encodeURIComponent(id)}`, {
         method: 'DELETE',
+      }),
+  },
+
+  soundboard: {
+    get: () => request<SoundboardState>('/api/soundboard'),
+    upload: async (
+      file: File,
+      meta?: { kind?: SoundKind; name?: string; color?: string; hotkey?: string; gain_db?: number },
+    ) => {
+      const form = new FormData();
+      if (meta?.kind) form.append('kind', meta.kind);
+      if (meta?.name) form.append('name', meta.name);
+      if (meta?.color) form.append('color', meta.color);
+      if (meta?.hotkey) form.append('hotkey', meta.hotkey);
+      if (meta?.gain_db !== undefined) form.append('gain_db', String(meta.gain_db));
+      form.append('file', file);
+      return request<{ ok: true; sound: SoundEntry; state: SoundboardState }>('/api/soundboard/sounds', {
+        method: 'POST',
+        body: form,
+      });
+    },
+    update: (
+      id: string,
+      patch: Partial<Pick<SoundEntry, 'name' | 'kind' | 'gain_db' | 'color' | 'hotkey'>>,
+    ) =>
+      request<{ ok: true; sound: SoundEntry; state: SoundboardState }>(
+        `/api/soundboard/sounds/${encodeURIComponent(id)}`,
+        { method: 'PUT', body: patch },
+      ),
+    remove: (id: string) =>
+      request<{ ok: true; state: SoundboardState }>(
+        `/api/soundboard/sounds/${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      ),
+    play: (id: string, opts?: { gain_db?: number; target?: SoundKind }) =>
+      request<{ ok: true; sound: SoundEntry; state: SoundboardState }>(
+        `/api/soundboard/play/${encodeURIComponent(id)}`,
+        { method: 'POST', body: opts ?? {} },
+      ),
+    stop: (scope: 'all' | 'sfx' | 'music' = 'all') =>
+      request<{ ok: true; state: SoundboardState }>(`/api/soundboard/stop?scope=${scope}`, {
+        method: 'POST',
+      }),
+    nextMusic: () =>
+      request<{ ok: true; sound: SoundEntry | null; state: SoundboardState }>(
+        '/api/soundboard/music/next',
+        { method: 'POST' },
+      ),
+    pauseMusic: () =>
+      request<{ ok: true; paused: boolean; state: SoundboardState }>(
+        '/api/soundboard/music/pause',
+        { method: 'POST' },
+      ),
+    setMusicLoop: (loop: MusicLoopMode) =>
+      request<{ ok: true; loop: MusicLoopMode; state: SoundboardState }>(
+        '/api/soundboard/music/loop',
+        { method: 'POST', body: { loop } },
+      ),
+    setVolume: (patch: {
+      master_gain_db?: number;
+      sfx_gain_db?: number;
+      music_gain_db?: number;
+    }) =>
+      request<{ ok: true; state: SoundboardState }>('/api/soundboard/volume', {
+        method: 'POST',
+        body: patch,
       }),
   },
 };

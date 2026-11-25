@@ -175,6 +175,8 @@ export interface TelegramControl {
   youtubeAssign?(id: string, streamerId: string): Promise<unknown>;
   scenes?(): { id: string; name: string; active: boolean }[];
   activateScene?(id: string): Promise<unknown>;
+  soundboardPlay?(query: string, target?: 'sfx' | 'music'): Promise<{ name: string }>;
+  soundboardStop?(scope?: 'all' | 'sfx' | 'music'): Promise<unknown>;
   addMarker?(label?: string): Promise<{ id: string; label: string; offset_seconds: number } | null> | { id: string; label: string; offset_seconds: number } | null;
   previewFrame?(): Promise<Buffer | null> | Buffer | null;
   queue?(): QueueSnapshot | null;
@@ -520,6 +522,15 @@ export class TelegramBot {
         return;
       case '/marker':
         await this.handleMarkerCommand(chatId, text.slice('/marker'.length).trim());
+        return;
+      case '/sound':
+        await this.handleSoundCommand(chatId, text.slice('/sound'.length).trim(), 'sfx');
+        return;
+      case '/music':
+        await this.handleSoundCommand(chatId, text.slice('/music'.length).trim(), 'music');
+        return;
+      case '/soundstop':
+        await this.handleSoundStopCommand(chatId);
         return;
       case '/notify':
         await this.handleNotifyCommand(chatId, args);
@@ -2761,5 +2772,43 @@ export class TelegramBot {
       clearTimeout(timer);
       this.stopController.signal.removeEventListener('abort', onStop);
     }
+  }
+
+  private async handleSoundCommand(
+    chatId: number,
+    query: string,
+    target: 'sfx' | 'music',
+  ): Promise<void> {
+    const control = this.options.control;
+    if (!control?.soundboardPlay) {
+      await this.sendMessage(chatId, '⚠️ Soundboard ist nicht verfügbar.');
+      return;
+    }
+    if (!query) {
+      await this.sendMessage(
+        chatId,
+        `Nutze <code>/${target === 'music' ? 'music' : 'sound'} &lt;name|id&gt;</code>.`,
+      );
+      return;
+    }
+    try {
+      const played = await control.soundboardPlay(query, target);
+      await this.sendMessage(chatId, `🔊 Spiele <b>${escapeHtml(played.name)}</b>.`);
+    } catch (error) {
+      await this.sendMessage(
+        chatId,
+        `⚠️ ${escapeHtml(error instanceof Error ? error.message : String(error))}`,
+      );
+    }
+  }
+
+  private async handleSoundStopCommand(chatId: number): Promise<void> {
+    const control = this.options.control;
+    if (!control?.soundboardStop) {
+      await this.sendMessage(chatId, '⚠️ Soundboard ist nicht verfügbar.');
+      return;
+    }
+    await control.soundboardStop('all');
+    await this.sendMessage(chatId, '🔇 Soundboard gestoppt.');
   }
 }

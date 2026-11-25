@@ -73,6 +73,9 @@ import {
 } from './playlist-controller.js';
 import { probeMediaFile } from '../media/media-files.js';
 import type { SinkOverlayInput } from '../source/ffmpeg.js';
+import { SoundboardStore } from '../soundboard/store.js';
+import { SoundboardEngine } from '../soundboard/engine.js';
+import type { SoundboardState } from '../soundboard/types.js';
 import { QueueController, QUEUE_PLAYLIST_ID, type QueuePlayback } from './queue-controller.js';
 import type { QueueSnapshot } from '../events.js';
 import { SceneStore, type OverlayScene } from '../overlays/scene-store.js';
@@ -143,11 +146,28 @@ export class Supervisor {
   private readonly scenes: SceneStore;
   private applyingScene = false;
   private lastDiskWarning: string | null = null;
+  private readonly soundboardStore: SoundboardStore;
+  private readonly soundboardEngine: SoundboardEngine;
 
   constructor(deps: SupervisorDeps) {
     this.deps = deps;
     this.settings = deps.settingsService.get();
     this.scenes = deps.scenes ?? new SceneStore(join(deps.config.paths.dataDir, 'scenes.json'));
+    this.soundboardStore = new SoundboardStore({
+      dataDir: deps.config.paths.dataDir,
+      ffmpegBin: deps.config.media.ffmpegBin,
+      ffprobeBin: deps.config.media.ffmpegBin.replace(/ffmpeg([^/]*)$/, 'ffprobe$1'),
+      logger: deps.logger,
+      cacheMb: this.settings.soundboard.cache_mb,
+    });
+    this.soundboardEngine = new SoundboardEngine({
+      store: this.soundboardStore,
+      settings: this.settings.soundboard,
+      logger: deps.logger,
+      onStateChange: (state) => {
+        this.deps.bus.emit({ type: 'soundboard', data: state });
+      },
+    });
     this.stateMachine = new SupervisorStateMachine('idle', deps.logger);
     this.queue = new QueueController({
       path: join(deps.config.paths.dataDir, 'queue.json'),
@@ -651,6 +671,9 @@ export class Supervisor {
       signature,
       overlayInput,
       logoInput,
+      soundboardInput: this.settings.soundboard.enabled
+        ? { fd: 5, ducking: this.settings.soundboard.ducking, duckDb: this.settings.soundboard.duck_db }
+        : undefined,
       delaySeconds,
       bufferedSeconds,
     });
@@ -702,7 +725,9 @@ export class Supervisor {
     this.sinkController.filters = [];
     this.sinkController.overlayInput = undefined;
     this.sinkController.logoInput = undefined;
+    this.sinkController.soundboardInput = undefined;
     this.sinkController.signature = '';
+    this.soundboardEngine.detach();
     this.startedAt = null;
     this.activeTitle = '';
     this.lastError = null;
@@ -1273,5 +1298,25 @@ export class Supervisor {
           }
         : undefined,
     });
+  }
+
+  attachSoundboard(stream: NodeJS.WritableStream | null): void {
+    if (stream && this.settings.soundboard.enabled) {
+      this.soundboardEngine.attach(stream);
+    } else {
+      this.soundboardEngine.detach();
+    }
+  }
+
+  detachSoundboard(): void {
+    this.soundboardEngine.detach();
+  }
+
+  get soundboard(): { store: SoundboardStore; engine: SoundboardEngine } {
+    return { store: this.soundboardStore, engine: this.soundboardEngine };
+  }
+
+  getSoundboardState(): SoundboardState {
+    return this.soundboardEngine.getState();
   }
 }

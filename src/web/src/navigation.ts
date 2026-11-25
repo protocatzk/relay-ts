@@ -88,6 +88,7 @@ export const SECTIONS: NavSection[] = [
       { label: 'Streamer', to: '/streamers' },
       { label: 'Playlists', to: '/playlists' },
       { label: 'Medien', to: '/media' },
+      { label: 'Soundboard', to: '/soundboard' },
       { label: 'Zeitplan', to: '/schedules' },
       { label: 'Automation', to: '/automations' },
     ],

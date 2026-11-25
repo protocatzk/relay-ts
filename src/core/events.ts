@@ -3,6 +3,7 @@ import type { LogEntry } from '../utils/logger.js';
 import type { DiscoveryResponse } from './source/discovery/types.js';
 import type { StreamerView } from './store/streamer-store.js';
 import type { EarningsSnapshot } from './earnings/monitor.js';
+import type { SoundboardState } from './soundboard/types.js';
 
 export type StreamState = 'idle' | 'starting' | 'live' | 'reconnecting' | 'paused' | 'stopping' | 'error';
 
@@ -179,7 +180,8 @@ export type SystemEvent =
   | { type: 'queue'; data: QueueSnapshot }
   | { type: 'playback'; data: PlaybackState }
   | { type: 'scene'; data: { active_scene_id: string | null; active_scene_name: string | null } }
-  | { type: 'discovery'; data: DiscoveryResponse };
+  | { type: 'discovery'; data: DiscoveryResponse }
+  | { type: 'soundboard'; data: SoundboardState };
 
 export class EventBus {
   private readonly subject = new Subject<SystemEvent>();

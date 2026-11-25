@@ -2268,6 +2268,271 @@
         }
       }
     },
+    "/api/soundboard": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Soundboard-Status und Sounds abrufen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/sounds": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Sound oder Musikbett hochladen",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/sounds/:id": {
+      "put": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Sound-Metadaten aktualisieren",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Sound löschen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/play/:id": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Sound oder Musikbett abspielen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/stop": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Soundboard-Wiedergabe stoppen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/music/next": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Nächsten Musiktitel starten",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/music/pause": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Musikbett pausieren oder fortsetzen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/music/loop": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Musik-Loop-Modus setzen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/soundboard/volume": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Soundboard-Pegel anpassen",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Nicht authentifiziert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/queue": {
       "get": {
         "tags": [
@@ -10877,6 +11142,65 @@
               }
             }
           },
+          "soundboard": {
+            "default": {
+              "enabled": false,
+              "ducking": true,
+              "duck_db": -12,
+              "master_gain_db": 0,
+              "sfx_gain_db": 0,
+              "music_gain_db": 0,
+              "max_concurrent": 4,
+              "cache_mb": 128
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "ducking": {
+                "default": true,
+                "type": "boolean"
+              },
+              "duck_db": {
+                "default": -12,
+                "type": "number",
+                "minimum": -30,
+                "maximum": -3
+              },
+              "master_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "sfx_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "music_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "max_concurrent": {
+                "default": 4,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16
+              },
+              "cache_mb": {
+                "default": 128,
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 1024
+              }
+            }
+          },
           "source": {
             "default": {
               "reencode": "on_reconnect"
@@ -12594,6 +12918,65 @@
                 "type": "integer",
                 "minimum": 2,
                 "maximum": 300
+              }
+            }
+          },
+          "soundboard": {
+            "default": {
+              "enabled": false,
+              "ducking": true,
+              "duck_db": -12,
+              "master_gain_db": 0,
+              "sfx_gain_db": 0,
+              "music_gain_db": 0,
+              "max_concurrent": 4,
+              "cache_mb": 128
+            },
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "default": false,
+                "type": "boolean"
+              },
+              "ducking": {
+                "default": true,
+                "type": "boolean"
+              },
+              "duck_db": {
+                "default": -12,
+                "type": "number",
+                "minimum": -30,
+                "maximum": -3
+              },
+              "master_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "sfx_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "music_gain_db": {
+                "default": 0,
+                "type": "number",
+                "minimum": -40,
+                "maximum": 12
+              },
+              "max_concurrent": {
+                "default": 4,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16
+              },
+              "cache_mb": {
+                "default": 128,
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 1024
               }
             }
           },

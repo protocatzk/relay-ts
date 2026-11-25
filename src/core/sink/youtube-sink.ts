@@ -7,6 +7,7 @@ import {
   youtubeUrls,
   type RelayEndpoint,
   type SinkOverlayInput,
+  type SinkSoundboardInput,
 } from '../source/ffmpeg.js';
 import { ManagedProcess } from '../../utils/process.js';
 import { FfmpegProgress } from '../../utils/ffmpeg-progress.js';
@@ -98,6 +99,7 @@ export class YouTubeSink {
     overlayFilters: string[] = [],
     overlayInput?: SinkOverlayInput,
     logoInput?: SinkOverlayInput,
+    soundboardInput?: SinkSoundboardInput,
   ): void {
     if (!key.trim()) throw new Error('YouTube-Stream-Key ist leer');
     if (this.process?.running) {
@@ -122,6 +124,7 @@ export class YouTubeSink {
       overlayFilters,
       overlayInput,
       logoInput,
+      soundboardInput,
     });
     // Validate URLs early (before spawning) and keep keys out of logs.
     youtubeUrls(this.options.media, key, effectiveYoutubeRtmpUrl(this.options.media, this.options.settings));
@@ -133,7 +136,8 @@ export class YouTubeSink {
       redact: this.options.redact,
       // Always reserve fd 3 (chat) and fd 4 (logo) so the overlay engines keep
       // stable pipe descriptors even when only one overlay is active.
-      extraPipes: overlayInput || logoInput ? 2 : 0,
+      // fd 5 is reserved for the soundboard PCM stream when enabled.
+      extraPipes: soundboardInput ? 3 : (overlayInput || logoInput ? 2 : 0),
       onLine: (line, stream) => {
         if (stream === 'stdout') {
           this.progress.push(line);
@@ -212,6 +216,10 @@ export class YouTubeSink {
 
   logoStream(): NodeJS.WritableStream | null {
     return this.process?.extraStream(4) ?? null;
+  }
+
+  soundboardStream(): NodeJS.WritableStream | null {
+    return this.process?.extraStream(5) ?? null;
   }
 
   stats(): {

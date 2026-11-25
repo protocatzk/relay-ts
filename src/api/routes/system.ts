@@ -495,6 +495,7 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
     send('streamers', ctx.supervisor.streamersView());
     send('earnings', ctx.supervisor.earningsStatus());
     send('queue', ctx.supervisor.buildQueueSnapshot());
+    send('soundboard', ctx.supervisor.getSoundboardState());
 
     sseClients.add(response);
     ensureSseSubscription();

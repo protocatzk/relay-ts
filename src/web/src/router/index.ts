@@ -46,6 +46,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Medien', section: 'inhalte' },
   },
   {
+    path: '/soundboard',
+    name: 'soundboard',
+    component: () => import('@/src/views/SoundboardView.vue'),
+    meta: { title: 'Soundboard', section: 'inhalte' },
+  },
+  {
     path: '/schedules',
     name: 'schedules',
     component: () => import('@/src/views/SchedulesView.vue'),

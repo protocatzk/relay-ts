@@ -26,6 +26,7 @@ import type { EarningsMonitor } from '../earnings/monitor.js';
 import type { SceneStore } from '../overlays/scene-store.js';
 import type { MediaPlaybackController } from './media-playback-controller.js';
 import type { RtmpIngestServer } from '../ingest/rtmp-server.js';
+import type { SoundboardEngine } from '../soundboard/engine.js';
 
 export interface SettingsDiff {
   videoEncoderChanged: boolean;
@@ -34,6 +35,7 @@ export interface SettingsDiff {
   earningsOverlayChanged: boolean;
   videoLayoutChanged: boolean;
   audioChanged: boolean;
+  soundboardPipeChanged: boolean;
   chatChanged: boolean;
   sinkTimeoutChanged: boolean;
   youtubeRtmpChanged: boolean;
@@ -65,6 +67,11 @@ export function diffSettings(previous: Settings, next: Settings): SettingsDiff {
   const videoLayoutChanged =
     JSON.stringify(previous.video.layout) !== JSON.stringify(next.video.layout);
   const audioChanged = JSON.stringify(previous.audio) !== JSON.stringify(next.audio);
+  const soundboardPipeChanged =
+    previous.soundboard.enabled !== next.soundboard.enabled ||
+    (next.soundboard.enabled &&
+      (previous.soundboard.ducking !== next.soundboard.ducking ||
+        previous.soundboard.duck_db !== next.soundboard.duck_db));
   const chatChanged = JSON.stringify(previous.chat) !== JSON.stringify(next.chat);
   const sinkTimeoutChanged =
     previous.sink.rw_timeout_seconds !== next.sink.rw_timeout_seconds;
@@ -77,6 +84,7 @@ export function diffSettings(previous: Settings, next: Settings): SettingsDiff {
     earningsOverlayChanged,
     videoLayoutChanged,
     audioChanged,
+    soundboardPipeChanged,
     chatChanged,
     sinkTimeoutChanged,
     youtubeRtmpChanged,
@@ -104,6 +112,7 @@ export interface SettingsApplyHost {
   scenes: SceneStore;
   media: MediaPlaybackController;
   rtmpIngest: RtmpIngestServer;
+  soundboardEngine?: SoundboardEngine;
   state: StreamState;
   activeStreamer: StreamerConfig | null;
   applyingScene: boolean;
@@ -146,6 +155,10 @@ export async function applySupervisorSettings(
   host.pauseController.updateSettings(next);
   host.earnings.updateSettings(next);
   host.rtmpIngest?.updateSettings(next.rtmp_ingest);
+  host.soundboardEngine?.updateSettings(next.soundboard);
+  host.sinkController.soundboardInput = next.soundboard.enabled
+    ? { fd: 5, ducking: next.soundboard.ducking, duckDb: next.soundboard.duck_db }
+    : undefined;
   if (next.webhooks.url) {
     host.deps.registerSecret?.(next.webhooks.url);
   }
@@ -194,6 +207,7 @@ export async function applySupervisorSettings(
 
   if (diff.videoLayoutChanged) needsSinkRestart = true;
   if (diff.audioChanged) needsSinkRestart = true;
+  if (diff.soundboardPipeChanged) needsSinkRestart = true;
   if (diff.sinkTimeoutChanged) needsSinkRestart = true;
   if (diff.youtubeRtmpChanged) needsSinkRestart = true;
   if ((diff.overlaysChanged || diff.videoLayoutChanged) && !host.applyingScene) {

@@ -78,6 +78,8 @@ export interface SupervisorWiringHost {
   transitionTo(next: StreamState, reason?: string): void;
   emitStatus(): void;
   emitAll(): void;
+  attachSoundboard?(stream: NodeJS.WritableStream | null): void;
+  detachSoundboard?(): void;
 }
 
 export interface SupervisorSubsystems {
@@ -213,12 +215,17 @@ export async function createSupervisorSubsystems(
       sourceSession.running ||
       (pauseControllerRef?.pauseRunning ?? false) ||
       (pauseControllerRef?.startupRunning ?? false),
-    onStarted: () =>
+    onStarted: () => {
       overlayRuntimeRef?.attachToSink(
         sinkController.overlayStream(),
         sinkController.logoStream(),
-      ),
-    onStopping: () => overlayRuntimeRef?.detachEngine(),
+      );
+      host.attachSoundboard?.(sinkController.soundboardStream());
+    },
+    onStopping: () => {
+      overlayRuntimeRef?.detachEngine();
+      host.detachSoundboard?.();
+    },
     onPrefillDone: () => host.emitAll(),
     youtube: () => host.deps.youtube,
   });

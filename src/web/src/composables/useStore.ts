@@ -9,6 +9,7 @@ import type {
   Playlist,
   PlaybackState,
   QueueSnapshot,
+  SoundboardState,
   StatusPayload,
   Streamer,
 } from '@/src/api/types';
@@ -28,6 +29,7 @@ export interface StoreState {
   queue: QueueSnapshot | null;
   playback: PlaybackState | null;
   discovery: DiscoveryResponse | null;
+  soundboard: SoundboardState | null;
   logs: LogEntry[];
   sseConnected: boolean;
   connectionMode: ConnectionMode;
@@ -52,6 +54,7 @@ export const store = reactive<StoreState>({
   queue: null,
   playback: null,
   discovery: null,
+  soundboard: null,
   logs: [],
   sseConnected: false,
   connectionMode: 'connecting',
@@ -190,6 +193,10 @@ export async function refreshPlayback(): Promise<void> {
   store.playback = markRaw(await api.playback.get());
 }
 
+export async function refreshSoundboard(): Promise<void> {
+  store.soundboard = markRaw(await api.soundboard.get());
+}
+
 /** Applies a queue snapshot returned by a mutation without an extra round-trip. */
 export function applyQueue(snapshot: QueueSnapshot): void {
   store.queue = markRaw(snapshot);
@@ -320,6 +327,17 @@ function connectEvents(): void {
     }
   });
 
+  source.addEventListener('soundboard', (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as SoundboardState;
+      if (payload && Array.isArray(payload.sounds)) {
+        store.soundboard = markRaw(payload);
+      }
+    } catch {
+      /* ignore malformed events */
+    }
+  });
+
   source.addEventListener('error', () => {
     store.sseConnected = false;
     store.connectionMode = 'offline';
@@ -347,6 +365,7 @@ export async function bootstrap(): Promise<void> {
     refreshEarnings(),
     refreshQueue(),
     refreshPlayback(),
+    refreshSoundboard(),
   ]);
   connectEvents();
 }
@@ -363,6 +382,7 @@ export function resetSession(): void {
   store.playlists = [];
   store.earnings = null;
   store.queue = null;
+  store.soundboard = null;
   store.logs = [];
   store.loading.status = false;
   store.loading.streamers = false;

@@ -208,6 +208,13 @@ Wichtige Pfade:
   sofort Medien statt Stille erhält.
 - Overlay-Änderungen am aktiven Stream bauen Sink/Chat-Engine bewusst neu auf.
   Das ist ein kurzer, kontrollierter Reconnect.
+- **Musik-Soundboard (#96):** `SoundboardEngine` mischt SFX-Pads und ein
+  Musikbett (48 kHz, Stereo, `s16le`, 20-ms-Frames mit Backpressure-Schutz)
+  über `fd 5` (`pipe:5`) direkt im YouTube-Sink (`amix` + optionales
+  `sidechaincompress`-Ducking + `alimiter`). Bei deaktiviertem Board bleibt der
+  Sink unverändert ohne zusätzliche Pipe; laufende Wiedergaben, Stopp und
+  Lautstärkeänderungen lösen keinen Sink-Neustart aus. Assets und Cache liegen
+  unter `data/sounds/` (`index.json` mit Modus `0600`).
 - Zuschauerzahl: Das Chat-Overlay startet den `WebcastLiveRoomClient`.
   `roomUser.total` ist der aktuelle Stand (`totalUser` ist kumuliert, `viewerCount`
   fehlt in tiktok-live-connector 2.5). Der Wert liegt als `status.chat.viewers`

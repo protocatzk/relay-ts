@@ -35,6 +35,7 @@ import { registerDiscoveryRoutes } from './routes/discovery.js';
 import { registerAutomationRoutes } from './routes/automations.js';
 import { registerMcpRoutes } from './routes/mcp.js';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
+import { registerSoundboardRoutes } from './routes/soundboard.js';
 
 /**
  * Scope an API key needs for read-only (GET) access. Control-plane surfaces
@@ -139,6 +140,13 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
         if (path.startsWith('/api/media') && !hasScope(authInfo.apiKey.scopes, 'manage:media')) {
           return forbidden(reply, 'Fehlender Scope: manage:media');
         }
+        if (
+          path.startsWith('/api/soundboard') &&
+          !hasScope(authInfo.apiKey.scopes, 'control:stream') &&
+          !hasScope(authInfo.apiKey.scopes, 'manage:media')
+        ) {
+          return forbidden(reply, 'Fehlender Scope: control:stream oder manage:media');
+        }
         // MCP-Tools führen Steueraktionen aus; für API-Keys nur mit Vollzugriff.
         if (path.startsWith('/api/mcp') && !hasScope(authInfo.apiKey.scopes, 'admin')) {
           return forbidden(reply, 'Fehlender Scope: admin');
@@ -229,6 +237,7 @@ export async function buildServer(ctx: ApiContext): Promise<FastifyInstance> {
   await registerAutomationRoutes(app, ctx);
   await registerMcpRoutes(app, ctx);
   await registerApiKeyRoutes(app, ctx);
+  await registerSoundboardRoutes(app, ctx);
   await registerOpenApiRoutes(app);
 
   const webRoot = ctx.config.paths.webDir;

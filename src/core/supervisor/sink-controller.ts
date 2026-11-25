@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 import type { Settings } from '../config/schema.js';
-import type { SinkOverlayInput } from '../source/ffmpeg.js';
+import type { SinkOverlayInput, SinkSoundboardInput } from '../source/ffmpeg.js';
 import type { YouTubeSink } from '../sink/youtube-sink.js';
 import { AsyncLock } from '../../utils/process.js';
 import { toErrorMessage } from '../../utils/errors.js';
@@ -29,6 +29,7 @@ export interface SinkStartOptions {
   signature: string;
   overlayInput?: SinkOverlayInput;
   logoInput?: SinkOverlayInput;
+  soundboardInput?: SinkSoundboardInput;
   delaySeconds: number;
   bufferedSeconds: number;
 }
@@ -50,6 +51,7 @@ export class SinkController {
   private currentFilters: string[] = [];
   private currentOverlayInput?: SinkOverlayInput;
   private currentLogoInput?: SinkOverlayInput;
+  private currentSoundboardInput?: SinkSoundboardInput;
   private currentSignature = '';
   private delaySeconds = 0;
   private startTimer?: NodeJS.Timeout;
@@ -153,12 +155,25 @@ export class SinkController {
     return this.sink.logoStream();
   }
 
+  soundboardStream(): NodeJS.WritableStream | null {
+    return this.sink.soundboardStream();
+  }
+
+  set soundboardInput(value: SinkSoundboardInput | undefined) {
+    this.currentSoundboardInput = value;
+  }
+
+  get soundboardInput(): SinkSoundboardInput | undefined {
+    return this.currentSoundboardInput;
+  }
+
   startOrPrefill(options: SinkStartOptions): void {
     this.currentKey = options.key;
     this.currentFilters = options.filters;
     this.currentSignature = options.signature;
     this.currentOverlayInput = options.overlayInput;
     this.currentLogoInput = options.logoInput;
+    this.currentSoundboardInput = options.soundboardInput;
     this.delaySeconds = options.delaySeconds;
     const remaining = Math.max(0, options.delaySeconds - options.bufferedSeconds);
     if (remaining <= 0) {
@@ -269,9 +284,17 @@ export class SinkController {
     const key = this.currentKey;
     const delay = this.settings.delay_buffer.enabled ? this.settings.delay_buffer.size : 0;
     this.sinkGraceUntil = Date.now() + (delay + 5) * 1000;
-    this.sink.start(key, this.currentFilters, this.currentOverlayInput, this.currentLogoInput);
+    this.sink.start(
+      key,
+      this.currentFilters,
+      this.currentOverlayInput,
+      this.currentLogoInput,
+      this.currentSoundboardInput,
+    );
     this.scheduleYouTubeStarted(key);
-    if (this.currentOverlayInput || this.currentLogoInput) this.onStarted();
+    if (this.currentOverlayInput || this.currentLogoInput || this.currentSoundboardInput) {
+      this.onStarted();
+    }
   }
 
   private scheduleYouTubeStarted(key: string): void {

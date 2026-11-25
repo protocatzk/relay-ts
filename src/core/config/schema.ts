@@ -464,11 +464,23 @@ export const SinkSettingsSchema = z.object({
   rw_timeout_seconds: z.number().int().min(5).max(300).default(15),
 });
 
+export const SoundboardSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  ducking: z.boolean().default(true),
+  duck_db: z.number().min(-30).max(-3).default(-12),
+  master_gain_db: z.number().min(-40).max(12).default(0),
+  sfx_gain_db: z.number().min(-40).max(12).default(0),
+  music_gain_db: z.number().min(-40).max(12).default(0),
+  max_concurrent: z.number().int().min(1).max(16).default(4),
+  cache_mb: z.number().int().min(16).max(1024).default(128),
+});
+
 export const SettingsSchema = z.object({
   delay_buffer: DelayBufferSettingsSchema.default(DelayBufferSettingsSchema.parse({})),
   video: VideoSettingsSchema.default(VideoSettingsSchema.parse({})),
   sink: SinkSettingsSchema.default(SinkSettingsSchema.parse({})),
   audio: AudioSettingsSchema.default(AudioSettingsSchema.parse({})),
+  soundboard: SoundboardSettingsSchema.default(SoundboardSettingsSchema.parse({})),
   source: SourceSettingsSchema.default(SourceSettingsSchema.parse({})),
   watchdog: WatchdogSettingsSchema.default(WatchdogSettingsSchema.parse({})),
   auto_refresh: AutoRefreshSettingsSchema.default(AutoRefreshSettingsSchema.parse({})),
@@ -498,6 +510,7 @@ export const StreamersFileSchema = z
   .passthrough();
 
 export type StreamerConfig = z.infer<typeof StreamerSchema>;
+export type SoundboardSettings = z.infer<typeof SoundboardSettingsSchema>;
 export type PlaylistConfig = z.infer<typeof PlaylistSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type SinkSettings = z.infer<typeof SinkSettingsSchema>;

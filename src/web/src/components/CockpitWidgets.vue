@@ -10,6 +10,8 @@ import Sparkline from '@/src/components/Sparkline.vue';
 import { useDiscoveryFeed } from '@/src/composables/useDiscoveryFeed';
 import { openDiscoveryPanel } from '@/src/composables/useDiscoveryPanel';
 import { useTelemetry } from '@/src/composables/useTelemetry';
+import { store } from '@/src/composables/useStore';
+import { api } from '@/src/api/client';
 import { formatBitrate, formatFps, formatNumber } from '@/src/utils/format';
 import type { ChatAnalyticsSnapshot, EarningsSnapshot, StatusPayload } from '@/src/api/types';
 
@@ -54,6 +56,7 @@ const sinkTone = computed(() => {
   if (sink.last_error || (sink.dts_errors ?? 0) > 0 || sink.silence_active) return 'warning';
   return 'ok';
 });
+const soundboardPads = computed(() => (store.soundboard?.sounds ?? []).filter((s) => s.kind === 'sfx').slice(0, 4));
 </script>
 
 <template>
@@ -160,6 +163,26 @@ const sinkTone = computed(() => {
         Peak {{ formatNumber(analytics.peak_per_minute) }} / min ·
         {{ formatNumber(analytics.unique_chatters) }} Chatter
       </p>
+    </section>
+
+    <section v-if="soundboardPads.length > 0" class="card widget-card" aria-label="Soundboard">
+      <div class="widget-head">
+        <span class="widget-label">Soundboard</span>
+        <button type="button" class="widget-toggle" @click="api.soundboard.stop('all')">
+          Stopp
+        </button>
+      </div>
+      <div class="widget-list">
+        <button
+          v-for="pad in soundboardPads"
+          :key="pad.id"
+          type="button"
+          class="widget-hit"
+          @click="api.soundboard.play(pad.id)"
+        >
+          {{ pad.name }}
+        </button>
+      </div>
     </section>
 
   </div>

@@ -525,6 +525,47 @@ onBeforeUnmount(() => {
       <p v-else class="empty compact">Kein Streamer ist gerade live.</p>
     </section>
 
+    <section
+      v-if="(store.soundboard?.sounds?.length ?? 0) > 0"
+      class="deck-section"
+      aria-labelledby="deck-soundboard-title"
+    >
+      <div class="deck-section-head">
+        <h2 id="deck-soundboard-title">Soundboard</h2>
+        <div class="deck-inline-actions">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="busy !== null"
+            @click="run('sb:next', () => api.soundboard.nextMusic(), 'Nächster Musiktitel.')"
+          >
+            Musik weiter
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger btn-sm"
+            :disabled="busy !== null"
+            @click="run('sb:stop', () => api.soundboard.stop('all'), 'Soundboard gestoppt.')"
+          >
+            Stopp
+          </button>
+        </div>
+      </div>
+      <div class="deck-streamers">
+        <button
+          v-for="sound in (store.soundboard?.sounds ?? []).slice(0, 12)"
+          :key="sound.id"
+          type="button"
+          class="deck-streamer"
+          :disabled="busy !== null"
+          @click="run(`sb:${sound.id}`, () => api.soundboard.play(sound.id), `Spiele ${sound.name}.`)"
+        >
+          <span class="deck-streamer-name">{{ sound.name }}</span>
+          <span class="deck-streamer-action">{{ sound.kind === 'music' ? 'Musik' : 'SFX' }}</span>
+        </button>
+      </div>
+    </section>
+
     <section v-if="scenes.length > 0" class="deck-section" aria-labelledby="deck-scenes-title">
       <div class="deck-section-head">
         <h2 id="deck-scenes-title">Szenen</h2>

@@ -398,6 +398,17 @@ async function main(): Promise<void> {
             }));
           },
           activateScene: (id) => auditTelegram('scene.activate', id, () => supervisor.activateScene(id)),
+          soundboardPlay: (query, target) =>
+            auditTelegram('soundboard.play', query, async () => {
+              const entry = supervisor.soundboard.store.findByNameOrId(query);
+              if (!entry) throw new Error(`Sound „${query}“ nicht gefunden`);
+              return supervisor.soundboard.engine.play(entry.id, { target });
+            }),
+          soundboardStop: (scope = 'all') =>
+            auditTelegram('soundboard.stop', scope, async () => {
+              supervisor.soundboard.engine.stop(scope);
+              return { ok: true };
+            }),
           addMarker: (label) => supervisor.addRecordingMarker({ label, source: 'telegram' }),
           previewFrame: async () => supervisor.overlayPreviewPng(false),
           queue: () => supervisor.buildQueueSnapshot(),

@@ -233,6 +233,8 @@ export interface TelegramControl {
   queueSeek?(seconds: number): Promise<unknown>;
   queuePlayNow?(channel: string): Promise<unknown>;
   clip?(filename: string, start: number, end: number, label: string): Promise<unknown>;
+  soundboardPlay?(query: string, target?: 'sfx' | 'music'): Promise<{ name: string }>;
+  soundboardStop?(scope?: 'all' | 'sfx' | 'music'): Promise<unknown>;
 }
 
 export interface TelegramBotOptions {

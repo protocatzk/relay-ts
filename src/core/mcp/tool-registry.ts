@@ -283,5 +283,42 @@ export function createDefaultAgentToolRegistry(): AgentToolRegistry {
     },
   });
 
+  // 17. relay_soundboard_state
+  registry.register({
+    name: 'relay_soundboard_state',
+    description: 'Liefert den aktuellen Status und alle Sounds des Soundboards.',
+    schema: z.object({}),
+    execute: async (_args, ctx) => ctx.supervisor.getSoundboardState(),
+  });
+
+  // 18. relay_soundboard_play
+  registry.register({
+    name: 'relay_soundboard_play',
+    description: 'Spielt einen SFX-Sound oder ein Musikbett aus dem Soundboard ab.',
+    schema: z.object({
+      id_or_name: z.string().describe('Sound-ID oder Name'),
+      target: z.enum(['sfx', 'music']).optional().describe('Optional: als SFX oder Musikbett abspielen'),
+    }),
+    execute: async ({ id_or_name, target }, ctx) => {
+      const entry = ctx.supervisor.soundboard.store.findByNameOrId(id_or_name);
+      if (!entry) throw new Error(`Sound "${id_or_name}" nicht gefunden`);
+      const played = await ctx.supervisor.soundboard.engine.play(entry.id, { target });
+      return { ok: true, sound: played, state: ctx.supervisor.getSoundboardState() };
+    },
+  });
+
+  // 19. relay_soundboard_stop
+  registry.register({
+    name: 'relay_soundboard_stop',
+    description: 'Stoppt laufende Soundboard-Wiedergaben (SFX, Musik oder alles).',
+    schema: z.object({
+      scope: z.enum(['all', 'sfx', 'music']).default('all').describe('Was gestoppt werden soll'),
+    }),
+    execute: async ({ scope }, ctx) => {
+      ctx.supervisor.soundboard.engine.stop(scope);
+      return { ok: true, state: ctx.supervisor.getSoundboardState() };
+    },
+  });
+
   return registry;
 }

@@ -575,6 +575,18 @@ const routes: RouteDoc[] = [
     response: ref('StatusEnvelope'),
   },
 
+  // Soundboard
+  { method: 'get', path: '/api/soundboard', tag: 'soundboard', summary: 'Soundboard-Status und Sounds abrufen' },
+  { method: 'post', path: '/api/soundboard/sounds', tag: 'soundboard', summary: 'Sound oder Musikbett hochladen', status: 201 },
+  { method: 'put', path: '/api/soundboard/sounds/:id', tag: 'soundboard', summary: 'Sound-Metadaten aktualisieren' },
+  { method: 'delete', path: '/api/soundboard/sounds/:id', tag: 'soundboard', summary: 'Sound löschen' },
+  { method: 'post', path: '/api/soundboard/play/:id', tag: 'soundboard', summary: 'Sound oder Musikbett abspielen' },
+  { method: 'post', path: '/api/soundboard/stop', tag: 'soundboard', summary: 'Soundboard-Wiedergabe stoppen' },
+  { method: 'post', path: '/api/soundboard/music/next', tag: 'soundboard', summary: 'Nächsten Musiktitel starten' },
+  { method: 'post', path: '/api/soundboard/music/pause', tag: 'soundboard', summary: 'Musikbett pausieren oder fortsetzen' },
+  { method: 'post', path: '/api/soundboard/music/loop', tag: 'soundboard', summary: 'Musik-Loop-Modus setzen' },
+  { method: 'post', path: '/api/soundboard/volume', tag: 'soundboard', summary: 'Soundboard-Pegel anpassen' },
+
   // Regie-Queue
   { method: 'get', path: '/api/queue', tag: 'queue', summary: 'Regie-Queue abrufen', response: ref('Queue') },
   {
