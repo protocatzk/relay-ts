@@ -607,6 +607,7 @@ export interface ScheduleRuleInput {
 
 export interface WatchdogSettings {
   stall_timeout: number;
+  disconnect_stall_seconds?: number;
   min_bitrate: number;
   min_source_rate_percent: number;
   interval: number;
@@ -624,6 +625,8 @@ export interface PauseSettings {
   subtext: string;
   max_minutes: number;
   grace_seconds: number;
+  disconnect_asset?: string;
+  disconnect_max_minutes?: number;
   color: string;
   background: string;
   font: string;

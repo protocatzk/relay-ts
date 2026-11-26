@@ -403,6 +403,8 @@ export async function createSupervisorSubsystems(
       host.lastError = err;
     },
     scheduleReconnect: (delayMs) => host.scheduleReconnect(delayMs),
+    canStartOfflinePause: () => host.canStartOfflinePauseLocked(),
+    startOfflinePauseNow: () => host.startPauseLocked(),
     emitAll: () => host.emitAll(),
   });
   sinkWatchdogRef = sinkWatchdog;

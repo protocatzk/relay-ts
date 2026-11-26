@@ -27,6 +27,8 @@ export interface SinkWatchdogDeps {
   isShuttingDown: () => boolean;
   setLastError: (err: string | null) => void;
   scheduleReconnect: (delayMs?: number) => void;
+  canStartOfflinePause?: () => boolean;
+  startOfflinePauseNow?: () => Promise<void>;
   emitAll: () => void;
 }
 
@@ -108,7 +110,10 @@ export class SinkWatchdogCoordinator {
       if (this.deps.playlistController.isAdvancePending) return;
       const last = this.deps.relay.lastData;
       const settings = this.deps.getSettings();
-      if (last && Date.now() - last.getTime() < settings.watchdog.stall_timeout * 1000) {
+      const stallMs = settings.watchdog.stall_timeout * 1000;
+      const disconnectMs = (settings.watchdog.disconnect_stall_seconds ?? 4) * 1000;
+      const effectiveMs = disconnectMs > 0 ? Math.min(stallMs, disconnectMs) : stallMs;
+      if (last && Date.now() - last.getTime() < effectiveMs) {
         return;
       }
       this.deps.setLastError(`Quelle liefert seit ${ageSeconds}s keine Daten`);
@@ -118,7 +123,17 @@ export class SinkWatchdogCoordinator {
         this.deps.pauseController.markDisconnectProtection(true);
       }
       await this.deps.sourceSession.stop();
-      this.deps.pauseController.scheduleOfflinePause();
+      if (
+        this.deps.pauseController.isDisconnectProtectionActive &&
+        settings.pause.enabled &&
+        this.deps.startOfflinePauseNow &&
+        this.deps.canStartOfflinePause?.()
+      ) {
+        await this.deps.startOfflinePauseNow();
+        this.deps.emitAll();
+      } else {
+        this.deps.pauseController.scheduleOfflinePause();
+      }
       this.deps.scheduleReconnect(1000);
     });
   }

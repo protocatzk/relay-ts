@@ -107,6 +107,11 @@ export async function registerSystemRoutes(app: FastifyInstance, ctx: ApiContext
         catching_up: status.relay.catching_up,
         pacing_multiplier: status.relay.pacing_multiplier,
       },
+      disconnect_protection: status.disconnect_protection ?? {
+        active: false,
+        events: 0,
+        started_at: null,
+      },
       sink: {
         running: status.sink.running,
         bitrate_kbps: status.sink.bitrate_kbps,

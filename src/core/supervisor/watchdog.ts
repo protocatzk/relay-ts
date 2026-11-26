@@ -148,13 +148,28 @@ export class Watchdog {
         this.lowBitrateCount = 0;
       }
 
-      if (relayAge !== null && relayAge >= timeoutMs && now - this.lastRelayTrigger >= timeoutMs) {
-        this.lastRelayTrigger = now;
-        this.stallCount += 1;
-        this.lastStallAt = new Date();
-        this.lastError = `Seit ${Math.round(relayAge / 1000)}s keine Daten von der Quelle`;
-        this.options.logger.warn({ ageSeconds: Math.round(relayAge / 1000) }, 'Watchdog: Quellen-Stall erkannt');
-        this.options.onRelayStall(Math.round(relayAge / 1000));
+      if (relayAge !== null) {
+        const disconnectMs = (this.options.settings.watchdog.disconnect_stall_seconds ?? 4) * 1000;
+        const sourceWarm =
+          !snapshot.sourceStartedAt || now - snapshot.sourceStartedAt.getTime() >= disconnectMs;
+        const effectiveRelayTimeoutMs =
+          snapshot.state === 'live' && snapshot.sourceRunning && disconnectMs > 0 && sourceWarm
+            ? Math.min(timeoutMs, disconnectMs)
+            : timeoutMs;
+        if (
+          relayAge >= effectiveRelayTimeoutMs &&
+          now - this.lastRelayTrigger >= effectiveRelayTimeoutMs
+        ) {
+          this.lastRelayTrigger = now;
+          this.stallCount += 1;
+          this.lastStallAt = new Date();
+          this.lastError = `Seit ${Math.round(relayAge / 1000)}s keine Daten von der Quelle`;
+          this.options.logger.warn(
+            { ageSeconds: Math.round(relayAge / 1000) },
+            'Watchdog: Quellen-Stall erkannt',
+          );
+          this.options.onRelayStall(Math.round(relayAge / 1000));
+        }
       }
     }
 

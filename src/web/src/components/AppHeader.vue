@@ -115,6 +115,14 @@ onBeforeUnmount(() => {
     <!-- Live Stream Control -->
     <div class="header-status" aria-label="Systemstatus">
       <LiveMenu />
+      <span
+        v-if="store.status?.disconnect_protection?.active"
+        class="badge tone-warning desktop-only-inline"
+        role="status"
+        title="Verbindungsabbruch erkannt – Pausen-/Endlosbild hält den YouTube-Stream aktiv"
+      >
+        Disconnect Protection aktiv
+      </span>
       <div class="desktop-only-inline">
         <TikTokAccountSwitcher ref="accountSwitcherRef" />
       </div>

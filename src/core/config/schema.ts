@@ -274,6 +274,7 @@ export const VideoSettingsSchema = z.object({
 
 export const WatchdogSettingsSchema = z.object({
   stall_timeout: z.number().int().min(5).max(600).default(30),
+  disconnect_stall_seconds: z.number().int().min(0).max(60).default(4),
   min_bitrate: z.number().int().min(0).max(100_000).default(500),
   min_source_rate_percent: z.number().int().min(0).max(200).default(85),
   interval: z.number().int().min(1).max(60).default(5),

@@ -11233,6 +11233,7 @@
           "watchdog": {
             "default": {
               "stall_timeout": 30,
+              "disconnect_stall_seconds": 4,
               "min_bitrate": 500,
               "min_source_rate_percent": 85,
               "interval": 5,
@@ -11246,6 +11247,12 @@
                 "type": "integer",
                 "minimum": 5,
                 "maximum": 600
+              },
+              "disconnect_stall_seconds": {
+                "default": 4,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60
               },
               "min_bitrate": {
                 "default": 500,
@@ -12918,6 +12925,7 @@
           "watchdog": {
             "default": {
               "stall_timeout": 30,
+              "disconnect_stall_seconds": 4,
               "min_bitrate": 500,
               "min_source_rate_percent": 85,
               "interval": 5,
@@ -12931,6 +12939,12 @@
                 "type": "integer",
                 "minimum": 5,
                 "maximum": 600
+              },
+              "disconnect_stall_seconds": {
+                "default": 4,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 60
               },
               "min_bitrate": {
                 "default": 500,

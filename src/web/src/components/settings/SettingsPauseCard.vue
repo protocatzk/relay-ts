@@ -8,6 +8,8 @@ interface PauseModel {
   subtext: string;
   max_minutes: number;
   grace_seconds: number;
+  disconnect_max_minutes?: number;
+  disconnect_asset?: string;
   background: string;
   font: string;
   text_color: string;
@@ -210,6 +212,27 @@ defineEmits<{
             <option value="contain">Einpassen (contain, Ränder)</option>
             <option value="stretch">Strecken (exakt füllen)</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="pause-disconnect-max">Disconnect-Protection Max (Min., 0 = unbegrenzt)</label>
+          <input
+            id="pause-disconnect-max"
+            v-model.number="pause.disconnect_max_minutes"
+            type="number"
+            min="0"
+            max="1440"
+          />
+          <p class="field-hint">Maximale Überbrückungszeit bei plötzlichem Verbindungsabbruch.</p>
+        </div>
+        <div class="field">
+          <label for="pause-disconnect-asset">Disconnect-Slate (optional, leer = Standard-Slate)</label>
+          <input
+            id="pause-disconnect-asset"
+            v-model="pause.disconnect_asset"
+            type="text"
+            spellcheck="false"
+            placeholder="/app/data/pause/disconnect.png"
+          />
         </div>
       </div>
     </div>
