@@ -17,6 +17,7 @@ import type { SourceSession } from './source-session.js';
 import type { SinkController } from './sink-controller.js';
 import type { OutputFanout } from './output-fanout.js';
 import type { OverlayManager } from '../overlays/overlay-manager.js';
+import { isBroadcastCanvasMode } from '../overlays/canvas-utils.js';
 import type { OverlayRuntime } from './overlay-runtime.js';
 import type { PauseController } from './pause-controller.js';
 import type { Watchdog } from './watchdog.js';
@@ -183,26 +184,38 @@ export async function applySupervisorSettings(
   const overlayCarrier =
     host.activeStreamer ??
     (host.pauseController.manualScreen || host.media.isPlaying ? host.screenFallbackStreamer() : null);
+  const liveCanvasOnly =
+    isBroadcastCanvasMode(previous) &&
+    isBroadcastCanvasMode(next) &&
+    !diff.videoEncodeChanged &&
+    previous.overlays.chat.render_fps === next.overlays.chat.render_fps &&
+    JSON.stringify(previous.overlays.logo) === JSON.stringify(next.overlays.logo);
   let needsSinkRestart = false;
   if (diff.earningsOverlayChanged && overlayCarrier && !diff.overlaysChanged) {
-    const prepared = host.overlays.prepare();
-    host.sinkController.filters = prepared.filters;
-    host.sinkController.signature = host.overlayRuntime.signature(
-      prepared.filters,
-      host.activeStreamer ? host.overlayRuntime.engine : undefined,
-      host.overlayRuntime.logo,
-    );
-    needsSinkRestart = true;
+    if (!liveCanvasOnly) {
+      const prepared = host.overlays.prepare();
+      host.sinkController.filters = prepared.filters;
+      host.sinkController.signature = host.overlayRuntime.signature(
+        prepared.filters,
+        host.activeStreamer ? host.overlayRuntime.engine : undefined,
+        host.overlayRuntime.logo,
+      );
+      needsSinkRestart = true;
+    }
   }
 
   if (diff.overlaysChanged && overlayCarrier) {
-    const prepared = host.overlays.prepare();
-    host.sinkController.filters = prepared.filters;
-    host.rebuildChatEngineLocked();
-    if (host.state === 'live' && host.activeStreamer) {
+    if (!liveCanvasOnly) {
+      const prepared = host.overlays.prepare();
+      host.sinkController.filters = prepared.filters;
+      host.rebuildChatEngineLocked();
+      if (host.state === 'live' && host.activeStreamer) {
+        host.overlayRuntime.startChat(host.activeStreamer, { preserveMessages: true });
+      }
+      needsSinkRestart = true;
+    } else if (host.state === 'live' && host.activeStreamer) {
       host.overlayRuntime.startChat(host.activeStreamer, { preserveMessages: true });
     }
-    needsSinkRestart = true;
   }
 
   if (diff.videoLayoutChanged) needsSinkRestart = true;

@@ -63,6 +63,7 @@ interface DragState {
   baseX: number;
   baseY: number;
   baseSize: number;
+  baseWidth: number;
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -153,33 +154,49 @@ function onDragMove(event: PointerEvent): void {
     const [width, height] = resolutionSize();
     const rangeX = width - video.width;
     const rangeY = height - video.height;
+    let nextX =
+      Math.abs(rangeX) < 1
+        ? drag.baseX
+        : Math.round(clamp(drag.baseX + (dx * 100) / rangeX, 0, 100));
+    let nextY =
+      Math.abs(rangeY) < 1
+        ? drag.baseY
+        : Math.round(clamp(drag.baseY + (dy * 100) / rangeY, 0, 100));
+    if (showGuides.value) {
+      if (Math.abs(nextX - 50) <= 3) nextX = 50;
+      if (Math.abs(nextY - 50) <= 3) nextY = 50;
+    }
     emit('video-patch', {
-      position_x:
-        Math.abs(rangeX) < 1
-          ? drag.baseX
-          : Math.round(clamp(drag.baseX + (dx * 100) / rangeX, 0, 100)),
-      position_y:
-        Math.abs(rangeY) < 1
-          ? drag.baseY
-          : Math.round(clamp(drag.baseY + (dy * 100) / rangeY, 0, 100)),
+      position_x: nextX,
+      position_y: nextY,
     });
     return;
   }
 
   if (drag.mode === 'move') {
+    let nextX = Math.round(clamp(drag.baseX + dx, -1920, 1920));
+    let nextY = Math.round(clamp(drag.baseY + dy, -1080, 1080));
+    if (showGuides.value) {
+      if (Math.abs(nextX) <= 12) nextX = 0;
+      if (Math.abs(nextY) <= 12) nextY = 0;
+    }
     emit('overlay-patch', {
-      offset_x: Math.round(clamp(drag.baseX + dx, -1920, 1920)),
-      offset_y: Math.round(clamp(drag.baseY + dy, -1080, 1080)),
+      offset_x: nextX,
+      offset_y: nextY,
     });
     return;
   }
 
   const isLogo = props.section === 'logo';
-  emit('overlay-patch', {
+  const patch: Partial<OverlayGeometry> = {
     font_size: Math.round(
       clamp(drag.baseSize + dy * (isLogo ? 0.6 : 0.15), isLogo ? 32 : 8, isLogo ? 1024 : 96),
     ),
-  });
+  };
+  if (props.section === 'chat' && drag.baseWidth > 0 && Math.abs(dx) >= Math.abs(dy)) {
+    patch.width = Math.round(clamp(drag.baseWidth + dx, 180, 1200));
+  }
+  emit('overlay-patch', patch);
 }
 
 function endDrag(event: PointerEvent): void {
@@ -219,6 +236,7 @@ function startDrag(
     baseX,
     baseY,
     baseSize,
+    baseWidth: target === 'overlay' ? (props.geometry?.width ?? 0) : 0,
     canvasWidth: canvasWidth.value,
     canvasHeight: canvasHeight.value,
   };

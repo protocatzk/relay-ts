@@ -10,6 +10,7 @@ import {
   type ChatQueueInput,
 } from './chat-engine.js';
 import type { ChatMessage } from './chat-service.js';
+import { formatClockText, isBroadcastCanvasMode } from './canvas-utils.js';
 import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
 
 export type PreviewAspect = '9:16' | '16:9' | '1:1';
@@ -26,17 +27,6 @@ export interface StudioPreviewOptions {
   logoImage?: Image;
   maxDimension?: number;
   videoAspect?: PreviewAspect;
-}
-
-function clockText(format: string): string {
-  const now = new Date();
-  const values: Record<string, string> = {
-    '%H': String(now.getHours()).padStart(2, '0'),
-    '%M': String(now.getMinutes()).padStart(2, '0'),
-    '%S': String(now.getSeconds()).padStart(2, '0'),
-    '%%': '%',
-  };
-  return format.replace(/%(H|M|S|%)/g, (token) => values[`%${token.slice(1)}`] ?? token);
 }
 
 /** Splits overlay text into rendered lines, ignoring trailing blank lines. */
@@ -183,9 +173,10 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
   drawBackground(ctx, width, height);
   drawVideoArea(ctx, width, height, settings.video.layout, options.videoAspect ?? '9:16');
 
+  const unifiedCanvas = isBroadcastCanvasMode(settings);
   const clock = overlays.clock;
-  if (clock.enabled) {
-    drawBoxedText(ctx, clockText(clock.format), clock.position, {
+  if (!unifiedCanvas && clock.enabled) {
+    drawBoxedText(ctx, formatClockText(clock.format), clock.position, {
       width,
       height,
       fontSize: clock.font_size,
@@ -200,7 +191,7 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
   }
 
   const text = overlays.text;
-  if (text.enabled && text.text.trim()) {
+  if (!unifiedCanvas && text.enabled && text.text.trim()) {
     drawBoxedText(ctx, text.marquee ? `${text.text}     ${text.text}` : text.text, text.position, {
       width,
       height,
@@ -223,6 +214,9 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     }
     if (options.earningsCard !== undefined) {
       engine.setEarningsCard(options.earningsCard);
+    }
+    if (options.earningsText) {
+      engine.setEarningsText(options.earningsText);
     }
     if (options.queue !== undefined) {
       engine.setQueue(options.queue);
@@ -255,7 +249,7 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
     ctx.restore();
   }
 
-  if (settings.earnings.overlay_enabled && options.earningsText) {
+  if (!unifiedCanvas && settings.earnings.overlay_enabled && options.earningsText) {
     drawBoxedText(
       ctx,
       options.earningsText,
@@ -276,7 +270,7 @@ export function renderStudioPreview(options: StudioPreviewOptions): Buffer {
   }
 
   const version = overlays.version;
-  if (version?.enabled) {
+  if (!unifiedCanvas && version?.enabled) {
     drawBoxedText(
       ctx,
       formatVersionOverlayText(version, VERSION),

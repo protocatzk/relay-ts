@@ -270,4 +270,74 @@ describe('Canvas chat overlay', () => {
       'glass_minimal',
     );
   });
+
+  it('unifies clock, text, version and earnings into broadcast canvas and skips drawtext filters', async () => {
+    const { OverlayManager } = await import('../src/core/overlays/overlay-manager.js');
+    const unifiedSettings = {
+      ...settings,
+      video: { ...settings.video, resolution: '1280x720' as const },
+      earnings: { ...settings.earnings, overlay_enabled: true },
+      overlays: {
+        ...settings.overlays,
+        chat: {
+          ...settings.overlays.chat,
+          enabled: true,
+          engine: 'canvas' as const,
+          layout_mode: 'glass_minimal' as const,
+        },
+        clock: { ...settings.overlays.clock, enabled: true },
+        text: { ...settings.overlays.text, enabled: true, text: 'Live aus dem Studio' },
+        version: { ...settings.overlays.version, enabled: true },
+      },
+    };
+
+    const manager = new OverlayManager(
+      {
+        media: {
+          ffmpegBin: 'ffmpeg',
+          ytdlpBin: 'yt-dlp',
+          youtubeRtmpUrl: 'rtmp://a.rtmp.youtube.com/live2',
+          youtubeBackup: false,
+          tiktokSessionId: '',
+          tiktokTargetIdc: '',
+          ytdlpTimeoutSeconds: 20,
+          relayHost: '127.0.0.1',
+          relayPort: 9000,
+          ffmpegLogLevel: 'warning',
+          overlayFont: '',
+          pauseOnOffline: true,
+          sourceUserAgent: '',
+        },
+        overlaysDir: '/tmp/relay-test-overlays',
+        logger: pino({ level: 'silent' }),
+      },
+      unifiedSettings,
+    );
+    const prepared = manager.prepare();
+    expect(prepared.filters).toEqual([]);
+
+    const engine = new ChatOverlayEngine({
+      settings: unifiedSettings,
+      overlays: unifiedSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    engine.setEarningsText('Heute: 42,00 €');
+    const png = engine.previewPng(true);
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    // Live config switch to ultra_clean without recreating the engine
+    const ultraSettings = {
+      ...unifiedSettings,
+      overlays: {
+        ...unifiedSettings.overlays,
+        chat: { ...unifiedSettings.overlays.chat, layout_mode: 'ultra_clean' as const },
+      },
+    };
+    engine.updateConfig(ultraSettings, ultraSettings.overlays);
+    expect(engine.isDirty).toBe(true);
+    const ultraPng = engine.previewPng(true);
+    expect(ultraPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    engine.stop();
+  });
 });

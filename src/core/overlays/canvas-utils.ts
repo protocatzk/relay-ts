@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { GlobalFonts, type SKRSContext2D } from '@napi-rs/canvas';
+import type { Settings } from '../config/schema.js';
 import type { ChatMessage } from './chat-service.js';
 
 const REGULAR_FONTS = [
@@ -236,4 +237,24 @@ export function formatUptime(ms: number): string {
   const secs = totalSec % 60;
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+}
+
+export function formatClockText(format: string, now = new Date()): string {
+  const values: Record<string, string> = {
+    '%H': String(now.getHours()).padStart(2, '0'),
+    '%M': String(now.getMinutes()).padStart(2, '0'),
+    '%S': String(now.getSeconds()).padStart(2, '0'),
+    '%%': '%',
+  };
+  return format.replace(/%(H|M|S|%)/g, (token) => values[`%${token.slice(1)}`] ?? token);
+}
+
+/** True when the full-frame canvas compositor handles clock/text/version/earnings too. */
+export function isBroadcastCanvasMode(settings: Settings): boolean {
+  const chat = settings.overlays.chat;
+  return (
+    chat.enabled &&
+    chat.engine === 'canvas' &&
+    (chat.layout_mode === 'glass_minimal' || chat.layout_mode === 'ultra_clean')
+  );
 }

@@ -1,7 +1,9 @@
 import { createCanvas, type Canvas, type SKRSContext2D } from '@napi-rs/canvas';
 import type { Settings } from '../config/schema.js';
+import { VERSION } from '../../version.js';
 import type { ChatMessage } from './chat-service.js';
 import {
+  formatClockText,
   formatTime,
   formatUptime,
   nameColor,
@@ -11,6 +13,7 @@ import {
   roundedRect,
   wrapText,
 } from './canvas-utils.js';
+import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
 import type { ChatEarningsCard, ChatQueueInput, ChatStreamerInfo } from './chat-engine.js';
 import { buildQueueWindow } from './chat-engine.js';
 
@@ -23,10 +26,12 @@ export interface BroadcastLayerCache {
 
 export interface BroadcastRenderInput {
   mode: BroadcastMode;
+  settings: Settings;
   cfg: Settings['overlays']['chat'];
   messages: ChatMessage[];
   streamer: ChatStreamerInfo | null;
   earnings: ChatEarningsCard | null;
+  earningsText: string;
   queue: ChatQueueInput;
   sessionStartTime: number;
   isPreviewSample: boolean;
@@ -74,8 +79,18 @@ export function renderBroadcastOverlay(
   input: BroadcastRenderInput,
   cache: BroadcastLayerCache,
 ): void {
-  const { mode, cfg, messages, streamer, earnings, queue, sessionStartTime, isPreviewSample } =
-    input;
+  const {
+    mode,
+    settings,
+    cfg,
+    messages,
+    streamer,
+    earnings,
+    earningsText,
+    queue,
+    sessionStartTime,
+    isPreviewSample,
+  } = input;
   const isGlass = mode === 'glass_minimal';
   const font = overlayFontFamily();
   const opacity = Math.max(0.15, Math.min(1, cfg.bubble_opacity ?? 1));
@@ -393,4 +408,139 @@ export function renderBroadcastOverlay(
       ctx.restore();
     }
   }
+
+  // 5. Unified Clock, Text, Version & Standalone Earnings overlays (no drawtext needed)
+  const overlays = settings.overlays;
+  if (overlays.clock.enabled) {
+    drawPositionedOverlayText(ctx, formatClockText(overlays.clock.format), {
+      width,
+      height,
+      position: overlays.clock.position,
+      fontSize: overlays.clock.font_size,
+      fontColor: overlays.clock.font_color,
+      showBox: isGlass && overlays.clock.show_box,
+      opacity,
+      margin: overlays.clock.margin,
+      offsetX: overlays.clock.offset_x,
+      offsetY: overlays.clock.offset_y,
+      font,
+      textShadow,
+    });
+  }
+
+  if (overlays.text.enabled && overlays.text.text.trim()) {
+    drawPositionedOverlayText(ctx, overlays.text.text, {
+      width,
+      height,
+      position: overlays.text.position,
+      fontSize: overlays.text.font_size,
+      fontColor: overlays.text.font_color,
+      showBox: isGlass && overlays.text.show_box,
+      opacity,
+      margin: overlays.text.margin,
+      offsetX: overlays.text.offset_x,
+      offsetY: overlays.text.offset_y,
+      font,
+      textShadow,
+    });
+  }
+
+  if (overlays.version.enabled) {
+    const versionLabel = formatVersionOverlayText(overlays.version, VERSION);
+    if (versionLabel) {
+      drawPositionedOverlayText(ctx, versionLabel, {
+        width,
+        height,
+        position: overlays.version.position,
+        fontSize: overlays.version.font_size,
+        fontColor: overlays.version.font_color,
+        showBox: isGlass && overlays.version.show_box,
+        opacity,
+        margin: overlays.version.margin,
+        offsetX: overlays.version.offset_x,
+        offsetY: overlays.version.offset_y,
+        font,
+        textShadow,
+      });
+    }
+  }
+
+  if (settings.earnings.overlay_enabled && earningsText.trim()) {
+    drawPositionedOverlayText(ctx, earningsText, {
+      width,
+      height,
+      position: settings.earnings.overlay_position,
+      fontSize: settings.earnings.overlay_font_size,
+      fontColor: settings.earnings.overlay_font_color,
+      showBox: isGlass && settings.earnings.overlay_show_box,
+      opacity,
+      margin: settings.earnings.overlay_margin,
+      offsetX: settings.earnings.overlay_offset_x,
+      offsetY: settings.earnings.overlay_offset_y,
+      font,
+      textShadow,
+    });
+  }
+}
+
+function drawPositionedOverlayText(
+  ctx: SKRSContext2D,
+  rawText: string,
+  opts: {
+    width: number;
+    height: number;
+    position: OverlayPosition;
+    fontSize: number;
+    fontColor: string;
+    showBox: boolean;
+    opacity: number;
+    margin: number;
+    offsetX: number;
+    offsetY: number;
+    font: string;
+    textShadow: boolean;
+  },
+): void {
+  const lines = rawText.replace(/\r\n?/g, '\n').split('\n');
+  while (lines.length > 1 && lines[lines.length - 1]?.trim() === '') lines.pop();
+  if (lines.length === 0) return;
+
+  ctx.save();
+  ctx.font = `600 ${opts.fontSize}px ${opts.font}`;
+  ctx.textBaseline = 'top';
+  const availW = Math.max(40, opts.width - opts.margin * 2);
+  const lineH = Math.round(opts.fontSize * 1.32);
+  const widths = lines.map((line) => Math.min(availW, ctx.measureText(line).width));
+  const blockW = Math.max(0, ...widths);
+  const blockH = lineH * lines.length;
+  const isRight = opts.position.endsWith('right');
+  const isTop = opts.position.startsWith('top');
+  const x =
+    (isRight ? Math.max(opts.margin, opts.width - blockW - opts.margin) : opts.margin) +
+    opts.offsetX;
+  const y =
+    (isTop ? opts.margin : Math.max(opts.margin, opts.height - blockH - opts.margin)) +
+    opts.offsetY;
+
+  if (opts.showBox) {
+    drawGlassBox(
+      ctx,
+      {
+        x: x - 12,
+        y: y - 6,
+        w: blockW + 24,
+        h: blockH + 10,
+        r: lines.length === 1 ? (blockH + 10) / 2 : 12,
+      },
+      opts.opacity,
+    );
+  }
+
+  applyTextShadow(ctx, opts.textShadow);
+  ctx.fillStyle = rgba(parseColor(opts.fontColor, { r: 255, g: 255, b: 255, a: 1 }));
+  lines.forEach((line, idx) => {
+    const lx = isRight ? x + (blockW - (widths[idx] ?? 0)) : x;
+    ctx.fillText(line, lx, y + idx * lineH, availW);
+  });
+  ctx.restore();
 }

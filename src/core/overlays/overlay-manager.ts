@@ -4,6 +4,7 @@ import type { MediaConfig } from '../config/loader.js';
 import type { Settings } from '../config/schema.js';
 import { ensureDir, writeFileAtomic } from '../../utils/fs.js';
 import { VERSION } from '../../version.js';
+import { isBroadcastCanvasMode } from './canvas-utils.js';
 import {
   chatFilter,
   clockFilter,
@@ -78,14 +79,16 @@ export class OverlayManager {
     );
 
     const filters: string[] = [];
-    const clock = clockFilter(this.settings, this.fontFile);
-    if (clock) filters.push(clock);
-    const text = textFilter(this.settings, this.fontFile, this.textFile);
-    if (text) filters.push(text);
-    const earnings = earningsFilter(this.settings, this.fontFile, this.earningsFile);
-    if (earnings) filters.push(earnings);
-    const version = versionFilter(this.settings, this.fontFile, this.versionFile);
-    if (version) filters.push(version);
+    if (!isBroadcastCanvasMode(this.settings)) {
+      const clock = clockFilter(this.settings, this.fontFile);
+      if (clock) filters.push(clock);
+      const text = textFilter(this.settings, this.fontFile, this.textFile);
+      if (text) filters.push(text);
+      const earnings = earningsFilter(this.settings, this.fontFile, this.earningsFile);
+      if (earnings) filters.push(earnings);
+      const version = versionFilter(this.settings, this.fontFile, this.versionFile);
+      if (version) filters.push(version);
+    }
     if (this.settings.overlays.chat.engine === 'drawtext') {
       const chat = chatFilter(this.settings, this.fontFile, this.chatFile);
       if (chat) filters.push(chat);

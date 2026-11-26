@@ -91,11 +91,23 @@ export class OverlayRuntime {
     if (chatChanged) {
       this.previewEngineDirty = true;
     }
+    this.chatEngine?.updateConfig(settings, settings.overlays);
     this.chatEngine?.setEarningsCard(this.currentEarningsCard());
+    this.chatEngine?.setEarningsText(this.earningsOverlayText());
   }
 
   updateEarnings(snapshot: EarningsSnapshot | null): void {
     this.chatEngine?.setEarningsCard(this.buildEarningsCard(snapshot));
+    this.chatEngine?.setEarningsText(
+      snapshot
+        ? formatEarningsOverlay(
+            this.settings.earnings.overlay_template,
+            snapshot,
+            this.settings.earnings,
+            this.queue?.(),
+          )
+        : '',
+    );
   }
 
   get engine(): ChatOverlayEngine | undefined {
@@ -126,6 +138,7 @@ export class OverlayRuntime {
       logger: this.logger,
     });
     engine.setEarningsCard(this.currentEarningsCard());
+    engine.setEarningsText(this.earningsOverlayText());
     engine.setQueue(this.queueInput());
     if (this.currentStreamer) {
       engine.setStreamer({
@@ -366,6 +379,7 @@ export class OverlayRuntime {
   earningsOverlayText(): string {
     const snapshot = this.earnings.get();
     this.chatEngine?.setEarningsCard(this.buildEarningsCard(snapshot));
+    if (!snapshot) return '';
     return formatEarningsOverlay(
       this.settings.earnings.overlay_template,
       snapshot,

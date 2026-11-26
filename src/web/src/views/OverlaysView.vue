@@ -226,10 +226,14 @@ const stageBoxStyle = computed<Record<string, string>>((): Record<string, string
   if (logoConfig) {
     boxWidth = logoConfig.width;
   } else if (chatConfig) {
+    const isBroadcast =
+      chatConfig.layout_mode === 'glass_minimal' || chatConfig.layout_mode === 'ultra_clean';
     boxWidth =
       chatConfig.panel_width > 0
         ? chatConfig.panel_width
-        : Math.round(width * (width >= height ? 0.6 : 0.92));
+        : isBroadcast && width >= height
+          ? Math.max(200, Math.round((width - (height * 9) / 16) / 2 - 40))
+          : Math.round(width * (width >= height ? 0.6 : 0.92));
   } else if (earningsConfig) {
     boxWidth = Math.round(width * 0.45);
   } else {
@@ -302,6 +306,41 @@ function setGeometry(patch: Partial<OverlayGeometry>): void {
   if (patch.offset_x !== undefined) config.offset_x = patch.offset_x;
   if (patch.offset_y !== undefined) config.offset_y = patch.offset_y;
   if (patch.margin !== undefined && 'margin' in config) config.margin = patch.margin;
+  if (patch.width !== undefined && 'panel_width' in config) {
+    config.panel_width = patch.width;
+  }
+}
+
+function isBroadcastConfig(
+  overlays: StreamerOverlays | null | undefined,
+): boolean {
+  const c = overlays?.chat;
+  return Boolean(
+    c?.enabled &&
+      c.engine === 'canvas' &&
+      (c.layout_mode === 'glass_minimal' || c.layout_mode === 'ultra_clean'),
+  );
+}
+
+const isLiveCanvasSave = computed(() => {
+  if (!settingsBaseline.value || !draft.value || !settings.value) return false;
+  return (
+    isBroadcastConfig(settingsBaseline.value.overlays) &&
+    isBroadcastConfig(draft.value) &&
+    settingsBaseline.value.overlays.chat.render_fps === draft.value.chat.render_fps &&
+    JSON.stringify(settingsBaseline.value.overlays.logo) === JSON.stringify(draft.value.logo) &&
+    JSON.stringify(settingsBaseline.value.video.layout) ===
+      JSON.stringify(settings.value.video.layout)
+  );
+});
+
+function applyQuickMode(mode: 'glass_minimal' | 'ultra_clean' | 'standard'): void {
+  if (!draft.value) return;
+  draft.value.chat.enabled = true;
+  draft.value.chat.engine = 'canvas';
+  draft.value.chat.layout_mode = mode;
+  pushHistory();
+  schedulePreview(true);
 }
 
 function resetHistory(): void {
@@ -696,7 +735,13 @@ onBeforeUnmount(() => {
       <div class="page-actions studio-page-actions">
         <span class="badge tone-info">Global</span>
         <span v-if="dirty" class="badge tone-warning">Ungespeichert</span>
-        <span v-if="dirty" class="badge tone-info">Speichern: kurzer Sink-Neustart</span>
+        <span
+          v-if="dirty"
+          class="badge"
+          :class="isLiveCanvasSave ? 'tone-success' : 'tone-info'"
+        >
+          {{ isLiveCanvasSave ? 'Live ohne Sink-Neustart' : 'Speichern: kurzer Sink-Neustart' }}
+        </span>
         <button type="button" class="btn btn-ghost" :disabled="!dirty || saving" @click="resetDraft">
           Verwerfen
         </button>
@@ -730,6 +775,33 @@ onBeforeUnmount(() => {
                 {{ scene.name }}{{ scene.id === activeSceneId ? ' (aktiv)' : '' }}
               </option>
             </select>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center">
+            <span class="muted small">Design:</span>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="draft.chat.layout_mode === 'glass_minimal' ? 'btn-primary' : 'btn-ghost'"
+              @click="applyQuickMode('glass_minimal')"
+            >
+              Glass Minimal
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="draft.chat.layout_mode === 'ultra_clean' ? 'btn-primary' : 'btn-ghost'"
+              @click="applyQuickMode('ultra_clean')"
+            >
+              Ultra Clean
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="draft.chat.layout_mode === 'standard' ? 'btn-primary' : 'btn-ghost'"
+              @click="applyQuickMode('standard')"
+            >
+              Standard
+            </button>
           </div>
           <div style="display: flex; flex-wrap: wrap; gap: 6px">
             <button

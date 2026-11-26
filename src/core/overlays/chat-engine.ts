@@ -3,7 +3,9 @@ import type { Logger } from 'pino';
 import type { Settings } from '../config/schema.js';
 import type { ChatMessage } from './chat-service.js';
 import {
+  formatClockText,
   formatTime,
+  isBroadcastCanvasMode,
   nameColor,
   overlayFontFamily,
   parseColor,
@@ -158,7 +160,9 @@ export class ChatOverlayEngine {
   private messages: ChatMessage[] = [];
   private readonly firstSeenAt = new Map<string, number>();
   private earningsCard: ChatEarningsCard | null = null;
+  private earningsText = '';
   private lastEarningsCardKey = '';
+  private lastClockLabel = '';
   private streamerInfo: ChatStreamerInfo | null = null;
   private queue: ChatQueueInput = { labels: [], activeIndex: null };
   private lastQueueKey = '';
@@ -390,9 +394,31 @@ export class ChatOverlayEngine {
     this.dirty = true;
   }
 
+  setEarningsText(text: string): void {
+    if (text === this.earningsText) return;
+    this.earningsText = text;
+    this.dirty = true;
+  }
+
+  /** Updates overlay config live without restarting the sink pipe. */
+  updateConfig(settings: Settings, overlays: Settings['overlays']): void {
+    this.options.settings = settings;
+    this.options.overlays = overlays;
+    this.broadcastCache.key = '';
+    this.lastClockLabel = '';
+    this.dirty = true;
+  }
+
   private tick(): void {
     if (this.stopped || !this.stream || this.blocked) return;
     const now = Date.now();
+    if (isBroadcastCanvasMode(this.options.settings) && this.options.overlays.clock.enabled) {
+      const clockLabel = formatClockText(this.options.overlays.clock.format, new Date(now));
+      if (clockLabel !== this.lastClockLabel) {
+        this.lastClockLabel = clockLabel;
+        this.dirty = true;
+      }
+    }
     if (this.options.overlays.chat.max_age_seconds > 0 && this.messages.length > 0) {
       const filtered = this.filterByAge(this.messages, now);
       if (filtered.length !== this.messages.length) {
@@ -591,10 +617,12 @@ export class ChatOverlayEngine {
         height,
         {
           mode: cfg.layout_mode,
+          settings: this.options.settings,
           cfg,
           messages,
           streamer: this.streamerInfo,
           earnings: this.shouldRenderEarningsCard(isPreviewSample),
+          earningsText: this.earningsText,
           queue: this.queueFor(isPreviewSample),
           sessionStartTime: this.sessionStartTime,
           isPreviewSample,
