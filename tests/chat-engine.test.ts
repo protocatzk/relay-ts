@@ -164,8 +164,8 @@ describe('Canvas chat overlay', () => {
     engine.stop();
   });
 
-  it('renders pillar_monitor layout with full output spec, top banner and chat monitor (#68)', () => {
-    const pillarSettings = {
+  it('renders glass_minimal and ultra_clean broadcast layouts with layer caching', () => {
+    const glassSettings = {
       ...settings,
       video: {
         ...settings.video,
@@ -176,21 +176,22 @@ describe('Canvas chat overlay', () => {
         chat: {
           ...settings.overlays.chat,
           enabled: true,
-          layout_mode: 'pillar_monitor' as const,
+          layout_mode: 'glass_minimal' as const,
           top_banner_enabled: true,
           chat_monitor_enabled: true,
           banner_show_stats: true,
           banner_show_goal: true,
+          queue_enabled: true,
         },
       },
     };
     const engine = new ChatOverlayEngine({
-      settings: pillarSettings,
-      overlays: pillarSettings.overlays,
+      settings: glassSettings,
+      overlays: glassSettings.overlays,
       logger: pino({ level: 'silent' }),
     });
 
-    // In pillar_monitor, panel covers full resolution with x=0, y=0
+    // In broadcast modes, panel covers full resolution with x=0, y=0
     expect(engine.panel).toEqual({
       width: 1280,
       height: 720,
@@ -215,124 +216,58 @@ describe('Canvas chat overlay', () => {
       status: 'LIVE',
     });
 
-    const png = engine.previewPng(false);
-    expect(png.length).toBeGreaterThan(1000);
-    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
-
-    // Test custom panel_width, font_size, box_color and bubble_opacity
-    const customPillarSettings = {
-      ...pillarSettings,
-      overlays: {
-        ...pillarSettings.overlays,
-        chat: {
-          ...pillarSettings.overlays.chat,
-          panel_width: 360,
-          panel_height: 500,
-          font_size: 28,
-          max_lines: 6,
-          box_color: '#1e1b4b',
-          bubble_opacity: 0.9,
-          font_color: '#fef08a',
-          show_timestamps: true,
-          show_badges: true,
-          name_colors: true,
-        },
-      },
-    };
-    const customEngine = new ChatOverlayEngine({
-      settings: customPillarSettings,
-      overlays: customPillarSettings.overlays,
-      logger: pino({ level: 'silent' }),
-    });
-    customEngine.setMessages([
+    engine.setMessages([
       {
         id: 'msg-1',
         username: 'mod_user',
         displayName: 'ModUser',
-        text: 'Großer Text im Pillarbox-Chat',
+        text: 'Sehr cleaner Look im Broadcast-HUD',
         tier: 'mod',
         receivedAt: new Date(),
         timestamp: new Date(),
       },
     ]);
-    const customPng = customEngine.previewPng(false);
-    expect(customPng.length).toBeGreaterThan(1000);
-    expect(customPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
 
-    customEngine.stop();
+    const glassPng = engine.previewPng(true);
+    expect(glassPng.length).toBeGreaterThan(1000);
+    expect(glassPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    // Second render reuses cached glass background layer
+    const glassPng2 = engine.previewPng(false);
+    expect(glassPng2.length).toBeGreaterThan(1000);
+    expect(glassPng2.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
+    // Ultra Clean mode (no glass boxes, text shadows only)
+    const ultraCleanSettings = {
+      ...glassSettings,
+      overlays: {
+        ...glassSettings.overlays,
+        chat: {
+          ...glassSettings.overlays.chat,
+          layout_mode: 'ultra_clean' as const,
+        },
+      },
+    };
+    const ultraEngine = new ChatOverlayEngine({
+      settings: ultraCleanSettings,
+      overlays: ultraCleanSettings.overlays,
+      logger: pino({ level: 'silent' }),
+    });
+    const ultraPng = ultraEngine.previewPng(true);
+    expect(ultraPng.length).toBeGreaterThan(1000);
+    expect(ultraPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+
     engine.stop();
+    ultraEngine.stop();
   });
 
-  it('renders starship_cockpit layout in pillar_wings and fullscreen_16_9 styles with canopy caching', () => {
-    const starshipSettings = {
-      ...settings,
-      video: {
-        ...settings.video,
-        resolution: '1280x720' as const,
-      },
-      overlays: {
-        ...settings.overlays,
-        chat: {
-          ...settings.overlays.chat,
-          enabled: true,
-          layout_mode: 'starship_cockpit' as const,
-          starship_style: 'pillar_wings' as const,
-          starship_show_telemetry: true,
-          starship_show_comms: true,
-          starship_show_power_grid: true,
-        },
-      },
-    };
-    const engine = new ChatOverlayEngine({
-      settings: starshipSettings,
-      overlays: starshipSettings.overlays,
-      logger: pino({ level: 'silent' }),
-    });
-
-    expect(engine.panel).toEqual({
-      width: 1280,
-      height: 720,
-      x: 0,
-      y: 0,
-      fps: 10,
-    });
-
-    engine.setEarningsCard({
-      periodLabel: 'Heute',
-      currency: 'EUR',
-      net: 74.81,
-      gross: 149.62,
-      coins: 14250,
-      goalAmount: 100,
-      goalLabel: 'Missionsziel',
-    });
-
-    // 1. Pillar wings render
-    const wingsPng = engine.previewPng(true);
-    expect(wingsPng.length).toBeGreaterThan(1000);
-    expect(wingsPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
-
-    // 2. Fullscreen 16:9 render
-    const fullscreenSettings = {
-      ...starshipSettings,
-      overlays: {
-        ...starshipSettings.overlays,
-        chat: {
-          ...starshipSettings.overlays.chat,
-          starship_style: 'fullscreen_16_9' as const,
-        },
-      },
-    };
-    const fsEngine = new ChatOverlayEngine({
-      settings: fullscreenSettings,
-      overlays: fullscreenSettings.overlays,
-      logger: pino({ level: 'silent' }),
-    });
-    const fsPng = fsEngine.previewPng(true);
-    expect(fsPng.length).toBeGreaterThan(1000);
-    expect(fsPng.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
-
-    engine.stop();
-    fsEngine.stop();
+  it('migrates legacy pillar_monitor and starship_cockpit layout_mode to glass_minimal in schema', async () => {
+    const { ChatOverlaySchema } = await import('../src/core/config/schema.js');
+    expect(ChatOverlaySchema.parse({ layout_mode: 'pillar_monitor' }).layout_mode).toBe(
+      'glass_minimal',
+    );
+    expect(ChatOverlaySchema.parse({ layout_mode: 'starship_cockpit' }).layout_mode).toBe(
+      'glass_minimal',
+    );
   });
 });

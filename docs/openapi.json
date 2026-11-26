@@ -3381,53 +3381,6 @@
                     "type": "object",
                     "properties": {
                       "chat": {
-                        "default": {
-                          "enabled": false,
-                          "engine": "canvas",
-                          "position": "bottom-left",
-                          "style": "bubbles",
-                          "layout_mode": "standard",
-                          "top_banner_enabled": true,
-                          "chat_monitor_enabled": true,
-                          "banner_show_stats": true,
-                          "banner_show_goal": true,
-                          "starship_style": "auto",
-                          "starship_show_telemetry": true,
-                          "starship_show_comms": true,
-                          "starship_show_power_grid": true,
-                          "max_lines": 8,
-                          "max_messages": 30,
-                          "max_age_seconds": 0,
-                          "panel_height": 0,
-                          "font_size": 22,
-                          "font_color": "white",
-                          "box_color": "black@0.45",
-                          "bubble_opacity": 1,
-                          "panel_width": 0,
-                          "render_fps": 10,
-                          "show_timestamps": false,
-                          "show_badges": true,
-                          "show_tiers": true,
-                          "show_stats": false,
-                          "queue_enabled": false,
-                          "queue_max_entries": 5,
-                          "queue_font_size": 0,
-                          "queue_font_color": "white",
-                          "queue_active_color": "#00f0ff",
-                          "queue_box_color": "black@0.45",
-                          "queue_show_box": true,
-                          "queue_offset_x": 0,
-                          "queue_offset_y": 0,
-                          "show_earnings_card": false,
-                          "earnings_card_interval_seconds": 120,
-                          "name_colors": true,
-                          "offset_x": 0,
-                          "offset_y": 0,
-                          "api_url": "",
-                          "api_key": "",
-                          "poll_interval": 3,
-                          "delay": 0
-                        },
                         "type": "object",
                         "properties": {
                           "enabled": {
@@ -3466,8 +3419,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor",
-                              "starship_cockpit"
+                              "glass_minimal",
+                              "ultra_clean"
                             ]
                           },
                           "top_banner_enabled": {
@@ -3483,27 +3436,6 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_style": {
-                            "default": "auto",
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "pillar_wings",
-                              "fullscreen_16_9"
-                            ]
-                          },
-                          "starship_show_telemetry": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_comms": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -4811,53 +4743,6 @@
                     "type": "object",
                     "properties": {
                       "chat": {
-                        "default": {
-                          "enabled": false,
-                          "engine": "canvas",
-                          "position": "bottom-left",
-                          "style": "bubbles",
-                          "layout_mode": "standard",
-                          "top_banner_enabled": true,
-                          "chat_monitor_enabled": true,
-                          "banner_show_stats": true,
-                          "banner_show_goal": true,
-                          "starship_style": "auto",
-                          "starship_show_telemetry": true,
-                          "starship_show_comms": true,
-                          "starship_show_power_grid": true,
-                          "max_lines": 8,
-                          "max_messages": 30,
-                          "max_age_seconds": 0,
-                          "panel_height": 0,
-                          "font_size": 22,
-                          "font_color": "white",
-                          "box_color": "black@0.45",
-                          "bubble_opacity": 1,
-                          "panel_width": 0,
-                          "render_fps": 10,
-                          "show_timestamps": false,
-                          "show_badges": true,
-                          "show_tiers": true,
-                          "show_stats": false,
-                          "queue_enabled": false,
-                          "queue_max_entries": 5,
-                          "queue_font_size": 0,
-                          "queue_font_color": "white",
-                          "queue_active_color": "#00f0ff",
-                          "queue_box_color": "black@0.45",
-                          "queue_show_box": true,
-                          "queue_offset_x": 0,
-                          "queue_offset_y": 0,
-                          "show_earnings_card": false,
-                          "earnings_card_interval_seconds": 120,
-                          "name_colors": true,
-                          "offset_x": 0,
-                          "offset_y": 0,
-                          "api_url": "",
-                          "api_key": "",
-                          "poll_interval": 3,
-                          "delay": 0
-                        },
                         "type": "object",
                         "properties": {
                           "enabled": {
@@ -4896,8 +4781,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor",
-                              "starship_cockpit"
+                              "glass_minimal",
+                              "ultra_clean"
                             ]
                           },
                           "top_banner_enabled": {
@@ -4913,27 +4798,6 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_style": {
-                            "default": "auto",
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "pillar_wings",
-                              "fullscreen_16_9"
-                            ]
-                          },
-                          "starship_show_telemetry": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_comms": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -5509,53 +5373,6 @@
                     "type": "object",
                     "properties": {
                       "chat": {
-                        "default": {
-                          "enabled": false,
-                          "engine": "canvas",
-                          "position": "bottom-left",
-                          "style": "bubbles",
-                          "layout_mode": "standard",
-                          "top_banner_enabled": true,
-                          "chat_monitor_enabled": true,
-                          "banner_show_stats": true,
-                          "banner_show_goal": true,
-                          "starship_style": "auto",
-                          "starship_show_telemetry": true,
-                          "starship_show_comms": true,
-                          "starship_show_power_grid": true,
-                          "max_lines": 8,
-                          "max_messages": 30,
-                          "max_age_seconds": 0,
-                          "panel_height": 0,
-                          "font_size": 22,
-                          "font_color": "white",
-                          "box_color": "black@0.45",
-                          "bubble_opacity": 1,
-                          "panel_width": 0,
-                          "render_fps": 10,
-                          "show_timestamps": false,
-                          "show_badges": true,
-                          "show_tiers": true,
-                          "show_stats": false,
-                          "queue_enabled": false,
-                          "queue_max_entries": 5,
-                          "queue_font_size": 0,
-                          "queue_font_color": "white",
-                          "queue_active_color": "#00f0ff",
-                          "queue_box_color": "black@0.45",
-                          "queue_show_box": true,
-                          "queue_offset_x": 0,
-                          "queue_offset_y": 0,
-                          "show_earnings_card": false,
-                          "earnings_card_interval_seconds": 120,
-                          "name_colors": true,
-                          "offset_x": 0,
-                          "offset_y": 0,
-                          "api_url": "",
-                          "api_key": "",
-                          "poll_interval": 3,
-                          "delay": 0
-                        },
                         "type": "object",
                         "properties": {
                           "enabled": {
@@ -5594,8 +5411,8 @@
                             "type": "string",
                             "enum": [
                               "standard",
-                              "pillar_monitor",
-                              "starship_cockpit"
+                              "glass_minimal",
+                              "ultra_clean"
                             ]
                           },
                           "top_banner_enabled": {
@@ -5611,27 +5428,6 @@
                             "type": "boolean"
                           },
                           "banner_show_goal": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_style": {
-                            "default": "auto",
-                            "type": "string",
-                            "enum": [
-                              "auto",
-                              "pillar_wings",
-                              "fullscreen_16_9"
-                            ]
-                          },
-                          "starship_show_telemetry": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_comms": {
-                            "default": true,
-                            "type": "boolean"
-                          },
-                          "starship_show_power_grid": {
                             "default": true,
                             "type": "boolean"
                           },
@@ -11661,154 +11457,9 @@
             }
           },
           "overlays": {
-            "default": {
-              "chat": {
-                "enabled": false,
-                "engine": "canvas",
-                "position": "bottom-left",
-                "style": "bubbles",
-                "layout_mode": "standard",
-                "top_banner_enabled": true,
-                "chat_monitor_enabled": true,
-                "banner_show_stats": true,
-                "banner_show_goal": true,
-                "starship_style": "auto",
-                "starship_show_telemetry": true,
-                "starship_show_comms": true,
-                "starship_show_power_grid": true,
-                "max_lines": 8,
-                "max_messages": 30,
-                "max_age_seconds": 0,
-                "panel_height": 0,
-                "font_size": 22,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "bubble_opacity": 1,
-                "panel_width": 0,
-                "render_fps": 10,
-                "show_timestamps": false,
-                "show_badges": true,
-                "show_tiers": true,
-                "show_stats": false,
-                "queue_enabled": false,
-                "queue_max_entries": 5,
-                "queue_font_size": 0,
-                "queue_font_color": "white",
-                "queue_active_color": "#00f0ff",
-                "queue_box_color": "black@0.45",
-                "queue_show_box": true,
-                "queue_offset_x": 0,
-                "queue_offset_y": 0,
-                "show_earnings_card": false,
-                "earnings_card_interval_seconds": 120,
-                "name_colors": true,
-                "offset_x": 0,
-                "offset_y": 0,
-                "api_url": "",
-                "api_key": "",
-                "poll_interval": 3,
-                "delay": 0
-              },
-              "clock": {
-                "enabled": false,
-                "position": "top-right",
-                "format": "%H:%M:%S",
-                "font_size": 28,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "show_box": true,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "text": {
-                "enabled": false,
-                "position": "top-left",
-                "text": "",
-                "font_size": 28,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "marquee": false,
-                "speed": 120,
-                "show_box": true,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "logo": {
-                "enabled": false,
-                "position": "top-left",
-                "width": 160,
-                "opacity": 1,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "version": {
-                "enabled": false,
-                "position": "bottom-right",
-                "prefix": "RELAY v",
-                "show_update_hint": false,
-                "update_hint": "Update verfügbar",
-                "font_size": 16,
-                "font_color": "white@0.75",
-                "box_color": "black@0.35",
-                "show_box": true,
-                "margin": 24,
-                "offset_x": 0,
-                "offset_y": 0
-              }
-            },
             "type": "object",
             "properties": {
               "chat": {
-                "default": {
-                  "enabled": false,
-                  "engine": "canvas",
-                  "position": "bottom-left",
-                  "style": "bubbles",
-                  "layout_mode": "standard",
-                  "top_banner_enabled": true,
-                  "chat_monitor_enabled": true,
-                  "banner_show_stats": true,
-                  "banner_show_goal": true,
-                  "starship_style": "auto",
-                  "starship_show_telemetry": true,
-                  "starship_show_comms": true,
-                  "starship_show_power_grid": true,
-                  "max_lines": 8,
-                  "max_messages": 30,
-                  "max_age_seconds": 0,
-                  "panel_height": 0,
-                  "font_size": 22,
-                  "font_color": "white",
-                  "box_color": "black@0.45",
-                  "bubble_opacity": 1,
-                  "panel_width": 0,
-                  "render_fps": 10,
-                  "show_timestamps": false,
-                  "show_badges": true,
-                  "show_tiers": true,
-                  "show_stats": false,
-                  "queue_enabled": false,
-                  "queue_max_entries": 5,
-                  "queue_font_size": 0,
-                  "queue_font_color": "white",
-                  "queue_active_color": "#00f0ff",
-                  "queue_box_color": "black@0.45",
-                  "queue_show_box": true,
-                  "queue_offset_x": 0,
-                  "queue_offset_y": 0,
-                  "show_earnings_card": false,
-                  "earnings_card_interval_seconds": 120,
-                  "name_colors": true,
-                  "offset_x": 0,
-                  "offset_y": 0,
-                  "api_url": "",
-                  "api_key": "",
-                  "poll_interval": 3,
-                  "delay": 0
-                },
                 "type": "object",
                 "properties": {
                   "enabled": {
@@ -11847,8 +11498,8 @@
                     "type": "string",
                     "enum": [
                       "standard",
-                      "pillar_monitor",
-                      "starship_cockpit"
+                      "glass_minimal",
+                      "ultra_clean"
                     ]
                   },
                   "top_banner_enabled": {
@@ -11864,27 +11515,6 @@
                     "type": "boolean"
                   },
                   "banner_show_goal": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_style": {
-                    "default": "auto",
-                    "type": "string",
-                    "enum": [
-                      "auto",
-                      "pillar_wings",
-                      "fullscreen_16_9"
-                    ]
-                  },
-                  "starship_show_telemetry": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_show_comms": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_show_power_grid": {
                     "default": true,
                     "type": "boolean"
                   },
@@ -13440,154 +13070,9 @@
             }
           },
           "overlays": {
-            "default": {
-              "chat": {
-                "enabled": false,
-                "engine": "canvas",
-                "position": "bottom-left",
-                "style": "bubbles",
-                "layout_mode": "standard",
-                "top_banner_enabled": true,
-                "chat_monitor_enabled": true,
-                "banner_show_stats": true,
-                "banner_show_goal": true,
-                "starship_style": "auto",
-                "starship_show_telemetry": true,
-                "starship_show_comms": true,
-                "starship_show_power_grid": true,
-                "max_lines": 8,
-                "max_messages": 30,
-                "max_age_seconds": 0,
-                "panel_height": 0,
-                "font_size": 22,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "bubble_opacity": 1,
-                "panel_width": 0,
-                "render_fps": 10,
-                "show_timestamps": false,
-                "show_badges": true,
-                "show_tiers": true,
-                "show_stats": false,
-                "queue_enabled": false,
-                "queue_max_entries": 5,
-                "queue_font_size": 0,
-                "queue_font_color": "white",
-                "queue_active_color": "#00f0ff",
-                "queue_box_color": "black@0.45",
-                "queue_show_box": true,
-                "queue_offset_x": 0,
-                "queue_offset_y": 0,
-                "show_earnings_card": false,
-                "earnings_card_interval_seconds": 120,
-                "name_colors": true,
-                "offset_x": 0,
-                "offset_y": 0,
-                "api_url": "",
-                "api_key": "",
-                "poll_interval": 3,
-                "delay": 0
-              },
-              "clock": {
-                "enabled": false,
-                "position": "top-right",
-                "format": "%H:%M:%S",
-                "font_size": 28,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "show_box": true,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "text": {
-                "enabled": false,
-                "position": "top-left",
-                "text": "",
-                "font_size": 28,
-                "font_color": "white",
-                "box_color": "black@0.45",
-                "marquee": false,
-                "speed": 120,
-                "show_box": true,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "logo": {
-                "enabled": false,
-                "position": "top-left",
-                "width": 160,
-                "opacity": 1,
-                "margin": 32,
-                "offset_x": 0,
-                "offset_y": 0
-              },
-              "version": {
-                "enabled": false,
-                "position": "bottom-right",
-                "prefix": "RELAY v",
-                "show_update_hint": false,
-                "update_hint": "Update verfügbar",
-                "font_size": 16,
-                "font_color": "white@0.75",
-                "box_color": "black@0.35",
-                "show_box": true,
-                "margin": 24,
-                "offset_x": 0,
-                "offset_y": 0
-              }
-            },
             "type": "object",
             "properties": {
               "chat": {
-                "default": {
-                  "enabled": false,
-                  "engine": "canvas",
-                  "position": "bottom-left",
-                  "style": "bubbles",
-                  "layout_mode": "standard",
-                  "top_banner_enabled": true,
-                  "chat_monitor_enabled": true,
-                  "banner_show_stats": true,
-                  "banner_show_goal": true,
-                  "starship_style": "auto",
-                  "starship_show_telemetry": true,
-                  "starship_show_comms": true,
-                  "starship_show_power_grid": true,
-                  "max_lines": 8,
-                  "max_messages": 30,
-                  "max_age_seconds": 0,
-                  "panel_height": 0,
-                  "font_size": 22,
-                  "font_color": "white",
-                  "box_color": "black@0.45",
-                  "bubble_opacity": 1,
-                  "panel_width": 0,
-                  "render_fps": 10,
-                  "show_timestamps": false,
-                  "show_badges": true,
-                  "show_tiers": true,
-                  "show_stats": false,
-                  "queue_enabled": false,
-                  "queue_max_entries": 5,
-                  "queue_font_size": 0,
-                  "queue_font_color": "white",
-                  "queue_active_color": "#00f0ff",
-                  "queue_box_color": "black@0.45",
-                  "queue_show_box": true,
-                  "queue_offset_x": 0,
-                  "queue_offset_y": 0,
-                  "show_earnings_card": false,
-                  "earnings_card_interval_seconds": 120,
-                  "name_colors": true,
-                  "offset_x": 0,
-                  "offset_y": 0,
-                  "api_url": "",
-                  "api_key": "",
-                  "poll_interval": 3,
-                  "delay": 0
-                },
                 "type": "object",
                 "properties": {
                   "enabled": {
@@ -13626,8 +13111,8 @@
                     "type": "string",
                     "enum": [
                       "standard",
-                      "pillar_monitor",
-                      "starship_cockpit"
+                      "glass_minimal",
+                      "ultra_clean"
                     ]
                   },
                   "top_banner_enabled": {
@@ -13643,27 +13128,6 @@
                     "type": "boolean"
                   },
                   "banner_show_goal": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_style": {
-                    "default": "auto",
-                    "type": "string",
-                    "enum": [
-                      "auto",
-                      "pillar_wings",
-                      "fullscreen_16_9"
-                    ]
-                  },
-                  "starship_show_telemetry": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_show_comms": {
-                    "default": true,
-                    "type": "boolean"
-                  },
-                  "starship_show_power_grid": {
                     "default": true,
                     "type": "boolean"
                   },
