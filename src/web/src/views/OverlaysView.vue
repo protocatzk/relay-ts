@@ -18,6 +18,7 @@ import OverlayStudioPreview from '@/src/components/OverlayStudioPreview.vue';
 import StudioChatTab from '@/src/components/studio/StudioChatTab.vue';
 import StudioClockTab from '@/src/components/studio/StudioClockTab.vue';
 import StudioEarningsTab from '@/src/components/studio/StudioEarningsTab.vue';
+import StudioHudTab from '@/src/components/studio/StudioHudTab.vue';
 import StudioLogoTab from '@/src/components/studio/StudioLogoTab.vue';
 import StudioTextTab from '@/src/components/studio/StudioTextTab.vue';
 import StudioVersionTab from '@/src/components/studio/StudioVersionTab.vue';
@@ -28,7 +29,7 @@ import { useStore } from '@/src/composables/useStore';
 import { useToast } from '@/src/composables/useToast';
 import { useUnsavedChanges } from '@/src/composables/useUnsavedChanges';
 import { POSITIONS, PREVIEW_ASPECTS, SECTIONS } from '@/src/overlay-studio';
-import type { OverlayGeometry, PreviewAspect, Section } from '@/src/overlay-studio';
+import type { OverlayGeometry, PreviewAspect, Section, StudioPreviewItem } from '@/src/overlay-studio';
 
 
 const { store, refreshStatus } = useStore();
@@ -145,8 +146,48 @@ const activeConfig = computed<ChatOverlay | ClockOverlay | TextOverlay | Version
   return null;
 });
 
-const activeGeometry = computed<OverlayGeometry | null>(() => {
-  if (activeSection.value === 'earnings') {
+function geometryForSection(section: Section): OverlayGeometry | null {
+  if (section === 'status') {
+    const c = chat.value;
+    if (!c) return null;
+    const base = Math.max(12, Math.min(36, c.font_size || 18));
+    return {
+      position: c.status_position ?? 'top-left',
+      font_size: c.status_font_size && c.status_font_size > 0 ? c.status_font_size : Math.round(base * 0.72),
+      offset_x: c.status_offset_x ?? 0,
+      offset_y: c.status_offset_y ?? 0,
+      margin: 24,
+    };
+  }
+  if (section === 'earnings_hud') {
+    const c = chat.value;
+    if (!c) return null;
+    const base = Math.max(12, Math.min(36, c.font_size || 18));
+    return {
+      position: c.earnings_hud_position ?? 'top-right',
+      font_size:
+        c.earnings_hud_font_size && c.earnings_hud_font_size > 0
+          ? c.earnings_hud_font_size
+          : Math.round(base * 0.72),
+      offset_x: c.earnings_hud_offset_x ?? 0,
+      offset_y: c.earnings_hud_offset_y ?? 0,
+      margin: 24,
+    };
+  }
+  if (section === 'queue') {
+    const c = chat.value;
+    if (!c) return null;
+    const base = Math.max(12, Math.min(36, c.font_size || 18));
+    return {
+      position: c.queue_position ?? 'bottom-right',
+      font_size: c.queue_font_size > 0 ? c.queue_font_size : Math.round(base * 0.72),
+      offset_x: c.queue_offset_x,
+      offset_y: c.queue_offset_y,
+      margin: 24,
+      width: c.queue_width ?? 0,
+    };
+  }
+  if (section === 'earnings') {
     const config = earnings.value;
     if (!config) return null;
     return {
@@ -157,7 +198,7 @@ const activeGeometry = computed<OverlayGeometry | null>(() => {
       margin: config.overlay_margin,
     };
   }
-  if (activeSection.value === 'logo') {
+  if (section === 'logo') {
     const config = logo.value;
     if (!config) return null;
     return {
@@ -169,25 +210,54 @@ const activeGeometry = computed<OverlayGeometry | null>(() => {
       width: config.width,
     };
   }
-  const config = activeConfig.value as ChatOverlay | ClockOverlay | TextOverlay | null;
+  const config =
+    section === 'chat'
+      ? chat.value
+      : section === 'clock'
+        ? clock.value
+        : section === 'text'
+          ? text.value
+          : section === 'version'
+            ? versionOverlay.value
+            : null;
   if (!config) return null;
+  const [width, height] = resolution.value.split('x').map(Number) as [number, number];
+  const isChat = section === 'chat' && 'panel_width' in config;
+  const isBroadcast =
+    isChat &&
+    ((config as ChatOverlay).layout_mode === 'glass_minimal' ||
+      (config as ChatOverlay).layout_mode === 'ultra_clean');
+  const autoW = isChat
+    ? isBroadcast && width >= height
+      ? Math.max(200, Math.round((width - (height * 9) / 16) / 2 - 40))
+      : Math.round(width * (width >= height ? 0.6 : 0.92))
+    : undefined;
+  const autoH = isChat
+    ? isBroadcast
+      ? Math.round(height * (width >= height ? 0.68 : 0.38))
+      : Math.round(height * 0.34)
+    : undefined;
   return {
     position: config.position,
     font_size: config.font_size,
     offset_x: config.offset_x,
     offset_y: config.offset_y,
     margin: overlayMargin(config),
+    width: isChat ? ((config as ChatOverlay).panel_width > 0 ? (config as ChatOverlay).panel_width : autoW) : undefined,
+    height: isChat ? ((config as ChatOverlay).panel_height > 0 ? (config as ChatOverlay).panel_height : autoH) : undefined,
   };
-});
+}
+
+const activeGeometry = computed<OverlayGeometry | null>(() => geometryForSection(activeSection.value));
 
 const overlayLabel = computed(() => {
   const section = activeSection.value;
   if (section === 'logo') return `Logo · ${logo.value?.width ?? 0} px`;
-  if (section === 'earnings') return `Einnahmen · ${earnings.value?.overlay_font_size ?? 0} px`;
-  const config = activeConfig.value;
-  if (!config) return 'Overlay';
+  if (section === 'earnings') return `Einnahmen-Text · ${earnings.value?.overlay_font_size ?? 0} px`;
+  const geo = activeGeometry.value;
+  if (!geo) return 'Overlay';
   const label = SECTIONS.find((entry) => entry.id === section)?.label ?? 'Overlay';
-  return `${label} · ${config.font_size} px`;
+  return `${label} · ${geo.font_size} px`;
 });
 
 function groupOpen(section: Section, id: string, index: number): boolean {
@@ -215,56 +285,88 @@ function overlayMargin(config: ChatOverlay | ClockOverlay | TextOverlay | Versio
   return 'margin' in config ? config.margin : 32;
 }
 
-const stageBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
-  const geometry = activeGeometry.value;
-  if (!geometry) return {};
+function boxStyleFor(section: Section, geometry: OverlayGeometry): Record<string, string> {
   const [width, height] = resolution.value.split('x').map(Number) as [number, number];
-  const chatConfig = activeSection.value === 'chat' ? chat.value : null;
-  const earningsConfig = activeSection.value === 'earnings' ? earnings.value : null;
-  const logoConfig = activeSection.value === 'logo' ? logo.value : null;
+  const isLandscape = width >= height;
+  const pillarW = isLandscape
+    ? Math.max(200, Math.round((width - (height * 9) / 16) / 2 - 40))
+    : Math.round(width * 0.92);
+
   let boxWidth: number;
-  if (logoConfig) {
-    boxWidth = logoConfig.width;
-  } else if (chatConfig) {
-    const isBroadcast =
-      chatConfig.layout_mode === 'glass_minimal' || chatConfig.layout_mode === 'ultra_clean';
-    boxWidth =
-      chatConfig.panel_width > 0
-        ? chatConfig.panel_width
-        : isBroadcast && width >= height
-          ? Math.max(200, Math.round((width - (height * 9) / 16) / 2 - 40))
-          : Math.round(width * (width >= height ? 0.6 : 0.92));
-  } else if (earningsConfig) {
-    boxWidth = Math.round(width * 0.45);
-  } else {
-    boxWidth = Math.round(width * 0.5);
-  }
-  const earningsLines = earningsConfig
-    ? Math.max(1, earningsConfig.overlay_template.replace(/\r\n?/g, '\n').split('\n').length)
-    : 1;
   let boxHeight: number;
-  if (logoConfig) {
-    boxHeight = logoConfig.width;
-  } else if (chatConfig) {
-    boxHeight =
-      chatConfig.panel_height > 0 ? chatConfig.panel_height : Math.round(height * 0.34);
-  } else {
+  if (section === 'logo') {
+    boxWidth = geometry.width ?? 120;
+    boxHeight = boxWidth;
+  } else if (section === 'chat') {
+    boxWidth = geometry.width ?? pillarW;
+    boxHeight = geometry.height ?? Math.round(height * 0.68);
+  } else if (section === 'queue') {
+    boxWidth = geometry.width && geometry.width > 0 ? geometry.width : pillarW;
+    boxHeight = Math.max(46, Math.round(geometry.font_size * 3.1));
+  } else if (section === 'status') {
+    boxWidth = Math.min(width - 48, Math.max(220, Math.round(geometry.font_size * 18)));
+    boxHeight = Math.max(28, Math.round(geometry.font_size * 2.1));
+  } else if (section === 'earnings_hud') {
+    boxWidth = Math.min(width - 48, Math.max(180, Math.round(geometry.font_size * 14)));
+    boxHeight = Math.max(36, Math.round(geometry.font_size * 2.6));
+  } else if (section === 'earnings') {
+    const earningsLines = earnings.value
+      ? Math.max(1, earnings.value.overlay_template.replace(/\r\n?/g, '\n').split('\n').length)
+      : 1;
+    boxWidth = Math.round(width * 0.45);
     boxHeight = Math.round(geometry.font_size * 1.8 * earningsLines);
+  } else {
+    boxWidth = Math.round(width * 0.35);
+    boxHeight = Math.round(geometry.font_size * 1.8);
   }
+
   const baseX = geometry.position.endsWith('left')
     ? geometry.margin
     : width - boxWidth - geometry.margin;
   const baseY = geometry.position.startsWith('top')
     ? geometry.margin
     : height - boxHeight - geometry.margin;
-  const x = baseX + geometry.offset_x;
-  const y = baseY + geometry.offset_y;
+  const x = Math.max(0, Math.min(width - boxWidth, baseX + geometry.offset_x));
+  const y = Math.max(0, Math.min(height - boxHeight, baseY + geometry.offset_y));
   return {
     left: `${(x / width) * 100}%`,
     top: `${(y / height) * 100}%`,
     width: `${(boxWidth / width) * 100}%`,
     height: `${(boxHeight / height) * 100}%`,
   };
+}
+
+const stageBoxStyle = computed<Record<string, string>>((): Record<string, string> => {
+  const geometry = activeGeometry.value;
+  if (!geometry) return {};
+  return boxStyleFor(activeSection.value, geometry);
+});
+
+const previewItems = computed<StudioPreviewItem[]>(() => {
+  const items: StudioPreviewItem[] = [];
+  const push = (sec: Section, enabled: boolean, labelText: string) => {
+    if (!enabled) return;
+    const geo = geometryForSection(sec);
+    if (!geo) return;
+    items.push({
+      section: sec,
+      label: labelText,
+      geometry: geo,
+      style: boxStyleFor(sec, geo),
+    });
+  };
+  const c = chat.value;
+  const isBroadcast = isBroadcastConfig(draft.value);
+  push('status', Boolean(c?.enabled && isBroadcast && c.top_banner_enabled !== false), 'Status');
+  push('chat', Boolean(c?.enabled && (!isBroadcast || c.chat_monitor_enabled !== false)), `Chat · ${c?.font_size ?? 18} px`);
+  push('queue', Boolean(c?.enabled && c.queue_enabled), 'Queue');
+  push('earnings_hud', Boolean(c?.enabled && isBroadcast && c.banner_show_stats !== false), 'Einnahmen-HUD');
+  push('clock', Boolean(clock.value?.enabled), `Uhr · ${clock.value?.font_size ?? 28} px`);
+  push('text', Boolean(text.value?.enabled), `Text · ${text.value?.font_size ?? 28} px`);
+  push('logo', Boolean(logo.value?.enabled), `Logo · ${logo.value?.width ?? 120} px`);
+  push('earnings', Boolean(earnings.value?.overlay_enabled), `Einnahmen-Text · ${earnings.value?.overlay_font_size ?? 24} px`);
+  push('version', Boolean(versionOverlay.value?.enabled), `Version · ${versionOverlay.value?.font_size ?? 20} px`);
+  return items;
 });
 
 function setVideoLayout(patch: Partial<VideoLayout>): void {
@@ -278,6 +380,34 @@ function resetVideoLayout(): void {
 }
 
 function setGeometry(patch: Partial<OverlayGeometry>): void {
+  if (activeSection.value === 'status') {
+    const c = chat.value;
+    if (!c) return;
+    if (patch.position !== undefined) c.status_position = patch.position;
+    if (patch.offset_x !== undefined) c.status_offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) c.status_offset_y = patch.offset_y;
+    if (patch.font_size !== undefined) c.status_font_size = patch.font_size;
+    return;
+  }
+  if (activeSection.value === 'earnings_hud') {
+    const c = chat.value;
+    if (!c) return;
+    if (patch.position !== undefined) c.earnings_hud_position = patch.position;
+    if (patch.offset_x !== undefined) c.earnings_hud_offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) c.earnings_hud_offset_y = patch.offset_y;
+    if (patch.font_size !== undefined) c.earnings_hud_font_size = patch.font_size;
+    return;
+  }
+  if (activeSection.value === 'queue') {
+    const c = chat.value;
+    if (!c) return;
+    if (patch.position !== undefined) c.queue_position = patch.position;
+    if (patch.offset_x !== undefined) c.queue_offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) c.queue_offset_y = patch.offset_y;
+    if (patch.font_size !== undefined) c.queue_font_size = patch.font_size;
+    if (patch.width !== undefined) c.queue_width = patch.width;
+    return;
+  }
   if (activeSection.value === 'earnings') {
     const config = earnings.value;
     if (!config) return;
@@ -308,6 +438,9 @@ function setGeometry(patch: Partial<OverlayGeometry>): void {
   if (patch.margin !== undefined && 'margin' in config) config.margin = patch.margin;
   if (patch.width !== undefined && 'panel_width' in config) {
     config.panel_width = patch.width;
+  }
+  if (patch.height !== undefined && 'panel_height' in config) {
+    config.panel_height = patch.height;
   }
 }
 
@@ -856,6 +989,7 @@ onBeforeUnmount(() => {
         :geometry="activeGeometry"
         :overlay-label="overlayLabel"
         :overlay-style="stageBoxStyle"
+        :items="previewItems"
         :video-layout="videoLayout"
         :preview-aspect="previewAspect"
         :messages="chatStatus?.messages ?? 0"
@@ -867,6 +1001,7 @@ onBeforeUnmount(() => {
         @update:collapsed="togglePreviewCollapsed"
         v-model:sample="sample"
         v-model:positioning="positioning"
+        @select-section="selectSection($event, { focus: false, announce: true })"
         @overlay-patch="setGeometry"
         @video-patch="setVideoLayout"
         @position="setPosition"
@@ -902,11 +1037,15 @@ onBeforeUnmount(() => {
             <span
               v-if="
                 (section.id === 'video' && videoLayout?.enabled) ||
-                (section.id === 'chat' && chat?.enabled) ||
+                (section.id === 'status' && chat?.enabled && chat.top_banner_enabled !== false) ||
+                (section.id === 'chat' && chat?.enabled && chat.chat_monitor_enabled !== false) ||
+                (section.id === 'queue' && chat?.enabled && chat.queue_enabled) ||
+                (section.id === 'earnings_hud' && chat?.enabled && chat.banner_show_stats !== false) ||
                 (section.id === 'clock' && clock?.enabled) ||
                 (section.id === 'text' && text?.enabled) ||
                 (section.id === 'logo' && logo?.enabled) ||
-                (section.id === 'earnings' && earnings?.overlay_enabled)
+                (section.id === 'earnings' && earnings?.overlay_enabled) ||
+                (section.id === 'version' && versionOverlay?.enabled)
               "
               class="studio-tab-dot"
               aria-hidden="true"
@@ -926,6 +1065,19 @@ onBeforeUnmount(() => {
           :tab-id="studioTabId('video')"
           @update:preview-aspect="previewAspect = $event"
           @reset="resetVideoLayout"
+        />
+
+        <StudioHudTab
+          v-else-if="
+            (activeSection === 'status' ||
+              activeSection === 'queue' ||
+              activeSection === 'earnings_hud') &&
+            chat
+          "
+          :section="activeSection"
+          :chat="chat"
+          :group-open="groupOpen"
+          @set-group-open="setGroupOpen"
         />
 
         <StudioChatTab

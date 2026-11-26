@@ -7,6 +7,7 @@ import type {
   OverlayPosition,
   PreviewAspect,
   Section,
+  StudioPreviewItem,
 } from '@/src/overlay-studio';
 import { useMediaQuery } from '@/src/composables/useMediaQuery';
 
@@ -18,6 +19,7 @@ const props = defineProps<{
   geometry: OverlayGeometry | null;
   overlayLabel: string;
   overlayStyle: Record<string, string>;
+  items?: StudioPreviewItem[];
   videoLayout: VideoLayout | null;
   previewAspect: PreviewAspect;
   sample: boolean;
@@ -34,6 +36,7 @@ const emit = defineEmits<{
   'update:sample': [value: boolean];
   'update:positioning': [value: boolean];
   'update:collapsed': [value: boolean];
+  'select-section': [section: Section];
   'overlay-patch': [patch: Partial<OverlayGeometry>];
   'video-patch': [patch: Partial<VideoLayout>];
   position: [position: OverlayPosition];
@@ -64,6 +67,7 @@ interface DragState {
   baseY: number;
   baseSize: number;
   baseWidth: number;
+  baseHeight: number;
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -188,13 +192,20 @@ function onDragMove(event: PointerEvent): void {
   }
 
   const isLogo = props.section === 'logo';
+  if (props.section === 'chat' && drag.baseWidth > 0 && drag.baseHeight > 0) {
+    emit('overlay-patch', {
+      width: Math.round(clamp(drag.baseWidth + dx, 180, 1400)),
+      height: Math.round(clamp(drag.baseHeight + dy, 120, 1600)),
+    });
+    return;
+  }
   const patch: Partial<OverlayGeometry> = {
     font_size: Math.round(
       clamp(drag.baseSize + dy * (isLogo ? 0.6 : 0.15), isLogo ? 32 : 8, isLogo ? 1024 : 96),
     ),
   };
-  if (props.section === 'chat' && drag.baseWidth > 0 && Math.abs(dx) >= Math.abs(dy)) {
-    patch.width = Math.round(clamp(drag.baseWidth + dx, 180, 1200));
+  if (props.section === 'queue' && drag.baseWidth > 0 && Math.abs(dx) >= Math.abs(dy)) {
+    patch.width = Math.round(clamp(drag.baseWidth + dx, 160, 1400));
   }
   emit('overlay-patch', patch);
 }
@@ -213,19 +224,24 @@ function startDrag(
   event: PointerEvent,
   mode: 'move' | 'resize',
   target: 'overlay' | 'video' = 'overlay',
+  item?: StudioPreviewItem,
 ): void {
   const canvas = canvasRef.value;
   if (!canvas || canvasWidth.value === 0) return;
   if (target === 'video' && !props.videoLayout?.enabled) return;
-  if (target === 'overlay' && !props.geometry) return;
+  if (item && item.section !== props.section) {
+    emit('select-section', item.section);
+  }
+  const activeGeo = item?.geometry ?? props.geometry;
+  if (target === 'overlay' && !activeGeo) return;
 
   event.preventDefault();
   (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
 
-  const baseX = target === 'video' ? (props.videoLayout?.position_x ?? 50) : props.geometry!.offset_x;
-  const baseY = target === 'video' ? (props.videoLayout?.position_y ?? 50) : props.geometry!.offset_y;
+  const baseX = target === 'video' ? (props.videoLayout?.position_x ?? 50) : activeGeo!.offset_x;
+  const baseY = target === 'video' ? (props.videoLayout?.position_y ?? 50) : activeGeo!.offset_y;
   const baseSize =
-    target === 'video' ? (props.videoLayout?.scale ?? 100) : props.geometry!.font_size;
+    target === 'video' ? (props.videoLayout?.scale ?? 100) : activeGeo!.font_size;
 
   drag = {
     target,
@@ -236,7 +252,8 @@ function startDrag(
     baseX,
     baseY,
     baseSize,
-    baseWidth: target === 'overlay' ? (props.geometry?.width ?? 0) : 0,
+    baseWidth: target === 'overlay' ? (activeGeo?.width ?? 0) : 0,
+    baseHeight: target === 'overlay' ? (activeGeo?.height ?? 0) : 0,
     canvasWidth: canvasWidth.value,
     canvasHeight: canvasHeight.value,
   };
@@ -462,8 +479,34 @@ onBeforeUnmount(() => {
           ></button>
         </div>
 
+        <template v-if="items && items.length > 0">
+          <div
+            v-for="item in items"
+            :key="item.section"
+            class="studio-drag-box"
+            :class="{ 'is-inactive-layer': item.section !== section }"
+            :style="item.style"
+            role="group"
+            tabindex="0"
+            :aria-label="`${item.label} positionieren`"
+            @pointerdown="startDrag($event, 'move', 'overlay', item)"
+            @keydown.left.prevent="item.section === section && nudgeOverlay(-5, 0)"
+            @keydown.right.prevent="item.section === section && nudgeOverlay(5, 0)"
+            @keydown.up.prevent="item.section === section && nudgeOverlay(0, -5)"
+            @keydown.down.prevent="item.section === section && nudgeOverlay(0, 5)"
+          >
+            <span class="studio-drag-label">{{ item.label }}</span>
+            <button
+              v-if="item.section === section"
+              type="button"
+              class="studio-resize-handle"
+              aria-label="Größe ändern"
+              @pointerdown.stop="startDrag($event, 'resize', 'overlay', item)"
+            ></button>
+          </div>
+        </template>
         <div
-          v-if="geometry"
+          v-else-if="geometry"
           class="studio-drag-box"
           :style="overlayStyle"
           role="group"

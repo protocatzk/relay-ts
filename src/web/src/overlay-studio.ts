@@ -1,7 +1,17 @@
 import type { OverlayPosition } from '@/src/api/types';
 
 export type { OverlayPosition };
-export type Section = 'video' | 'chat' | 'clock' | 'text' | 'logo' | 'earnings' | 'version';
+export type Section =
+  | 'video'
+  | 'status'
+  | 'chat'
+  | 'queue'
+  | 'earnings_hud'
+  | 'clock'
+  | 'text'
+  | 'logo'
+  | 'earnings'
+  | 'version';
 export type PreviewAspect = '9:16' | '16:9' | '1:1';
 
 export interface OverlayGeometry {
@@ -11,15 +21,26 @@ export interface OverlayGeometry {
   offset_y: number;
   margin: number;
   width?: number;
+  height?: number;
+}
+
+export interface StudioPreviewItem {
+  section: Section;
+  label: string;
+  style: Record<string, string>;
+  geometry: OverlayGeometry;
 }
 
 export const SECTIONS: { id: Section; label: string }[] = [
   { id: 'video', label: 'Video' },
+  { id: 'status', label: 'Status' },
   { id: 'chat', label: 'Chat' },
+  { id: 'queue', label: 'Queue' },
+  { id: 'earnings_hud', label: 'Einnahmen-HUD' },
   { id: 'clock', label: 'Uhrzeit' },
   { id: 'text', label: 'Text' },
   { id: 'logo', label: 'Logo' },
-  { id: 'earnings', label: 'Einnahmen' },
+  { id: 'earnings', label: 'Einnahmen-Text' },
   { id: 'version', label: 'Version' },
 ];
 

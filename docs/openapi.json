@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RELAY Restreamer API",
-    "version": "0.37.0",
+    "version": "0.37.1",
     "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
   },
   "servers": [
@@ -3427,6 +3427,34 @@
                             "default": true,
                             "type": "boolean"
                           },
+                          "status_position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "status_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "status_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "status_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
                           "chat_monitor_enabled": {
                             "default": true,
                             "type": "boolean"
@@ -3438,6 +3466,34 @@
                           "banner_show_goal": {
                             "default": true,
                             "type": "boolean"
+                          },
+                          "earnings_hud_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "earnings_hud_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "earnings_hud_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "earnings_hud_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
                           },
                           "max_lines": {
                             "default": 8,
@@ -3516,6 +3572,22 @@
                           "queue_enabled": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "queue_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
                           },
                           "queue_max_entries": {
                             "default": 5,
@@ -4789,6 +4861,34 @@
                             "default": true,
                             "type": "boolean"
                           },
+                          "status_position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "status_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "status_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "status_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
                           "chat_monitor_enabled": {
                             "default": true,
                             "type": "boolean"
@@ -4800,6 +4900,34 @@
                           "banner_show_goal": {
                             "default": true,
                             "type": "boolean"
+                          },
+                          "earnings_hud_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "earnings_hud_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "earnings_hud_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "earnings_hud_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
                           },
                           "max_lines": {
                             "default": 8,
@@ -4878,6 +5006,22 @@
                           "queue_enabled": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "queue_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
                           },
                           "queue_max_entries": {
                             "default": 5,
@@ -5419,6 +5563,34 @@
                             "default": true,
                             "type": "boolean"
                           },
+                          "status_position": {
+                            "default": "top-left",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "status_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "status_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "status_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
                           "chat_monitor_enabled": {
                             "default": true,
                             "type": "boolean"
@@ -5430,6 +5602,34 @@
                           "banner_show_goal": {
                             "default": true,
                             "type": "boolean"
+                          },
+                          "earnings_hud_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "earnings_hud_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "earnings_hud_offset_y": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "earnings_hud_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
                           },
                           "max_lines": {
                             "default": 8,
@@ -5508,6 +5708,22 @@
                           "queue_enabled": {
                             "default": false,
                             "type": "boolean"
+                          },
+                          "queue_position": {
+                            "default": "bottom-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "queue_width": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1920
                           },
                           "queue_max_entries": {
                             "default": 5,
@@ -10028,7 +10244,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.37.0"
+            "example": "0.37.1"
           }
         }
       },
@@ -10140,7 +10356,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.37.0"
+            "example": "0.37.1"
           },
           "uptime_seconds": {
             "type": "number"
@@ -11506,6 +11722,34 @@
                     "default": true,
                     "type": "boolean"
                   },
+                  "status_position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "status_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "status_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "status_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
                   "chat_monitor_enabled": {
                     "default": true,
                     "type": "boolean"
@@ -11517,6 +11761,34 @@
                   "banner_show_goal": {
                     "default": true,
                     "type": "boolean"
+                  },
+                  "earnings_hud_position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "earnings_hud_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "earnings_hud_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "earnings_hud_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
                   },
                   "max_lines": {
                     "default": 8,
@@ -11595,6 +11867,22 @@
                   "queue_enabled": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "queue_position": {
+                    "default": "bottom-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "queue_width": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
                   },
                   "queue_max_entries": {
                     "default": 5,
@@ -13119,6 +13407,34 @@
                     "default": true,
                     "type": "boolean"
                   },
+                  "status_position": {
+                    "default": "top-left",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "status_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "status_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "status_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
                   "chat_monitor_enabled": {
                     "default": true,
                     "type": "boolean"
@@ -13130,6 +13446,34 @@
                   "banner_show_goal": {
                     "default": true,
                     "type": "boolean"
+                  },
+                  "earnings_hud_position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "earnings_hud_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "earnings_hud_offset_y": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "earnings_hud_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
                   },
                   "max_lines": {
                     "default": 8,
@@ -13208,6 +13552,22 @@
                   "queue_enabled": {
                     "default": false,
                     "type": "boolean"
+                  },
+                  "queue_position": {
+                    "default": "bottom-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "queue_width": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1920
                   },
                   "queue_max_entries": {
                     "default": 5,

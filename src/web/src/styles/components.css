@@ -2807,6 +2807,18 @@ select {
   outline-offset: 2px;
 }
 
+.studio-drag-box.is-inactive-layer {
+  z-index: 2;
+  opacity: 0.45;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+}
+
+.studio-drag-box.is-inactive-layer:hover {
+  opacity: 0.9;
+  border-color: var(--accent);
+}
+
 .studio-drag-label {
   position: absolute;
   top: -20px;

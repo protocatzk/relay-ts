@@ -11,7 +11,6 @@ import {
   parseColor,
   rgba,
   roundedRect,
-  wrapText,
 } from './canvas-utils.js';
 import { formatVersionOverlayText, type OverlayPosition } from './drawtext.js';
 import type { ChatEarningsCard, ChatQueueInput, ChatStreamerInfo } from './chat-engine.js';
@@ -68,6 +67,72 @@ function applyTextShadow(ctx: SKRSContext2D, enabled: boolean): void {
   ctx.shadowOffsetY = 1;
 }
 
+function anchorRect(
+  position: OverlayPosition,
+  boxW: number,
+  boxH: number,
+  offsetX: number,
+  offsetY: number,
+  width: number,
+  height: number,
+  margin: number,
+  radius: number,
+): BoxRect {
+  const baseX = position.endsWith('right') ? width - margin - boxW : margin;
+  const baseY = position.startsWith('bottom') ? height - margin - boxH : margin;
+  return {
+    x: Math.max(0, Math.min(width - boxW, baseX + offsetX)),
+    y: Math.max(0, Math.min(height - boxH, baseY + offsetY)),
+    w: boxW,
+    h: boxH,
+    r: radius,
+  };
+}
+
+function truncateText(ctx: SKRSContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let out = text;
+  while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return `${out}…`;
+}
+
+function wrapTextWithFirstLine(
+  ctx: SKRSContext2D,
+  text: string,
+  firstMaxW: number,
+  nextMaxW: number,
+  maxLines: number,
+): string[] {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const limit = lines.length === 0 ? firstMaxW : nextMaxW;
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= limit) {
+      current = candidate;
+      continue;
+    }
+    if (current) {
+      lines.push(current);
+      current = word;
+    } else {
+      lines.push(truncateText(ctx, word, limit));
+      current = '';
+    }
+    if (lines.length >= maxLines) break;
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  if (lines.length === 0) return [''];
+  if (lines.length >= maxLines) {
+    const limit = lines.length === 1 ? firstMaxW : nextMaxW;
+    lines[maxLines - 1] = truncateText(ctx, lines[maxLines - 1]!, limit);
+  }
+  return lines.slice(0, maxLines);
+}
+
 /**
  * Renders the modern minimal broadcast overlays (`glass_minimal` and `ultra_clean`).
  * Static glass pill backgrounds are cached in `cache` to keep CPU usage minimal.
@@ -107,11 +172,20 @@ export function renderBroadcastOverlay(
   const showGoal = cfg.banner_show_goal !== false && Boolean(earnings?.goalAmount && earnings.goalAmount > 0 && earnings.net !== null);
   const showQueue = cfg.queue_enabled && queue.labels.length > 0;
 
-  const baseFont = Math.max(12, Math.min(28, cfg.font_size || 18));
+  const baseFont = Math.max(12, Math.min(36, cfg.font_size || 18));
   const smallFont = Math.max(11, Math.round(baseFont * 0.72));
-  const pillH = Math.max(30, Math.round(smallFont * 2.1));
+  const statusFont =
+    cfg.status_font_size && cfg.status_font_size > 0 ? cfg.status_font_size : smallFont;
+  const earningsHudFont =
+    cfg.earnings_hud_font_size && cfg.earnings_hud_font_size > 0
+      ? cfg.earnings_hud_font_size
+      : smallFont;
+  const queueFont = cfg.queue_font_size > 0 ? cfg.queue_font_size : smallFont;
 
-  // Layout rects
+  const statusPillH = Math.max(28, Math.round(statusFont * 2.1));
+  const earningsPillH = Math.max(28, Math.round(earningsHudFont * 2.1));
+
+  // Layout rects (every element anchored to its configured corner + offset)
   const chatW = cfg.panel_width > 0 ? Math.min(width - margin * 2, cfg.panel_width) : pillarW;
   const chatH =
     cfg.panel_height > 0
@@ -119,13 +193,34 @@ export function renderBroadcastOverlay(
       : isLandscape
         ? Math.round(height * 0.68)
         : Math.round(height * 0.38);
-  const chatX = Math.max(0, Math.min(width - chatW, margin + cfg.offset_x));
-  const chatY = Math.max(0, Math.min(height - chatH, height - margin - chatH + cfg.offset_y));
+  const chatRect = anchorRect(
+    cfg.position ?? 'bottom-left',
+    chatW,
+    chatH,
+    cfg.offset_x,
+    cfg.offset_y,
+    width,
+    height,
+    margin,
+    14,
+  );
 
-  const queueW = Math.min(width - margin * 2, pillarW);
-  const queueH = Math.max(46, Math.round(smallFont * 3.1));
-  const queueX = Math.max(0, Math.min(width - queueW, width - margin - queueW + cfg.queue_offset_x));
-  const queueY = Math.max(0, Math.min(height - queueH, height - margin - queueH + cfg.queue_offset_y));
+  const queueW =
+    cfg.queue_width && cfg.queue_width > 0
+      ? Math.min(width - margin * 2, cfg.queue_width)
+      : Math.min(width - margin * 2, pillarW);
+  const queueH = Math.max(46, Math.round(queueFont * 3.1));
+  const queueRect = anchorRect(
+    cfg.queue_position ?? 'bottom-right',
+    queueW,
+    queueH,
+    cfg.queue_offset_x,
+    cfg.queue_offset_y,
+    width,
+    height,
+    margin,
+    14,
+  );
 
   const statusText = (() => {
     const name = streamer?.tiktok
@@ -135,13 +230,24 @@ export function renderBroadcastOverlay(
     return { name, uptime };
   })();
 
-  ctx.font = `600 ${smallFont}px ${font}`;
+  ctx.font = `600 ${statusFont}px ${font}`;
   const statusPillW = Math.min(
     width - margin * 2,
     Math.round(ctx.measureText(`LIVE  ·  ${statusText.name}  ·  ${statusText.uptime}`).width + 52),
   );
-  const statusRect: BoxRect = { x: margin, y: margin, w: statusPillW, h: pillH, r: pillH / 2 };
+  const statusRect = anchorRect(
+    cfg.status_position ?? 'top-left',
+    statusPillW,
+    statusPillH,
+    cfg.status_offset_x ?? 0,
+    cfg.status_offset_y ?? 0,
+    width,
+    height,
+    margin,
+    statusPillH / 2,
+  );
 
+  ctx.font = `600 ${earningsHudFont}px ${font}`;
   const earningsSummary = earnings
     ? `${earnings.coins !== null ? `${Math.round(earnings.coins).toLocaleString('de-DE')} Coins` : ''}${
         earnings.coins !== null && earnings.net !== null ? '  ·  ' : ''
@@ -153,17 +259,18 @@ export function renderBroadcastOverlay(
         Math.max(150, Math.round(ctx.measureText(earningsSummary || 'Einnahmen').width + 44)),
       )
     : 0;
-  const earningsH = showGoal ? pillH + 10 : pillH;
-  const earningsRect: BoxRect = {
-    x: width - margin - earningsPillW,
-    y: margin,
-    w: earningsPillW,
-    h: earningsH,
-    r: showGoal ? 14 : pillH / 2,
-  };
-
-  const chatRect: BoxRect = { x: chatX, y: chatY, w: chatW, h: chatH, r: 14 };
-  const queueRect: BoxRect = { x: queueX, y: queueY, w: queueW, h: queueH, r: 14 };
+  const earningsH = showGoal ? earningsPillH + 10 : earningsPillH;
+  const earningsRect = anchorRect(
+    cfg.earnings_hud_position ?? 'top-right',
+    earningsPillW,
+    earningsH,
+    cfg.earnings_hud_offset_x ?? 0,
+    cfg.earnings_hud_offset_y ?? 0,
+    width,
+    height,
+    margin,
+    showGoal ? 14 : earningsPillH / 2,
+  );
 
   // Cache static glass backgrounds once per geometry/toggle signature
   ctx.clearRect(0, 0, width, height);
@@ -210,7 +317,7 @@ export function renderBroadcastOverlay(
 
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.font = `700 ${Math.max(10, smallFont - 1)}px ${font}`;
+    ctx.font = `700 ${Math.max(10, statusFont - 1)}px ${font}`;
     ctx.fillStyle = '#ffffff';
     ctx.fillText('LIVE', cursorX, cy);
     cursorX += ctx.measureText('LIVE').width + 8;
@@ -219,7 +326,7 @@ export function renderBroadcastOverlay(
     ctx.fillText('·', cursorX, cy);
     cursorX += 10;
 
-    ctx.font = `600 ${smallFont}px ${font}`;
+    ctx.font = `600 ${statusFont}px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.fillText(statusText.name, cursorX, cy);
     cursorX += ctx.measureText(statusText.name).width + 8;
@@ -237,7 +344,9 @@ export function renderBroadcastOverlay(
   if (showEarnings && earnings && earningsPillW > 0) {
     ctx.save();
     applyTextShadow(ctx, textShadow);
-    const cy = showGoal ? earningsRect.y + pillH / 2 - 1 : earningsRect.y + earningsRect.h / 2;
+    const cy = showGoal
+      ? earningsRect.y + earningsPillH / 2 - 1
+      : earningsRect.y + earningsRect.h / 2;
     let cursorX = earningsRect.x + 14;
 
     ctx.fillStyle = '#fbbf24';
@@ -248,7 +357,7 @@ export function renderBroadcastOverlay(
 
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.font = `600 ${smallFont}px ${font}`;
+    ctx.font = `600 ${earningsHudFont}px ${font}`;
 
     if (earnings.coins !== null) {
       const coinsStr = `${Math.round(earnings.coins).toLocaleString('de-DE')} Coins`;
@@ -264,7 +373,7 @@ export function renderBroadcastOverlay(
     if (earnings.net !== null) {
       const sym = earnings.currency === 'USD' ? '$' : '€';
       ctx.fillStyle = '#67e8f9';
-      ctx.font = `700 ${smallFont}px ${font}`;
+      ctx.font = `700 ${earningsHudFont}px ${font}`;
       ctx.fillText(`${sym}${earnings.net.toFixed(2)}`, cursorX, cy);
     }
 
@@ -285,14 +394,14 @@ export function renderBroadcastOverlay(
     ctx.restore();
   }
 
-  // 3. Chat Area (bottom-left / left pillar)
+  // 3. Chat Area (never overlaps name & wraps full width on continuation lines)
   if (showChat && messages.length > 0) {
     ctx.save();
     applyTextShadow(ctx, textShadow);
     const padX = 14;
     const padY = 12;
     const innerW = Math.max(80, chatRect.w - padX * 2);
-    const lineH = Math.round(baseFont * 1.35);
+    const lineH = Math.round(baseFont * 1.38);
     const visible = messages.slice(-cfg.max_lines);
 
     let y = chatRect.y + chatRect.h - padY;
@@ -300,21 +409,26 @@ export function renderBroadcastOverlay(
 
     for (let i = visible.length - 1; i >= 0; i -= 1) {
       const msg = visible[i]!;
-      const name = (msg.displayName || msg.username || 'Chat').slice(0, 32);
+      const rawName = (msg.displayName || msg.username || 'Chat').slice(0, 32);
       const timeStr = cfg.show_timestamps ? `${formatTime(msg)} ` : '';
       const tierStr = cfg.show_badges && cfg.show_tiers && msg.tier ? ` [${msg.tier}]` : '';
-      const prefix = `${timeStr}${name}${tierStr} `;
+
+      ctx.font = `${Math.max(10, Math.round(baseFont * 0.8))}px ${font}`;
+      const timeOffset = timeStr ? ctx.measureText(timeStr).width : 0;
 
       ctx.font = `700 ${baseFont}px ${font}`;
-      const prefixW = ctx.measureText(prefix).width;
+      const maxNameW = Math.max(48, Math.round(innerW * 0.46) - timeOffset);
+      const nameLabel = truncateText(ctx, `${rawName}${tierStr}`, maxNameW);
+      const nameW = ctx.measureText(nameLabel).width;
+      const gap = 8;
+      const firstLineMaxW = Math.max(50, innerW - timeOffset - nameW - gap);
 
       ctx.font = `${baseFont}px ${font}`;
-      const lines = wrapText(ctx, msg.text, Math.max(40, innerW - Math.min(innerW * 0.55, prefixW)), 3);
-      const blockH = lines.length * lineH + 4;
+      const lines = wrapTextWithFirstLine(ctx, msg.text, firstLineMaxW, innerW, 4);
+      const blockH = lines.length * lineH + 5;
       if (y - blockH < topLimit) break;
 
       const rowTop = y - blockH;
-      // Soft fade near the top edge of the chat box
       const relY = (rowTop - topLimit) / Math.max(1, chatRect.h - padY * 2);
       const fadeAlpha = relY < 0.22 ? Math.max(0.25, relY / 0.22) : 1;
 
@@ -327,33 +441,32 @@ export function renderBroadcastOverlay(
         ctx.fillStyle = 'rgba(255,255,255,0.45)';
         ctx.fillText(timeStr, chatRect.x + padX, rowTop + 2);
       }
-      const timeOffset = timeStr ? ctx.measureText(timeStr).width : 0;
 
       ctx.font = `700 ${baseFont}px ${font}`;
-      ctx.fillStyle = cfg.name_colors ? nameColor(name) : '#67e8f9';
-      ctx.fillText(`${name}${tierStr}`, chatRect.x + padX + timeOffset, rowTop);
+      ctx.fillStyle = cfg.name_colors ? nameColor(rawName) : '#67e8f9';
+      ctx.fillText(nameLabel, chatRect.x + padX + timeOffset, rowTop);
 
-      const textStartX = chatRect.x + padX + Math.min(innerW * 0.55, prefixW) + 4;
+      const textStartX = chatRect.x + padX + timeOffset + nameW + gap;
       ctx.font = `${baseFont}px ${font}`;
       ctx.fillStyle = textColor;
       lines.forEach((line, idx) => {
-        ctx.fillText(line, idx === 0 ? textStartX : chatRect.x + padX, rowTop + idx * lineH, innerW);
+        ctx.fillText(line, idx === 0 ? textStartX : chatRect.x + padX, rowTop + idx * lineH);
       });
 
-      y = rowTop - 4;
+      y = rowTop - 5;
     }
     ctx.restore();
   }
 
-  // 4. Regie-Queue Pill (bottom-right)
+  // 4. Regie-Queue Pill
   if (showQueue) {
     const win = buildQueueWindow(queue.labels, queue.activeIndex, cfg.queue_max_entries);
     if (win.labels.length > 0) {
       ctx.save();
       applyTextShadow(ctx, textShadow);
       const padX = 14;
-      const headerFont = Math.max(10, Math.round(smallFont * 0.82));
-      const itemFont = Math.max(11, smallFont);
+      const headerFont = Math.max(10, Math.round(queueFont * 0.82));
+      const itemFont = Math.max(11, queueFont);
       const activeColor = rgba(parseColor(cfg.queue_active_color, { r: 34, g: 211, b: 238, a: 1 }));
 
       ctx.textBaseline = 'top';
@@ -377,32 +490,55 @@ export function renderBroadcastOverlay(
       let x = queueRect.x + padX;
       const rowY = queueRect.y + queueRect.h - itemFont - 10;
       const maxX = queueRect.x + queueRect.w - padX;
+      const availW = Math.max(40, maxX - x);
+      const sep = ' → ';
+      const sepW = ctx.measureText(sep).width;
+      const ellipsisW = ctx.measureText('… ').width;
 
-      if (win.hasBefore) {
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.fillText('… ', x, rowY);
-        x += ctx.measureText('… ').width;
+      // Advance startIdx so the active entry is always visible inside availW.
+      let startIdx = 0;
+      if (win.activeOffset > 0) {
+        while (startIdx < win.activeOffset) {
+          const hasLead = win.hasBefore || startIdx > 0;
+          let needed = hasLead ? ellipsisW : 0;
+          for (let j = startIdx; j <= win.activeOffset; j += 1) {
+            if (j > startIdx) needed += sepW;
+            const txt = j === win.activeOffset ? `▶ ${win.labels[j]}` : win.labels[j]!;
+            needed += ctx.measureText(txt).width;
+          }
+          if (needed <= availW) break;
+          startIdx += 1;
+        }
       }
 
-      for (let i = 0; i < win.labels.length; i += 1) {
-        if (i > 0) {
-          const sep = ' → ';
-          const sw = ctx.measureText(sep).width;
-          if (x + sw > maxX) break;
+      if (win.hasBefore || startIdx > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillText('… ', x, rowY);
+        x += ellipsisW;
+      }
+
+      for (let i = startIdx; i < win.labels.length; i += 1) {
+        if (i > startIdx) {
+          if (x + sepW > maxX) break;
           ctx.fillStyle = 'rgba(255,255,255,0.32)';
           ctx.fillText(sep, x, rowY);
-          x += sw;
+          x += sepW;
         }
         const isActive = i === win.activeOffset;
-        const label = isActive ? `▶ ${win.labels[i]}` : win.labels[i]!;
-        const lw = ctx.measureText(label).width;
+        const rawLabel = isActive ? `▶ ${win.labels[i]}` : win.labels[i]!;
+        const lw = ctx.measureText(rawLabel).width;
         if (x + lw > maxX) {
-          ctx.fillStyle = 'rgba(255,255,255,0.45)';
-          ctx.fillText('…', x, rowY);
+          if (isActive) {
+            ctx.fillStyle = activeColor;
+            ctx.fillText(truncateText(ctx, rawLabel, Math.max(20, maxX - x)), x, rowY);
+          } else {
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.fillText('…', x, rowY);
+          }
           break;
         }
         ctx.fillStyle = isActive ? activeColor : 'rgba(255,255,255,0.78)';
-        ctx.fillText(label, x, rowY);
+        ctx.fillText(rawLabel, x, rowY);
         x += lw;
       }
       ctx.restore();

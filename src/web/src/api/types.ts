@@ -25,9 +25,17 @@ export interface ChatOverlay {
   style: 'bubbles' | 'panel' | 'minimal';
   layout_mode?: 'standard' | 'glass_minimal' | 'ultra_clean';
   top_banner_enabled?: boolean;
+  status_position?: OverlayPosition;
+  status_offset_x?: number;
+  status_offset_y?: number;
+  status_font_size?: number;
   chat_monitor_enabled?: boolean;
   banner_show_stats?: boolean;
   banner_show_goal?: boolean;
+  earnings_hud_position?: OverlayPosition;
+  earnings_hud_offset_x?: number;
+  earnings_hud_offset_y?: number;
+  earnings_hud_font_size?: number;
   max_lines: number;
   max_messages: number;
   max_age_seconds: number;
@@ -43,6 +51,8 @@ export interface ChatOverlay {
   show_tiers: boolean;
   show_stats: boolean;
   queue_enabled: boolean;
+  queue_position?: OverlayPosition;
+  queue_width?: number;
   queue_max_entries: number;
   queue_font_size: number;
   queue_font_color: string;
