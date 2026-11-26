@@ -7,6 +7,7 @@ export interface WatchdogSnapshot {
   relayLastDataAt: Date | null;
   sinkRunning: boolean;
   sinkStarting: boolean;
+  sinkStopping?: boolean;
   sinkLastProgressAt: Date | null;
   sourceRunning: boolean;
   sourceStartedAt: Date | null;
@@ -174,7 +175,7 @@ export class Watchdog {
     }
 
     if (snapshot.state === 'live' || snapshot.state === 'paused') {
-      if (!snapshot.sinkRunning && !snapshot.sinkStarting) {
+      if (!snapshot.sinkRunning && !snapshot.sinkStarting && !snapshot.sinkStopping) {
         if (now - this.lastSinkTrigger >= Math.max(10_000, timeoutMs)) {
           this.lastSinkTrigger = now;
           this.lastError = 'YouTube-Sink läuft nicht';

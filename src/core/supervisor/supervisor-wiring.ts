@@ -314,6 +314,7 @@ export async function createSupervisorSubsystems(
       relayLastDataAt: relay.lastData,
       sinkRunning: sinkController.running,
       sinkStarting: sinkController.starting,
+      sinkStopping: sinkController.stopping,
       sinkLastProgressAt: sinkController.lastProgressAt,
       sourceRunning: sourceSession.running,
       sourceStartedAt: sourceSession.startedAt,

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RELAY Restreamer API",
-    "version": "0.37.3",
+    "version": "0.37.4",
     "description": "HTTP-API des RELAY-Restreamers. Authentifizierung per Session-Cookie, Bearer-API-Token oder Basic Auth. Secrets werden in Antworten durch *_set-Flags ersetzt."
   },
   "servers": [
@@ -10244,7 +10244,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.37.3"
+            "example": "0.37.4"
           }
         }
       },
@@ -10356,7 +10356,7 @@
           },
           "version": {
             "type": "string",
-            "example": "0.37.3"
+            "example": "0.37.4"
           },
           "uptime_seconds": {
             "type": "number"

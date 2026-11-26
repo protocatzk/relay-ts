@@ -147,6 +147,16 @@ export class YouTubeSink {
             if (this.bitrateSamples.length > MAX_BITRATE_SAMPLES) {
               this.bitrateSamples.shift();
             }
+            // Clear transient mid-GOP decoder errors once the sink is encoding steadily.
+            if (
+              this.lastError?.includes('Error submitting packet to decoder') &&
+              this.progress.fps !== null &&
+              this.progress.fps > 0 &&
+              this.startedAt &&
+              Date.now() - this.startedAt.getTime() >= 10_000
+            ) {
+              this.lastError = null;
+            }
           }
           return;
         }

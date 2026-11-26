@@ -122,6 +122,11 @@ export class DelayBuffer {
       this.output.destroy();
     }
     this.output = socket;
+    if (this.delaySeconds === 0) {
+      // On zero-delay reconnects, drop stale backlog older than 2s so the sink
+      // immediately receives fresh live packets instead of old mid-GOP data.
+      this.trimToMaxAge(Date.now(), 2_000);
+    }
     this.initialBurstPending = true;
     this.tokens = Math.min(MAX_BURST_BYTES, Math.max(this.tokens, 256 * 1024));
     this.options.logger.info({ remote: `${socket.remoteAddress}:${socket.remotePort}` }, 'Playback-Client verbunden');
@@ -181,7 +186,14 @@ export class DelayBuffer {
   }
 
   private trim(now: number): void {
-    const maxAge = Math.max(120_000, this.delaySeconds * 1000 + 60_000);
+    const maxAge =
+      this.delaySeconds > 0
+        ? Math.max(120_000, this.delaySeconds * 1000 + 60_000)
+        : 12_000;
+    this.trimToMaxAge(now, maxAge);
+  }
+
+  private trimToMaxAge(now: number, maxAge: number): void {
     while (this.head < this.queue.length && now - this.queue[this.head]!.at > maxAge) {
       this.droppedBytes += this.queue[this.head]!.data.length;
       this.bytes -= this.queue[this.head]!.data.length;
@@ -248,7 +260,11 @@ export class DelayBuffer {
     }
 
     const baseRate = this.measureRate(now);
-    const multiplier = this.catchingUp ? this.catchupRate : 1;
+    const multiplier = this.catchingUp
+      ? excessMs > 4_000
+        ? Math.max(this.catchupRate, 1.06)
+        : this.catchupRate
+      : 1;
     const effectiveRate = baseRate * multiplier;
     const burstCap = this.initialBurstPending
       ? MAX_BURST_BYTES
