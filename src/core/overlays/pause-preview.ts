@@ -8,6 +8,7 @@ import { buildPausePreviewArgs } from '../source/ffmpeg.js';
 import { runCommand } from '../../utils/process.js';
 import { resolveFont } from './drawtext.js';
 import { resolveSlateBackground } from './pause-screen.js';
+import { renderSlatePng } from './slate-renderer.js';
 
 export type SlateScreen = 'pause' | 'startup';
 
@@ -42,6 +43,21 @@ export async function renderPausePreview(options: PausePreviewOptions): Promise<
     Object.entries(options.draft ?? {}).filter(([, value]) => value !== undefined),
   ) as SlateDraft;
   const slate = { ...base, ...draft };
+  if (!slate.background?.trim()) {
+    const [width, height] = options.settings.video.resolution
+      .split('x')
+      .map(Number) as [number, number];
+    return renderSlatePng({
+      screen,
+      width,
+      height,
+      text: slate.text,
+      subtext: slate.subtext,
+      color: slate.color,
+      textColor: slate.text_color,
+      layoutMode: options.settings.overlays.chat.layout_mode,
+    });
+  }
   const background = await resolveSlateBackground(slate.background, options);
   const fontFile = resolveFont(slate.font) ?? resolveFont('');
 

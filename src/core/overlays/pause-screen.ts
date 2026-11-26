@@ -7,6 +7,7 @@ import type { Settings } from '../config/schema.js';
 import { buildPauseCommand, type RelayEndpoint } from '../source/ffmpeg.js';
 import { ensureDir } from '../../utils/fs.js';
 import { resolveFont } from './drawtext.js';
+import { renderSlatePng } from './slate-renderer.js';
 import { ManagedProcess } from '../../utils/process.js';
 
 export interface PauseScreenOptions {
@@ -65,14 +66,43 @@ export class PauseScreen {
     if (this.process?.running) return;
     this.stopping = false;
     const config = this.config;
-    const background = await this.resolveBackground(backgroundOverride || config.background);
+    const rawBg = backgroundOverride || config.background;
+    let background = await this.resolveBackground(rawBg);
+    let slateText = text ?? config.text;
+    let slateSubtext = subtext ?? config.subtext;
+
+    if (!background) {
+      const [width, height] = this.options.settings.video.resolution
+        .split('x')
+        .map(Number) as [number, number];
+      const png = renderSlatePng({
+        screen: this.options.screen ?? 'pause',
+        width,
+        height,
+        text: slateText,
+        subtext: slateSubtext,
+        color: config.color,
+        textColor: config.text_color,
+        layoutMode: this.options.settings.overlays.chat.layout_mode,
+      });
+      ensureDir(this.options.overlaysDir);
+      const slatePath = join(
+        this.options.overlaysDir,
+        `${this.options.screen ?? 'pause'}-slate.png`,
+      );
+      writeFileSync(slatePath, png, { mode: 0o600 });
+      background = slatePath;
+      slateText = '';
+      slateSubtext = '';
+    }
+
     const fontFile = resolveFont(config.font) ?? this.options.fontFile;
     const args = buildPauseCommand({
       media: this.options.media,
       settings: this.options.settings,
       relay: this.options.relay,
-      text: text ?? config.text,
-      subtext: subtext ?? config.subtext,
+      text: slateText,
+      subtext: slateSubtext,
       fontFile,
       timestampOffset,
       background,
