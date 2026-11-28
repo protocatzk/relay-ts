@@ -25,6 +25,24 @@ const uploading = ref(false);
 const uploadKind = ref<SoundKind>('sfx');
 const dragOver = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
+
+interface UploadQueueItem {
+  id: string;
+  name: string;
+  size: number;
+  status: 'pending' | 'uploading' | 'done' | 'error';
+  error?: string;
+}
+
+const uploadQueue = ref<UploadQueueItem[]>([]);
+const ALLOWED_EXTS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.opus']);
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 const editing = ref<SoundEntry | null>(null);
 const editName = ref('');
 const editKind = ref<SoundKind>('sfx');
@@ -133,15 +151,54 @@ async function updateVolume(patch: {
 
 async function uploadFiles(files: FileList | null): Promise<void> {
   if (!files || files.length === 0) return;
+  const list = Array.from(files);
+  const items: UploadQueueItem[] = list.map((file, idx) => ({
+    id: `${Date.now()}-${idx}-${file.name}`,
+    name: file.name,
+    size: file.size,
+    status: 'pending',
+  }));
+  uploadQueue.value = items;
   uploading.value = true;
+  let okCount = 0;
+
   try {
-    for (const file of Array.from(files)) {
-      const res = await api.soundboard.upload(file, { kind: uploadKind.value });
-      store.soundboard = res.state;
-      pushToast(`„${res.sound.name}“ hochgeladen`, 'success');
+    for (let i = 0; i < list.length; i += 1) {
+      const file = list[i]!;
+      const item = items[i]!;
+      const ext = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : '';
+      if (ext && !ALLOWED_EXTS.has(ext)) {
+        item.status = 'error';
+        item.error = 'Format nicht unterstützt (MP3, WAV, OGG, M4A, FLAC, OPUS)';
+        continue;
+      }
+      if (file.size === 0) {
+        item.status = 'error';
+        item.error = 'Datei ist leer';
+        continue;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        item.status = 'error';
+        item.error = 'Datei größer als 50 MB';
+        continue;
+      }
+      item.status = 'uploading';
+      try {
+        const res = await api.soundboard.upload(file, { kind: uploadKind.value });
+        store.soundboard = res.state;
+        item.status = 'done';
+        okCount += 1;
+      } catch (error) {
+        item.status = 'error';
+        item.error = errorMessage(error);
+      }
     }
-  } catch (error) {
-    pushToast(errorMessage(error), 'error');
+    if (okCount > 0) {
+      pushToast(
+        okCount === 1 ? '1 Audiodatei hochgeladen' : `${okCount} Audiodateien hochgeladen`,
+        'success',
+      );
+    }
   } finally {
     uploading.value = false;
     if (fileInput.value) fileInput.value.value = '';
@@ -330,38 +387,84 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="card">
+    <section class="card sb-music-card">
       <div class="sb-section-head">
-        <h3>Musikbett ({{ musicSounds.length }})</h3>
-        <div class="sb-music-controls">
-          <button type="button" class="btn btn-ghost btn-sm" @click="cycleMusicLoop">
-            Loop: {{ state?.music?.loop ?? 'all' }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            :disabled="!state?.music"
-            @click="toggleMusicPause"
+        <div class="sb-music-title-wrap">
+          <h3>Musikbett ({{ musicSounds.length }})</h3>
+          <span
+            v-if="state?.music"
+            class="badge"
+            :class="state.music.paused ? 'tone-warning' : 'tone-success'"
           >
-            {{ state?.music?.paused ? 'Fortsetzen' : 'Pause' }}
+            {{ state.music.paused ? 'Pausiert' : 'Läuft' }}
+          </span>
+        </div>
+        <div class="sb-music-controls">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm sb-ctrl-btn"
+            :title="`Loop-Modus: ${state?.music?.loop ?? 'all'}`"
+            @click="cycleMusicLoop"
+          >
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+              <path d="M17 2l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M21 13v1a4 4 0 0 1-4 4H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>{{ state?.music?.loop === 'one' ? '1×' : state?.music?.loop === 'off' ? 'Aus' : 'Alle' }}</span>
           </button>
           <button
             type="button"
-            class="btn btn-ghost btn-sm"
+            class="btn btn-primary btn-sm sb-ctrl-btn"
+            :disabled="!state?.music && musicSounds.length === 0"
+            @click="state?.music ? toggleMusicPause() : musicSounds[0] && playSound(musicSounds[0])"
+          >
+            <svg v-if="!state?.music || state.music.paused" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+              <path d="M8 5.5v13l10-6.5-10-6.5Z" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+            <span>{{ !state?.music ? 'Abspielen' : state.music.paused ? 'Fortsetzen' : 'Pause' }}</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm sb-ctrl-btn"
             :disabled="musicSounds.length === 0"
+            title="Nächster Titel"
             @click="nextMusic"
           >
-            Nächster
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+              <path d="M5 5.5v13l9-6.5-9-6.5Z" />
+              <rect x="16" y="5.5" width="2.5" height="13" rx="1" />
+            </svg>
+            <span>Weiter</span>
           </button>
-          <button type="button" class="btn btn-ghost btn-sm" @click="stopAll('music')">
-            Musik stoppen
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm sb-ctrl-btn"
+            :disabled="!state?.music"
+            title="Musik stoppen"
+            @click="stopAll('music')"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <rect x="5" y="5" width="14" height="14" rx="2" />
+            </svg>
+            <span>Stopp</span>
           </button>
         </div>
       </div>
+
       <div v-if="state?.music" class="sb-now-playing">
         <div class="sb-now-playing-row">
-          <span>Läuft: <strong>{{ state.music.name }}</strong></span>
-          <span class="mono">{{ formatDuration(state.music.position) }} / {{ formatDuration(state.music.duration) }}</span>
+          <div class="sb-now-track">
+            <span class="sb-eq" :class="{ paused: state.music.paused }" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </span>
+            <strong>{{ state.music.name }}</strong>
+          </div>
+          <span class="mono sb-now-time">{{ formatDuration(state.music.position) }} / {{ formatDuration(state.music.duration) }}</span>
         </div>
         <div class="sb-music-progress-track">
           <div
@@ -370,20 +473,23 @@ onUnmounted(() => {
           ></div>
         </div>
       </div>
+
       <div v-if="musicSounds.length === 0" class="muted sb-empty">
         Noch keine Musiktitel hochgeladen.
       </div>
       <ul v-else class="sb-music-list">
         <li
-          v-for="track in musicSounds"
+          v-for="(track, idx) in musicSounds"
           :key="track.id"
           class="sb-music-row"
           :class="{ active: state?.music?.id === track.id }"
         >
           <button type="button" class="sb-music-play" @click="playSound(track)">
-            ▶ {{ track.name }}
+            <span class="sb-track-num mono muted">{{ state?.music?.id === track.id ? '▶' : String(idx + 1).padStart(2, '0') }}</span>
+            <span class="sb-track-name">{{ track.name }}</span>
           </button>
-          <span class="mono muted">{{ formatDuration(track.duration) }}</span>
+          <span v-if="track.gain_db !== 0" class="badge tone-neutral mono">{{ track.gain_db > 0 ? `+${track.gain_db}` : track.gain_db }} dB</span>
+          <span class="mono muted sb-track-dur">{{ formatDuration(track.duration) }}</span>
           <div class="sb-row-actions">
             <button type="button" class="btn-icon" title="Bearbeiten" @click="openEdit(track)">✎</button>
             <button type="button" class="btn-icon" title="Löschen" @click="removeSound(track)">✕</button>
@@ -399,24 +505,79 @@ onUnmounted(() => {
       @dragleave.prevent="dragOver = false"
       @drop.prevent="onDrop"
     >
-      <div class="sb-upload-row">
-        <label>
-          Kategorie:
-          <select v-model="uploadKind">
-            <option value="sfx">SFX (max. 60 s)</option>
-            <option value="music">Musik (max. 15 min)</option>
-          </select>
-        </label>
-        <input
-          ref="fileInput"
-          type="file"
-          accept=".mp3,.wav,.ogg,.m4a,.flac,.opus,audio/*"
-          multiple
-          :disabled="uploading"
-          @change="uploadFiles(($event.target as HTMLInputElement).files)"
-        />
+      <div class="sb-upload-head">
+        <div class="sb-upload-intro">
+          <div class="sb-upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+              <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <strong>Audio-Dateien hochladen</strong>
+            <p class="muted small">Dateien hierher ziehen oder auswählen (MP3, WAV, OGG, M4A, FLAC, OPUS · max. 50 MB)</p>
+          </div>
+        </div>
+
+        <div class="sb-upload-controls">
+          <div class="sb-kind-switch" role="group" aria-label="Upload-Kategorie">
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="uploadKind === 'sfx' ? 'btn-primary' : 'btn-ghost'"
+              @click="uploadKind = 'sfx'"
+            >
+              SFX (≤ 60s)
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="uploadKind === 'music' ? 'btn-primary' : 'btn-ghost'"
+              @click="uploadKind = 'music'"
+            >
+              Musik (≤ 15m)
+            </button>
+          </div>
+          <label class="btn btn-secondary btn-sm sb-file-btn" :class="{ disabled: uploading }">
+            <input
+              ref="fileInput"
+              class="sr-only"
+              type="file"
+              accept=".mp3,.wav,.ogg,.m4a,.flac,.opus,audio/*"
+              multiple
+              :disabled="uploading"
+              @change="uploadFiles(($event.target as HTMLInputElement).files)"
+            />
+            {{ uploading ? 'Lädt hoch…' : 'Dateien wählen' }}
+          </label>
+        </div>
       </div>
-      <p class="muted">Audiodatei hierher ziehen oder auswählen (MP3, WAV, OGG, M4A, FLAC, OPUS · max. 50 MB).</p>
+
+      <div v-if="uploadQueue.length > 0" class="sb-upload-queue">
+        <div class="sb-upload-queue-head">
+          <span class="small muted">
+            {{ uploadQueue.filter((i) => i.status === 'done').length }} / {{ uploadQueue.length }} hochgeladen
+          </span>
+          <button
+            v-if="!uploading"
+            type="button"
+            class="btn btn-ghost btn-sm"
+            @click="uploadQueue = []"
+          >
+            Liste leeren
+          </button>
+        </div>
+        <ul class="sb-upload-list">
+          <li v-for="item in uploadQueue" :key="item.id" class="sb-upload-item">
+            <span class="sb-upload-name">{{ item.name }}</span>
+            <span class="mono small muted">{{ formatBytes(item.size) }}</span>
+            <span v-if="item.status === 'pending'" class="badge tone-neutral">Wartend</span>
+            <span v-else-if="item.status === 'uploading'" class="badge tone-info">Lädt…</span>
+            <span v-else-if="item.status === 'done'" class="badge tone-success">Fertig</span>
+            <span v-else class="badge tone-danger" :title="item.error">{{ item.error || 'Fehler' }}</span>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
@@ -461,7 +622,9 @@ onUnmounted(() => {
 .sb-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
 .sb-slider { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
 .sb-section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.sb-music-title-wrap { display: flex; align-items: center; gap: 0.5rem; }
 .sb-music-controls { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sb-ctrl-btn { display: inline-flex; align-items: center; gap: 0.35rem; }
 .sb-pad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
 .sb-pad-wrap { position: relative; }
 .sb-pad {
@@ -489,16 +652,42 @@ onUnmounted(() => {
 .sb-pad-name { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-pad-tools { position: absolute; right: 4px; bottom: 4px; display: flex; gap: 2px; opacity: 0.7; }
 .sb-music-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
-.sb-music-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.6rem; border-radius: var(--radius-md, 8px); background: var(--elev-2, rgba(255,255,255,0.03)); }
-.sb-music-row.active { outline: 1px solid var(--accent, #22d3ee); }
-.sb-music-play { flex: 1; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; font-weight: 500; }
-.sb-now-playing { display: flex; flex-direction: column; gap: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius-md, 8px); background: rgba(34, 211, 238, 0.1); }
-.sb-now-playing-row { display: flex; justify-content: space-between; gap: 0.5rem; }
-.sb-music-progress-track { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.sb-music-row { display: flex; align-items: center; gap: 0.65rem; padding: 0.45rem 0.7rem; border-radius: var(--radius-md, 8px); background: var(--elev-2, rgba(255,255,255,0.03)); transition: background 0.15s ease; }
+.sb-music-row:hover { background: rgba(255,255,255,0.06); }
+.sb-music-row.active { outline: 1px solid var(--accent, #22d3ee); background: rgba(34, 211, 238, 0.08); }
+.sb-music-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; font-weight: 500; }
+.sb-track-num { font-size: 0.8rem; width: 1.5rem; flex-shrink: 0; }
+.sb-track-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-track-dur { font-size: 0.85rem; }
+.sb-now-playing { display: flex; flex-direction: column; gap: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.75rem; border-radius: var(--radius-md, 8px); border: 1px solid rgba(34, 211, 238, 0.25); background: rgba(34, 211, 238, 0.08); }
+.sb-now-playing-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.sb-now-track { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.sb-now-track strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-now-time { font-size: 0.85rem; flex-shrink: 0; }
+.sb-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.sb-eq span { width: 3px; border-radius: 2px; background: var(--accent, #22d3ee); animation: sbEq 0.9s ease-in-out infinite alternate; }
+.sb-eq span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.sb-eq span:nth-child(2) { height: 13px; animation-delay: 0.2s; }
+.sb-eq span:nth-child(3) { height: 9px; animation-delay: 0.4s; }
+.sb-eq.paused span { animation-play-state: paused; opacity: 0.5; }
+@keyframes sbEq { from { height: 4px; } to { height: 14px; } }
+.sb-music-progress-track { height: 5px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; }
 .sb-music-progress-fill { height: 100%; background: var(--accent, #22d3ee); transition: width 0.2s linear; }
 .sb-pad-progress { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--pad-color, #22d3ee); transition: width 0.2s linear; }
-.sb-upload.drag-over { outline: 2px dashed var(--accent, #22d3ee); }
-.sb-upload-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
+.sb-upload { border: 1px dashed var(--card-border, rgba(255,255,255,0.14)); transition: border-color 0.15s ease, background 0.15s ease; }
+.sb-upload.drag-over { border-color: var(--accent, #22d3ee); background: rgba(34, 211, 238, 0.06); }
+.sb-upload-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; }
+.sb-upload-intro { display: flex; align-items: center; gap: 0.85rem; }
+.sb-upload-icon { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; background: rgba(34, 211, 238, 0.12); color: var(--accent, #22d3ee); flex-shrink: 0; }
+.sb-upload-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.sb-kind-switch { display: inline-flex; gap: 4px; padding: 3px; border-radius: 8px; background: var(--elev-2, rgba(255,255,255,0.04)); }
+.sb-file-btn { cursor: pointer; }
+.sb-file-btn.disabled { opacity: 0.6; pointer-events: none; }
+.sb-upload-queue { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+.sb-upload-queue-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.sb-upload-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.35rem; }
+.sb-upload-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.35rem 0.6rem; border-radius: 6px; background: var(--elev-2, rgba(255,255,255,0.03)); }
+.sb-upload-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; z-index: 60; padding: 1rem; }
 .modal-card { width: min(420px, 100%); display: grid; gap: 0.75rem; }
 .field { display: grid; gap: 0.25rem; }

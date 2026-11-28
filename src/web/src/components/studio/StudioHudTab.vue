@@ -5,7 +5,7 @@ import type { OverlayPosition, Section } from '@/src/overlay-studio';
 import StudioGroup from '@/src/components/StudioGroup.vue';
 
 const props = defineProps<{
-  section: Extract<Section, 'status' | 'queue' | 'earnings_hud'>;
+  section: Extract<Section, 'status' | 'queue' | 'earnings_hud' | 'music'>;
   chat: ChatOverlay;
   groupOpen: (section: Section, id: string, index: number) => boolean;
 }>();
@@ -23,6 +23,10 @@ function setPos(pos: OverlayPosition): void {
     props.chat.queue_position = pos;
     props.chat.queue_offset_x = 0;
     props.chat.queue_offset_y = 0;
+  } else if (props.section === 'music') {
+    props.chat.music_position = pos;
+    props.chat.music_offset_x = 0;
+    props.chat.music_offset_y = 0;
   } else {
     props.chat.earnings_hud_position = pos;
     props.chat.earnings_hud_offset_x = 0;
@@ -176,6 +180,65 @@ function setPos(pos: OverlayPosition): void {
         <div class="field">
           <label for="studio-queue-font-color">Textfarbe</label>
           <input id="studio-queue-font-color" v-model="chat.queue_font_color" type="text" />
+        </div>
+      </div>
+    </StudioGroup>
+  </div>
+
+  <!-- MUSIC-OVERLAY -->
+  <div v-else-if="section === 'music'" class="studio-groups">
+    <StudioGroup
+      title="Musik-Overlay (Aktueller Titel)"
+      :open="groupOpen('music', 'main', 0)"
+      @update:open="emit('setGroupOpen', 'music', 'main', $event)"
+    >
+      <div class="checkbox-grid studio-checks">
+        <label class="checkbox">
+          <input v-model="chat.music_overlay_enabled" type="checkbox" /> Aktuellen Musiktitel anzeigen
+        </label>
+      </div>
+      <div class="studio-grid" style="margin-top: 0.75rem">
+        <div class="field">
+          <label for="studio-music-pos">Anker-Position</label>
+          <select
+            id="studio-music-pos"
+            :value="chat.music_position ?? 'top-right'"
+            @change="setPos(($event.target as HTMLSelectElement).value as OverlayPosition)"
+          >
+            <option v-for="pos in POSITIONS" :key="pos.value" :value="pos.value">
+              {{ pos.label }}
+            </option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="studio-music-size">Schriftgröße (px, 0 = auto)</label>
+          <input
+            id="studio-music-size"
+            v-model.number="chat.music_font_size"
+            type="number"
+            min="0"
+            max="72"
+          />
+        </div>
+        <div class="field">
+          <label for="studio-music-ox">Offset X (px)</label>
+          <input
+            id="studio-music-ox"
+            v-model.number="chat.music_offset_x"
+            type="number"
+            min="-1920"
+            max="1920"
+          />
+        </div>
+        <div class="field">
+          <label for="studio-music-oy">Offset Y (px)</label>
+          <input
+            id="studio-music-oy"
+            v-model.number="chat.music_offset_y"
+            type="number"
+            min="-1080"
+            max="1080"
+          />
         </div>
       </div>
     </StudioGroup>

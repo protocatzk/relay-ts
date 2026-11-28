@@ -216,6 +216,7 @@ describe('Canvas chat overlay', () => {
       status: 'LIVE',
     });
     engine.setViewers(1284);
+    engine.setMusic({ name: 'Lo-Fi Beats', paused: false });
 
     engine.setMessages([
       {

@@ -7,6 +7,7 @@ export type Section =
   | 'chat'
   | 'queue'
   | 'earnings_hud'
+  | 'music'
   | 'clock'
   | 'text'
   | 'logo'
@@ -37,6 +38,7 @@ export const SECTIONS: { id: Section; label: string }[] = [
   { id: 'chat', label: 'Chat' },
   { id: 'queue', label: 'Queue' },
   { id: 'earnings_hud', label: 'Einnahmen-HUD' },
+  { id: 'music', label: 'Musik' },
   { id: 'clock', label: 'Uhrzeit' },
   { id: 'text', label: 'Text' },
   { id: 'logo', label: 'Logo' },

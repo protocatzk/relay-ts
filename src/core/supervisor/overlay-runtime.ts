@@ -61,6 +61,7 @@ export class OverlayRuntime {
   private lastMessageAt: Date | null = null;
   private lastValidEarningsCard: ChatEarningsCard | null = null;
   private currentStreamer: StreamerConfig | null = null;
+  private currentMusic: { name: string; paused: boolean } | null = null;
   private readonly analytics = new ChatAnalytics();
 
   constructor(deps: OverlayRuntimeDeps) {
@@ -141,6 +142,7 @@ export class OverlayRuntime {
     engine.setEarningsText(this.earningsOverlayText());
     engine.setQueue(this.queueInput());
     engine.setViewers(this.chat?.viewers ?? null);
+    engine.setMusic(this.currentMusic);
     if (this.currentStreamer) {
       engine.setStreamer({
         name: this.currentStreamer.name,
@@ -167,6 +169,20 @@ export class OverlayRuntime {
     this.chatEngine?.setQueue(queue);
     this.previewEngine?.setQueue(queue);
     this.previewEngineDirty = true;
+  }
+
+  /** Pushes currently playing soundboard music into the running overlay canvas. */
+  setMusic(music: { name: string; paused: boolean } | null): void {
+    const next = music ? { name: music.name, paused: music.paused } : null;
+    if (
+      next?.name === this.currentMusic?.name &&
+      next?.paused === this.currentMusic?.paused
+    ) {
+      return;
+    }
+    this.currentMusic = next;
+    this.chatEngine?.setMusic(next);
+    this.previewEngine?.setMusic(next);
   }
 
   createLogoEngine(): LogoOverlayEngine | undefined {

@@ -36,6 +36,11 @@ export interface ChatOverlay {
   earnings_hud_offset_x?: number;
   earnings_hud_offset_y?: number;
   earnings_hud_font_size?: number;
+  music_overlay_enabled?: boolean;
+  music_position?: OverlayPosition;
+  music_offset_x?: number;
+  music_offset_y?: number;
+  music_font_size?: number;
   max_lines: number;
   max_messages: number;
   max_age_seconds: number;

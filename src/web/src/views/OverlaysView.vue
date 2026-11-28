@@ -174,6 +174,21 @@ function geometryForSection(section: Section): OverlayGeometry | null {
       margin: 24,
     };
   }
+  if (section === 'music') {
+    const c = chat.value;
+    if (!c) return null;
+    const base = Math.max(12, Math.min(36, c.font_size || 18));
+    return {
+      position: c.music_position ?? 'top-right',
+      font_size:
+        c.music_font_size && c.music_font_size > 0
+          ? c.music_font_size
+          : Math.round(base * 0.72),
+      offset_x: c.music_offset_x ?? 0,
+      offset_y: c.music_offset_y ?? 54,
+      margin: 24,
+    };
+  }
   if (section === 'queue') {
     const c = chat.value;
     if (!c) return null;
@@ -309,6 +324,9 @@ function boxStyleFor(section: Section, geometry: OverlayGeometry): Record<string
   } else if (section === 'earnings_hud') {
     boxWidth = Math.min(width - 48, Math.max(180, Math.round(geometry.font_size * 14)));
     boxHeight = Math.max(36, Math.round(geometry.font_size * 2.6));
+  } else if (section === 'music') {
+    boxWidth = Math.min(width - 48, Math.max(180, Math.round(geometry.font_size * 15)));
+    boxHeight = Math.max(28, Math.round(geometry.font_size * 2.1));
   } else if (section === 'earnings') {
     const earningsLines = earnings.value
       ? Math.max(1, earnings.value.overlay_template.replace(/\r\n?/g, '\n').split('\n').length)
@@ -364,6 +382,7 @@ const previewItems = computed<StudioPreviewItem[]>(() => {
   push('chat', Boolean(c?.enabled && (!isBroadcast || c.chat_monitor_enabled !== false)), `Chat · ${c?.font_size ?? 18} px`);
   push('queue', Boolean(c?.enabled && c.queue_enabled), 'Queue');
   push('earnings_hud', Boolean(c?.enabled && isBroadcast && c.banner_show_stats !== false), 'Einnahmen-HUD');
+  push('music', Boolean(c?.enabled && isBroadcast && c.music_overlay_enabled !== false), 'Musik');
   push('clock', Boolean(clock.value?.enabled), `Uhr · ${clock.value?.font_size ?? 28} px`);
   push('text', Boolean(text.value?.enabled), `Text · ${text.value?.font_size ?? 28} px`);
   push('logo', Boolean(logo.value?.enabled), `Logo · ${logo.value?.width ?? 120} px`);
@@ -399,6 +418,15 @@ function setGeometry(patch: Partial<OverlayGeometry>): void {
     if (patch.offset_x !== undefined) c.earnings_hud_offset_x = patch.offset_x;
     if (patch.offset_y !== undefined) c.earnings_hud_offset_y = patch.offset_y;
     if (patch.font_size !== undefined) c.earnings_hud_font_size = patch.font_size;
+    return;
+  }
+  if (activeSection.value === 'music') {
+    const c = chat.value;
+    if (!c) return;
+    if (patch.position !== undefined) c.music_position = patch.position;
+    if (patch.offset_x !== undefined) c.music_offset_x = patch.offset_x;
+    if (patch.offset_y !== undefined) c.music_offset_y = patch.offset_y;
+    if (patch.font_size !== undefined) c.music_font_size = patch.font_size;
     return;
   }
   if (activeSection.value === 'queue') {
@@ -1044,6 +1072,7 @@ onBeforeUnmount(() => {
                 (section.id === 'chat' && chat?.enabled && chat.chat_monitor_enabled !== false) ||
                 (section.id === 'queue' && chat?.enabled && chat.queue_enabled) ||
                 (section.id === 'earnings_hud' && chat?.enabled && chat.banner_show_stats !== false) ||
+                (section.id === 'music' && chat?.enabled && chat.music_overlay_enabled !== false) ||
                 (section.id === 'clock' && clock?.enabled) ||
                 (section.id === 'text' && text?.enabled) ||
                 (section.id === 'logo' && logo?.enabled) ||
@@ -1074,7 +1103,8 @@ onBeforeUnmount(() => {
           v-else-if="
             (activeSection === 'status' ||
               activeSection === 'queue' ||
-              activeSection === 'earnings_hud') &&
+              activeSection === 'earnings_hud' ||
+              activeSection === 'music') &&
             chat
           "
           :section="activeSection"

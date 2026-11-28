@@ -167,6 +167,9 @@ export class Supervisor {
       logger: deps.logger,
       onStateChange: (state) => {
         this.deps.bus.emit({ type: 'soundboard', data: state });
+        this.overlayRuntime?.setMusic(
+          state.music ? { name: state.music.name, paused: state.music.paused } : null,
+        );
       },
     });
     this.stateMachine = new SupervisorStateMachine('idle', deps.logger);

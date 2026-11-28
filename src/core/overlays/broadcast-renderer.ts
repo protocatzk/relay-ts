@@ -33,6 +33,7 @@ export interface BroadcastRenderInput {
   earningsText: string;
   queue: ChatQueueInput;
   viewers?: number | null;
+  music?: { name: string; paused: boolean } | null;
   sessionStartTime: number;
   isPreviewSample: boolean;
 }
@@ -155,6 +156,7 @@ export function renderBroadcastOverlay(
     earningsText,
     queue,
     viewers,
+    music,
     sessionStartTime,
     isPreviewSample,
   } = input;
@@ -286,6 +288,35 @@ export function renderBroadcastOverlay(
     showGoal ? 14 : earningsPillH / 2,
   );
 
+  const musicFont =
+    cfg.music_font_size && cfg.music_font_size > 0 ? cfg.music_font_size : smallFont;
+  const musicPillH = Math.max(28, Math.round(musicFont * 2.1));
+  const musicInfo =
+    cfg.music_overlay_enabled !== false
+      ? music && !music.paused
+        ? music
+        : isPreviewSample
+          ? { name: 'Lo-Fi Nightstream', paused: false }
+          : null
+      : null;
+  ctx.font = `600 ${musicFont}px ${font}`;
+  const musicMaxTextW = Math.min(width - margin * 2 - 48, 360);
+  const musicLabel = musicInfo ? truncateText(ctx, musicInfo.name, musicMaxTextW) : '';
+  const musicPillW = musicInfo
+    ? Math.min(width - margin * 2, Math.round(ctx.measureText(`♪  ${musicLabel}`).width + 38))
+    : 0;
+  const musicRect = anchorRect(
+    cfg.music_position ?? 'top-right',
+    musicPillW,
+    musicPillH,
+    cfg.music_offset_x ?? 0,
+    cfg.music_offset_y ?? 54,
+    width,
+    height,
+    margin,
+    musicPillH / 2,
+  );
+
   // Cache static glass backgrounds once per geometry/toggle signature
   ctx.clearRect(0, 0, width, height);
   if (isGlass) {
@@ -297,6 +328,7 @@ export function renderBroadcastOverlay(
       showEarnings ? `${earningsRect.x},${earningsRect.y},${earningsRect.w},${earningsRect.h}` : '0',
       showChat ? `${chatRect.x},${chatRect.y},${chatRect.w},${chatRect.h}` : '0',
       showQueue ? `${queueRect.x},${queueRect.y},${queueRect.w},${queueRect.h}` : '0',
+      musicInfo && musicPillW > 0 ? `${musicRect.x},${musicRect.y},${musicRect.w},${musicRect.h}` : '0',
     ].join('|');
 
     if (!cache.canvas || cache.key !== cacheKey) {
@@ -306,6 +338,7 @@ export function renderBroadcastOverlay(
       if (showEarnings && earningsPillW > 0) drawGlassBox(bctx, earningsRect, opacity);
       if (showChat) drawGlassBox(bctx, chatRect, opacity);
       if (showQueue) drawGlassBox(bctx, queueRect, opacity);
+      if (musicInfo && musicPillW > 0) drawGlassBox(bctx, musicRect, opacity);
       cache.canvas = bg;
       cache.key = cacheKey;
     }
@@ -415,6 +448,25 @@ export function renderBroadcastOverlay(
         ctx.fill();
       }
     }
+    ctx.restore();
+  }
+
+  // 2b. Now-Playing Music Pill
+  if (musicInfo && musicPillW > 0) {
+    ctx.save();
+    applyTextShadow(ctx, textShadow);
+    const cy = musicRect.y + musicRect.h / 2;
+    let cursorX = musicRect.x + 14;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = `700 ${musicFont}px ${font}`;
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillText('♪', cursorX, cy);
+    cursorX += ctx.measureText('♪').width + 8;
+
+    ctx.font = `600 ${musicFont}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillText(musicLabel, cursorX, cy);
     ctx.restore();
   }
 

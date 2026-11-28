@@ -3495,6 +3495,38 @@
                             "minimum": 0,
                             "maximum": 72
                           },
+                          "music_overlay_enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "music_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "music_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "music_offset_y": {
+                            "default": 54,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "music_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
                           "max_lines": {
                             "default": 8,
                             "type": "integer",
@@ -4929,6 +4961,38 @@
                             "minimum": 0,
                             "maximum": 72
                           },
+                          "music_overlay_enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "music_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "music_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "music_offset_y": {
+                            "default": 54,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "music_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
                           "max_lines": {
                             "default": 8,
                             "type": "integer",
@@ -5626,6 +5690,38 @@
                             "maximum": 1080
                           },
                           "earnings_hud_font_size": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 72
+                          },
+                          "music_overlay_enabled": {
+                            "default": true,
+                            "type": "boolean"
+                          },
+                          "music_position": {
+                            "default": "top-right",
+                            "type": "string",
+                            "enum": [
+                              "top-left",
+                              "top-right",
+                              "bottom-left",
+                              "bottom-right"
+                            ]
+                          },
+                          "music_offset_x": {
+                            "default": 0,
+                            "type": "integer",
+                            "minimum": -1920,
+                            "maximum": 1920
+                          },
+                          "music_offset_y": {
+                            "default": 54,
+                            "type": "integer",
+                            "minimum": -1080,
+                            "maximum": 1080
+                          },
+                          "music_font_size": {
                             "default": 0,
                             "type": "integer",
                             "minimum": 0,
@@ -11797,6 +11893,38 @@
                     "minimum": 0,
                     "maximum": 72
                   },
+                  "music_overlay_enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "music_position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "music_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "music_offset_y": {
+                    "default": 54,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "music_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
                   "max_lines": {
                     "default": 8,
                     "type": "integer",
@@ -13484,6 +13612,38 @@
                     "maximum": 1080
                   },
                   "earnings_hud_font_size": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 72
+                  },
+                  "music_overlay_enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "music_position": {
+                    "default": "top-right",
+                    "type": "string",
+                    "enum": [
+                      "top-left",
+                      "top-right",
+                      "bottom-left",
+                      "bottom-right"
+                    ]
+                  },
+                  "music_offset_x": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": -1920,
+                    "maximum": 1920
+                  },
+                  "music_offset_y": {
+                    "default": 54,
+                    "type": "integer",
+                    "minimum": -1080,
+                    "maximum": 1080
+                  },
+                  "music_font_size": {
                     "default": 0,
                     "type": "integer",
                     "minimum": 0,

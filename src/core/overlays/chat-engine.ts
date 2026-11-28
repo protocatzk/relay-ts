@@ -165,6 +165,7 @@ export class ChatOverlayEngine {
   private lastClockLabel = '';
   private lastUptimeSecond = -1;
   private viewers: number | null = null;
+  private music: { name: string; paused: boolean } | null = null;
   private streamerInfo: ChatStreamerInfo | null = null;
   private queue: ChatQueueInput = { labels: [], activeIndex: null };
   private lastQueueKey = '';
@@ -409,6 +410,18 @@ export class ChatOverlayEngine {
     this.dirty = true;
   }
 
+  setMusic(music: { name: string; paused: boolean } | null): void {
+    const next = music ? { name: music.name, paused: music.paused } : null;
+    if (
+      next?.name === this.music?.name &&
+      next?.paused === this.music?.paused
+    ) {
+      return;
+    }
+    this.music = next;
+    this.dirty = true;
+  }
+
   /** Updates overlay config live without restarting the sink pipe. */
   updateConfig(settings: Settings, overlays: Settings['overlays']): void {
     this.options.settings = settings;
@@ -643,6 +656,7 @@ export class ChatOverlayEngine {
           earningsText: this.earningsText,
           queue: this.queueFor(isPreviewSample),
           viewers: this.viewers,
+          music: this.music,
           sessionStartTime: this.sessionStartTime,
           isPreviewSample,
         },
