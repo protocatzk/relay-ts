@@ -45,6 +45,14 @@ defineProps<{
         <input id="studio-version-margin" v-model.number="versionOverlay.margin" type="number" min="0" max="120" />
       </div>
       <div class="field">
+        <label for="studio-version-offset-x">Offset X (px)</label>
+        <input id="studio-version-offset-x" v-model.number="versionOverlay.offset_x" type="number" min="-1920" max="1920" />
+      </div>
+      <div class="field">
+        <label for="studio-version-offset-y">Offset Y (px)</label>
+        <input id="studio-version-offset-y" v-model.number="versionOverlay.offset_y" type="number" min="-1080" max="1080" />
+      </div>
+      <div class="field">
         <label for="studio-version-font-color">Schriftfarbe</label>
         <ColorInput id="studio-version-font-color" v-model="versionOverlay.font_color" alpha />
       </div>

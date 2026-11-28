@@ -675,12 +675,16 @@ function drawPositionedOverlayText(
   const blockH = lineH * lines.length;
   const isRight = opts.position.endsWith('right');
   const isTop = opts.position.startsWith('top');
-  const x =
+  const padX = opts.showBox ? 12 : 0;
+  const padY = opts.showBox ? 6 : 0;
+  const rawX =
     (isRight ? Math.max(opts.margin, opts.width - blockW - opts.margin) : opts.margin) +
     opts.offsetX;
-  const y =
+  const rawY =
     (isTop ? opts.margin : Math.max(opts.margin, opts.height - blockH - opts.margin)) +
     opts.offsetY;
+  const x = Math.max(padX, Math.min(Math.max(padX, opts.width - blockW - padX), rawX));
+  const y = Math.max(padY, Math.min(Math.max(padY, opts.height - blockH - padY), rawY));
 
   if (opts.showBox) {
     drawGlassBox(

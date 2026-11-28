@@ -315,6 +315,9 @@ function boxStyleFor(section: Section, geometry: OverlayGeometry): Record<string
       : 1;
     boxWidth = Math.round(width * 0.45);
     boxHeight = Math.round(geometry.font_size * 1.8 * earningsLines);
+  } else if (section === 'version' || section === 'clock') {
+    boxWidth = Math.min(width - 48, Math.max(120, Math.round(geometry.font_size * 10)));
+    boxHeight = Math.max(28, Math.round(geometry.font_size * 1.9));
   } else {
     boxWidth = Math.round(width * 0.35);
     boxHeight = Math.round(geometry.font_size * 1.8);
