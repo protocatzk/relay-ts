@@ -163,6 +163,8 @@ export class ChatOverlayEngine {
   private earningsText = '';
   private lastEarningsCardKey = '';
   private lastClockLabel = '';
+  private lastUptimeSecond = -1;
+  private viewers: number | null = null;
   private streamerInfo: ChatStreamerInfo | null = null;
   private queue: ChatQueueInput = { labels: [], activeIndex: null };
   private lastQueueKey = '';
@@ -400,6 +402,13 @@ export class ChatOverlayEngine {
     this.dirty = true;
   }
 
+  setViewers(viewers: number | null): void {
+    const normalized = viewers !== null && Number.isFinite(viewers) ? Math.max(0, Math.round(viewers)) : null;
+    if (normalized === this.viewers) return;
+    this.viewers = normalized;
+    this.dirty = true;
+  }
+
   /** Updates overlay config live without restarting the sink pipe. */
   updateConfig(settings: Settings, overlays: Settings['overlays']): void {
     this.options.settings = settings;
@@ -412,11 +421,20 @@ export class ChatOverlayEngine {
   private tick(): void {
     if (this.stopped || !this.stream || this.blocked) return;
     const now = Date.now();
-    if (isBroadcastCanvasMode(this.options.settings) && this.options.overlays.clock.enabled) {
-      const clockLabel = formatClockText(this.options.overlays.clock.format, new Date(now));
-      if (clockLabel !== this.lastClockLabel) {
-        this.lastClockLabel = clockLabel;
-        this.dirty = true;
+    if (isBroadcastCanvasMode(this.options.settings)) {
+      if (this.options.overlays.clock.enabled) {
+        const clockLabel = formatClockText(this.options.overlays.clock.format, new Date(now));
+        if (clockLabel !== this.lastClockLabel) {
+          this.lastClockLabel = clockLabel;
+          this.dirty = true;
+        }
+      }
+      if (this.options.overlays.chat.top_banner_enabled !== false) {
+        const sec = Math.floor(now / 1000);
+        if (sec !== this.lastUptimeSecond) {
+          this.lastUptimeSecond = sec;
+          this.dirty = true;
+        }
       }
     }
     if (this.options.overlays.chat.max_age_seconds > 0 && this.messages.length > 0) {
@@ -624,6 +642,7 @@ export class ChatOverlayEngine {
           earnings: this.shouldRenderEarningsCard(isPreviewSample),
           earningsText: this.earningsText,
           queue: this.queueFor(isPreviewSample),
+          viewers: this.viewers,
           sessionStartTime: this.sessionStartTime,
           isPreviewSample,
         },

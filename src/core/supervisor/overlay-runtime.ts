@@ -140,6 +140,7 @@ export class OverlayRuntime {
     engine.setEarningsCard(this.currentEarningsCard());
     engine.setEarningsText(this.earningsOverlayText());
     engine.setQueue(this.queueInput());
+    engine.setViewers(this.chat?.viewers ?? null);
     if (this.currentStreamer) {
       engine.setStreamer({
         name: this.currentStreamer.name,
@@ -295,9 +296,11 @@ export class OverlayRuntime {
       },
       onViewerUpdate: (viewers) => {
         this.earnings.updateLiveRoomStats({ viewers, isLive: true });
+        this.chatEngine?.setViewers(viewers);
       },
       onRoomStats: (stats) => {
         this.earnings.updateLiveRoomStats(stats);
+        if (stats.viewers !== null) this.chatEngine?.setViewers(stats.viewers);
       },
     });
     this.chat.start();
@@ -309,6 +312,7 @@ export class OverlayRuntime {
     if (clear) {
       this.currentStreamer = null;
       this.chatEngine?.setStreamer(null);
+      this.chatEngine?.setViewers(null);
     }
   }
 

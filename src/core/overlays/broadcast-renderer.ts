@@ -32,6 +32,7 @@ export interface BroadcastRenderInput {
   earnings: ChatEarningsCard | null;
   earningsText: string;
   queue: ChatQueueInput;
+  viewers?: number | null;
   sessionStartTime: number;
   isPreviewSample: boolean;
 }
@@ -153,6 +154,7 @@ export function renderBroadcastOverlay(
     earnings,
     earningsText,
     queue,
+    viewers,
     sessionStartTime,
     isPreviewSample,
   } = input;
@@ -227,13 +229,25 @@ export function renderBroadcastOverlay(
       ? `@${streamer.tiktok.replace(/^@/, '')}`
       : streamer?.name || (isPreviewSample ? '@creator_live' : 'RELAY');
     const uptime = formatUptime(isPreviewSample ? 5050_000 : Date.now() - sessionStartTime);
-    return { name, uptime };
+    const viewerCount = viewers !== undefined && viewers !== null
+      ? viewers
+      : isPreviewSample
+        ? 1284
+        : null;
+    const viewerLabel =
+      viewerCount !== null
+        ? `👥 ${Math.max(0, Math.round(viewerCount)).toLocaleString('de-DE')}`
+        : null;
+    return { name, uptime, viewerLabel };
   })();
 
   ctx.font = `600 ${statusFont}px ${font}`;
+  const statusMeasured = statusText.viewerLabel
+    ? `LIVE  ·  ${statusText.name}  ·  ${statusText.viewerLabel}  ·  ${statusText.uptime}`
+    : `LIVE  ·  ${statusText.name}  ·  ${statusText.uptime}`;
   const statusPillW = Math.min(
     width - margin * 2,
-    Math.round(ctx.measureText(`LIVE  ·  ${statusText.name}  ·  ${statusText.uptime}`).width + 52),
+    Math.round(ctx.measureText(statusMeasured).width + 54),
   );
   const statusRect = anchorRect(
     cfg.status_position ?? 'top-left',
@@ -330,6 +344,16 @@ export function renderBroadcastOverlay(
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.fillText(statusText.name, cursorX, cy);
     cursorX += ctx.measureText(statusText.name).width + 8;
+
+    if (statusText.viewerLabel) {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillText('·', cursorX, cy);
+      cursorX += 10;
+
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText(statusText.viewerLabel, cursorX, cy);
+      cursorX += ctx.measureText(statusText.viewerLabel).width + 8;
+    }
 
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillText('·', cursorX, cy);

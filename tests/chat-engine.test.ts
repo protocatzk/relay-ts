@@ -215,6 +215,7 @@ describe('Canvas chat overlay', () => {
       tiktok: 'max_tiktok',
       status: 'LIVE',
     });
+    engine.setViewers(1284);
 
     engine.setMessages([
       {
